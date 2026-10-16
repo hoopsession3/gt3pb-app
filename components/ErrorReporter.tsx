@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { classifyCrash, readSkewMemory } from "@/lib/deploySkew";
 import { APP_BUILD, apiUrl } from "@/lib/native";
 import { shareableUrl } from "@/lib/reportUrl";
 
@@ -39,6 +40,32 @@ export function reportClientError(input: { message?: string; stack?: string; fat
     if (!APP_BUILD && navigator.sendBeacon?.("/api/errors/report", new Blob([body], { type: "application/json" }))) return;
     fetch(apiUrl("/api/errors/report"), { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
   } catch { /* never throw from the reporter */ }
+}
+
+// WHAT EVERY CRASH SCREEN DOES FIRST (R11, 2026-10-16 — the 10/10 audit). app/error.tsx decided what a crash was before
+// saying it, and healed a tab one build behind with one reload — and it was the only place that did. A crash in the root
+// layout (app/global-error.tsx) or in a piece of the chrome (components/Fence) got neither: no report, no heal. The one
+// decision lives here now, for all three. `where` names the piece in the report; a piece that steps aside on its own
+// (fatal: false) files a non-skew crash as an error, not a page — the screen it sat on kept working.
+const SKEW_KEY = "gt3-skew";
+export function recoverFromCrash(error: { message?: string; stack?: string; digest?: string } | null | undefined, opts: { where?: string; fatal?: boolean } = {}): { reloading: boolean } {
+  try {
+    if (typeof window === "undefined") return { reloading: false };
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem(SKEW_KEY); } catch { /* private mode */ }
+    const message = String(error?.message ?? error ?? "");
+    const plan = classifyCrash(message, readSkewMemory(raw), Date.now());
+    reportClientError({
+      message: `${opts.where ? `[${opts.where}] ` : ""}${message}${error?.digest ? ` [${error.digest}]` : ""}`,
+      stack: error?.stack,
+      fatal: plan.fatal && opts.fatal !== false,
+      skew: plan.skew,
+    });
+    if (!plan.reload) return { reloading: false };
+    try { sessionStorage.setItem(SKEW_KEY, JSON.stringify(plan.mem)); } catch { /* ignore */ }
+    window.location.reload();
+    return { reloading: true };
+  } catch { return { reloading: false }; }
 }
 
 export default function ErrorReporter() {

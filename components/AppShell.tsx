@@ -24,6 +24,7 @@ import EditModeToggle from "./EditModeToggle";
 import ConnectHub from "./ConnectHub";
 import FloatRail from "./FloatRail";
 import ErrorReporter from "./ErrorReporter";
+import Fence from "./Fence";
 import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
 import TitleBar from "./TitleBar";
@@ -91,11 +92,22 @@ const noBrowser = (): boolean => isNativeApp() || window.matchMedia?.("(display-
   || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 const onServer = () => false;
 
+/** A piece a person asked for crashed (components/Fence): say it didn't open, and close the ask so the next one tries again. */
+const stayShut = () => {};
+function NotOpened({ open, close, what, toast }: { open: boolean; close: () => void; what: string; toast: (msg: string, variant?: "error") => void }) {
+  useEffect(() => {
+    if (!open) return;
+    close();
+    toast(`${what} didn't open — tap it again.`, "error");
+  }, [open, close, what, toast]);
+  return null;
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const bodyRef = useRef<HTMLElement>(null);
   const appOnly = useSyncExternalStore(noSubscribe, noBrowser, onServer);
-  const { closeDrink, cartCount, coOpen } = useApp();
+  const { closeDrink, cartCount, coOpen, closeCheckout, openId, toast } = useApp();
   // Latched during render (React's "adjust state when an input changes"), not in an effect: once
   // wanted it stays mounted, and an effect would paint one frame without it after the first add.
   const [checkoutWanted, setCheckoutWanted] = useState(false);
@@ -219,7 +231,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Skip link — first focusable element; keyboard users jump past the chrome to the content. */}
         <a href="#body" className="skip-link">Skip to content</a>
         {/* Live broadcast bar — an operator-published message/ad, shown to every user in real time. */}
-        {!isShare && <BroadcastBanner />}
+        {!isShare && <Fence name="broadcast"><BroadcastBanner /></Fence>}
         {/* The one <main> landmark (a11y: landmark-one-main / region). A per-route sr-only <h1> gives
             every screen a level-one heading; pages that render their own visible h1 are skipped. */}
         {/* tabIndex 0, not -1 (2026-10-02): .body is the scroll container, so a keyboard user has
@@ -230,17 +242,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* THE PAGE STEPS BACK behind a tall sheet, on a phone (lib/sheetStage, 2026-10-08): page-stage (app/tailwind.css). */}
         <main className="body page-stage" ref={bodyRef} id="body" tabIndex={0}>
           {/* The title bar: the screen's name once its own title has scrolled away, and Back in one place. */}
-          {!isShare && <TitleBar />}
+          {!isShare && <Fence name="title-bar"><TitleBar /></Fence>}
           {!isShare && !H1_SKIP.has(pathname) && !pathname.startsWith("/primal/") && <h1 className="sr-only">{routeTitle(pathname)}</h1>}
           {children}
         </main>
-        <DrinkSheet />
-        {checkoutWanted && <Checkout />}
-        <Toast />
-        <Notifications />
-        {customerSurface ? <OrderStatus /> : null}
-        {customerSurface ? <CartBar /> : null}
-        {isShare ? null : inAdmin ? <OperatorNav /> : <BottomNav />}
+        {/* ONE PIECE FAILS ALONE (R11, components/Fence): each piece of chrome steps aside on a crash, is reported, and is
+            tried again on the next screen; one a person asked for says it didn't open, and the next ask tries again. */}
+        <Fence name="drink" again={openId} fallback={() => <NotOpened open={openId != null} close={closeDrink} what="That drink" toast={toast} />}><DrinkSheet /></Fence>
+        {checkoutWanted && <Fence name="checkout" again={coOpen} fallback={() => <NotOpened open={coOpen} close={closeCheckout} what="Checkout" toast={toast} />}><Checkout /></Fence>}
+        <Fence name="toast"><Toast /></Fence>
+        <Fence name="notifications"><Notifications /></Fence>
+        <Fence name="order-status">{customerSurface ? <OrderStatus /> : null}</Fence>
+        <Fence name="cart-bar">{customerSurface ? <CartBar /> : null}</Fence>
+        <Fence name="nav">{isShare ? null : inAdmin ? <OperatorNav /> : <BottomNav />}</Fence>
         {/* THE FLOATING TIER SITS ON THE CHROME, NOT ON A NUMBER (2026-10-04).
             The theme toggle, the quick-actions button, the offline chip and the update prompt were
             each position:fixed at a guess — `calc(var(--navh, 68px) + 16px)` — and --navh was never
@@ -253,34 +267,38 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             is there — nav, inset, docked rail — because the column knows how tall it is.
             ONE FLOATING BUTTON (2026-10-06, the settings round): the moon left the dock — day, dark
             and Auto are chosen in Settings › You › Appearance — so quick actions is the console's one. */}
+        <Fence name="dock">
         <div className="fab-dock">
           {inAdmin && <QuickDock />}
           {inAdmin && <OfflineChip />}
           <ServiceWorkerRegister />
         </div>
+        </Fence>
         {/* An open tab that comes back after a release reloads into it (components/FreshTab). */}
-        <FreshTab />
-        {inAdmin && <EventCopilot />}
-        {inAdmin && <CommandPalette />}
+        <Fence name="fresh-tab"><FreshTab /></Fence>
+        <Fence name="copilot">{inAdmin && <EventCopilot />}</Fence>
+        <Fence name="command-palette">{inAdmin && <CommandPalette />}</Fence>
         {/* The edge swipe back: the console's always; elsewhere where no browser gives one (the app, a home-screen PWA). */}
-        {!isShare && (inAdmin || appOnly) && <SwipeBack />}
-        {inAdmin && <PullToRefresh />}
-        {inAdmin && <ScrollRestore />}
+        <Fence name="swipe-back">{!isShare && (inAdmin || appOnly) && <SwipeBack />}</Fence>
+        <Fence name="pull-to-refresh">{inAdmin && <PullToRefresh />}</Fence>
+        <Fence name="scroll-restore">{inAdmin && <ScrollRestore />}</Fence>
         {/* Every floating tab lives on ONE movable, collapsible right-edge rail. */}
         {!isShare && (
+          <Fence name="rail">
           <FloatRail>
             <DisplayToggle />
             <EditModeToggle />
             <ConnectHub />
             {customerSurface && <Concierge />}
           </FloatRail>
+          </Fence>
         )}
         {/* Ask us, Connect and Display as sheets, opened from the header and the menus (on a phone the rail is gone). */}
-        {asked && !isShare && <HelpSheets asked={asked} />}
-        {customerSurface && <MarketingSplash />}
+        {asked && !isShare && <Fence name="help" again={asked.n} fallback={() => <NotOpened open close={stayShut} what="That sheet" toast={toast} />}><HelpSheets asked={asked} /></Fence>}
+        <Fence name="splash">{customerSurface && <MarketingSplash />}</Fence>
         <ErrorReporter />
-        {NativeBridge && <NativeBridge />}
-        {AppleLink && <AppleLink />}
+        <Fence name="native">{NativeBridge && <NativeBridge />}</Fence>
+        <Fence name="apple-link">{AppleLink && <AppleLink />}</Fence>
       </div>
       </RecordProvider>
      </TaskSheetProvider>

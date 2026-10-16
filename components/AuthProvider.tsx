@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { User } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "@/lib/supabase";
 import { wipeAccountData } from "@/lib/accountWipe";
+import { keepProfile, keptProfile, offlineFailure, storedSessionUser } from "@/lib/keptProfile";
 import { setQueueOwner } from "@/components/offline";
 import { writeViewerHint } from "@/lib/viewerHint";
 import type { Role } from "@/lib/roles";
@@ -142,6 +143,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // THE LAST READ ASKED FOR IS THE ONE THAT LANDS (2026-10-11, the review): a sign-in's read, then a read asked for
   // because the row just changed (a name the sign-in kept: refreshProfile) — the older one coming back last put the old row back.
   const profileAsk = useRef(0);
+  // Whose session the last auth event carried (R11): a return to the tab or the hourly refresh is the same person again —
+  // not a new sign-in, not a reason to read the profile again (the visibility re-read below does that, quietly).
+  const lastUid = useRef<string | null>(null);
   // THE SAME PERSON, READ AGAIN, IS READ QUIETLY (2026-10-11). Every auth event reads the profile — a token refresh, a
   // return to the app — and each one said "loading": the console went blank under the person using it, and a read that
   // failed put "Couldn't load your account" over a profile still in hand. `shown` is whose profile is here, read and
@@ -172,8 +176,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // failure instead, and callers decide what to say about it.
     if (quiet && error) return;               // the profile already here stays, and so does "ready"
     if (ask !== profileAsk.current) return;   // a newer read is on its way, and it sets the status
-    if (error) { setProfileStatus("error"); return; }
-    setProfile(data as Profile | null);
+    if (error) {
+      // NO SIGNAL ON A COLD START (R11, lib/keptProfile): the last profile this phone saw for this person answers, so the
+      // console — and the Pass's last-known board and queued taps under it — open. The next read that works replaces it.
+      const kept = offlineFailure(error) ? keptProfile<Profile>(uid) : null;
+      if (kept) { setProfile(kept); setProfileStatus("ready"); shown.current = uid; return; }
+      setProfileStatus("error"); return;
+    }
+    // The same row is not set again (R11): every auth event read it, and a new object re-rendered every screen for nothing.
+    setProfile((prev) => (prev && data && JSON.stringify(prev) === JSON.stringify(data) ? prev : (data as Profile | null)));
+    if (data) keepProfile(uid, data);
     setProfileStatus("ready");   // includes a genuine null: asked, answered, no row
     shown.current = uid;
     lastProfileRead.current = Date.now();
@@ -217,9 +229,34 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (!supabase) return;
+    const sb = supabase;
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
+    // SIGNED IN, NO SIGNAL (R11, 2026-10-16 — the 10/10 audit). A relaunch after the hour a sign-in's token lasts, with no
+    // bars, could not renew it — and supabase-js answers that with no session at all, though it keeps the session on the
+    // phone to renew once it can. The app read that as signed out: the sign-in screen, over a Pass that had its last board
+    // and its queued taps on the phone. Now, when the answer is "couldn't reach us" and the phone holds a session and the
+    // profile it last read for that person (lib/keptProfile), that person is shown as signed in from the phone's memory —
+    // nothing the server would refuse is any less refused, and the queue replays nothing without a real session
+    // (components/offlineReplay). Every 30 seconds and whenever the signal returns, the session is asked for again: a
+    // renewal brings the real one (onAuthStateChange), a refusal signs the phone out (SIGNED_OUT, below).
+    let heldFor: string | null = null, retry: ReturnType<typeof setInterval> | undefined;
+    const askAgain = () => { void sb.auth.getSession().then(({ data }) => { if (data.session && retry) { clearInterval(retry); retry = undefined; heldFor = null; } }); };
+    const holdOffline = (error: { name?: string; message?: string; code?: string } | null): boolean => {
+      if (!(error?.name === "AuthRetryableFetchError" || offlineFailure(error))) return false;
+      const stored = storedSessionUser();
+      const kept = stored ? keptProfile<Profile>(stored.id) : null;
+      if (!stored || !kept) return false;
+      heldFor = stored.id;
+      lastUid.current = stored.id; shown.current = stored.id;
+      setUser(stored as unknown as User); setProfile(kept); setProfileStatus("ready"); setReady(true);
+      setQueueOwner(stored.id); writeViewerHint(true);
+      retry = setInterval(askAgain, 30_000);
+      window.addEventListener("online", askAgain);
+      return true;
+    };
+    supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
+      if (!data.session && holdOffline(error)) return;
       // Only set user/ready here; onAuthStateChange fires INITIAL_SESSION and owns the
       // profile load, so we don't fetch (or attach_referral) twice on cold start.
       setUser(data.session?.user ?? null);
@@ -231,17 +268,27 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (!data.session?.user) import("@/lib/track").then((m) => m.trackGuest(), () => {});
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // No session at the start: getSession's answer above decides — it knows why there is none (signed out, or no signal).
+      if (event === "INITIAL_SESSION" && !session) return;
       const u = session?.user ?? null;
-      setUser(u);
+      // A real session arrived, or the phone was signed out: the phone's memory stands down — and the profile it showed is
+      // read again, quietly.
+      const back = !!heldFor && !!u;
+      if (heldFor && (u || event === "SIGNED_OUT")) { heldFor = null; if (retry) clearInterval(retry); retry = undefined; }
+      const same = !!u && lastUid.current === u.id;
+      lastUid.current = u?.id ?? null;
+      // The same person, unchanged, keeps the same object (R11): every effect keyed on it ran again on every return.
+      setUser((prev) => (prev && u && prev.id === u.id && JSON.stringify(prev) === JSON.stringify(u) ? prev : u));
       writeViewerHint(!!u);
       setQueueOwner(u?.id ?? null);   // the offline queue replays only its own person's writes (R10b, components/offline)
-      if (u) loadProfile(u.id);
-      else { profileAsk.current++; shown.current = null; setProfile(null); setProfileStatus("ready"); }   // signed out: known, not unknown — a read still out lands nowhere, and the next one is not quiet
+      // A profile not yet read (or whose last read failed) is read on any event; one already here is not read again.
+      if (u && (!same || back || event === "USER_UPDATED" || shown.current !== u.id)) loadProfile(u.id);
+      else if (!u) { profileAsk.current++; shown.current = null; setProfile(null); setProfileStatus("ready"); }   // signed out: known, not unknown — a read still out lands nowhere, and the next one is not quiet
       if (event === "SIGNED_OUT") wipeAccountData();   // a sign-out from anywhere — another tab, the phone's own — wipes too
       // Utilization (0267): a real sign-in bumps the login counter; INITIAL_SESSION (cold-start
       // session restore) counts as presence, not a login — so "logins" answers "how many times
       // did they actually sign in," not "how many times did the PWA wake up."
-      if (u && event === "SIGNED_IN") import("@/lib/track").then((m) => m.trackUser("login", true), () => {});
+      if (u && event === "SIGNED_IN" && !same) import("@/lib/track").then((m) => m.trackUser("login", true), () => {});
       else if (u && event === "INITIAL_SESSION") import("@/lib/track").then((m) => m.trackUser("open"), () => {});
       // A reset link, or the reset code (verifyOtp type "recovery"), signs the user in with a short-lived recovery
       // session and fires this event — gate the app behind a "set a new password" overlay until they pick one.
@@ -264,6 +311,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return () => {
       active = false;
       sub.subscription.unsubscribe();
+      if (retry) clearInterval(retry);
+      window.removeEventListener("online", askAgain);
     };
   }, [loadProfile, router]);
 

@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // Read before the client below takes a sign-in's session out of the address (R9, lib/linkSignin): this import runs first.
 import "./linkSignin";
+import { dbDeadlineFor, withDeadline } from "./deadline";
 
 // Browser Supabase client. Returns null until the env keys are set, so importing
 // this never crashes the build/UI — callers gate on `supabaseEnabled`.
@@ -19,5 +20,8 @@ export const supabase: SupabaseClient | null = supabaseEnabled
         // opened in a different browser/app than it was requested from (no PKCE verifier needed).
         flowType: "implicit",
       },
+      // Every read, write, refresh and file has a deadline (R11, lib/deadline): a hung write on the Pass now errors as
+      // no signal does, and is queued, instead of hanging neither saved nor queued.
+      global: { fetch: withDeadline(dbDeadlineFor) },
     })
   : null;

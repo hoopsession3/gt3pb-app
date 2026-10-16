@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { SQUARE_APP_ID, SQUARE_LOCATION_ID, squareClientReady, loadSquareSdk } from "@/lib/square";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -10,6 +10,9 @@ export interface PaymentCardHandle {
 }
 
 let seq = 0;
+// Mounting Square's card form: up to MOUNT_TRIES attempts, MOUNT_GAP_MS apart, one at a time.
+const MOUNT_TRIES = 25, MOUNT_GAP_MS = 300;
+const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // THE Square card mount — one attach-with-retry lifecycle instead of three near-identical copies
 // that grew independently in Checkout, OrderFunnel, and SubscriptionCard. The retry + hardError
@@ -51,49 +54,65 @@ const PaymentCard = forwardRef<PaymentCardHandle, {
     tokenize: async () => (cardRef.current ? cardRef.current.tokenize() : { status: "NOT_READY" }),
   }), []);
 
+  // TRY AGAIN, HERE (R11, 2026-10-16 — the 10/10 audit). "Couldn't load the card form. Try again." had nothing to try
+  // again with: closing and reopening the sheet mounted into the same failed load (lib/square forgets one now), so the
+  // card form stayed gone until a reload. A failure now leaves a Try again under the form, and it starts over.
+  const [attempt, setAttempt] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const retry = () => { setFailed(false); onErrorRef.current?.(null); setAttempt((n) => n + 1); };
+
   useEffect(() => {
     if (!squareClientReady) return;
-    let dead = false, polls = 0;
-    let iv: ReturnType<typeof setInterval> | undefined;
+    let dead = false;
+    const fail = (message: string) => { if (dead) return; setFailed(true); onErrorRef.current?.(message); };
     const tryMount = async (Square: any): Promise<boolean> => {
       if (dead || cardRef.current) return true;
+      let card: any = null;
       try {
         const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
         const style = tone ? CARD_STYLE[tone] : undefined;
-        const card = await payments.card(style ? { style } : undefined);
-        if (dead) { card.destroy?.(); return true; }
+        card = await payments.card(style ? { style } : undefined);
+        // Read again after every wait (R11): the sheet may have closed while Square answered, and the form it made then
+        // was attached anyway — a second card in the page, and one that was never destroyed.
+        if (dead || cardRef.current) { card.destroy?.(); return true; }
         await card.attach(`#${idRef.current}`);
+        if (dead || cardRef.current) { card.destroy?.(); return true; }
         cardRef.current = card;
         onReadyRef.current?.(true); onErrorRef.current?.(null);
         return true;
       } catch (e) {
+        try { card?.destroy?.(); } catch { /* it was never whole */ }
         // Transient failure (SDK init still settling, a slow/flaky resource load right after the
         // script tag fires, etc.) — the FIRST failure must not be treated as fatal. Return false so
-        // the 300ms×25 retry loop below actually runs; only polls>=25 (every attempt exhausted)
-        // surfaces a user-visible error. This was the real bug: every path here used to return
-        // `true` unconditionally, including this catch — which skipped the retry loop entirely and
-        // turned every transient hiccup into an immediate, permanent "Card form error," with the Pay
-        // button stuck on "Loading card…" forever.
+        // the retry loop below actually runs; only the last attempt surfaces a user-visible error.
+        // This was the real bug: every path here used to return `true` unconditionally, including
+        // this catch — which skipped the retry loop entirely and turned every transient hiccup into
+        // an immediate, permanent "Card form error," with the Pay button stuck on "Loading card…" forever.
         console.warn("[PaymentCard] mount attempt failed, will retry:", e instanceof Error ? e.message : e);
         return false;
       }
     };
     (async () => {
       let Square: any;
-      try { Square = await loadSquareSdk(); } catch { if (!dead) onErrorRef.current?.("Couldn't load the card form. Try again."); return; }
-      if (dead) return;
-      if (await tryMount(Square)) return;
-      iv = setInterval(async () => {
-        polls += 1;
-        if (dead || cardRef.current) { if (iv) clearInterval(iv); return; }
-        if (await tryMount(Square)) { if (iv) clearInterval(iv); return; }
-        if (polls >= 25) { if (iv) clearInterval(iv); if (!cardRef.current) onErrorRef.current?.("Card form didn't load. Refresh and try again — if it keeps happening, tell us."); }
-      }, 300);
+      try { Square = await loadSquareSdk(); } catch { fail("Couldn't load the card form — check your signal, then Try again."); return; }
+      // ONE ATTEMPT AT A TIME (R11): the retries ran on a 300 ms interval, and an attempt takes longer than that on a phone,
+      // so they overlapped — two forms could attach. Now each waits for the last.
+      for (let i = 0; i < MOUNT_TRIES; i++) {
+        if (dead || cardRef.current) return;
+        if (await tryMount(Square)) return;
+        await pause(MOUNT_GAP_MS);
+      }
+      if (!cardRef.current) fail("The card form didn't load. Try again — if it keeps happening, tell us.");
     })();
-    return () => { dead = true; if (iv) clearInterval(iv); cardRef.current?.destroy?.(); cardRef.current = null; onReadyRef.current?.(false); };
-  }, [tone]);
+    return () => { dead = true; cardRef.current?.destroy?.(); cardRef.current = null; onReadyRef.current?.(false); };
+  }, [tone, attempt]);
 
-  return <div id={idRef.current} className={className} />;
+  return (
+    <>
+      <div id={idRef.current} className={className} />
+      {failed && <button type="button" className="btn-sec btn-sm" onClick={retry}>Try again</button>}
+    </>
+  );
 });
 
 export default PaymentCard;

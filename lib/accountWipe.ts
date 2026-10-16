@@ -5,8 +5,8 @@
 // audit drafts, the addresses typed into the map (gt3geo:…), and a payment's reference. These are the person's, and go
 // with them. What stays is the phone's own: its look, its last section, a guest's tickets (no account owns them), and
 // the offline queue — whose writes are stamped with who made them and replayed only for that person (components/offline).
-export const ACCOUNT_KEYS = ["gt3-kds-snap", "gt3-recents", "gt3-paid-ref", "gt3-co-idem"] as const;
-export const ACCOUNT_PREFIXES = ["gt3-order-snap-", "gt3-audit-draft", "gt3geo:", "gt3-address:"] as const;
+export const ACCOUNT_KEYS = ["gt3-kds-snap", "gt3-recents", "gt3-paid-ref", "gt3-co-idem", "gt3-pass-open"] as const;
+export const ACCOUNT_PREFIXES = ["gt3-order-snap-", "gt3-audit-draft", "gt3geo:", "gt3-address:", "gt3-profile:"] as const;
 
 /** The keys of a store that are the signed-out person's. Pure. */
 export function accountKeysIn(keys: readonly string[]): string[] {

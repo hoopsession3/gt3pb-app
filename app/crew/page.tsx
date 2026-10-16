@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Children, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { Children, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useApp } from "@/components/AppProvider";
 import { SectionHeader, InfoRow, Columns, Column } from "@/components/kit";
 import FoldCard from "@/components/crew/FoldCard";
@@ -20,6 +20,8 @@ import { OPEN_PANEL_EVENT, scrollToAnchor } from "@/lib/anchors";
 import { readParam, dropParam } from "@/lib/urlParam";
 import { panelHome } from "@/lib/panelHome";
 import { useWakeLock } from "@/lib/useWakeLock";
+import { unlockAudio } from "@/lib/chime";
+import { keepPassOpen, passWasOpen, PASS_OPEN_BEAT_MS } from "@/lib/passOpen";
 import { groupItems } from "@/lib/passBoard";
 import { usePassHeartbeat } from "@/components/usePassHeartbeat";
 import { useEtDay } from "@/lib/useEtDay";
@@ -5422,6 +5424,10 @@ function OpViewAware({ children }: { children: (open: boolean) => React.ReactNod
   return <>{children(crumbs.length > 0)}</>;
 }
 
+// The kept Pass is read once a draw (lib/passOpen); nothing outside the page changes it while the page is up.
+const neverChanges = () => () => {};
+const closedOnServer = () => false;
+
 export default function AdminPage() {
   const { ready, enabled, user, profile, profileStatus, refreshProfile } = useAuth();
   const { section, setSection, groupId: navGroupId, setGroupId } = useOperatorSection();
@@ -5519,14 +5525,37 @@ export default function AdminPage() {
   const [prepSel, setPrepSel] = useState<PrepTarget | null>(null);
   // Service mode — full-screen KDS (pass + pickups). Esc exits; leaving Now exits. A sheet open over the Pass
   // (Collect, the void's question, a ticket's menu) takes Escape for itself, and the Pass stays (2026-10-08).
-  const [svc, setSvc] = useState(false);
+  // THE PASS STAYS OPEN THROUGH A RELOAD (R11, lib/passOpen). Until it is opened or closed here, whether it is open is
+  // what the phone kept: a Pass phone that reloads on Live Ops — a deploy's self-heal, an update, a relaunch — opens it
+  // again, for two hours after it was last open. Read as a store, so the server and the first draw say closed.
+  const [chosen, setSvc] = useState<boolean | null>(null);
+  const kept = useSyncExternalStore(neverChanges, passWasOpen, closedOnServer);
+  const svc = chosen ?? (kept && section === "now");
+  // Opened by a touch, the Pass's sound is asked for in that touch (lib/chime, R11): a browser starts sound only from one,
+  // and a web Pass opened without asking stayed silent through its first orders.
+  const openPass = () => { unlockAudio(); setSvc(true); };
+  // Closed on purpose: the phone forgets it was open.
+  const closePass = () => { keepPassOpen(false); setSvc(false); };
   useEffect(() => {
     if (!svc) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && !sheetOpen()) setSvc(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented && !sheetOpen()) { keepPassOpen(false); setSvc(false); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [svc]);
-  useEffect(() => { if (section !== "now") setSvc(false); }, [section]);
+  // Leaving Live Ops closes it — and a section left after the Pass was on it forgets it; the page's first section, before
+  // the address's ?s=now lands, is not a leaving.
+  const sectionWas = useRef(section);
+  useEffect(() => {
+    if (sectionWas.current === "now" && section !== "now") keepPassOpen(false);
+    sectionWas.current = section;
+    if (section !== "now") setSvc((v) => (v ? false : v));
+  }, [section]);
+  useEffect(() => {
+    if (!svc) return;
+    keepPassOpen(true);
+    const beat = setInterval(() => keepPassOpen(true), PASS_OPEN_BEAT_MS);
+    return () => clearInterval(beat);
+  }, [svc]);
   // THE SCREEN STAYS ON WHILE THE PASS IS OPEN (2026-10-11, lib/useWakeLock): a phone propped by the window dimmed and
   // locked mid-rush, and a locked phone rings for nobody. Asked again whenever the app comes back; let go on Exit (and
   // on leaving Live Ops, which closes the Pass, above).
@@ -5543,7 +5572,7 @@ export default function AdminPage() {
   // that ends &a=kitchen-pass (jumpTo, near alertDest). The Pass is a screen on Live Ops, so the jump
   // goes to Live Ops and opens it, instead of hunting for an id that exists only once it is open.
   useEffect(() => {
-    const open = () => { setSection("now"); setSvc(true); };
+    const open = () => { setSection("now"); unlockAudio(); setSvc(true); };
     window.addEventListener(OPEN_PASS_EVENT, open);
     return () => window.removeEventListener(OPEN_PASS_EVENT, open);
   }, [setSection]);
@@ -5852,11 +5881,11 @@ export default function AdminPage() {
               line and the Devices card are words on the Pass's row, their detail one tap away. What each says, and why,
               is lib/liveOps; the rows are components/crew/LiveOpsRows and LiveControl. The exception line reads the
               header bell's own list (hdrFlags), so the two cannot disagree; under the Pass, the Pass's strip says it. */}
-          {!svc && <ExceptionLine flags={hdrFlags} onOpenPass={() => setSvc(true)} />}
+          {!svc && <ExceptionLine flags={hdrFlags} onOpenPass={openPass} />}
           {/* ON THE DESK (2026-10-09, redesign 5): service on the left, dispatch on the right. */}
           <Columns>
           <Column>
-          {!svc && <PassRow canManage={canManage} onOpenPass={() => setSvc(true)} />}
+          {!svc && <PassRow canManage={canManage} onOpenPass={openPass} />}
           {/* The truck instrument rides directly under the pulse — going live IS the first act
               of service, not a panel below the fold.
               IT STAYS MOUNTED UNDER THE PASS (2026-10-11). Opening the Pass unmounted it, and its cleanup
@@ -5866,7 +5895,7 @@ export default function AdminPage() {
           {canManage && <div className="contents" inert={svc ? true : undefined}><LiveControl compact /></div>}
           </Column>
           <Column>
-          {!svc && <DueNext canPlan={canManage} onOpenPass={() => setSvc(true)} />}
+          {!svc && <DueNext canPlan={canManage} onOpenPass={openPass} />}
           </Column>
           </Columns>
         </>
@@ -5875,7 +5904,7 @@ export default function AdminPage() {
           it). Exit with the button or Esc; leaving the Now section exits too. Its own bell, because the Pass covers the
           header's, and today's critical alert strip, are the page's — handed in. */}
       {svc && sec === "now" && (
-        <ThePass canPlan={canManage} onExit={() => setSvc(false)}
+        <ThePass canPlan={canManage} onExit={closePass}
           bell={<IconButton icon="bell" label={hdrToday.length ? `Inbox — ${hdrToday.length} today` : "Inbox"} badge={hdrToday.length} crit={hdrTodayCrit > 0} onClick={() => setInboxOpen(true)} />}
           strip={<AlertsInbox userId={user?.id ?? null} compact />} />
       )}

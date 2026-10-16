@@ -136,6 +136,106 @@ export function keepSame(prev: readonly Order[], next: readonly Order[]): Order[
   return same ? (prev as Order[]) : out;
 }
 
+// ── what this phone has moved and the database has not yet said back (R11, 2026-10-16 — the 10/10 audit) ──────────────
+// The board drew a move the moment it was tapped, and every read replaced the board with the database's rows. So a read
+// that left before the write had landed — the 15-second reconcile, a return to the screen, the feed coming back — put the
+// ticket back in its old lane; and with no signal, every move parked in the queue jumped back on the first read after the
+// signal returned, until the queue had drained. Worse at the window: a collection not yet landed read as unpaid again.
+// A move is HELD now, under the queue's own key for it (lib/offline: order_status:<id>, collect_cup:<id>), from the tap
+// until the database's row shows it, and every read and every feed row is drawn under the holds. A hold lets go when:
+//  · the row shows the move (its status; a collection taken; one taken back);
+//  · the row shows a change made after the one the phone was looking at when it tapped, by someone else (another phone,
+//    a void) — the database's row is the truth then;
+//  · HOLD_MS after its tap, unless its write is still parked in the queue, waiting for signal.
+export const HOLD_MS = 45_000;
+export type HeldKind = "order_status" | "collect_cup" | "undo_collect";
+export type Held = {
+  kind: HeldKind;
+  id: string;
+  /** What this phone drew. */
+  patch: Partial<Order>;
+  /** order_status: where it was moved to, the statuses it was moved through on the way (an earlier move of this phone's
+   *  landing is not news), and the database's status_changed_at when this phone first moved it (undefined: not known —
+   *  a hold taken back from the queue after a reload). */
+  status?: Status;
+  steps?: Status[];
+  was?: string | null;
+  at: number;
+};
+export const heldKey = (kind: HeldKind, id: string): string => `${kind}:${id}`;
+
+/** A move held from the tap: a second move of the same ticket before the first is said back keeps the first one's `was`,
+ *  and a collection and its undo replace each other. Returns a new map. Pure. */
+export function holdMove(held: ReadonlyMap<string, Held>, o: Order, kind: HeldKind, patch: Partial<Order>, nowMs: number): Map<string, Held> {
+  const next = new Map(held);
+  const key = heldKey(kind, o.id);
+  const prior = next.get(key);
+  next.delete(key);   // the newest hold of an order is drawn last
+  if (kind === "order_status") {
+    const status = patch.status as Status;
+    next.set(key, {
+      kind, id: o.id, patch, status, at: nowMs,
+      steps: prior ? [...(prior.steps ?? []), prior.status as Status] : [],
+      was: prior ? prior.was : (o.status_changed_at ?? null),
+    });
+  } else {
+    next.delete(heldKey(kind === "collect_cup" ? "undo_collect" : "collect_cup", o.id));
+    next.set(key, { kind, id: o.id, patch, at: nowMs });
+  }
+  return next;
+}
+
+/** Has the database's row caught up with this hold? Pure. */
+export function caughtUp(row: Order, h: Held): boolean {
+  if (h.kind === "collect_cup") return row.collected_at != null || row.status === "void";
+  if (h.kind === "undo_collect") return row.collected_at == null;
+  if (row.status === h.status) return true;
+  if (h.was === undefined) return false;
+  return (row.status_changed_at ?? null) !== h.was && !(h.steps ?? []).includes(row.status);
+}
+
+/** The database's rows, drawn under this phone's holds: a row not caught up is drawn as this phone moved it (and one this
+ *  phone voided is left off, as a voided row always is). Returns the rows and the holds still held — those the rows caught
+ *  up with, and those past HOLD_MS with nothing in the queue, are let go. `queued`: the queue's keys. Pure. */
+export function underHeld(rows: readonly Order[], held: ReadonlyMap<string, Held>, nowMs: number, queued: ReadonlySet<string>): { rows: Order[]; held: Map<string, Held> } {
+  const keep = new Map<string, Held>();
+  for (const [k, h] of held) if (nowMs - h.at <= HOLD_MS || queued.has(k)) keep.set(k, h);
+  if (!keep.size) return { rows: rows as Order[], held: keep };
+  const out: Order[] = [];
+  for (const r of rows) {
+    let row = r;
+    for (const [k, h] of keep) {
+      if (h.id !== r.id) continue;
+      if (caughtUp(r, h)) { keep.delete(k); continue; }
+      row = { ...row, ...h.patch } as Order;
+    }
+    if (row.status !== "void") out.push(row);
+  }
+  return { rows: out, held: keep };
+}
+
+/** The holds a reload starts from: every move still parked in the queue (what it was moved from is not known then). */
+export function heldFromQueue(queue: readonly { kind: string; id: string; value: string; at: number }[]): Map<string, Held> {
+  const held = new Map<string, Held>();
+  for (const q of queue) {
+    if (q.kind === "order_status") held.set(heldKey("order_status", q.id), { kind: "order_status", id: q.id, patch: { status: q.value as Status }, status: q.value as Status, steps: [], was: undefined, at: q.at });
+    // The money a phone took with no signal is drawn as taken; the till already holds it.
+    else if (q.kind === "collect_cup") held.set(heldKey("collect_cup", q.id), { kind: "collect_cup", id: q.id, patch: { collected_via: q.value, collected_at: new Date(q.at).toISOString(), payment_status: "paid" } as Partial<Order>, at: q.at });
+  }
+  return held;
+}
+
+// ── the ticket that slid under the finger (R11, 2026-10-16 — the 10/10 audit) ─────────────────────────────────────────
+// An advance takes its ticket out of the lane in the same frame, and the next ticket's button arrives where the thumb is:
+// a bounce on "Picked up" handed off the next order with its drink still on the counter; on "Start", two were started.
+// For TAP_SETTLE_MS after a move out of a lane, a tap on another ticket's move in that lane is taken for the same press.
+export const TAP_SETTLE_MS = 450;
+export type Settle = { lane: string; id: string; until: number } | null;
+/** Was this tap the last press, landing on the ticket that took its place? Pure. */
+export function bounced(s: Settle, lane: string, id: string, nowMs: number): boolean {
+  return !!s && s.lane === lane && s.id !== id && nowMs < s.until;
+}
+
 export type BoardRead = { rows: Order[]; more: number; doneMore: boolean; error: { message: string } | null };
 
 /** THE BOARD'S READ, BOUNDED. It read every order not void and not picked up more than half an hour ago, however many

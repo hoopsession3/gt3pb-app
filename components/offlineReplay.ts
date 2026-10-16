@@ -28,6 +28,14 @@ let flushing = false;
 export async function flushQueue(supabase: SupabaseClient | null): Promise<number> {
   if (!supabase || flushing) return readQueue().length;
   flushing = true;
+  // NOTHING IS SENT WITHOUT A REAL SESSION (R11, 2026-10-16 — the 10/10 audit). Back from a long stretch with no signal,
+  // the session's hour can be up and its renewal not yet through; supabase-js then sends a request as nobody (the public
+  // key), the database refuses a crew write from nobody, and a refusal takes the op out of the queue — a cash collection
+  // made with no bars, gone. With no session the queue waits for the next pass, as it does for no signal.
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) { flushing = false; return readQueue().length; }
+  } catch { flushing = false; return readQueue().length; }
   const refused: Refused[] = [];
   const sent = new Set<string>();
   try {

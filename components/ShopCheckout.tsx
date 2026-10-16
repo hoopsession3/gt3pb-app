@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { authedFetch } from "@/lib/authedFetch";
+import { PAY_DEADLINE_MS } from "@/lib/deadline";
 import { squareClientReady } from "@/lib/square";
 import PaymentCard, { type PaymentCardHandle } from "@/components/PaymentCard";
 import EditableCopy from "@/components/EditableCopy";
@@ -95,7 +96,7 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
           items: cart.map((l) => ({ product_id: l.product.id, variant: l.variant, qty: l.qty })),
           ship,
         }),
-      });
+      }, { deadlineMs: PAY_DEADLINE_MS });
       const data = await r.json();
       idem.settle(attempt.key, r.status, data);
       if (!r.ok) {

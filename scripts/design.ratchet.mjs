@@ -720,30 +720,30 @@ export const PROD_ROUTE = {
 // that moved are +235 (the auth client's), +164 (AuthProvider's) and −7. Crossed the rounding line on /truck and /events
 // (286 → 287: 293 725 bytes), /reserve (297 → 298), /office (282 → 283: 289 635) and /shop (302 → 303), recorded.
 export const WEIGHT = {
-  "/truck":                    { js: 288, css: 89, chunks: 16 },
-  "/events":                   { js: 288, css: 89, chunks: 16 },
-  "/menu":                     { js: 275, css: 90, chunks: 15 },
-  "/reserve":                  { js: 298, css: 90, chunks: 17 },
-  "/delivery":                 { js: 296, css: 90, chunks: 17 },
-  "/3mpire":                   { js: 289, css: 90, chunks: 15 },
-  "/craft":                    { js: 274, css: 90, chunks: 15 },
-  "/book":                     { js: 275, css: 90, chunks: 15 },
-  "/academy":                  { js: 327, css: 90, chunks: 16 },
-  "/office":                   { js: 284, css: 90, chunks: 15 },
-  "/scan":                     { js: 275, css: 90, chunks: 15 },
-  "/architecture":             { js: 284, css: 90, chunks: 15 },
-  "/playbook":                 { js: 282, css: 90, chunks: 15 },
-  "/driver":                   { js: 281, css: 89, chunks: 15 },
-  "/agreement":                { js: 276, css: 90, chunks: 15 },
-  "/offer":                    { js: 286, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 272, css: 90, chunks: 15 },
-  "/display":                  { js: 273, css: 90, chunks: 15 },
-  "/shop":                     { js: 303, css: 90, chunks: 17 },
-  "/primal":                   { js: 275, css: 90, chunks: 15 },
-  "/privacy":                  { js: 271, css: 90, chunks: 14 },
-  "/terms":                    { js: 271, css: 90, chunks: 14 },
-  "/":                         { js: 281, css: 90, chunks: 15 },
-  "/order":                    { js: 279, css: 88, chunks: 15 },
+  "/truck":                    { js: 291, css: 89, chunks: 17 },
+  "/events":                   { js: 291, css: 89, chunks: 17 },
+  "/menu":                     { js: 278, css: 90, chunks: 16 },
+  "/reserve":                  { js: 302, css: 90, chunks: 18 },
+  "/delivery":                 { js: 299, css: 90, chunks: 18 },
+  "/3mpire":                   { js: 292, css: 90, chunks: 16 },
+  "/craft":                    { js: 277, css: 90, chunks: 16 },
+  "/book":                     { js: 278, css: 90, chunks: 16 },
+  "/academy":                  { js: 330, css: 90, chunks: 17 },
+  "/office":                   { js: 287, css: 90, chunks: 16 },
+  "/scan":                     { js: 278, css: 90, chunks: 16 },
+  "/architecture":             { js: 287, css: 90, chunks: 16 },
+  "/playbook":                 { js: 285, css: 90, chunks: 16 },
+  "/driver":                   { js: 284, css: 89, chunks: 16 },
+  "/agreement":                { js: 279, css: 90, chunks: 16 },
+  "/offer":                    { js: 289, css: 90, chunks: 16 },
+  "/built/gt3-built-k7m9x4q2": { js: 275, css: 90, chunks: 16 },
+  "/display":                  { js: 276, css: 90, chunks: 16 },
+  "/shop":                     { js: 306, css: 90, chunks: 18 },
+  "/primal":                   { js: 278, css: 90, chunks: 16 },
+  "/privacy":                  { js: 274, css: 90, chunks: 15 },
+  "/terms":                    { js: 274, css: 90, chunks: 15 },
+  "/":                         { js: 284, css: 90, chunks: 16 },
+  "/order":                    { js: 282, css: 88, chunks: 16 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).
@@ -806,6 +806,16 @@ export const WEIGHT = {
 // (lib/accountWipe) and stamps the offline queue with whose writes they are (components/offline); the error reporter
 // sends a link with its private parts taken out (lib/reportUrl); and the broadcast bar and the splash open only a link
 // that is one (lib/safeLink). Crossed the rounding line upward on every route but /reserve, /shop and /order, recorded.
+// 2026-10-16 (R11 of the 10/10 audit, the front end): every route's script +3 074 bytes (gzip), +8 295 raw, and one chunk
+// more; /reserve, /shop and /delivery +3 260 to +3 274. Built R10b (8875f32) and this commit and gzipped what each route's
+// HTML references (/privacy 277 123 → 280 197, /menu 281 354 → 284 428, /shop 310 551 → 313 825). What keeps working when
+// something goes wrong rides in the shell: the last screen (app/global-error.tsx — Next loads it with every route, its own
+// chunk, 666 bytes), each piece of the chrome fenced (components/Fence) with the crash screens' one decision beside the
+// reporter (components/ErrorReporter recoverFromCrash, lib/deploySkew's classifier with it), a deadline on every call the
+// database client and the app's routes make (lib/deadline), a phone kept signed in with no signal (lib/keptProfile), one
+// read for a burst of changes (lib/rush), and a tapped notification's window steered (components/ServiceWorkerRegister).
+// The three that take a card add the form that can be tried again (components/PaymentCard, lib/square) and the payment's
+// deadline. Crossed the rounding line upward on every route, recorded with the new chunk.
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];

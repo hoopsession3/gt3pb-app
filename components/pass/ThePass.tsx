@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApp } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { useConfirm } from "@/components/ConfirmSheet";
@@ -9,6 +9,7 @@ import { Segmented } from "@/components/controls";
 import DropOps from "@/components/DropOps";
 import EightySix from "@/components/EightySix";
 import EmptyState from "@/components/EmptyState";
+import Fence from "@/components/Fence";
 import Icon from "@/components/Icon";
 import PourFill from "@/components/PourFill";
 import Sheet, { CloseButton } from "@/components/Sheet";
@@ -17,7 +18,7 @@ import { canCollect, collectPayment, undoCollection, collectedPatch, undonePatch
 import { authedFetch } from "@/lib/authedFetch";
 import { clockTime } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
-import { unlockAudio } from "@/lib/chime";
+import { unlockAudio, useSoundLocked } from "@/lib/chime";
 import { money } from "@/lib/money";
 import { setOrderStatus, movedTo, movedLine } from "@/lib/orderStatus";
 import { notifyVoid } from "@/lib/voidNotice";
@@ -26,7 +27,7 @@ import { canOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
 import {
   NEXT, PREV, STAGES, TRAY_SHOWN, lateOf, nextBoardChange, passLanes, laneOf, canRecall, laneName, isHere, somewhereLive,
-  moreLine, elsewhereLine, type Lanes, type Scope,
+  moreLine, elsewhereLine, bounced, TAP_SETTLE_MS, type Lanes, type Scope, type Settle,
 } from "@/lib/passBoard";
 import type { Order } from "@/lib/db";
 import { DoneTicket, Ticket, type TicketActs } from "./Ticket";
@@ -70,20 +71,27 @@ export default function ThePass({ bell, strip, canPlan, onExit }: { bell: ReactN
       <div className="pass-grid">
         {/* Today's critical alert, named, one tap to the inbox — the strip that led Live Ops, on the screen the
             crew is working. Nothing at all when there is none. */}
-        <div className="pass-main">{strip}<PassBoard /></div>
+        {/* THE BOARD SURVIVES ITS RAIL (R11, components/Fence): the strip, the pickups and the 86 board each fail alone —
+            a crash in one of them cleared the whole Pass, board and all, mid-service. */}
+        <div className="pass-main"><Fence name="pass-strip">{strip}</Fence><PassBoard /></div>
         <aside className="pass-rail" aria-label="Pickups & sold-out">
-          <DropOps canPlan={canPlan} />
-          <EightySix />
+          <Fence name="pass-pickups" fallback={(retry) => <RailDown what="Pickups" retry={retry} />}><DropOps canPlan={canPlan} /></Fence>
+          <Fence name="pass-86" fallback={(retry) => <RailDown what="The 86 board" retry={retry} />}><EightySix /></Fence>
         </aside>
       </div>
       {eightySix && (
         <Sheet open onClose={() => setEightySix(false)} label="86 board"
           header={<div className="acs-head"><CloseButton onClick={() => setEightySix(false)} className="isheet-x" /></div>}>
-          <EightySix />
+          <Fence name="pass-86-sheet" fallback={(retry) => <RailDown what="The 86 board" retry={retry} />}><EightySix /></Fence>
         </Sheet>
       )}
     </div>
   );
+}
+
+/** A piece of the rail that crashed (R11): it says so where it was, and one tap tries it again — the board goes on. */
+function RailDown({ what, retry }: { what: string; retry: () => void }) {
+  return <EmptyState role="status" title={`${what} didn't load`} sub="The board is fine." action={<button type="button" className="btn-sec btn-sm" onClick={retry}>Try again</button>} />;
 }
 
 /** A lane's heading: its name, its count — in its accessible name too — and the fold. */
@@ -107,9 +115,22 @@ function PassBoard() {
   const me = user?.id ?? null;
   const admin = canOf(profile).admin;
   const [askCollect, collectSheet] = useCollectSheet();
-  const { orders: all, flash, said, muted, boardAt, down, live, more, here, apply, load, showMore } = usePassBoard();
+  const { orders: all, flash, said, muted, boardAt, down, live, more, here, apply, hold, release, load, showMore } = usePassBoard();
   const scope: Scope = usePassScope();
   const toggleMute = () => { setPassMuted(!muted); unlockAudio(); };
+  // THE SOUND IS ASKED FOR WITH EVERY TOUCH (R11, 2026-10-16 — the 10/10 audit). Only the Sound chip unlocked it: a browser
+  // starts a page's sound only from a touch, and opening the Pass never asked, so a web Pass stayed silent through its
+  // first orders — and an iPhone call or Siri left it stopped, with nothing on the screen saying so. Every touch on the
+  // Pass asks now (a no-op once it plays), and while it can't play, the chip says "Tap for sound".
+  useEffect(() => {
+    unlockAudio();
+    window.addEventListener("pointerdown", unlockAudio, true);
+    return () => window.removeEventListener("pointerdown", unlockAudio, true);
+  }, []);
+  const soundLocked = useSoundLocked();
+  // The lane a move just left, and until when a tap there is the same press (lib/passBoard bounced).
+  const settle = useRef<Settle>(null);
+  const bounce = useCallback((o: Order): boolean => bounced(settle.current, laneOf(o, Date.now()), o.id, Date.now()), []);
   // HERE OR EVERYWHERE (2026-10-11). With a stop or an event live, this phone can show only the orders sold there — and
   // says how many it leaves out, one tap from all of them. Nothing live: every order, whatever was chosen.
   const narrowed = scope === "here" && somewhereLive(here);
@@ -124,8 +145,13 @@ function PassBoard() {
   // Instant: patch local state synchronously, fire the write, no refetch on success.
   const move = useCallback(async (o: Order, to: Order["status"] | null) => {
     if (!to || !supabase) return;
-    land(o, laneOf(o, Date.now()));
-    apply({ ...o, status: to, status_changed_at: new Date().toISOString() } as Order, false);
+    const left = laneOf(o, Date.now());
+    land(o, left);
+    settle.current = { lane: left, id: o.id, until: Date.now() + TAP_SETTLE_MS };
+    // Held until the database says it back (R11, lib/passBoard): a read that lands first no longer moves it back.
+    const patch = { status: to, status_changed_at: new Date().toISOString() };
+    hold(o, "order_status", patch);
+    apply({ ...o, ...patch } as Order, false);
     haptic("medium");
     // Definer RPC so a 'server' can advance status without table-wide write access — from the status
     // this ticket showed when it was tapped (lib/orderStatus: a tap on a board that is behind no longer
@@ -150,10 +176,11 @@ function PassBoard() {
     // (coalesced per order — the final state wins), and say so calmly.
     if (isNetworkError(error.message)) { queueOrderStatus(o.id, to, o.status); toast("No signal — saved, will sync", "info"); return; }
     // Somebody moved it first (the other phone, a replay): say where it is and read the board again — news, not an error.
+    release(o, "order_status");
     const now = movedTo(error);
     toast(now === null ? `Couldn't update — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
     load();
-  }, [apply, toast, load, land]);
+  }, [apply, hold, release, toast, load, land]);
   // ── MONEY AT THE WINDOW (2026-10-04, 0341) ─────────────────────────────────────────────────────
   // "UNPAID · collect at pickup" was a sentence with nothing behind it: nothing in the app could
   // mark a pay-at-pickup order paid. Taking it is instant like a move — the ticket says PAID the
@@ -161,18 +188,21 @@ function PassBoard() {
   // replayed, because the till does not wait for bars. Returns the row as now painted, or null.
   const takeMoney = useCallback(async (o: Order, via: CollectVia): Promise<Order | null> => {
     if (!supabase) return null;
-    const paidRow = { ...o, ...collectedPatch(o, via, new Date().toISOString(), me) } as Order;
+    const paid = collectedPatch(o, via, new Date().toISOString(), me);
+    const paidRow = { ...o, ...paid } as Order;
+    hold(o, "collect_cup", paid as Partial<Order>);
     apply(paidRow, false);
     haptic("paid");
     const res = await collectPayment(supabase, "cup", o.id, via);
     if (res.error) {
       if (isNetworkError(res.error)) { queueCollectCup(o.id, via); toast(`No signal — ${VIA_LABEL[via].toLowerCase()} saved, will sync`, "info"); return paidRow; }
+      release(o, "collect_cup");
       apply(o, false);
       toast(`Couldn't record it — ${res.error}`, "error"); load(); return null;
     }
-    if (res.already) { toast(`${o.customer ?? "Guest"} had already paid — nothing taken`); load(); }
+    if (res.already) { release(o, "collect_cup"); toast(`${o.customer ?? "Guest"} had already paid — nothing taken`); load(); }
     return paidRow;
-  }, [apply, me, toast, load]);
+  }, [apply, hold, release, me, toast, load]);
   const collect = useCallback(async (o: Order) => {
     const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents });
     if (how && how !== "unpaid") await takeMoney(o, how);
@@ -183,18 +213,22 @@ function PassBoard() {
     if (!supabase) return;
     const via = viaOf(o) ?? "card_reader";
     if (!(await confirm({ title: `Undo ${VIA_UNDO[via]} — ${money(o.total_cents)} from ${o.customer ?? "Guest"}?`, body: "Only if it wasn't settled that way. You can collect it again after.", confirmLabel: "Undo it" }))) return;
+    hold(o, "undo_collect", undonePatch(o) as Partial<Order>);
     apply({ ...o, ...undonePatch(o) } as Order, false);
     const res = await undoCollection(supabase, "cup", o.id);
     if (res.error) {
+      release(o, "undo_collect");
       apply(o, false);
       toast(isNetworkError(res.error) ? "No signal — undo it once you're back online" : `Couldn't undo it — ${res.error}`, "error");
       return;
     }
+    if (res.already) release(o, "undo_collect");
     toast(res.already ? "Nothing to undo — it wasn't taken at the window" : `${o.customer ?? "Guest"} — back to unpaid`);
-  }, [confirm, apply, toast]);
+  }, [confirm, apply, hold, release, toast]);
   // Handing it over is when the money is asked about: an order still owed does not leave the window
   // without the question. The third answer, handing it over unpaid, is there and says what it is.
   const advance = useCallback(async (o: Order) => {
+    if (bounce(o)) return;
     const to = NEXT[o.status];
     if (to === "done" && canCollect(o)) {
       const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents, handOff: true });
@@ -204,9 +238,9 @@ function PassBoard() {
       return move(row, to);
     }
     return move(o, to);
-  }, [askCollect, takeMoney, move]);
+  }, [askCollect, takeMoney, move, bounce]);
   // ↩ takes a ticket back a stage; on a picked-up ticket it is Recall — done → ready, from the status it showed.
-  const recall = useCallback((o: Order) => move(o, PREV[o.status]), [move]);
+  const recall = useCallback((o: Order) => (bounce(o) ? undefined : move(o, PREV[o.status])), [move, bounce]);
   // Voiding a paid order is a refund somebody has to make. It used to say only "This can't be
   // undone" — about an order a card had paid for — and flag nobody. The flag is the database's now (0416,
   // refund_flag_order): raised by the void itself, under the order's lock, from the row as it is — so a void made with no
@@ -224,6 +258,7 @@ function PassBoard() {
     if (!(await confirm({ title: `Void ${o.customer ?? "this order"}?`, body, confirmLabel: "Void order", danger: true }))) return;
     if (!supabase) return;
     land(o, laneOf(o, Date.now()));
+    hold(o, "order_status", { status: "void" });
     apply(o, true);
     const { error } = await setOrderStatus(supabase, o.id, "void", o.status);
     if (error) {
@@ -231,6 +266,7 @@ function PassBoard() {
       // the member's email once it has landed (components/offlineReplay).
       if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void", o.status); toast("No signal — void saved, will sync", "info"); return; }
       // Moved on before the void landed (picked up meanwhile): nothing was voided, so there is no refund to flag.
+      release(o, "order_status");
       const now = movedTo(error);
       toast(now === null ? `Couldn't void — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
       load(); return;
@@ -238,7 +274,7 @@ function PassBoard() {
     // The member is told (R7): the push says it (supabase/functions/push), and this sends the email /api/orders/cancel sends
     // when they cancel it themselves. Fire-and-forget, after the void has landed, as Ready's notice is.
     if (o.user_id) notifyVoid(o.id);
-  }, [confirm, apply, toast, load, land]);
+  }, [confirm, apply, hold, release, toast, load, land]);
   // Every ticket's buttons, made once: a ticket is drawn again when its order changes, not when the board does. Each
   // first notes whether focus is on the ticket, so it can follow the ticket wherever it goes (./focus).
   const act = useMemo<TicketActs>(() => ({
@@ -273,7 +309,9 @@ function PassBoard() {
         {/* The feed down while reads still land: a quiet word beside the count, not a banner — the reconcile keeps the board. */}
         {!live && !down && <span className="k-count soon" role="status">Reconnecting…</span>}
         {active.length > 0 && <span className="k-count">{active.length} active</span>}
-        <button type="button" className={`k-chip sm${muted ? " on" : ""}`} onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>
+        {soundLocked && !muted
+          ? <button type="button" className="k-chip sm text-gold2" onClick={unlockAudio}><Icon name="bell" /> Tap for sound</button>
+          : <button type="button" className={`k-chip sm${muted ? " on" : ""}`} onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>}
       </div>
 
       {/* A read that failed says so in words, and how old the board under it is — never a raw "Backend error". */}

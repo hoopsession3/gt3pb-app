@@ -6,6 +6,7 @@ import Sheet from "./Sheet";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import { useIdemKey, type Attempt } from "./useIdemKey";
 import { authedFetch } from "@/lib/authedFetch";
+import { PAY_DEADLINE_MS } from "@/lib/deadline";
 import { squareClientReady } from "@/lib/square";
 import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
@@ -83,7 +84,7 @@ export default function ReservePay({ reserve, pickup, closes, have, onClose, onD
       const res = await authedFetch("/api/reserves/pay", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reserveId: reserve.id, qty: n, expectedCents: totalCents, sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key }),
-      });
+      }, { deadlineMs: PAY_DEADLINE_MS });
       const data = await res.json().catch(() => ({}));
       setBusy(false);
       idem.settle(attempt.key, res.status, data);

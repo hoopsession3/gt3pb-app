@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import { useIdemKey, type Attempt } from "./useIdemKey";
 import { authedFetch } from "@/lib/authedFetch";
+import { PAY_DEADLINE_MS } from "@/lib/deadline";
 import { squareClientReady } from "@/lib/square";
 import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
@@ -104,7 +105,7 @@ export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, c
       const res = await authedFetch("/api/reserve/change", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...body, expectedDiffCents, sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key }),
-      });
+      }, { deadlineMs: PAY_DEADLINE_MS });
       const data = await res.json(); setBusy(false);
       idemChange.settle(attempt.key, res.status, data);
       if (!res.ok) {

@@ -4896,7 +4896,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 // with JSON the caller can read instead of Next's HTML 500. What it must never do: throw itself.
 {
   const { route, ROUTE_THREW } = require("../.smoke/apiRoute.js");
-  const { fingerprintOf, pathOf } = require("../.smoke/errorIntake.js");
+  const { fingerprintOf, pathOf, stableFrame } = require("../.smoke/errorIntake.js");
   const { NextResponse } = require("next/server");
   const req = new Request("http://x/api/planted", { method: "POST" });
   PENDING.push((async () => {
@@ -4921,12 +4921,25 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const bad4 = route("planted", async () => NextResponse.json({ error: "Bad request" }, { status: 400 }));
     ok("route: a handler's own 400 is still its own 400 — the wrapper only catches what escapes", (await bad4(req)).status === 400);
   })());
-  // The fingerprint is what makes "one bug, one row" true. It must not change across deploys.
-  const a = fingerprintOf("Loading chunk 123 failed: /_next/static/chunks/app-a1b2c3d4e5.js?dpl=dpl_AAA", "at x (chunk-9f8e7d.js:1:2)", "/menu");
-  const b = fingerprintOf("Loading chunk 456 failed: /_next/static/chunks/app-f6e5d4c3b2.js?dpl=dpl_BBB", "at x (chunk-9f8e7d.js:1:2)", "/menu");
-  ok("intake: the same error on two deploys is one fingerprint", a === b);
+  // The fingerprint is what makes "one bug, one row" true. It must not change across deploys — and the test moves what a
+  // deploy moves (R11, the 10/10 audit: it held the stack the same on both "deploys", so it could not fail on the real
+  // condition, and in the field every deploy that touched a chunk filed its bugs again as new rows, with new alerts).
+  const a = fingerprintOf("Loading chunk 123 failed: /_next/static/chunks/app-a1b2c3d4e5.js?dpl=dpl_AAA",
+    "ChunkLoadError: Loading chunk 123 failed: /_next/static/chunks/app-a1b2c3d4e5.js?dpl=dpl_AAA\n    at a (https://app.gt3pb.com/_next/static/chunks/9f8e7d6c5b.js?dpl=dpl_AAA:1:2345)", "/menu");
+  const b = fingerprintOf("Loading chunk 456 failed: /_next/static/chunks/app-f6e5d4c3b2.js?dpl=dpl_BBB",
+    "ChunkLoadError: Loading chunk 456 failed: /_next/static/chunks/app-f6e5d4c3b2.js?dpl=dpl_BBB\n    at Qe (https://app.gt3pb.com/_next/static/chunks/0a1b2c3d4e.js?dpl=dpl_BBB:1:9876)", "/menu");
+  ok("intake: the same error on two deploys is one fingerprint — the chunk, the line, the column and the minified name all moved", a === b);
+  const chrome = "TypeError: x is null\n    at e.render (https://app.gt3pb.com/_next/static/chunks/aa11bb22cc.js:3:100)";
+  const safari = "e.render@https://app.gt3pb.com/_next/static/chunks/dd33ee44ff.js:7:999";
+  ok("intake: Safari's frames read as Chrome's do, a build apart", stableFrame(chrome) === stableFrame(safari) && stableFrame(chrome) !== "", [stableFrame(chrome), stableFrame(safari)]);
   ok("intake: a different page is a different fingerprint", fingerprintOf("x", "", "/menu") !== fingerprintOf("x", "", "/shop"));
-  ok("intake: a different top frame is a different fingerprint", fingerprintOf("x", "at a", "/") !== fingerprintOf("x", "at b", "/"));
+  const thrownIn = (file) => fingerprintOf("x", `Error: x\n    at POST (/var/task/.next/server/app/api/${file}/route.js:1:2)`, "/api");
+  ok("intake: a throw from a different server route is a different fingerprint", thrownIn("checkout") !== thrownIn("office"));
+  ok("intake: the same server chunk on two builds is one fingerprint",
+    fingerprintOf("x", "Error: x\n    at a (/var/task/.next/server/chunks/[root-of-the-server]__a1b2c3d4._.js:10:20)", "/")
+      === fingerprintOf("x", "Error: x\n    at b (/var/task/.next/server/chunks/[root-of-the-server]__9f8e7d6c._.js:11:5)", "/"));
+  ok("intake: V8's first line is the message, not a frame — an address in it is not read as Safari's name@file",
+    stableFrame("Error: write to a@b.co:12\n    at f (/x/route.js:1:2)") === "/x/route.js", stableFrame("Error: write to a@b.co:12\n    at f (/x/route.js:1:2)"));
   ok("intake: a server route files under its route path", pathOf("/api/office") === "/api/office" && pathOf("https://app.gt3pb.com/menu?x=1") === "/menu");
 
   // THE BUDGETS. The intake is driven here with doubles for the three things it touches — the
@@ -5044,7 +5057,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("door: …and passes everything else through untouched", /return NextResponse\.next\(\);/.test(code(proxy)) && (code(proxy).match(/NextResponse\.(redirect|rewrite)\(/g) || []).length === 1);
   ok("door: …reading the cookie by the one name lib/viewerHint.ts owns", /import \{ VIEWER_COOKIE, DOOR_COOKIE, DOOR_MAX_AGE_S \} from "@\/lib\/viewerHint";/.test(proxy) && /cookies\.get\(VIEWER_COOKIE\)/.test(code(proxy)) && /export const VIEWER_COOKIE = "gt3-viewer";/.test(hint));
   ok("door: the cookie is written by one function, as a hint for a year, never HttpOnly (the browser writes it)", /export function writeViewerHint\(signedIn: boolean\)/.test(hint) && /max-age=31536000; samesite=lax/.test(hint) && !/httponly/i.test(hint));
-  ok("door: AuthProvider writes it on the cold session read AND on every change — a stale hint never outlives the next answer", /getSession\(\)[\s\S]*?writeViewerHint\(!!data\.session\?\.user\)/.test(code(auth)) && /onAuthStateChange\(\(event, session\) => \{\s*const u = session\?\.user \?\? null;\s*setUser\(u\);\s*writeViewerHint\(!!u\);/.test(code(auth)));
+  ok("door: AuthProvider writes it on the cold session read AND on every change — a stale hint never outlives the next answer", /getSession\(\)[\s\S]*?writeViewerHint\(!!data\.session\?\.user\)/.test(code(auth)) && /onAuthStateChange\(\(event, session\) => \{[\s\S]{0,400}?const u = session\?\.user \?\? null;[\s\S]{0,700}?setUser\(\(prev\) => [^\n]*\);\s*writeViewerHint\(!!u\);/.test(code(auth)));
   ok("door: the slow way stays — app/page.tsx still sends a guest to /truck itself", /router\.replace\("\/truck"\)/.test(code(read("app/page.tsx"))));
 }
 
@@ -5341,9 +5354,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const svcSrc = (page.match(/\{svc && sec === "now" && \([\s\S]*?\n      \)\}/) || [""])[0];
     // 2026-10-12 (the Live Ops round): the Pass's hero button is its row (components/crew/LiveOpsRows PassRow).
     ok("live ops: the Pass and Due next, nothing else — the event, the tasks and the alert strip live elsewhere",
-      /<PassRow canManage=\{canManage\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec) && /<LiveControl compact \/>/.test(nowSec) && /<DueNext canPlan=\{canManage\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>/.test(nowSec)
+      /<PassRow canManage=\{canManage\} onOpenPass=\{openPass\} \/>/.test(nowSec) && /<LiveControl compact \/>/.test(nowSec) && /<DueNext canPlan=\{canManage\} onOpenPass=\{openPass\} \/>/.test(nowSec)
         && !/<EventHUD|<MyTasks|<AlertsInbox/.test(nowSec) && cmdSec.indexOf("<EventHUD />") > 0 && cmdSec.indexOf("<EventHUD />") < cmdSec.indexOf("<Columns>")
-        && /<ThePass canPlan=\{canManage\} onExit=\{\(\) => setSvc\(false\)\}/.test(svcSrc) && /strip=\{<AlertsInbox userId=\{user\?\.id \?\? null\} compact \/>\}/.test(svcSrc)
+        && /<ThePass canPlan=\{canManage\} onExit=\{closePass\}/.test(svcSrc) && /strip=\{<AlertsInbox userId=\{user\?\.id \?\? null\} compact \/>\}/.test(svcSrc)
         && /<IconButton icon="bell"[^\n]*onClick=\{\(\) => setInboxOpen\(true\)\} \/>/.test(svcSrc) && !/<Panel id="hud"/.test(page));
     ok("live ops: Due next puts the runs in the order they are due — each card reports its day, none waits on another",
       /const order = \[\.\.\.DUE_KEYS\]\.sort\(\(a, b\) => \(due\[a\] \?\? "9999-12-31"\)\.localeCompare\(due\[b\] \?\? "9999-12-31"\)\);/.test(page)
@@ -9719,7 +9732,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /function jumpTo\(anchor\?: string\): void \{\s*if \(anchor === PASS_ANCHOR\) \{ window\.dispatchEvent\(new Event\(OPEN_PASS_EVENT\)\); return; \}\s*scrollToAnchor\(anchor\);\s*\}/.test(pg)
     && /jumpTo\(d\.anchor\);/.test(pg) && !/scrollToAnchor\(d\.anchor\)/.test(pg) && /<div className="adm-sec pass-board" id="kitchen-pass"/.test(code(read("components/pass/ThePass.tsx"))));
   ok("links land: the page answers by going to Live Ops and opening the Pass — and a link waits for ?s=now to land before it is taken",
-    /const open = \(\) => \{ setSection\("now"\); setSvc\(true\); \};\s*window\.addEventListener\(OPEN_PASS_EVENT, open\);/.test(pg)
+    /const open = \(\) => \{ setSection\("now"\); unlockAudio\(\); setSvc\(true\); \};\s*window\.addEventListener\(OPEN_PASS_EVENT, open\);/.test(pg)
     && /if \(a === PASS_ANCHOR && sec !== "now" && readParam\("s"\) === "now"\) return;\s*consumedAnchorRef\.current = true;\s*dropParam\("a"\);/.test(pg)
     // A link to a panel that moved, opened as a page, goes to the panel's home first (2026-10-15): the same alias table the
     // alert router reads — in the console, not the section provider every guest's page carries.
@@ -9956,7 +9969,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── the app's addresses ──
   const relative = client.filter((f) => /fetch\(\s*["'`]\/api/.test(code(read(f))));
   ok("iphone: no screen fetches /api by a relative address — apiUrl() or authedFetch() makes it absolute in the app, where the page's own origin is the phone", relative.length === 0, relative);
-  ok("iphone: authedFetch goes through apiUrl", /return fetch\(apiUrl\(url\), \{ \.\.\.init, headers \}\);/.test(code(read("lib/authedFetch.ts"))));
+  ok("iphone: authedFetch goes through apiUrl", /return withDeadline\(opts\.deadlineMs \?\? ROUTE_DEADLINE_MS\)\(apiUrl\(url\), \{ \.\.\.init, headers \}\);/.test(code(read("lib/authedFetch.ts"))));
   const beacons = client.filter((f) => /sendBeacon/.test(code(read(f))));
   ok("iphone: the one beacon (the error reporter's) is skipped in the app, where its relative address reaches nothing",
     beacons.length === 1 && /if \(!APP_BUILD && navigator\.sendBeacon\?\.\(/.test(code(read("components/ErrorReporter.tsx"))), beacons);
@@ -10172,9 +10185,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /markAppleSession\(null\);\s*void supabase\?\.auth\.signOut\(\{ scope: "local" \}\);/.test(nbx)
       && !/signOut\(\)/.test(nbx) && !/\bsignOut\b[^(]/.test(nbx.replace(/auth\.signOut\(/g, "")));
     ok("auth: the last profile read asked for is the one that lands — an older one coming back last (a sign-in's, after the name Apple gave was kept) is dropped, and nothing lands after a sign-out",
-      /const ask = \+\+profileAsk\.current;/.test(au) && /if \(ask !== profileAsk\.current\) return;[^\n]*\n\s*if \(error\) \{ setProfileStatus\("error"\); return; \}/.test(au)
+      /const ask = \+\+profileAsk\.current;/.test(au) && /if \(ask !== profileAsk\.current\) return;[^\n]*\n\s*if \(error\) \{\n[\s\S]{0,600}?setProfileStatus\("error"\); return;\n\s*\}/.test(au)
       && /const ask = profileAsk\.current;/.test(au) && /if \(error \|\| !data \|\| ask !== profileAsk\.current\) return;/.test(au)
-      && /else \{ profileAsk\.current\+\+; shown\.current = null; setProfile\(null\); setProfileStatus\("ready"\); \}/.test(au));
+      && /else if \(!u\) \{ profileAsk\.current\+\+; shown\.current = null; setProfile\(null\); setProfileStatus\("ready"\); \}/.test(au));
     // 2026-10-11: every auth event — a token refresh, a return to the app — said "loading", and the console went blank
     // under the person using it; a read that failed said "Couldn't load your account" over the profile still in hand.
     ok("auth: the same person read again is read quietly — no 'loading', and a failure keeps the profile and 'ready'; another person, or a sign-out, starts over",
@@ -10800,7 +10813,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<IconButton icon="sparkles"[^>]*className="frame:hidden! desk:inline-flex!"[^>]*onClick=\{\(\) => window\.dispatchEvent\(new Event\("gt3-quick-do"\)\)\}/.test(read("app/crew/page.tsx"))
     && /className="acct-av hit-44 text-gold2 frame:hidden! desk:flex!"/.test(read("components/AccountPill.tsx")) && /new Event\("gt3-open-concierge"\)/.test(read("components/AccountPill.tsx"))
     && /export const HELP_EVENTS = \["gt3-open-concierge", "gt3-open-connect", "gt3-open-display", "gt3-open-notifications"\] as const;/.test(read("lib/helpSheets.ts"))
-    && /for \(const t of HELP_EVENTS\) window\.addEventListener\(t, onAsk\);/.test(shell) && /\{asked && !isShare && <HelpSheets asked=\{asked\} \/>\}/.test(shell)
+    && /for \(const t of HELP_EVENTS\) window\.addEventListener\(t, onAsk\);/.test(shell) && /\{asked && !isShare && <Fence name="help" again=\{asked\.n\}[^\n]*><HelpSheets asked=\{asked\} \/><\/Fence>\}/.test(shell)
     && /<ConciergeChat open=\{open === "gt3-open-concierge"\} onClose=\{close\} \/>/.test(read("components/HelpSheets.tsx"))
     && ["concierge", "connect", "display"].every((d) => (read("components/AccountSheet.tsx").match(new RegExp(`open\\("gt3-open-${d}"\\)`, "g")) || []).length === 2)
     && /new Event\("gt3-open-connect"\)/.test(read("components/OperatorNav.tsx")));
@@ -10931,7 +10944,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("names: a tab's own screen has no Back; the five pages whose ‹ went into the bar still go where it went", RT.TAB_ROOTS.every((p) => RT.isTabRoot(p)) && !RT.isTabRoot("/book")
     && RT.upOf("/academy") === "/3mpire" && RT.upOf("/scan") === "/crew" && RT.upOf("/offer") === "/" && RT.upOf("/agreement") === "/3mpire" && RT.upOf("/architecture") === "/3mpire" && RT.upOf("/book") === null);
   const tb = read("components/TitleBar.tsx"), sheetSrc = read("components/Sheet.tsx"), ub = read("components/useBack.ts"), shell = read("components/AppShell.tsx");
-  ok("title bar: the shell draws it first in the scroll, on every screen but a partner's share", /\{!isShare && <TitleBar \/>\}\s*\{!isShare && !H1_SKIP/.test(shell));
+  ok("title bar: the shell draws it first in the scroll, on every screen but a partner's share", /\{!isShare && <Fence name="title-bar"><TitleBar \/><\/Fence>\}\s*\{!isShare && !H1_SKIP/.test(shell));
   ok("title bar: it watches the screen's large title (a crew heading, a masthead's eyebrow) and names the screen once it is gone",
     /body\.querySelector\("\[data-large-title\]"\)/.test(tb) && /<h1 className="op-head-t" data-large-title>/.test(read("app/crew/page.tsx"))
     && /<div className=\{`k-eyb k-page-eyb\$\{live \? " live" : ""\}`\} data-large-title>/.test(read("components/kit.tsx")) && /onClick=\{scrollToTop\}/.test(tb));
@@ -11040,7 +11053,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("the Pass: its words take the look's ink (a ticket's name was the dark look's cream on the Day look's white), and a ticket's age clears its ••• button",
     /<div className="svc-full text-cream[^"]*" role="dialog"/.test(passScreenSrc) && /<div className="adm-order-top pr-10">/.test(ticketSrc));
   ok("the Pass: Escape in a sheet over it closes the sheet, and the Pass stays",
-    /const onKey = \(e: KeyboardEvent\) => \{ if \(e\.key === "Escape" && !e\.defaultPrevented && !sheetOpen\(\)\) setSvc\(false\); \};/.test(crew));
+    /const onKey = \(e: KeyboardEvent\) => \{ if \(e\.key === "Escape" && !e\.defaultPrevented && !sheetOpen\(\)\) \{ keepPassOpen\(false\); setSvc\(false\); \} \};/.test(crew));
   ok("long press: a just-completed ticket — bring it back to ready, the money — as on the tray's own buttons",
     /\{ key: "recall", label: "Bring it back to ready", icon: "chevronLeft", run: \(\) => \{ void act\.recall\(o\); \} \}/.test(ticketSrc) && /<div \{\.\.\.press\.bind\} className="adm-order pressable st-done"/.test(ticketSrc));
   ok("long press: on an Inbox flag — Open, Discuss, Snooze for an hour (never a critical), Got it — on its row line, inside the swipe",
@@ -11353,7 +11366,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /ev: \{ h: "ev-sub-h", row: "k-chips" \},/.test(mr) && (mr.match(/<div className=\{c\.row\}>/g) || []).length === 3
     && (mr.match(/<button type="button" className="k-chip" onClick=\{\(\) => cycleTri\(/g) || []).length === 2 && !/\.(ev-chip|menued-tog|menued-site)\b/.test(g));
   ok("recipes: no button draws the browser's grey face — the crash screen's Try again and Reload are the kit's (.act-btn was styled nowhere), the delivery loop's entries are chips, and the audit reads every button for it",
-    /<button type="button" className="btn-pri" onClick=\{reset\}>Try again<\/button>\s*<button type="button" className="btn-sec" onClick=\{reload\}>Reload<\/button>/.test(read("app/error.tsx"))
+    /<button type="button" className="btn-pri" onClick=\{retry\}>Try again<\/button>\s*<button type="button" className="btn-sec" onClick=\{reload\}>Reload<\/button>/.test(read("app/error.tsx"))
     && /<button key=\{t\.id\} type="button" className="k-chip sm min-w-11"/.test(read("components/DeliveryOps.tsx"))
     && /export function greyButtonsIn\(root, styled\)/.test(audit) && /const grey = greyButtonsIn\(root, /.test(audit));
   ok("recipes: Studio's calendar's Week · Month is the segmented control, and its bar wraps — on a phone Today ran past the edge",
@@ -11591,7 +11604,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<div className="svc-full text-cream pass-frame" role="dialog"/.test(tp) && /container: pass \/ inline-size;/.test(util("pass-frame"))
     && /grid-template-columns: minmax\(0, 1fr\);\s*@container pass \(width >= 900px\) \{[^}]*grid-template-columns: minmax\(0, 1fr\) clamp\(260px, 28%, 340px\);/.test(util("pass-grid"))
     && /@container pass \(width >= 900px\) \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/.test(util("pass-cols"))
-    && /<div className="pass-grid">/.test(tp) && /<div className="pass-main">\{strip\}<PassBoard \/><\/div>/.test(tp) && /<aside className="pass-rail" aria-label="Pickups & sold-out">/.test(tp)
+    && /<div className="pass-grid">/.test(tp) && /<div className="pass-main"><Fence name="pass-strip">\{strip\}<\/Fence><PassBoard \/><\/div>/.test(tp) && /<aside className="pass-rail" aria-label="Pickups & sold-out">/.test(tp)
     && /<div className="pass-cols">/.test(tp) && /<div className="kds-stage pass-lane" key=\{st\.key\} data-lane=\{st\.key\}>/.test(tp) && /<div className="pass-list">/.test(tp));
   ok("pass wide: each lane's list and the rail scroll on their own, under their headings; the board does not scroll as a page",
     /overflow-y: auto; overscroll-behavior: contain;/.test(util("pass-list")) && /min-height: 0; overflow-y: auto; overscroll-behavior: contain;/.test(util("pass-rail"))
@@ -11619,11 +11632,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── 86, and recall: one tap ──
   ok("pass 86: on a phone the bar's '86 board' opens the 86 board in a sheet; where the rail is beside the board the door is not drawn",
     /<button type="button" className="btn-ter pass-narrow" onClick=\{\(\) => setEightySix\(true\)\} aria-haspopup="dialog">86 board<\/button>/.test(tp)
-    && /<Sheet open onClose=\{\(\) => setEightySix\(false\)\} label="86 board"/.test(tp) && /<EightySix \/>\s*<\/Sheet>/.test(tp)
+    && /<Sheet open onClose=\{\(\) => setEightySix\(false\)\} label="86 board"/.test(tp) && /<EightySix \/><\/Fence>\s*<\/Sheet>/.test(tp)
     && /@container pass \(width >= 900px\) \{ display: none; \}/.test(util("pass-narrow")));
   ok("pass recall: the last picked up stay in reach under Ready, Recall one tap on each — through the move, from the status it showed",
     /\{st\.key === "ready" && done\.length > 0 && \(/.test(tp) && /\(trayOpen \? done : done\.slice\(0, TRAY_SHOWN\)\)\.map\(\(o\) => <DoneTicket/.test(tp)
-    && /const done = lanes\.done\.filter\(\(o\) => canRecall\(o, now\)\);/.test(tp) && /const recall = useCallback\(\(o: Order\) => move\(o, PREV\[o\.status\]\), \[move\]\);/.test(tp)
+    && /const done = lanes\.done\.filter\(\(o\) => canRecall\(o, now\)\);/.test(tp) && /const recall = useCallback\(\(o: Order\) => \(bounce\(o\) \? undefined : move\(o, PREV\[o\.status\]\)\), \[move, bounce\]\);/.test(tp)
     && /<button type="button" className="btn-sec shrink-0" onClick=\{\(\) => act\.recall\(o\)\} aria-label=\{`Bring \$\{o\.customer \?\? "order"\} back to ready`\}>↩ Recall<\/button>/.test(tk));
 
   // ── accessibility on the Pass ──
@@ -11638,7 +11651,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /role="group" aria-label=\{`\$\{o\.customer \?\? "Guest"\}, \$\{ticketNo\(o\.id\)\}`\} tabIndex=\{-1\} data-ticket=\{o\.id\}>/.test(tk)
     && /<div className="adm-sec pass-board" id="kitchen-pass" ref=\{board\} tabIndex=\{-1\} onFocus=\{onFocus\}>/.test(tp)
     && /const \{ board, onFocus, arm, land \} = useFollowFocus\(all\);/.test(tp)
-    && (tp.match(/land\(o, laneOf\(o, Date\.now\(\)\)\);\s*apply\(/g) || []).length === 2
+    && /const left = laneOf\(o, Date\.now\(\)\);\s*land\(o, left\);/.test(tp) && /land\(o, laneOf\(o, Date\.now\(\)\)\);\s*hold\(o, "order_status", \{ status: "void" \}\);\s*apply\(o, true\);/.test(tp)
     && /export function useFollowFocus\(/.test(code(read("components/pass/focus.ts"))) && /t\.focus\(\{ preventScroll: false \}\);/.test(code(read("components/pass/focus.ts"))));
 
   // ── the feed, said out loud ──
@@ -12622,7 +12635,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     LO.exceptionOpens(flag({ kind: "order_stale" })) === "pass" && LO.exceptionOpens(flag({ kind: "pass_unwatched" })) === "pass" && LO.exceptionOpens(flag({ title: "Paid order didn't record — add it" })) === "inbox"
       && /const go = \(\) => \{ if \(s\.opens === "pass"\) onOpenPass\(\); else window\.dispatchEvent\(new Event\("gt3-open-inbox"\)\); \};/.test(rows));
   ok("exceptions: one row at the top of Live Ops, over both columns, from the header bell's own list; critical tint; nothing under the Pass",
-    /\{!svc && <ExceptionLine flags=\{hdrFlags\} onOpenPass=\{\(\) => setSvc\(true\)\} \/>\}/.test(nowSec) && nowSec.indexOf("<ExceptionLine") < nowSec.indexOf("<Columns>")
+    /\{!svc && <ExceptionLine flags=\{hdrFlags\} onOpenPass=\{openPass\} \/>\}/.test(nowSec) && nowSec.indexOf("<ExceptionLine") < nowSec.indexOf("<Columns>")
       && /<button type="button" className="alerts-strip crit min-h-11" onClick=\{go\} aria-label=\{s\.label\}>/.test(rows) && /const \{ flags: hdrFlags \} = useMyAlerts\(user\?\.id \?\? null\);/.test(page));
 
   // DUE NEXT (approved item 3) — the drop is a row of the list.
@@ -15304,6 +15317,109 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     sub.indexOf('update({ square_asked_at: new Date().toISOString() })') > 0 && sub.indexOf('update({ square_asked_at: new Date().toISOString() })') < sub.indexOf("fetch(`${SQUARE_BASE}/v2/subscriptions`")
       && /throw new SubscriptionUnknown\(/.test(sub) && /kind: "subscription_unknown", subjectId: rowId/.test(sub) && /status: 202/.test(sub)
       && /\.is\("square_asked_at", null\)\s+\.lt\("created_at"/.test(sub));
+}
+
+// ── R11 · WHAT KEEPS WORKING WHEN SOMETHING GOES WRONG (2026-10-16, the 10/10 audit's front end) ──
+// The crash screens and the fences around each piece of chrome, the card form that can be tried again, a deadline on every
+// call out of the browser, the Pass's held moves and its bounce guard, a Pass remembered through a reload, a phone kept
+// signed in with no signal, and the feed that catches up. The rules run in scripts/r11.test.mjs; this holds the wiring.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ROOTDIR = path.join(__dirname, "..");
+  const rd = (f) => fs.readFileSync(path.join(ROOTDIR, f), "utf8");
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+
+  // the crash screens
+  const ge = rd("app/global-error.tsx"), er = strip(rd("app/error.tsx")), rep = strip(rd("components/ErrorReporter.tsx"));
+  ok("R11 crash: a crash in the root layout has a screen of its own — its own document, the house's colours, reported and healed as a page's is",
+    /^"use client";/.test(ge) && /<html lang="en">/.test(ge) && /<style>\{CSS\}<\/style>/.test(ge) && /<title>GT3 Performance Bar<\/title>/.test(ge)
+      && /recoverFromCrash\(error, \{ where: "app" \}\);/.test(ge) && /onClick=\{\(\) => unstable_retry\(\)\}/.test(ge) && /button\{min-height:44px;/.test(ge)
+      && /onClick=\{back\}>Back<\/button>/.test(ge) && /if \(window\.history\.length > 1\) window\.history\.back\(\); else window\.location\.assign\("\/"\);/.test(ge)
+      && /env\(safe-area-inset-top,0px\)/.test(ge) && !/style=\{\{/.test(ge));
+  ok("R11 crash: the page's crash screen and the last one decide the same way — classify, report, heal — in one place",
+    /recoverFromCrash\(error\);/.test(er) && !/classifyCrash|readSkewMemory/.test(er)
+      && rep.indexOf("classifyCrash(message, readSkewMemory(raw), Date.now())") > 0 && rep.indexOf("classifyCrash(message") < rep.indexOf("reportClientError({\n      message: `${opts.where")
+      && /fatal: plan\.fatal && opts\.fatal !== false,/.test(rep));
+  ok("R11 crash: Try again reads the screen again (unstable_retry), and the words promise nothing the screen can't keep",
+    /const retry = \(\) => \(unstable_retry \?\? reset\)\(\);/.test(er) && /onClick=\{retry\}>Try again</.test(er)
+      && !/Your work is saved|nothing was lost/i.test(er) && /\{error\.digest \? "send us the code below" : "let us know"\}/.test(rd("app/error.tsx")));
+  // one piece fails alone
+  const fe = strip(rd("components/Fence.tsx")), sh = rd("components/AppShell.tsx");
+  ok("R11 fence: a piece that throws steps aside, is reported as itself (not a page), and is tried again on the next screen or the next ask",
+    /static getDerivedStateFromError\(\) \{ return \{ failed: true \}; \}/.test(fe) && /p\.at !== s\.at \|\| !Object\.is\(p\.again, s\.again\) \? \{ failed: false, at: p\.at, again: p\.again \} : null/.test(fe)
+      && /recoverFromCrash\(error, \{ where: `piece:\$\{this\.props\.name\}`, fatal: false \}\);/.test(fe) && /at=\{usePathname\(\)\}/.test(fe));
+  const names = [...sh.matchAll(/<Fence name="([a-z0-9-]+)"/g)].map((m) => m[1]);
+  ok("R11 fence: every piece of the shell's chrome is fenced, each alone — and the reporter is not (it must outlive them)",
+    ["broadcast", "title-bar", "drink", "checkout", "toast", "notifications", "order-status", "cart-bar", "nav", "dock", "fresh-tab", "copilot", "command-palette", "swipe-back", "pull-to-refresh", "scroll-restore", "rail", "help", "splash", "native", "apple-link"].every((n) => names.filter((x) => x === n).length === 1)
+      && /<\/Fence>\n\s+<ErrorReporter \/>/.test(sh) && !/<Fence name="[a-z-]+"><ErrorReporter/.test(sh), names);
+  ok("R11 fence: a sheet someone asked for that crashed says it didn't open, and the next ask tries again",
+    /<Fence name="checkout" again=\{coOpen\} fallback=\{\(\) => <NotOpened open=\{coOpen\} close=\{closeCheckout\} what="Checkout" toast=\{toast\} \/>\}><Checkout \/><\/Fence>/.test(sh)
+      && /<Fence name="help" again=\{asked\.n\}/.test(sh) && /toast\(`\$\{what\} didn't open — tap it again\.`, "error"\);/.test(sh));
+  const tp = rd("components/pass/ThePass.tsx");
+  ok("R11 fence: on the Pass the strip, the pickups and the 86 board each fail alone — the board goes on, and says which didn't load",
+    /<Fence name="pass-strip">\{strip\}<\/Fence><PassBoard \/>/.test(tp) && /<Fence name="pass-pickups" fallback=\{\(retry\) => <RailDown what="Pickups" retry=\{retry\} \/>\}><DropOps canPlan=\{canPlan\} \/><\/Fence>/.test(tp)
+      && (tp.match(/<Fence name="pass-86(-sheet)?" fallback=/g) || []).length === 2 && /title=\{`\$\{what\} didn't load`\} sub="The board is fine\."/.test(tp));
+  // the card form
+  const sq = strip(rd("lib/square.ts")), pc = strip(rd("components/PaymentCard.tsx"));
+  ok("R11 card: a failed load of Square's script is forgotten — its tag taken out, nothing cached — and one that never answers gives up",
+    /load\.catch\(\(\) => \{ if \(squareLoad === load\) squareLoad = null; \}\);/.test(sq) && /querySelectorAll<HTMLScriptElement>\("script\[data-square\]"\)\.forEach\(\(t\) => t\.remove\(\)\)/.test(sq)
+      && /const timer = setTimeout\(\(\) => settle\(false\), SDK_TIMEOUT_MS\);/.test(sq) && /if \(loaded && window\.Square\) \{ resolve\(window\.Square\); return; \}/.test(sq));
+  ok("R11 card: the form is mounted one attempt at a time, read again after every wait, and a failure leaves a Try again that starts over",
+    !/setInterval/.test(pc) && /for \(let i = 0; i < MOUNT_TRIES; i\+\+\) \{/.test(pc) && /await pause\(MOUNT_GAP_MS\);/.test(pc)
+      && (pc.match(/if \(dead \|\| cardRef\.current\) \{ card\.destroy\?\.\(\); return true; \}/g) || []).length === 2
+      && /\}, \[tone, attempt\]\);/.test(pc) && /\{failed && <button type="button" className="btn-sec btn-sm" onClick=\{retry\}>Try again<\/button>\}/.test(pc));
+  // deadlines
+  const pays = { "components/Checkout.tsx": 3, "components/OrderFunnel.tsx": 2, "components/ShopCheckout.tsx": 1, "components/ReservePay.tsx": 1, "components/PackChangePay.tsx": 1 };
+  ok("R11 deadline: every payment POST carries the payment's deadline — a charge that never answers says \"tap Pay to retry\" instead of holding the sheet shut",
+    Object.entries(pays).every(([f, n]) => (rd(f).match(/\{ deadlineMs: PAY_DEADLINE_MS \}\)/g) || []).length === n && /import \{ PAY_DEADLINE_MS \} from "@\/lib\/deadline";/.test(rd(f))));
+  ok("R11 deadline: the database client and the app's own routes have theirs — every read, write, refresh and file",
+    /global: \{ fetch: withDeadline\(dbDeadlineFor\) \},/.test(rd("lib/supabase.ts"))
+      && /return withDeadline\(opts\.deadlineMs \?\? ROUTE_DEADLINE_MS\)\(apiUrl\(url\), \{ \.\.\.init, headers \}\);/.test(rd("lib/authedFetch.ts")));
+  // the feed
+  const rt = strip(rd("lib/realtime.ts")), nt = strip(rd("components/Notifications.tsx"));
+  ok("R11 feed: a burst of changes is one read, a rejoin after a break reads once, and the signal coming back reads every screen",
+    /import \{ coalesce \} from "\.\/rush";/.test(rt) && /const rush = coalesce\(\(\) => cb\.current\(\)\);/.test(rt) && /\(\) => rush\.poke\(\)\);/.test(rt)
+      && /if \(status === "SUBSCRIBED"\) \{ if \(broke\) \{ broke = false; cb\.current\(\); \} \}/.test(rt) && /window\.addEventListener\("online", \(\) => \{ void refreshLive\(\); \}\);/.test(rt));
+  ok("R11 feed: the member's and the admin's alerts open a channel of their own each time, keyed on the person — never a name still being left",
+    /\.channel\(`notify-me-\$\{\+\+notifySeq\}`\)/.test(nt) && /\.channel\(`notify-admin-\$\{\+\+notifySeq\}`\)/.test(nt) && /\}, \[uid\]\);/.test(nt) && /\}, \[isAdmin\]\);/.test(nt)
+      && /filter: `user_id=eq\.\$\{uid\}`/.test(nt));
+  // signed in with no signal
+  const ap = strip(rd("components/AuthProvider.tsx")), rp = strip(rd("components/offlineReplay.ts"));
+  ok("R11 offline: a cold start with no signal opens on the phone's last profile for that person, and a renewal that can't reach us keeps them signed in",
+    /const kept = offlineFailure\(error\) \? keptProfile<Profile>\(uid\) : null;/.test(ap) && /if \(!data\.session && holdOffline\(error\)\) return;/.test(ap)
+      && /if \(event === "INITIAL_SESSION" && !session\) return;/.test(ap) && /retry = setInterval\(askAgain, 30_000\);/.test(ap) && /window\.addEventListener\("online", askAgain\);/.test(ap)
+      && /if \(data\) keepProfile\(uid, data\);/.test(ap));
+  ok("R11 offline: the queue sends nothing without a real session — a crew write sent as nobody is refused, and a refusal takes it out",
+    rp.indexOf("const { data } = await supabase.auth.getSession();") > 0 && rp.indexOf("const { data } = await supabase.auth.getSession();") < rp.indexOf("for (;;) {")
+      && /if \(!data\.session\) \{ flushing = false; return readQueue\(\)\.length; \}/.test(rp));
+  // the Pass
+  const pb = strip(rd("components/pass/usePassBoard.ts")), tps = strip(tp);
+  ok("R11 pass: every read and every feed row is drawn under this phone's held moves; a reload starts from the moves still queued",
+    /const rows = drawn\(res\.rows\);/.test(pb) && /fromFeed\(row, p\.eventType === "DELETE"\);/.test(pb) && /if \(!held\.current\.size\) held\.current = heldFromQueue\(readQueue\(\)\);/.test(pb)
+      && /underHeld\(rows, held\.current, Date\.now\(\), new Set\(readQueue\(\)\.map\(\(q\) => q\.key\)\)\)/.test(pb));
+  ok("R11 pass: a move, a collection, an undo and a void are each held from the tap, and let go when the database refuses them",
+    /hold\(o, "order_status", patch\);/.test(tps) && /hold\(o, "collect_cup", paid as Partial<Order>\);/.test(tps) && /hold\(o, "undo_collect", undonePatch\(o\) as Partial<Order>\);/.test(tps)
+      && /hold\(o, "order_status", \{ status: "void" \}\);/.test(tps) && (tps.match(/release\(o, "order_status"\);/g) || []).length === 2 && (tps.match(/release\(o, "collect_cup"\);/g) || []).length === 2
+      && (tps.match(/release\(o, "undo_collect"\);/g) || []).length === 2);
+  ok("R11 pass: a bounce off a ticket that just moved is not a tap on the one that slid under it",
+    /settle\.current = \{ lane: left, id: o\.id, until: Date\.now\(\) \+ TAP_SETTLE_MS \};/.test(tps) && /const advance = useCallback\(async \(o: Order\) => \{\n\s+if \(bounce\(o\)\) return;/.test(tps)
+      && /\(bounce\(o\) \? undefined : move\(o, PREV\[o\.status\]\)\)/.test(tps));
+  ok("R11 pass: every touch asks for the sound, and while it can't play the chip says Tap for sound",
+    /window\.addEventListener\("pointerdown", unlockAudio, true\);/.test(tps) && /soundLocked && !muted/.test(tps) && /Tap for sound<\/button>/.test(tps)
+      && /if \(c\.state !== "running"\) void c\.resume\(\)\.then\(tell, \(\) => \{\}\);/.test(rd("lib/chime.ts")));
+  const cp = strip(rd("app/crew/page.tsx"));
+  ok("R11 pass: opened by a touch with its sound asked for, remembered through a reload on Live Ops, forgotten on Exit, Escape or leaving",
+    /const openPass = \(\) => \{ unlockAudio\(\); setSvc\(true\); \};/.test(cp) && /const kept = useSyncExternalStore\(neverChanges, passWasOpen, closedOnServer\);/.test(cp)
+      && /const svc = chosen \?\? \(kept && section === "now"\);/.test(cp) && /const closePass = \(\) => \{ keepPassOpen\(false\); setSvc\(false\); \};/.test(cp)
+      && /onExit=\{closePass\}/.test(cp) && /if \(sectionWas\.current === "now" && section !== "now"\) keepPassOpen\(false\);/.test(cp)
+      && /const open = \(\) => \{ setSection\("now"\); unlockAudio\(\); setSvc\(true\); \};/.test(cp) && !/onOpenPass=\{\(\) => setSvc\(true\)\}/.test(cp));
+  // a tapped notification's window
+  const swr = strip(rd("components/ServiceWorkerRegister.tsx"));
+  ok("R11 window: a window the worker can't steer goes to a tapped notification's link itself — on this site only",
+    /if \(d\?\.type !== "gt3-open" \|\| typeof d\.url !== "string"\) return;/.test(swr) && /const here = new URL\(window\.location\.href\), to = new URL\(d\.url, here\);\s*if \(to\.origin === here\.origin && to\.href !== here\.href\) window\.location\.assign\(to\.href\);/.test(swr)
+      && /navigator\.serviceWorker\.removeEventListener\("message", onMessage\);/.test(swr));
+  ok("R11 intake: one bug is one row across deploys — the fingerprint takes where it was thrown, not the chunk's hash and line",
+    /createHash\("sha256"\)\.update\(`\$\{stableErrorKey\(message\)\}\|\$\{stableFrame\(stack\)\}\|\$\{path\}`\)/.test(rd("lib/errorIntake.ts")));
 }
 
 Promise.all(PENDING).then(() => {

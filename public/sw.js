@@ -39,7 +39,7 @@
 //
 // v28 (2026-10-16, R10b · the 10/10 audit): a page is kept under its path alone — an /order?t=… ticket, which can cancel
 // the order, was a cache key on the device. Nothing else changed.
-const CACHE = "gt3pb-v28";
+const CACHE = "gt3pb-v29";
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/crew", "/driver", "/manifest.webmanifest"];
 
 // Page DATA, not a page: Next's router fetches a route's flight payload with these marks whenever
@@ -141,6 +141,17 @@ self.addEventListener("fetch", (event) => {
 });
 
 /* ---- Native Web Push (VAPID) ---- */
+// SHOWN ANYWAY WHERE WEBKIT IS THE BROWSER (R11, 2026-10-16 — the 10/10 audit). A push that arrives while the app is on
+// screen was dropped (the app toasts and chimes for its own), and Chrome lets a page do that. WebKit does not: an iPhone
+// home-screen web app, or Safari, that receives pushes and shows nothing has its subscription revoked after a few — so a
+// web Pass on an iPad, or a member with the app open while an order is made, quietly stopped getting pushes at all.
+// There it is shown without a sound, and taken down again after QUIET_MS; the app has already said it.
+const QUIET_MS = 4000;
+function webkitOnly() {
+  const ua = (self.navigator && self.navigator.userAgent) || "";
+  return /iPhone|iPad|iPod/.test(ua) || (/AppleWebKit/.test(ua) && !/Chrome\/|Chromium|Edg\/|OPR\/|Android/.test(ua));
+}
+
 self.addEventListener("push", (event) => {
   if (!event.data) return;
   let data = {};
@@ -152,24 +163,44 @@ self.addEventListener("push", (event) => {
     // app — the inbox just reloads — so a critical, an escalation and a person's own "Ring this phone"
     // test come with `ring` and are shown over an open app as well (supabase/functions/push/policy.ts).
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    if (!data.ring && wins.some((c) => c.focused || c.visibilityState === "visible")) return;
+    const onScreen = wins.some((c) => c.focused || c.visibilityState === "visible");
+    if (!data.ring && onScreen && !webkitOnly()) return;
+    const quiet = !data.ring && onScreen;
+    // ONE NOTIFICATION PER EVENT (2026-10-11). Every push shared the tag "gt3pb", so a second order or
+    // alert replaced the one still showing, without a sound — and an escalation, sent because the first
+    // went unanswered and so was likely still showing, was the quietest of all. The push function names
+    // each event now; a push from a function deployed before that keeps the old tag.
+    const tag = typeof data.tag === "string" && data.tag ? data.tag : "gt3pb";
     await self.registration.showNotification(data.title || "GT3PB", {
       body: data.body || "",
       icon: data.icon || "/icon-192.png",
       badge: "/icon-192.png",
-      // ONE NOTIFICATION PER EVENT (2026-10-11). Every push shared the tag "gt3pb", so a second order or
-      // alert replaced the one still showing, without a sound — and an escalation, sent because the first
-      // went unanswered and so was likely still showing, was the quietest of all. The push function names
-      // each event now; a push from a function deployed before that keeps the old tag.
-      tag: typeof data.tag === "string" && data.tag ? data.tag : "gt3pb",
+      tag,
+      ...(quiet ? { silent: true } : {}),
       data: { url: data.url || "/" },
     });
+    if (!quiet) return;
+    await new Promise((r) => setTimeout(r, QUIET_MS));
+    const up = self.registration.getNotifications ? await self.registration.getNotifications({ tag }) : [];
+    for (const n of up) n.close();
   })());
 });
 
-// Deep-link: a push that carries a url (e.g. an order alert pointing at the pass) opens THERE,
-// not the home page (v25 — was hardcoded "/").
+// ONE WINDOW (R11, 2026-10-16 — the 10/10 audit). A tap on a notification always opened a new window — on a computer or
+// an Android phone, each tapped order was another whole console, with its own feed, its own wake lock and, on the Pass,
+// its own chime for every order. The app's window is brought forward and sent to the link; a new one only when none is
+// open. A window this worker does not control can't be sent anywhere by it, and is told to go itself
+// (components/ServiceWorkerRegister).
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow(event.notification.data?.url || "/"));
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const win = wins.find((c) => c.focused) || wins.find((c) => c.visibilityState === "visible") || wins[0];
+    if (!win) { await self.clients.openWindow(url); return; }
+    try { if (win.focus) await win.focus(); } catch { /* focus is the browser's to refuse */ }
+    if (win.url === url) return;
+    try { if (win.navigate) { await win.navigate(url); return; } } catch { /* not this worker's window */ }
+    win.postMessage({ type: "gt3-open", url });
+  })());
 });

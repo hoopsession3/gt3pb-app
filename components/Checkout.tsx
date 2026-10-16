@@ -6,6 +6,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { authedFetch } from "@/lib/authedFetch";
+import { PAY_DEADLINE_MS } from "@/lib/deadline";
 import { subscribePush } from "@/lib/push";
 import { offStopMenu } from "@/lib/catalog";
 import { CUP_MARKETS } from "@/lib/markets";
@@ -297,7 +298,7 @@ export default function Checkout() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items, customer, market: viewerMarket, idempotencyKey: attempt.key, expectedCents: subtotalCents }),
-      });
+      }, { deadlineMs: PAY_DEADLINE_MS });
       const data = await res.json();
       idem.settle(attempt.key, res.status, data);
       // Placed is `ok: true`, nothing less (R7b): a key a check closed answers 200 with "never reached us".
@@ -346,7 +347,7 @@ export default function Checkout() {
       const res = await authedFetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ check: true, idempotencyKey: idem.heldKey(), card, items, customer: customer || undefined }),
-      });
+      }, { deadlineMs: PAY_DEADLINE_MS });
       const data = await res.json().catch(() => null);
       if (idem.heldKey() !== key) return;   // let go meanwhile: this answer is about a checkout that is no longer here
       if (data?.checked === true && data.charged === false) {
@@ -402,7 +403,7 @@ export default function Checkout() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceId: attempt.token, items, tipCents, customer, market: viewerMarket, idempotencyKey: attempt.key, expectedCents: grandCents }),
-      });
+      }, { deadlineMs: PAY_DEADLINE_MS });
       const data = await res.json();
       idem.settle(attempt.key, res.status, data);
       // Paid is `ok: true`, nothing less (R7b): a key a check closed (another tab's) answers 200 with "never reached us".

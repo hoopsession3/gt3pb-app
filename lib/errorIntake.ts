@@ -71,11 +71,29 @@ export function budgetsFor(r: Pick<ErrorReport, "ua" | "browser">): { rows: type
 /** Where the crew reads what was filed: Settings › Advanced › Errors (components/ErrorLog.tsx). */
 export const ERRORS_LINK = "/crew?s=settings&a=set-errors";
 
-/** Fingerprint: normalised message + top stack frame + path — stable across users, sessions and
+/** Where a bug was thrown, without what moves on every build (R11, 2026-10-16 — the 10/10 audit). The fingerprint took
+ *  the stack's first two lines as they came: V8's first line repeats the message (ids and all), and a frame names a
+ *  content-hashed chunk, a line and column, and a minified name — all different whenever the file is rebuilt. So one bug
+ *  was a new row, a new alert and a split count after every deploy that touched its file; the test that said otherwise
+ *  held the stack the same on both deploys. What is kept is the top frame's file, unhashed: a server route's own path, or
+ *  "a chunk" in the browser. V8 ("at name (file:1:2)"), Safari and Firefox ("name@file:1:2"). Pure. */
+export function stableFrame(stack: string): string {
+  const lines = String(stack ?? "").split("\n").map((l) => l.trim());
+  const v8 = lines.find((l) => /^at\s/.test(l));
+  let where = "";
+  if (v8) where = /\(([^()]*)\)$/.exec(v8)?.[1] ?? v8.replace(/^at\s+(?:async\s+)?/, "");
+  else {
+    const other = lines.find((l) => /^[^@]*@\S+:\d+(?::\d+)?$/.test(l));
+    where = other ? other.slice(other.indexOf("@") + 1) : "";
+  }
+  // A build's hash in a server chunk's name ("[root-of-the-server]__a1b2c3d4._.js") is not a word stableErrorKey can see.
+  return stableErrorKey(where.replace(/:\d+(?::\d+)?$/, "").replace(/[?#].*$/, "").replace(/(?<![0-9a-z])(?=[0-9a-f]*\d)[0-9a-f]{6,}(?![0-9a-z])/gi, "<h>"));
+}
+
+/** Fingerprint: normalised message + where it was thrown + path — stable across users, sessions and
  *  deploys, so one bug is one row no matter how many phones (or instances) hit it. Pure. */
 export function fingerprintOf(message: string, stack: string, path: string): string {
-  const topFrame = stack.split("\n").slice(0, 2).join(" ");
-  return createHash("sha256").update(`${stableErrorKey(message)}|${topFrame}|${path}`).digest("hex");
+  return createHash("sha256").update(`${stableErrorKey(message)}|${stableFrame(stack)}|${path}`).digest("hex");
 }
 
 /** The path part of a URL, or the string as given when it is not a URL. Pure. */

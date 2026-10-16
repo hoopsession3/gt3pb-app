@@ -17,6 +17,7 @@ import Sheet, { CloseButton } from "./Sheet";
 import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
+import { PAY_DEADLINE_MS } from "@/lib/deadline";
 import { squareClientReady } from "@/lib/square";
 import { haptic } from "@/lib/haptics";
 import { packClosesAt, closesWords, PICKUP_STOPS_READ } from "@/lib/pickupDay";
@@ -474,7 +475,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceId: attempt.token ?? undefined, idempotencyKey: attempt.key, expectedCents: payCents, stopId: stop?.id ?? undefined, textOptIn: textYes || undefined, name: name.trim(), phone: phone.trim(), size: count, glass: (bringBack ? "return" : "new") as GlassPath, mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat), code: codeState === "ok" ? codeClean : undefined }),
-      });
+      }, { deadlineMs: PAY_DEADLINE_MS });
       const data = await res.json(); setBusy(false);
       idem.settle(attempt.key, res.status, data);
       if (!res.ok) { raisedTotal(data); setErr(data.error || "Something went wrong — try again."); return; }
@@ -534,7 +535,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           textOptIn: textYes || undefined,
           retry: attempt.retry === true,
         }),
-      });
+      }, { deadlineMs: PAY_DEADLINE_MS });
       const data = await res.json(); setBusy(false);
       idemDelivery.settle(attempt.key, res.status, data);
       if (!res.ok) {

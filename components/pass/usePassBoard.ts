@@ -11,7 +11,8 @@ import { isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } 
 import { snapshotUsable } from "@/lib/offline";
 import {
   readBoard, keepSame, mergeRow, feedState, readHere, hereAfter, scopeFrom, newOrderWords, newOrdersWords, outsideWords,
-  OPEN_CAP, NOWHERE, PASS_FEED_EVENT, type BoardDown, type Here, type Scope,
+  holdMove, underHeld, heldFromQueue, heldKey,
+  OPEN_CAP, NOWHERE, PASS_FEED_EVENT, type BoardDown, type Here, type Scope, type Held, type HeldKind,
 } from "@/lib/passBoard";
 import type { Order } from "@/lib/db";
 import { useApp } from "@/components/AppProvider";
@@ -83,6 +84,15 @@ export function usePassBoard() {
   // OVERLAPPING READS LAND IN ORDER (2026-10-11): the reconcile, a return to the screen, a reconnect and a drained queue
   // can all ask at once. Only the newest read asked for is applied — a slow old answer never puts an older board back.
   const loadSeq = useRef(0);
+  // WHAT THIS PHONE HAS MOVED AND NOT YET HEARD BACK (R11, lib/passBoard holdMove/underHeld): every read and every feed row
+  // is drawn under these, so a read that lands before a write (or while the write waits in the queue for signal) no longer
+  // puts a ticket back in its old lane, or a collection back to unpaid. A reload starts from the moves still queued.
+  const held = useRef<Map<string, Held>>(new Map());
+  const drawn = useCallback((rows: Order[]): Order[] => {
+    const r = underHeld(rows, held.current, Date.now(), new Set(readQueue().map((q) => q.key)));
+    held.current = r.held;
+    return r.rows;
+  }, []);
 
   // Active board + recently-completed (last 30 min) so picked-up orders linger for
   // review / recall instead of vanishing instantly. Bounded (lib/passBoard readBoard).
@@ -109,7 +119,7 @@ export function usePassBoard() {
       setDown(net ? "net" : res ? "read" : "auth");
       return;
     }
-    const rows = res.rows;
+    const rows = drawn(res.rows);
     const fresh = seeded.current ? rows.filter((o) => o.status === "new" && !known.current.has(o.id)) : [];
     for (const o of rows) known.current.add(o.id);
     seeded.current = true;
@@ -117,7 +127,7 @@ export function usePassBoard() {
     saveSnapshot("gt3-kds-snap", rows);
     fresh.forEach(announceNew);
     if (fresh.length > 1) say(newOrdersWords(fresh.length));
-  }, [announceNew, say]);
+  }, [announceNew, say, drawn]);
   // Where the truck is selling now — read when the Pass opens and when the feed comes back; between those, the feed's own
   // changes say it (lib/passBoard hereAfter). A failed read keeps what the board had.
   const loadHere = useCallback(async () => {
@@ -132,6 +142,20 @@ export function usePassBoard() {
     const now = Date.now();
     setOrders((prev) => mergeRow(prev, row, removed, now));
   }, []);
+  // A row from the feed is the database's, drawn under this phone's holds (a voided one, or one this phone voided, leaves).
+  const fromFeed = useCallback((row: Order | null, removed: boolean) => {
+    if (!row?.id || removed) { apply(row, removed); return; }
+    const [shown] = drawn([row]);
+    apply(shown ?? row, !shown);
+  }, [apply, drawn]);
+  /** A move drawn now, held until the database says it back (or HOLD_MS, or the queue sends it). */
+  const hold = useCallback((o: Order, kind: HeldKind, patch: Partial<Order>) => {
+    held.current = holdMove(held.current, o, kind, patch, Date.now());
+  }, []);
+  /** A move the database refused: let go of it — the read that follows draws the truth. */
+  const release = useCallback((o: Order, kind: HeldKind) => {
+    const next = new Map(held.current); next.delete(heldKey(kind, o.id)); held.current = next;
+  }, []);
 
   // "I'm OUTSIDE" rings the pass once per order — the customer is at the window, call the name.
   const rungOutside = useRef<Set<string>>(new Set());
@@ -145,6 +169,7 @@ export function usePassBoard() {
   }, [say]);
 
   useEffect(() => {
+    if (!held.current.size) held.current = heldFromQueue(readQueue());
     load();
     void loadHere();
     const recon = setInterval(() => load(), 15000);                // reconcile safety net
@@ -173,7 +198,7 @@ export function usePassBoard() {
         .channel(`admin-kds-${++kdsChanSeq}`)
         .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, (p) => {
           const row = (p.eventType === "DELETE" ? p.old : p.new) as Order;
-          apply(row, p.eventType === "DELETE");
+          fromFeed(row, p.eventType === "DELETE");
           if (p.eventType !== "DELETE" && row?.id) {
             if (row.status === "new" && !known.current.has(row.id)) announceNew(row);
             known.current.add(row.id);
@@ -191,7 +216,7 @@ export function usePassBoard() {
     };
     join();
     return () => { alive = false; clearTimeout(retry); stop(); if (ch) sb.removeChannel(ch); };
-  }, [load, loadHere, apply, announceNew, announceOutside]);
+  }, [load, loadHere, fromFeed, announceNew, announceOutside]);
 
   // The feed's state, told to the rest of the app whenever it changes (lib/passBoard feedState).
   const feed = feedState(down, live);
@@ -202,5 +227,5 @@ export function usePassBoard() {
   // "+N more open orders — Show them": read as many again.
   const showMore = useCallback(() => { cap.current += OPEN_CAP; void load(); }, [load]);
 
-  return { orders, flash, said, muted, boardAt, down, live, more, here, apply, load, showMore };
+  return { orders, flash, said, muted, boardAt, down, live, more, here, apply, hold, release, load, showMore };
 }

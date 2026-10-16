@@ -29,6 +29,12 @@ function chime() {
   } catch { /* */ }
 }
 
+// One name per channel opened (R11): a channel's NAME is a singleton per client, and one being left was handed back by
+// the next .channel("notify-me") — subscribe() on it did nothing, and the ack of the leave closed it. Every other auth
+// event (a return to the tab, the hourly refresh) re-ran these effects, so the member's "ready" and the admin's "new
+// order" went silent half the time.
+let notifySeq = 0;
+
 // Listens on Supabase realtime (RLS-scoped) and surfaces notifications. Renders nothing.
 export default function Notifications() {
   const { toast, nameOf } = useApp();
@@ -36,15 +42,23 @@ export default function Notifications() {
   const nameRef = useRef(nameOf);
   useEffect(() => { nameRef.current = nameOf; }, [nameOf]);
   const { user, profile, refreshProfile } = useAuth();
+  // Keyed on the person, not the object (R11): every auth event hands over a new user and profile object.
+  const uid = user?.id ?? null, isAdmin = !!profile?.is_admin;
+  const refreshRef = useRef(refreshProfile);
+  useEffect(() => { refreshRef.current = refreshProfile; }, [refreshProfile]);
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
 
   // Client: updates to MY orders.
   useEffect(() => {
-    if (!supabase || !user) return;
+    if (!supabase || !uid) return;
+    const toast = (...a: Parameters<typeof toastRef.current>) => toastRef.current(...a);
+    const refreshProfile = () => refreshRef.current();
     const ch = supabase
-      .channel("notify-me")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, (p) => {
+      .channel(`notify-me-${++notifySeq}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders", filter: `user_id=eq.${uid}` }, (p) => {
         const o = p.new as any;
-        if (o.user_id !== user.id) return;
+        if (o.user_id !== uid) return;
         // The order's number and its words, as the bar, Today and the push say them (R3b: lib/orderWords).
         if (o.status === "preparing" || o.status === "ready" || o.status === "done") toast(`${orderNo(String(o.id))} · ${orderLine(o.status)}`);
         // CANCELED, SAID (R7): a void the crew made — or a stop called off — slipped the order off the bar without a word.
@@ -59,13 +73,14 @@ export default function Notifications() {
       })
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
-  }, [user, toast, refreshProfile]);
+  }, [uid]);
 
   // Admin: new orders + new booking requests (RLS delivers all to admins).
   useEffect(() => {
-    if (!supabase || !profile?.is_admin) return;
+    if (!supabase || !isAdmin) return;
+    const toast = (...a: Parameters<typeof toastRef.current>) => toastRef.current(...a);
     const ch = supabase
-      .channel("notify-admin")
+      .channel(`notify-admin-${++notifySeq}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, (p) => {
         const o = p.new as any;
         const names = (o.items || []).map((i: string) => nameRef.current(i)).join(" · ");
@@ -82,7 +97,7 @@ export default function Notifications() {
       })
       .subscribe();
     return () => { supabase?.removeChannel(ch); };
-  }, [profile, toast]);
+  }, [isAdmin]);
 
   return null;
 }

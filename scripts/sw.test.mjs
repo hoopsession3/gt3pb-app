@@ -25,7 +25,7 @@ const ORIGIN = "https://app.gt3pb.com";
 // Any change to sw.js reaches installed clients as a new worker; only a changed CACHE makes the
 // activate step throw the old entries away. So an edit here must bump the name, and the pair below
 // must be re-recorded with it (both values are printed when they differ).
-const RECORDED = { sha: "5407cf5bbf64efc97e6db5a467773e361213c245", cache: "gt3pb-v28" };
+const RECORDED = { sha: "944a4547684c97838a8646ed8f8506d8931d627a", cache: "gt3pb-v29" };
 const blobSha = createHash("sha1").update(`blob ${Buffer.byteLength(SRC)}\0`).update(SRC).digest("hex");
 const cacheName = (SRC.match(/const CACHE = "([^"]+)";/) || [])[1];
 ok("sw: CACHE is declared once, as a plain string", !!cacheName && (SRC.match(/const CACHE = /g) || []).length === 1, cacheName);
@@ -71,7 +71,9 @@ function boot() {
     skipWaiting() { self.skipped = true; },
     registration: { async showNotification() {} },
   };
-  vm.runInNewContext(SRC, { self, caches, fetch, URL, Headers, console, Promise }, { filename: "public/sw.js" });
+  // A timer that fires on the next turn: the worker's waits are real waits, not this test's.
+  const setTimeout = (fn) => { Promise.resolve().then(fn); return 0; };
+  vm.runInNewContext(SRC, { self, caches, fetch, URL, Headers, console, Promise, setTimeout }, { filename: "public/sw.js" });
   const dispatch = async (type, event) => { listeners[type](event); if (event.responded) event.response = await event.responded; await Promise.all(event.waits); return event; };
   const fetchEvent = (request) => ({ request, responded: null, waits: [], respondWith(p) { this.responded = Promise.resolve(p); }, waitUntil(p) { this.waits.push(Promise.resolve(p).catch(() => {})); } });
   const req = (path, { mode = "cors", headers = {}, method = "GET", origin = ORIGIN } = {}) => ({ method, url: origin + path, mode, headers: new Headers(headers), redirect: mode === "navigate" ? "manual" : "follow" });
@@ -203,8 +205,72 @@ function boot() {
   ok("push: a payload from a push function deployed before this keeps the old tag and the old rule", old.length === 1 && old[0].tag === "gt3pb"
     && (await run({ title: "Old function", body: "x" }, open)).length === 0);
   ok("push: an empty push shows nothing", (await run(undefined, hidden)).length === 0);
+
+  // SHOWN ANYWAY WHERE WEBKIT IS THE BROWSER (R11): an iPhone web app or Safari that gets pushes and shows nothing loses its
+  // subscription — so there an order over the open app is shown without a sound, and taken down again.
+  const onBrowser = async (ua, payload, windows) => {
+    const w = boot();
+    const shown = [], closed = [];
+    w.self.navigator = { userAgent: ua };
+    w.self.registration.showNotification = async (title, opts) => { shown.push({ title, ...opts }); };
+    w.self.registration.getNotifications = async ({ tag }) => shown.filter((n) => n.tag === tag).map((n) => ({ close: () => closed.push(n.tag) }));
+    w.self.clients.matchAll = async () => windows;
+    const ev = pushEvent(payload);
+    w.listeners.push(ev);
+    await Promise.all(ev.waits);
+    return { shown, closed };
+  };
+  const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1";
+  const SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15";
+  const CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+  const order = { title: "New order", body: "x", url: "/crew?s=now", tag: "order:o-9", ring: false };
+  const iph = await onBrowser(IPHONE, order, open);
+  ok("push (WebKit): an order over the open iPhone web app is shown — silent, under its own tag — and taken down again",
+    iph.shown.length === 1 && iph.shown[0].silent === true && iph.shown[0].tag === "order:o-9" && iph.closed.join() === "order:o-9", iph);
+  ok("push (WebKit): Safari on a Mac too", (await onBrowser(SAFARI, order, open)).shown.length === 1);
+  const chr = await onBrowser(CHROME, order, open);
+  ok("push (Chrome): an order over the open app is still not shown — Chrome lets a page say it itself", chr.shown.length === 0 && chr.closed.length === 0);
+  const pocket = await onBrowser(IPHONE, order, hidden);
+  ok("push (WebKit): in a pocket it is shown as ever — with its sound, and left up", pocket.shown.length === 1 && pocket.shown[0].silent === undefined && pocket.closed.length === 0, pocket);
+  const ring = await onBrowser(IPHONE, { ...order, tag: "alert:a-9", ring: true }, open);
+  ok("push (WebKit): what rings over an open app still rings, and stays", ring.shown.length === 1 && ring.shown[0].silent === undefined && ring.closed.length === 0);
   const text = await run("not json at all", hidden);
   ok("push: a payload that is not JSON is shown as text under the brand", text.length === 1 && text[0].title === "GT3PB" && text[0].body === "not json at all", text);
+}
+
+// ── ONE WINDOW (R11): a tapped notification brings the app's window forward and sends it to the link ──
+{
+  const click = async (url, windows) => {
+    const w = boot();
+    const opened = [];
+    w.self.clients.matchAll = async () => windows;
+    w.self.clients.openWindow = async (u) => { opened.push(u); };
+    const ev = { notification: { data: { url }, close() { this.closed = true; } }, waits: [], waitUntil(p) { this.waits.push(Promise.resolve(p)); } };
+    w.listeners.notificationclick(ev);
+    await Promise.all(ev.waits);
+    return { opened, closed: ev.notification.closed === true };
+  };
+  const win = (over = {}) => {
+    const c = { url: `${ORIGIN}/menu`, focused: false, visibilityState: "visible", focusedBy: 0, went: [], told: [],
+      async focus() { this.focusedBy++; return this; }, async navigate(u) { this.went.push(u); return this; }, postMessage(m) { this.told.push(m); }, ...over };
+    return c;
+  };
+  const one = win();
+  const r1 = await click("/crew?s=now&a=kitchen-pass", [one]);
+  ok("click: the open window is brought forward and sent to the link — no second window",
+    r1.closed && r1.opened.length === 0 && one.focusedBy === 1 && one.went.join() === `${ORIGIN}/crew?s=now&a=kitchen-pass`, { r1, one });
+  const r2 = await click("/crew?s=now", []);
+  ok("click: with no window open, one is opened at the link", r2.opened.join() === `${ORIGIN}/crew?s=now`, r2);
+  const there = win({ url: `${ORIGIN}/crew?s=now` });
+  await click("/crew?s=now", [there]);
+  ok("click: a window already at the link is only brought forward", there.focusedBy === 1 && there.went.length === 0 && there.told.length === 0);
+  const loose = win({ navigate: undefined });
+  await click("/office", [loose]);
+  ok("click: a window this worker can't steer is told to go there itself (components/ServiceWorkerRegister)",
+    loose.focusedBy === 1 && loose.told.length === 1 && loose.told[0].type === "gt3-open" && loose.told[0].url === `${ORIGIN}/office`, loose.told);
+  const back = win({ visibilityState: "hidden" }), front = win({ focused: true });
+  await click("/menu?x=1", [back, front]);
+  ok("click: of two windows, the one in front is the one used", front.focusedBy === 1 && back.focusedBy === 0);
 }
 
 console.log(`THE APP THAT STOPPED UPDATING: ${pass} passed, ${fail} failed`);

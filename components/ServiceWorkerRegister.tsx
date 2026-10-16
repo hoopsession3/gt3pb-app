@@ -59,9 +59,22 @@ export default function ServiceWorkerRegister() {
     };
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
 
+    // Sent to a link by a tapped notification (public/sw.js, ONE WINDOW — R11): the worker brings this window forward and
+    // steers it there itself when it controls it; one it doesn't control is told to go, and goes — on this site only.
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data as { type?: unknown; url?: unknown } | null;
+      if (d?.type !== "gt3-open" || typeof d.url !== "string") return;
+      try {
+        const here = new URL(window.location.href), to = new URL(d.url, here);
+        if (to.origin === here.origin && to.href !== here.href) window.location.assign(to.href);
+      } catch { /* not a link */ }
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+
     return () => {
       window.removeEventListener("focus", onFocus);
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      navigator.serviceWorker.removeEventListener("message", onMessage);
     };
   }, []);
 
