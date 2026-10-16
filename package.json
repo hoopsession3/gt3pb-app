@@ -12,6 +12,7 @@
     "schema:snapshot": "node scripts/schema.snapshot.mjs",
     "test": "npm run smoke && node scripts/deploy.check.test.mjs && node scripts/sw.test.mjs && node scripts/audits.test.mjs && node scripts/prose.render.test.mjs && node scripts/pool.test.mjs && node scripts/migrations.pending.test.mjs && node scripts/chargeonce.test.mjs && node scripts/reservepay.test.mjs && node scripts/applelink.test.mjs && node scripts/accounterase.test.mjs && node scripts/moneyattention.test.mjs && node scripts/dropday.test.mjs && node scripts/pass.test.mjs && node scripts/r11.test.mjs && node scripts/heartbeat.test.mjs && node scripts/duenext.test.mjs && node scripts/porchrun.test.mjs && node scripts/push.policy.test.mjs && node scripts/webhooks.test.mjs && node scripts/ios.test.mjs && npm run db:test",
     "smoke:ui": "node scripts/smoke.ui.mjs",
+    "test:clock": "node scripts/clock.sweep.mjs",
     "verify": "npm run test && npm run audit && npm run build && npm run smoke:ui && npm run smoke:authed && npm run build:app -- --smoke && npm run smoke:native",
     "audit": "node scripts/render.audit.mjs && node scripts/falseempty.audit.mjs && node scripts/gate.audit.mjs && node scripts/affordance.audit.mjs && node scripts/gesture.audit.mjs && node scripts/haptics.audit.mjs && node scripts/css.audit.mjs && node scripts/vocab.audit.mjs && node scripts/dupe.audit.mjs && node scripts/columns.audit.mjs && node scripts/design.ratchet.mjs && node scripts/api.audit.mjs && node scripts/security.audit.mjs",
     "smoke:authed": "node scripts/smoke.authed.mjs",

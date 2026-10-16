@@ -36,7 +36,11 @@ const db = await fullSchema();
 // its four tables, and their policies still decide which rows come back.
 await db.exec(`grant select on public.all_orders, public.orders, public.drop_orders, public.delivery_orders, public.business_orders to authenticated`);
 const today = (await val(db, `select current_date::text d`)).d;
-const mmdd = async (offset) => (await val(db, `select to_char(current_date + $1::int, 'MM-DD') d`, [offset])).d;
+// THE BUSINESS'S DAY, NOT THE DATABASE'S (2026-10-16, the clock sweep): report_sales counts Eastern days (0420), and the
+// database's current_date is UTC's — from 8 PM Eastern to midnight they are different days, and this test failed on every
+// evening run. Its days, and the days its orders are delivered on, are Eastern.
+const ET_TODAY = "(now() at time zone 'America/New_York')::date";
+const mmdd = async (offset) => (await val(db, `select to_char(${ET_TODAY} + $1::int, 'MM-DD') d`, [offset])).d;
 const ids = {};
 {
   const q = (sql, p) => db.query(sql, p);
@@ -48,7 +52,7 @@ const ids = {};
   const order = async (key, { user = CLIENT, deliveredIn, madeAgo, pay = "paid", canceled = false, cents }) => {
     ids[key] = (await val(db, `insert into public.business_orders (user_id, company, contact_phone, address_street, address_city, address_zip,
                delivery_date, gallons, subtotal_cents, total_cents, payment_status, market, tenant_id, created_at, canceled_at)
-             values ($1, 'Gwen Co', '864-555-0101', '1 Main St', 'Greenville', '29601', current_date + $2::int, 4, $3, $3, $4, 'greenville', '${T1}',
+             values ($1, 'Gwen Co', '864-555-0101', '1 Main St', 'Greenville', '29601', ${ET_TODAY} + $2::int, 4, $3, $3, $4, 'greenville', '${T1}',
                      now() - make_interval(days => $5::int), ${canceled ? "now()" : "null"}) returning id`,
       [user, deliveredIn, cents, pay, madeAgo])).id;
   };
@@ -92,7 +96,7 @@ const ids = {};
   ok("3 · an office order appears once its day has come — every past one, not the one two weeks out",
     ["thisWeek", "lastMonth", "canceled", "unpaid", "theirs"].every((k) => seen.has(ids[k])) && !seen.has(ids.prepaid), [...seen].length);
   const tw = rows.find((r) => r.id === ids.thisWeek);
-  const want = (await val(db, `select ((current_date - 2) + time '12:00') at time zone 'UTC' t`)).t;
+  const want = (await val(db, `select ((${ET_TODAY} - 2) + time '12:00') at time zone 'UTC' t`)).t;
   ok("3 · …dated by its delivery day, noon UTC (the same calendar day in every US market), not the night it was made",
     tw && tw.created_at.toISOString() === want.toISOString(), { got: tw?.created_at, want });
   const mine = (await as(db, CLIENT, `select id from public.all_orders where channel = 'office'`)).rows.map((r) => r.id);

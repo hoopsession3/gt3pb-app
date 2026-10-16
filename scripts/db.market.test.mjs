@@ -174,6 +174,11 @@ ok("0284: re-run adds no rows", (await q1(`select count(*)::int n from public.co
 
 // ═══ 0285 — the live switch ═════════════════════════════════════════════════════════════════════
 await db.exec(mig("0285_market_live_switch.sql"));
+// THE OPENING DATE IS HELD A MONTH AHEAD OF WHATEVER DAY THIS RUNS (2026-10-16, the clock sweep). 0285 seeds Atlanta's opening
+// as 2026-12-01 — a day that passes, after which "held by its opening date" is false and four checks below failed on every
+// run. The seed is checked as written; the checks then run against a date that is always ahead.
+ok("0285: the seed — Atlanta opens 2026-12-01", (await q1(`select opens_on::text d from public.markets where slug = 'atlanta'`))?.d === "2026-12-01");
+await db.exec(`update public.markets set opens_on = current_date + 30 where slug = 'atlanta';`);
 
 const gv = await q1(`select * from public.market_live where market='greenville'`);
 const atl = await q1(`select * from public.market_live where market='atlanta'`);

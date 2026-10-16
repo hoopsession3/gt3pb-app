@@ -52,8 +52,11 @@ const order = async (row) => (await q1(`insert into public.orders (items, total_
   [row.items ?? ["flow"], row.total ?? 1000, row.tip ?? 0, row.status ?? "new", row.customer ?? "Ana Ruiz", row.user ?? null, T1, row.paid ?? false, row.payment ?? null, row.stop ?? null]));
 const flags = async (id) => q(`select severity, category, title, body, link, ack_at from public.alerts where kind = 'refund_needed' and subject_id = $1`, [id]);
 const noOf = (id) => `#${id.slice(0, 4).toUpperCase()}`;
+// A WEEK OUT, NOT THREE DAYS (2026-10-16, the clock sweep): a pack with no stop closes at 6 PM Eastern three days before its
+// drop (0397 pack_closes_at), so a drop three days out closed at 6 PM today — and from then until midnight UTC the
+// member's own cancel below was refused and this test failed, on the evening Ryan runs it. A week out is open whatever the hour.
 const pack = async (row) => (await q1(`insert into public.drop_orders (user_id, name, size, glass, total_cents, paid, payment_id, drop_date, tenant_id)
-  values ($1, $2, $3, 'return', $4, $5, $6, current_date + 3, $7) returning id`,
+  values ($1, $2, $3, 'return', $4, $5, $6, current_date + 7, $7) returning id`,
   [row.user ?? SAM, row.name ?? "Sam Ito", row.size ?? 6, row.total ?? 3600, row.paid ?? false, row.payment ?? null, T1])).id;
 
 // ── before 0416: the bug, reproduced ───────────────────────────────────────────────────────────────────────────────
