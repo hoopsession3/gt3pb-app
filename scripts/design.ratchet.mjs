@@ -711,17 +711,25 @@ export const PROD_ROUTE = {
 // what that and the reset overlay's move out of the bundle every route carries (components/PasswordRecovery) left: every
 // other route within its line. Lowered to what they weigh: /reserve 300 → 297, /delivery 297 → 295, /shop 305 → 302
 // (304 484, 301 741 and 309 535 bytes).
+// 2026-10-16 (R9 of the customer audit): every route's script +392 bytes (gzip) — a sign-in this device never asked for,
+// said: lib/linkSignin, read before the auth client takes a session out of the address, and the notice's place in
+// components/AuthProvider (the notice itself, components/LinkSigninNotice, loads only when it shows: next/dynamic). /book
+// +590 (the request goes to /api/book, with a field only a bot fills) and /scan +884 (each spend keyed per tap, the card
+// read again after a lost answer). Built de852de (R8) and this commit and gzipped what each route's prerendered HTML
+// references (/privacy 276 051 → 276 443, /reserve 304 456 → 304 820, /shop 309 485 → 309 871); the three shared chunks
+// that moved are +235 (the auth client's), +164 (AuthProvider's) and −7. Crossed the rounding line on /truck and /events
+// (286 → 287: 293 725 bytes), /reserve (297 → 298), /office (282 → 283: 289 635) and /shop (302 → 303), recorded.
 export const WEIGHT = {
-  "/truck":                    { js: 286, css: 89, chunks: 16 },
-  "/events":                   { js: 286, css: 89, chunks: 16 },
+  "/truck":                    { js: 287, css: 89, chunks: 16 },
+  "/events":                   { js: 287, css: 89, chunks: 16 },
   "/menu":                     { js: 274, css: 90, chunks: 15 },
-  "/reserve":                  { js: 297, css: 90, chunks: 17 },
+  "/reserve":                  { js: 298, css: 90, chunks: 17 },
   "/delivery":                 { js: 295, css: 90, chunks: 17 },
   "/3mpire":                   { js: 288, css: 90, chunks: 15 },
   "/craft":                    { js: 273, css: 90, chunks: 15 },
   "/book":                     { js: 274, css: 90, chunks: 15 },
   "/academy":                  { js: 326, css: 90, chunks: 16 },
-  "/office":                   { js: 282, css: 90, chunks: 15 },
+  "/office":                   { js: 283, css: 90, chunks: 15 },
   "/scan":                     { js: 274, css: 90, chunks: 15 },
   "/architecture":             { js: 283, css: 90, chunks: 15 },
   "/playbook":                 { js: 281, css: 90, chunks: 15 },
@@ -730,7 +738,7 @@ export const WEIGHT = {
   "/offer":                    { js: 285, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 271, css: 90, chunks: 15 },
   "/display":                  { js: 272, css: 90, chunks: 15 },
-  "/shop":                     { js: 302, css: 90, chunks: 17 },
+  "/shop":                     { js: 303, css: 90, chunks: 17 },
   "/primal":                   { js: 274, css: 90, chunks: 15 },
   "/privacy":                  { js: 270, css: 90, chunks: 14 },
   "/terms":                    { js: 270, css: 90, chunks: 14 },

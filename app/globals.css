@@ -5385,6 +5385,8 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .sheet2.status-lux{box-shadow:0 -14px 50px rgba(0,0,0,.65),0 0 90px -12px color-mix(in srgb, var(--brand-gold2) 55%, transparent),inset 0 1px 0 color-mix(in srgb, var(--brand-gold2) 22%, transparent);border-color:color-mix(in srgb, var(--brand-gold2) 30%, transparent)}
 /* the share PNG is rasterized off-screen now; the visible card is the interactive one below */
 .status-canvas-export{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
+/* a form's field for bots only (app/book): parked wholly off the screen, so no thumb, no eye and no tap-target count meets it */
+.hp-park{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
 .status-hint{font-family:'Inter';font-size:13px;line-height:1.6;color:var(--cream-m);text-align:center;margin:4px 6px 0}
 .status-hint b{color:var(--gold2)}
 /* Back to one footer button (2026-07-29) — a same-day second button (.status-ig, an Instagram-only
