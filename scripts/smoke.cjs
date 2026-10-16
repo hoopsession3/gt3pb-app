@@ -13927,7 +13927,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   delete global.localStorage;
   const api = code(rd("app/api/checkout/route.ts")), sq = code(rd("lib/squareServer.ts")), co = code(rd("components/Checkout.tsx")), pg = code(rd("app/order/page.tsx"));
   ok("checkout: the order's id is made here, so the answer says its number; both answers carry the number and the ticket",
-    /const orderId = randomUUID\(\);/.test(api) && (api.match(/const orderRow = \{ id: orderId, items,/g) || []).length === 2
+    /const orderId = await orderIdForToday\(supabaseAdmin, randomUUID\);/.test(api) && (api.match(/const orderRow = \{ id: orderId, items,/g) || []).length === 2
     && /recorded: true, no: orderNo\(orderId\), ticket, \.\.\.promise \}/.test(api) && (api.match(/no: orderNo\(orderId\), ticket/g) || []).length === 2);
   ok("checkout: the receipt's lines and the card's last four go beside the order after it is in — never in the insert, so a database without 0395 still takes the order",
     /\.update\(card\?\.last4 \? \{ lines: receiptLines, card_brand: card\.brand, card_last4: card\.last4 \} : \{ lines: receiptLines \}\)\s*\.eq\("id", orderId\)\.select\("ticket"\)\.maybeSingle\(\)/.test(api)
@@ -14708,6 +14708,24 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R7b loyalty: the referral card counts standing referrals; history shows what the card was charged; the scanner re-reads a stale balance",
     /\.eq\("referrer", user\.id\)\.is\("reversed_at", null\)/.test(rd("app/3mpire/page.tsx")) && /money\(o\.total_cents \+ \(o\.tip_cents \?\? 0\)\)/.test(rd("app/3mpire/page.tsx"))
     && /else if \(\/not that much\/i\.test\(error\?\.message \?\? ""\)\) \{/.test(rd("app/scan/page.tsx")));
+}
+
+// ── R8: ONE NUMBER, ONE ORDER, EACH DAY (2026-10-16) ─────────────────────────────────────────────────────────────────
+// The window calls an order by its id's first four ("#4F2A"); two orders on one day could share them. The checkout draws
+// the id again until its four are free among the day's orders (lib/orderNumber).
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ON = require("../.smoke/orderNumber.js");
+  const seq = (ids) => { let i = 0; return () => ids[i++ % ids.length]; };
+  const taken = new Set(["4f2a", "9d3e"]);
+  ok("R8 order numbers: an id whose four are taken today is drawn again; a free one is kept; the search's key is the four, lowercased",
+    ON.freshId(taken, seq(["4F2A0000-0000-4000-8000-000000000000", "4f2a1111-0000-4000-8000-000000000000", "7c1b2222-0000-4000-8000-000000000000"])).startsWith("7c1b")
+    && ON.freshId(taken, seq(["abcd0000-0000-4000-8000-000000000000"])).startsWith("abcd") && ON.dayNoOf("4F2A9999-x") === "4f2a"
+    && ON.freshId(new Set(["aaaa"]), seq(["aaaa0000-0000-4000-8000-000000000000"]), 5).startsWith("aaaa"));
+  const r = fs.readFileSync(path.join(__dirname, "..", "app/api/checkout/route.ts"), "utf8");
+  ok("R8 order numbers: the checkout's id is drawn free of today's numbers, before the row is written",
+    /const orderId = await orderIdForToday\(supabaseAdmin, randomUUID\);/.test(r)
+    && r.indexOf("const orderId = await orderIdForToday(") < r.indexOf("const orderRow = { id: orderId,"));
 }
 
 Promise.all(PENDING).then(() => {

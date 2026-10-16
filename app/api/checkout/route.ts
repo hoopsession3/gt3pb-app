@@ -4,6 +4,7 @@ import { readCityOut, readMenuRows } from "@/lib/drinksRead";
 import { chargeCard, safeIdemKey, type PaidCard } from "@/lib/squareServer";
 import { randomUUID } from "node:crypto";
 import { orderNo } from "@/lib/activeOrder";
+import { orderIdForToday } from "@/lib/orderNumber";
 import { squarePriceMap } from "@/lib/squareCatalog";
 import { priceCups, priceChangedWords, tipCentsFor } from "@/lib/cupPrice";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -250,8 +251,9 @@ async function post(req: Request) {
   // THE ORDER'S NUMBER AND ITS TICKET (2026-10-13, R3b of the customer audit — board 09). The id is made here, so the
   // answer can say the number the window calls ("#4F2A") without reading the row back. The ticket — the link that shows
   // this one order to whoever holds it, guests too (0395) — is the table's own, read once the row is in, as the
-  // receipt's lines (what this route priced) and the card's brand and last four are written beside it.
-  const orderId = randomUUID();
+  // receipt's lines (what this route priced) and the card's brand and last four are written beside it. Its four are free
+  // among today's orders (R8, lib/orderNumber): two orders on one day could share the number the window calls.
+  const orderId = await orderIdForToday(supabaseAdmin, randomUUID);
   const receiptLines = priced.lines.map((l) => ({ slug: l.slug, name: l.name, qty: l.qty, unit_cents: l.cents, ...(l.cents !== l.baseCents ? { base_cents: l.baseCents } : {}) }));
   const ticketFor = async (card: PaidCard | null): Promise<string | null> => {
     // arrives-with: 0395 — until it is pasted the columns are not there: this write and its read fail together, on
