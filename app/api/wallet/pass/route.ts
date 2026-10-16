@@ -18,7 +18,8 @@ async function get() {
   }
   // With certs present, assemble pass.json for the authenticated member (name, points, a QR barcode =
   // their card code) and sign it into a .pkpass, returned as application/vnd.apple.pkpass. Needs a
-  // signing step (e.g. passkit-generator / node-forge) — wire it here once the certs are in place.
+  // signing step (e.g. passkit-generator / node-forge) — wire it here once the certs are in place, and turn
+  // lib/wallet APPLE_PASS_SIGNS on in the same change: the member card shows its button only then.
   return NextResponse.json({ error: "Pass signing not implemented in this build." }, { status: 501 });
 }
 

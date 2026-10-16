@@ -51,7 +51,7 @@ export default function FounderDigest() {
   if (!loaded) return null;
   return (
     <div className="fdig">
-      <p className="fdig-note">A once-a-day roll-up — all-channel revenue, launch readiness, open blockers, reorders, and what needs you — for the founders. Daily/weekly also land in the Inbox automatically; use Send now for an email + text right away.</p>
+      <p className="fdig-note">A once-a-day roll-up — all-channel revenue, launch readiness, open blockers, reorders, and what needs you — for the founders. Daily/weekly also land in the Inbox automatically; use Send now for the email right away — and a text where texts are on and your number said yes.</p>
       <div className="fdig-cad" role="group" aria-label="Digest cadence">
         {(["off", "daily", "weekly"] as DigestCadence[]).map((c) => (
           <button key={c} type="button" className={`k-chip${cadence === c ? " on" : ""}`} onClick={() => change(c)} disabled={busy} aria-pressed={cadence === c}>{DIGEST_LABELS[c]}</button>

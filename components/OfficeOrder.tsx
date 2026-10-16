@@ -66,7 +66,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
     if (!user) { toast("Sign in to set up office delivery", "error"); return; }
     if (!ready) {
       if (zip.trim().length >= 5 && !zoneOk) { toast("That ZIP looks outside our delivery route — text us and we'll see what we can do", "error"); return; }
-      toast(needsPhone && !phone.trim() ? "Add a phone — prepaid sends the payment link by text" : "Add your company and address first", "error");
+      toast(needsPhone && !phone.trim() ? "Add a phone — the crew sends the payment link to it" : "Add your company and address first", "error");
       return;
     }
     setBusy(true);

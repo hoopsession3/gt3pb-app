@@ -37,7 +37,16 @@ export default function MenuScreen() {
   // THE MENU IS THE CATALOG (2026-10-13, R2 of the customer audit): the drinks, their words and their prices are the
   // Catalog's (AppProvider → /api/menu → lib/drinks), read again each time this page opens — a drink added in the Catalog
   // is here the next time the page opens; one taken off is gone. Until the read lands, and if it fails, the code list's menu stands in.
-  useEffect(() => { refreshMenu(); }, [refreshMenu]);
+  // A MENU OPEN FOR A WHILE STAYS TRUE (R7, 2026-10-15). It was read when it opened, and never again while it stayed
+  // open: a price the owner changed, a drink put on or taken off, reached it on the next visit. Read again every minute
+  // while it is in front of someone, and on return to it — the Catalog's answer (86s come live, lib/availability).
+  useEffect(() => {
+    refreshMenu();
+    const tick = () => { if (document.visibilityState === "visible") refreshMenu(); };
+    const id = setInterval(tick, 60_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); };
+  }, [refreshMenu]);
   const sections = sectionsOf(menu);
   const sectionsKey = sections.map((s) => s.line).join("|");
   // This line used to re-derive money()'s exact rule by hand — trim the cents when they are .00,

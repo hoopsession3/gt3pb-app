@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { supabase } from "./supabase";
 import { useRealtimeTable } from "./realtime";
 import { LINE_SUB, lineSubKey } from "./drinks";
+import { STAMP_GOAL } from "./loyalty";
 
 // SITE COPY — owner/admin-editable front-end text. Every editable string has a stable key and a
 // DEFAULT (the canonical copy). Overrides live in the `site_copy` table (0122); the front-end reads
@@ -80,7 +81,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "stamp.kicker", group: "Loyalty card", label: "Small label, top-left of the card", default: "Your card" },
   { key: "stamp.badge_earned_one", group: "Loyalty card", label: "Top-right badge — exactly 1 free cup ready to give (uses {count})", default: "{count} free cup ready" },
   { key: "stamp.badge_earned_other", group: "Loyalty card", label: "Top-right badge — 2+ free cups ready to give (uses {count})", default: "{count} free cups ready" },
-  { key: "stamp.badge_default", group: "Loyalty card", label: "Top-right badge — no free drinks earned yet", default: "Free cup at 10" },
+  { key: "stamp.badge_default", group: "Loyalty card", label: "Top-right badge — no free drinks earned yet", default: `Free cup at ${STAMP_GOAL}` },
   { key: "stamp.foot_full", group: "Loyalty card", label: "Footer line — a full card, a free cup ready", default: "A free cup is ready — show your card at the window." },
   { key: "stamp.foot_near", group: "Loyalty card", label: "Footer line — 1-2 stamps from a free drink (uses {count})", default: "So close — {count} more to a free cup" },
   { key: "stamp.foot_progress", group: "Loyalty card", label: "Footer line — default progress, 3+ stamps to go (uses {count})", default: "{count} more to a free cup" },
@@ -89,7 +90,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "pitch.kicker", group: "Reserve card", label: "Kicker", default: "Order Ahead" },
   { key: "pitch.headline", group: "Reserve card", label: "Headline", default: "The bottles you love, brewed to order." },
   { key: "pitch.body", group: "Reserve card", label: "Body", multiline: true,
-    default: "Reserve a Saturday drop — ready the moment you reach the window. No plan, no commitment." },
+    default: "Reserve a pack for the next drop — ready the moment you reach the window. No plan, no commitment." },
   { key: "pitch.cta", group: "Reserve card", label: "Button", default: "Reserve the next drop" },
   { key: "pitch.fine", group: "Reserve card", label: "Fine print", multiline: true,
     default: "Order ahead · pickup at the truck · bring bottles back for the best price." },
@@ -124,7 +125,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "menu.packs_title", group: "Menu", label: "Packs — section title",
     default: "Take it home" },
   { key: "menu.packs_sub", group: "Menu", label: "Packs — section subtitle",
-    default: "Saturday packs" },
+    default: "Packs for the next drop" },
   { key: "menu.packs_note", group: "Menu", label: "Packs — bring-back note", multiline: true,
     default: "Bring your empties back for pack pricing — or take new glass at $10 a bottle. You choose when you reserve." },
   // Drink sheet, truck-closed state: replaces the old hardcoded "Packs are brewed to order
@@ -218,8 +219,8 @@ export const COPY_META: CopyMeta[] = [
   { key: "book.ph_email", group: "Book", label: "Placeholder — email", default: "you@email.com" },
   { key: "book.f_phone", group: "Book", label: "Field label — phone", default: "Phone" },
   { key: "book.ph_phone", group: "Book", label: "Placeholder — phone", default: "For a quick call if email doesn't land" },
-  { key: "book.consent", group: "Book", label: "SMS consent line", multiline: true,
-    default: "Adding your number means GT3 may text you about this request — event texts only, never marketing. Reply STOP anytime." },
+  { key: "book.consent", group: "Book", label: "Phone line — what the number is for (nothing texts a booking)", multiline: true,
+    default: "Your number is only for a call about this request if email doesn't reach you — never marketing, never shared." },
   { key: "book.f_date", group: "Book", label: "Field label — event date", default: "Event date" },
   { key: "book.f_headcount", group: "Book", label: "Field label — headcount", default: "Headcount" },
   { key: "book.ph_headcount", group: "Book", label: "Placeholder — headcount", default: "50" },
@@ -313,7 +314,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "funnel.build_more", group: "Reserve flow", label: "Build step — advance button (uses {n})", default: "Pick {n} more" },
   { key: "funnel.glass_h", group: "Reserve flow", label: "Glass step — headline", default: "Your bottles." },
   { key: "funnel.glass_back_title", group: "Reserve flow", label: "Glass step — bring-back card title (both modes)", default: "Bringing mine back — best price" },
-  { key: "funnel.glass_back_pickup_sub", group: "Reserve flow", label: "Glass step — bring-back card body, pickup (uses {price})", default: "Pack pricing. Rinse your empties and bring them Saturday. {price}/bottle." },
+  { key: "funnel.glass_back_pickup_sub", group: "Reserve flow", label: "Glass step — bring-back card body, pickup (uses {price})", default: "Pack pricing. Rinse your empties and bring them to your pickup. {price}/bottle." },
   { key: "funnel.glass_new_pickup_title", group: "Reserve flow", label: "Glass step — new-glass card title, pickup", default: "Need new glass" },
   { key: "funnel.glass_new_pickup_sub", group: "Reserve flow", label: "Glass step — new-glass card body, pickup (uses {price})", default: "New sealed bottle, {price}/bottle flat. Bring them back next time to unlock pack pricing." },
   { key: "funnel.glass_next_pickup", group: "Reserve flow", label: "Glass step — advance button, pickup", default: "Who's it for?" },
@@ -415,6 +416,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "today.again_now", group: "Home · signed-in", label: "Under the lead button — when it's made, truck pouring", default: "ready about 8 min after you order" },
   { key: "today.usual_then", group: "Home · signed-in", label: "Truck off — after when cup orders open", default: "Your usual is one tap then." },
   { key: "today.change", group: "Home · signed-in", label: "Beside the lead — order something else", default: "Change it" },
+  { key: "today.free_at_window", group: "Home · signed-in", label: "Under the lead — a free cup is ready (uses {ready}: \"1 free cup ready\")", default: "{ready} — on us at the window when you show your card. It isn't taken off this price." },
   { key: "today.first_cta", group: "Home · signed-in", label: "Lead button — no orders yet", default: "Order your first cup" },
   { key: "today.first_sub", group: "Home · signed-in", label: "Under it — no orders yet", multiline: true,
     default: "Order here and it's waiting at the window. Every cup earns a stamp — buy 10, the next is on us." },
@@ -433,7 +435,7 @@ export const COPY_META: CopyMeta[] = [
   { key: "today.none_title", group: "Home · signed-in", label: "Nothing scheduled — headline", default: "No stop on the calendar yet" },
   { key: "today.card_empty", group: "Home · signed-in", label: "Card row — no stamps yet", default: "Every cup earns a stamp" },
   { key: "today.packs_lead", group: "Home · signed-in", label: "Packs row — lead", default: "Packs" },
-  { key: "today.packs_name", group: "Home · signed-in", label: "Packs row — name", default: "Saturday's drop" },
+  { key: "today.packs_name", group: "Home · signed-in", label: "Packs row — name", default: "The next drop" },
   { key: "today.packs_sub", group: "Home · signed-in", label: "Packs row — line", default: "Bottles brewed to order" },
   { key: "today.packs_cta", group: "Home · signed-in", label: "Packs row — button", default: "Reserve" },
   { key: "today.stack_lead", group: "Home · signed-in", label: "Stack row — lead", default: "Stack" },

@@ -102,6 +102,21 @@ export function stopCanceledShown(order: { id?: unknown; paid?: unknown; collect
   };
 }
 
+/** A member's cup order canceled — by the crew at the Pass, or by them (R7, 2026-10-15). A void the crew made said
+ *  nothing: the order slipped off the bar and Today, the card refunded or not, and nobody said which. Its number, and
+ *  what becomes of the money — paid online, the card is refunded in full; paid at the window, it comes back there; not
+ *  paid, nothing was charged — never the customer's name. A stop called off says so instead (stopCanceledShown). */
+export function orderVoidShown(order: { id?: unknown; paid?: unknown; collected_at?: unknown; payment_status?: unknown }): Shown {
+  const no = orderNoOf(order.id);
+  const atWindow = !!order.collected_at;
+  const paid = order.paid === true || atWindow || order.payment_status === "paid";
+  return {
+    title: no ? `Order ${no} · Canceled` : "Order canceled",
+    body: atWindow ? "Canceled — what you paid at the window comes back there." : paid ? "Canceled — your card is being refunded in full." : "Canceled — nothing was charged.",
+    tag: `order:${idOf(order.id)}:void`, ring: false,
+  };
+}
+
 /** A member's subscription changing state. */
 export function subscriptionShown(sub: { id?: unknown; status?: unknown }): Shown | null {
   const say: Record<string, string> = {

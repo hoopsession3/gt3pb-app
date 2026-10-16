@@ -23,7 +23,7 @@ import { useCupAvailability } from "@/components/useCupAvailability";
 import { authedFetch } from "@/lib/authedFetch";
 import { fillCopy } from "@/lib/copy";
 import { clockTime, etWhen, timeRange } from "@/lib/dates";
-import { cardOf, STAMP_GOAL } from "@/lib/loyalty";
+import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 import { CUP_MARKETS } from "@/lib/markets";
 import { openAddress } from "@/lib/maps";
 import { money } from "@/lib/money";
@@ -51,9 +51,12 @@ function firstName(profile: Profile | null, email?: string | null) {
 }
 // The clock is read in the browser only (the server's would be UTC and the HTML would not match, React #418).
 const greet = (d: Date) => (d.getHours() < 12 ? "Morning" : d.getHours() < 18 ? "Afternoon" : "Evening");
-const shortDay = (d: Date) => `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]} ${d.getMonth() + 1}/${d.getDate()}`;
+// The day is the truck's, Eastern (R7), as every stop's day under it is (etDay): a phone in another time zone dated the
+// page by its own day while the stops under it went by the truck's.
+const shortDay = (d: Date) => etDay(d.toISOString());
 
-/** The member's usual: the drinks of their last order that was picked up (lib/today usualOf). undefined while read. */
+/** The member's usual: the drinks of their last order that was picked up (lib/today usualOf). undefined while read —
+ *  and when the read failed (R7): a failed read is not "no orders yet", which offered a returning member their first cup. */
 function useUsual(): string[] | null | undefined {
   const { user } = useAuth();
   const [usual, setUsual] = useState<string[] | null | undefined>(undefined);
@@ -62,7 +65,7 @@ function useUsual(): string[] | null | undefined {
     let alive = true;
     supabase.from("orders").select("id, items, status, created_at").eq("user_id", user.id).eq("status", "done")
       .order("created_at", { ascending: false }).limit(1)
-      .then(({ data, error }) => { if (alive) setUsual(error ? null : usualOf((data ?? []) as Order[])); });
+      .then(({ data, error }) => { if (alive && !error) setUsual(usualOf((data ?? []) as Order[])); });
     return () => { alive = false; };
   }, [user]);
   return supabase && user ? usual : null;
@@ -94,7 +97,8 @@ function MakingCard({ order, more, stale, reload }: { order: Order; more: number
   // The words are the order's everywhere its customer reads it (lib/orderWords): the bar, the toast, the push.
   const tag = orderTag(order.status, ahead);
   const line = orderLine(order.status, ahead ? readyWords({ state: "ahead", readyFrom: order.ready_from! }) : null);
-  const total = typeof order.total_cents === "number" ? money(order.total_cents) : null;
+  // What the card was charged, or is due: the drinks and the tip (R7) — the order page and the receipt say the same.
+  const total = typeof order.total_cents === "number" ? money(order.total_cents + (order.tip_cents ?? 0)) : null;
   // Paid at the window, the order is the crew's to cancel: the database refuses it from a phone (0341).
   const canCancel = order.status === "new" && !order.collected_at;
   const eta = (k: "on_way" | "outside") => (
@@ -133,9 +137,12 @@ function MakingCard({ order, more, stale, reload }: { order: Order; more: number
 // ── THE LEAD: what the member can do now ───────────────────────────────────────────────────────────────────────
 function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { kind: "making" }>; usual: string[] | null | undefined; stopMenu: ReadonlySet<string> | null; t: T }) {
   const router = useRouter();
+  const { profile } = useAuth();
   const { menu, nameOf, reorder } = useApp();
   const { soldOut } = useCupAvailability();
   const onMenu = new Set(menu.map((d) => d.slug));
+  // A free cup ready is said where the usual is priced (R7): it is given at the window, so this price does not take it off.
+  const free = cardOf(profile?.points).free;
   const can = usual ? orderable(usual, onMenu, soldOut, stopMenu) : [];
   const cents = useQuote(can, lead.kind === "open" && can.length > 0);
   const menuChip = <Link href="/menu" className="k-chip sm">{t("today.see_menu")}</Link>;
@@ -158,11 +165,14 @@ function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { 
               <span className="k-rsub whitespace-normal">{t("today.usual_label")} · {when}</span>
               <Link href="/menu" className="btn-ter whitespace-nowrap">{t("today.change")}</Link>
             </div>
+            {free > 0 && <p className="k-rsub whitespace-normal"><span className="k-tag gold fill">On us</span> {fillCopy(t("today.free_at_window"), { ready: freeWords(free) })}</p>}
           </>
         ) : (
           <>
-            <Button kind="primary" wide onClick={() => router.push("/menu")}>{usual ? t("today.see_menu") : t("today.first_cta")}</Button>
-            <EditableCopy k={usual ? "today.usual_out" : "today.first_sub"} value={t(usual ? "today.usual_out" : "today.first_sub")} as="p" className="k-rsub whitespace-normal" />
+            {/* "Your first cup" only to someone with none (null); a usual not known — still read, or a read that failed — is
+                the menu, claiming nothing (R7). */}
+            <Button kind="primary" wide onClick={() => router.push("/menu")}>{usual === null ? t("today.first_cta") : t("today.see_menu")}</Button>
+            {usual !== undefined && <EditableCopy k={usual ? "today.usual_out" : "today.first_sub"} value={t(usual ? "today.usual_out" : "today.first_sub")} as="p" className="k-rsub whitespace-normal" />}
           </>
         )}
       </div>
@@ -172,7 +182,9 @@ function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { 
   if (lead.kind === "closing") {
     return (
       <div className="mt-5 flex flex-col gap-2.5">
-        <Eyebrow live>{lead.stop?.name ? `Live · ${lead.stop.name} · packing up` : "Live · packing up"}</Eyebrow>
+        {/* Packing up, said as that (R7): this state comes with the switch off too — a stop under way nobody flipped live —
+            and Find Us says Live only while the switch is on. Walk-ups are the line below. */}
+        <Eyebrow>{lead.stop?.name ? `Packing up · ${lead.stop.name}` : "Packing up"}</Eyebrow>
         <p className="k-rsub whitespace-normal">{closedWords({ state: "closing", open: false, stop: lead.stop, opensAt: null, readyFrom: null }, { closing: t("findus.cta_closed") })}</p>
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/truck" className="k-chip sm"><Icon name="pin" /> {t("today.find_us")}</Link>
@@ -198,9 +210,9 @@ function Lead({ lead, usual, stopMenu, t }: { lead: Exclude<TodayLead<Order>, { 
           </div>
         )}
         <p className="k-rsub whitespace-normal">{opens}</p>
-        {s && lead.opensAt && <RemindMe stopId={s.id} opensAt={lead.opensAt} t={t} />}
+        {s && lead.opensAt && <RemindMe stopId={s.id} opensAt={lead.opensAt} stopName={s.name} where={s.where ?? null} t={t} />}
         <div className="flex flex-wrap items-center gap-2">
-          {s?.where && <button type="button" className="k-chip sm" onClick={() => openAddress(s.where!)}><Icon name="pin" /> {t("today.directions")}</button>}
+          {(s?.to || s?.where) && <button type="button" className="k-chip sm" onClick={() => openAddress((s.to || s.where)!)}><Icon name="pin" /> {t("today.directions")}</button>}
           {menuChip}
         </div>
       </div>

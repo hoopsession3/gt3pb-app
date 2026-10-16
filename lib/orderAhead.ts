@@ -10,6 +10,7 @@
 import { FRESH_PER_BOTTLE_CENTS, FLAT_BRING_BACK_CENTS, PICKUP_PACK_BRING_BACK_DOLLARS } from "./bottlePricing";
 import { etDayKey } from "./dates";
 import { etAt } from "./etDay";
+import { PACK_LEAD_MS, packClosesAt } from "./pickupDay";
 
 export const PRICING = {
   // order-ahead + bring bottles back — pickup's own bulk-discount schedule (see lib/bottlePricing.ts)
@@ -87,9 +88,11 @@ const keyPlus = (key: string, days: number): string => {
 export function nextDrop(now: Date = new Date()): { sat: Date; cutoff: Date } {
   const today = etDayKey(now);
   const dow = new Date(`${today}T12:00:00Z`).getUTCDay();   // the Eastern day's weekday
+  // Its close is the pack rule's, said once (lib/pickupDay packClosesAt, R7): three days before, 6pm Eastern.
+  const closes = (key: string): Date => packClosesAt(key, null) ?? etAt(keyPlus(key, -3), 18);
   let satKey = keyPlus(today, (6 - dow + 7) % 7);
-  let cutoff = etAt(keyPlus(satKey, -3), 18);
-  if (now.getTime() > cutoff.getTime()) { satKey = keyPlus(satKey, 7); cutoff = etAt(keyPlus(satKey, -3), 18); }
+  let cutoff = closes(satKey);
+  if (now.getTime() > cutoff.getTime()) { satKey = keyPlus(satKey, 7); cutoff = closes(satKey); }
   // Noon Eastern on the Saturday: dropDateKey reads it back as that Saturday on any clock.
   return { sat: etAt(satKey, 12), cutoff };
 }
@@ -104,7 +107,7 @@ export function dropIsOpen(dropDateISO: string, now: Date = new Date()): boolean
 // ordering closes **24 hours before** it — the packs are brewed to order, so a full day's lead is
 // what lets the crew brew and bottle for the drop. Used when a stop is scheduled; the Saturday
 // nextDrop() above is the fallback when the route is empty.
-export const STOP_LEAD_MS = 24 * 60 * 60 * 1000; // close pack pickup orders 24h before the stop
+export const STOP_LEAD_MS = PACK_LEAD_MS; // close pack pickup orders 24h before the stop — lib/pickupDay's one number (R7)
 export function dropForStop(startsAtISO: string): { sat: Date; cutoff: Date } {
   const pickup = new Date(startsAtISO);
   return { sat: pickup, cutoff: new Date(pickup.getTime() - STOP_LEAD_MS) };

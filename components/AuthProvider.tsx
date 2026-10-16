@@ -386,7 +386,7 @@ function PasswordRecovery({ updatePassword, onCancel }: { updatePassword: AuthCt
               </div>
               <label className="auth-label" htmlFor="rec-confirm">Confirm password</label>
               <input id="rec-confirm" className="auth-input" enterKeyHint="go" type={show ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-              {err && <div className="auth-err">{err}</div>}
+              {err && <div className="auth-err" role="alert">{err}</div>}
               <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}><span>{busy ? "Saving…" : "Save new password"}</span></button>
               <button type="button" className="auth-link hit-44" onClick={close} style={{ marginTop: 10 }}>Cancel</button>
             </form>

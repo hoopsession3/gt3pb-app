@@ -20,6 +20,11 @@ export function pickupDayWords(key: string | null | undefined): string {
 // gone from the schedule — which refused the customers a canceled stop's text had told to move their pack.
 export const PACK_LEAD_MS = 24 * 60 * 60 * 1000;
 
+/** How many of the next stops the phone offers pickup days from and the server checks them against — one number (R7,
+ *  2026-10-15): the phone read 8 and the server 6, so with two stops a day the phone offered a day the server never saw,
+ *  and refused it with "That pickup day just changed". Canceled stops are on neither. */
+export const PICKUP_STOPS_READ = 8;
+
 export type PackStop = { starts_at: string | null; canceled_at?: string | null } | null | undefined;
 
 /** When this pack's drop closes, or null when it does not (its stop was called off). */

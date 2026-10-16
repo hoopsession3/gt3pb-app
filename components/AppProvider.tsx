@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { drinkFrom, fallbackCents, menuOf, nameFrom, seedMenu, type Drink, type MenuRow } from "@/lib/drinks";
+import { drinkFrom, fallbackCents, MAX_CUPS, menuOf, nameFrom, seedMenu, type Drink, type MenuRow } from "@/lib/drinks";
+import { payHeldOpen } from "@/lib/payHold";
 import { useCupAvailability } from "@/components/useCupAvailability";
 import { haptic } from "@/lib/haptics";
 import { apiUrl } from "@/lib/native";
@@ -107,7 +108,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const refreshMenu = useCallback(() => {
     if (reading.current) return;
     reading.current = true;
-    // A read that hangs gives up after 10 seconds, so it never holds every later read (the truck's board reads every 5 min).
+    // A read that hangs gives up after 10 seconds, so it never holds every later read (the truck's board reads every minute).
     const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const quit = setTimeout(() => ctrl?.abort(), 10_000);
     fetch(apiUrl("/api/menu"), ctrl ? { signal: ctrl.signal } : undefined).then((r) => (r.ok ? r.json() : null)).then((d) => {
@@ -145,8 +146,11 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       const saved = JSON.parse(raw) as Record<string, unknown>;
       const clean: Record<string, number> = {};
       // Any drink is kept for now: which are still on the menu is the Catalog's to say, once it has been read (below).
+      // Whole, up to what one order holds (R7): it came back as 9 of a drink, which is a different cart — and a different
+      // checkout key, so a payment whose answer was lost was paid again under a new one.
+      let room = MAX_CUPS;
       for (const [id, q] of Object.entries(saved)) {
-        if (id && typeof q === "number" && Number.isFinite(q) && q > 0) clean[id] = Math.min(9, Math.floor(q));
+        if (id && typeof q === "number" && Number.isFinite(q) && q >= 1 && room > 0) { clean[id] = Math.min(room, Math.floor(q)); room -= clean[id]; }
       }
       if (Object.keys(clean).length) setCart((c) => (Object.keys(c).length ? c : clean));
     } catch { /* ignore */ }
@@ -165,6 +169,8 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   useEffect(() => { cartNow.current = cart; }, [cart]);
   useEffect(() => {
     pruneCart.current = (read: MenuRow[]) => {
+      // A payment waiting on its answer holds the cart as it was paid for (lib/payHold); Pay names what is off the menu.
+      if (payHeldOpen()) return;
       const onMenu = new Set(menuOf(read).map((d) => d.slug));
       const gone = Object.keys(cartNow.current).filter((id) => !onMenu.has(id));
       if (!gone.length) return;
@@ -172,7 +178,26 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       toast(`${gone.map((id) => nameFrom(read, id)).join(" · ")} ${gone.length === 1 ? "isn't" : "aren't"} on the menu any more — taken out of your order`, "info");
     };
   }, [toast]);
+  const [coOpen, setCoOpen] = useState(false);
+  const openCheckout = useCallback(() => setCoOpen(true), []);
+  const closeCheckout = useCallback(() => setCoOpen(false), []);
+  // THE CART HOLDS STILL WHILE A PAYMENT IS UNCONFIRMED (2026-10-15, R7 — lib/payHold). The checkout's key is signed over
+  // what is in the cart, so a drink added after Pay's answer was lost was a new key, and a second charge if the first had
+  // gone through. Said once, with the way back to the payment; checkout itself holds its own controls.
+  const holding = useCallback((): boolean => {
+    if (!payHeldOpen()) return false;
+    toast("Your last payment hasn't been confirmed yet — check on it before changing your order", "error", { action: { label: "Open", run: () => setCoOpen(true) } });
+    return true;
+  }, [toast]);
+  // The most one order holds (MAX_CUPS) — said here, before Pay refuses it.
+  const full = useCallback((): boolean => {
+    if (Object.values(cartNow.current).reduce((s, n) => s + n, 0) < MAX_CUPS) return false;
+    toast(`${MAX_CUPS} drinks is the most one order holds`, "error");
+    return true;
+  }, [toast]);
   const bump = useCallback((id: string) => {
+    if (holding()) return;
+    if (!cartNow.current[id] && full()) return;
     if (cartNow.current[id]) haptic("light"); else haptic("medium");
     setCart((prev) => {
       const next = { ...prev };
@@ -180,15 +205,19 @@ export default function AppProvider({ children }: { children: React.ReactNode })
       else next[id] = 1;
       return next;
     });
-  }, []);
-  const inc = useCallback((id: string) => { haptic("increase"); setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 })); }, []);
-  const dec = useCallback((id: string) => { haptic("decrease"); setCart((prev) => {
+  }, [holding, full]);
+  const inc = useCallback((id: string) => {
+    if (holding() || full()) return;
+    haptic("increase");
+    setCart((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  }, [holding, full]);
+  const dec = useCallback((id: string) => { if (holding()) return; haptic("decrease"); setCart((prev) => {
     const next = { ...prev };
     const q = (next[id] ?? 0) - 1;
     if (q <= 0) delete next[id];
     else next[id] = q;
     return next;
-  }); }, []);
+  }); }, [holding]);
 
   const checkout = useCallback((opts?: { silentToast?: boolean }) => {
     const count = Object.values(cart).reduce((s, n) => s + n, 0);
@@ -208,9 +237,6 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   const openDrink = useCallback((id: string) => setOpenId(id), []);
   const closeDrink = useCallback(() => setOpenId(null), []);
 
-  const [coOpen, setCoOpen] = useState(false);
-  const openCheckout = useCallback(() => setCoOpen(true), []);
-  const closeCheckout = useCallback(() => setCoOpen(false), []);
   // A surface that is not the drinks sheet claims this while it is taking a payment. Kept separate
   // from coOpen because coOpen also OPENS the drinks sheet — one flag cannot both mean "a payment
   // is happening" and "show this particular sheet".
@@ -224,6 +250,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   // A drink no longer on the menu (the Catalog's cup menu, or the code list's until it is read) is said, by name, and left
   // out — it used to vanish without a word, and an order made only of such drinks did nothing at all.
   const reorder = useCallback((items: string[]) => {
+    if (holding()) return;
     // Until the Catalog has answered, the menu is the code list's stand-in: a drink only the Catalog knows is kept, and Pay
     // decides — never "isn't on the menu any more" about a drink that is.
     const onMenu = new Set([...menu.map((d) => d.slug), ...(rows ? [] : items)]);
@@ -243,7 +270,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     setCoOpen(true);
     if (said) toast(`${said} — the rest is in your order`, "error");
     else if (Object.keys(before).length && !same) toast("Replaced what was in your order", "info", { action: { label: "Undo", run: () => { setCart(before); setCoOpen(false); } } });
-  }, [toast, soldOut, menu, rows]);
+  }, [toast, soldOut, menu, rows, holding]);
 
   const value = useMemo<AppCtx>(
     () => ({ toast, toastMsg, toastShown, toastVariant, toastAction, hideToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, menuRead: rows !== null, drinkOf, nameOf, refreshMenu }),

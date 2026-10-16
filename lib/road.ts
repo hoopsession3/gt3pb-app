@@ -36,11 +36,17 @@ export const isStopPast = (startsAt: string | null | undefined): boolean =>
 // A 7–10am stop led Find Us — "Next stop", directions and all — until 3pm, because the road ignored the end time the
 // crew set and waited out the grace from the start. A stop with an end time is over at its end; one without keeps the
 // grace, as lib/ordering already closes its orders 8 hours in (lib/liveOps says "no close time, so orders closed at 8 h").
+//
+// AN END BEFORE ITS START IS NO END (2026-10-15, R7 of the customer re-audit). An overnight stop saved 8pm–1am on one
+// date ends before it starts; this page took the end as said and dropped the stop at 1am the morning BEFORE it, while
+// lib/ordering — which reads an end only when it is after the start — kept its pre-orders open. Both read it one way
+// now: an end that is not after the start is no close time, and the grace from the start decides.
 /** Has this stop run its course: past its end time when it has one, else its start plus the grace? */
 export function isStopOver(s: { starts_at?: string | null; ends_at?: string | null }, now: number = Date.now()): boolean {
   const end = s.ends_at ? new Date(s.ends_at).getTime() : NaN;
-  if (Number.isFinite(end)) return now > end;
-  return !!s.starts_at && now - new Date(s.starts_at).getTime() > STOP_DONE_GRACE_MS;
+  const start = s.starts_at ? new Date(s.starts_at).getTime() : NaN;
+  if (Number.isFinite(end) && !(Number.isFinite(start) && end <= start)) return now > end;
+  return Number.isFinite(start) && now - start > STOP_DONE_GRACE_MS;
 }
 
 // ── the road ahead: one rule (2026-10-04) ───────────────────────────────────────────────────────

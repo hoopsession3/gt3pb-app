@@ -28,7 +28,7 @@ import type { CupLine } from "@/lib/cupPrice";
 import { payErrorText } from "@/lib/idempotency";
 import { haptic } from "@/lib/haptics";
 import { Segmented } from "@/components/controls";
-import { holdTicket, isTicket, ticketPath } from "@/lib/tickets";
+import { holdRef, holdTicket, isTicket, ticketPath } from "@/lib/tickets";
 
 // THE TIP SIGNS THE KEY (2026-10-12, C7 of the customer audit, approved). What is bought and what it costs — the items
 // and the tip — are the checkout key's whole signature (lib/idempotency attemptFor), and the key is kept beside the cart
@@ -36,6 +36,13 @@ import { holdTicket, isTicket, ticketPath } from "@/lib/tickets";
 // a new key, and a retry of a payment whose answer was lost was charged as a new checkout. So the tip is kept as the key
 // is used and comes back with it while the key is held; it is forgotten once the order is placed. No key held: no tip,
 // as always — the guest opts in.
+//
+// THE TIP'S CHOICE, NOT ITS CENTS (2026-10-15, R7 of the customer re-audit). The key was signed with the tip in cents,
+// and the cents move with the price: a restart, Pay tapped before the server's price answered (the menu's prices, not a
+// member's), a refusal with the new price, and the next tap signed a third amount — a third key, and the card charged
+// again. The choice ("15%") is what the customer picked, and it does not move when the price does; the amount itself is
+// the server's to check (expectedCents). A key held from before signs in cents, and is kept (attemptFor's `was`).
+// And while a payment's answer never came, the cart and the tip hold still (lib/payHold): a change there was a new key.
 const CO_IDEM = "gt3-co-idem", CO_TIP = "gt3-co-tip";
 const TIPS: readonly number[] = [0, 0.15, 0.2, 0.25];
 function restoredTip(): number {
@@ -59,11 +66,14 @@ export default function Checkout() {
   // every tap of Pay asked the card form for a new token — so a retry after a lost answer went to
   // Square as a request it had never seen, and the card was charged again. Now what is being bought
   // and what it costs (the items and the tip) are the key's whole signature: it holds across taps,
-  // across Pay and "pay at the truck", and across a reload (sessionStorage), and while the last answer
-  // is unknown the SAME card token goes out with it. The server claims the key before it calls Square,
-  // so a retry is told what happened to the first try — "order in", or "still confirming" — and is
-  // never charged again. Paid, or refused by Square, and the next tap is a new checkout.
+  // across Pay and "pay at the truck", and across a restart (localStorage, beside the cart), and while
+  // the last answer is unknown the SAME card token goes out with it. The server claims the key before it
+  // calls Square, so a retry is told what happened to the first try — "order in", or "still confirming"
+  // — and is never charged again. Paid, or refused by Square, and the next tap is a new checkout.
   const idem = useIdemKey(CO_IDEM, true);
+  // A payment whose answer never came (R7): the cart and the tip hold still until it is answered, or the customer lets it go.
+  const held = idem.isOpen();
+  const [letGo, setLetGo] = useState(false);
   // Both buttons send through here, one at a time: a tap on either while the other is still answering
   // is turned away before it reaches the network (`busy` reaches a fast second tap a render late).
   const sending = useRef(false);
@@ -102,16 +112,26 @@ export default function Checkout() {
   // a refusal's new amount replaces it (priceChanged): the card is never charged an amount the button did not say.
   const itemsKey = items.join(",");
   const [quote, setQuote] = useState<{ key: string; subtotalCents: number; lines: CupLine[] } | null>(null);
+  // A QUOTE THAT DIDN'T ANSWER IS SAID (R7, 2026-10-15). It was swallowed: the sheet showed the menu's prices — a member's
+  // perk missing — and nothing said they might not be the price. The menu's prices still stand in, Pay still refuses an
+  // amount it would not take, and the sheet says so, with a tap to ask again.
+  const [quoteMissed, setQuoteMissed] = useState<string | null>(null);   // the cart whose quote didn't answer
+  const [quoteTry, setQuoteTry] = useState(0);
   useEffect(() => {
     if (!open || !itemsKey) return;
     let alive = true;
     authedFetch("/api/checkout/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: itemsKey.split(",") }) })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive && d && typeof d.subtotalCents === "number" && Array.isArray(d.lines)) setQuote({ key: itemsKey, subtotalCents: d.subtotalCents, lines: d.lines }); })
-      .catch(() => { /* the menu's prices stand; the charge still refuses an amount it would not take */ });
+      .then((d) => {
+        if (!alive) return;
+        if (d && typeof d.subtotalCents === "number" && Array.isArray(d.lines)) { setQuote({ key: itemsKey, subtotalCents: d.subtotalCents, lines: d.lines }); setQuoteMissed(null); }
+        else setQuoteMissed(itemsKey);
+      })
+      .catch(() => { if (alive) setQuoteMissed(itemsKey); });
     return () => { alive = false; };
-  }, [open, itemsKey]);
+  }, [open, itemsKey, quoteTry]);
   const priced = quote && quote.key === itemsKey ? quote : null;
+  const unquoted = !priced && quoteMissed === itemsKey;
   const lineOf = (id: string) => priced?.lines.find((l) => l.slug === id) ?? null;
   const subtotalCents = priced ? priced.subtotalCents : totalCents;
   const repriced = (d: { priceChanged?: boolean; subtotalCents?: unknown; lines?: unknown }) => {
@@ -127,15 +147,14 @@ export default function Checkout() {
   // A drink that is sold out is said once, as sold out — not twice.
   const notHere = offStopMenu(items.filter((id) => !soldOut.has(id)), ordering.stopMenu ? [...ordering.stopMenu] : null).map(nameOf);
   const blocked = blocked86.length + notHere.length;
-  // Said to a screen reader when it appears (R6): sold-out changes live, often while focus is on the card form.
-  const blockedNote = blocked > 0 ? (
-    <div className="co-86" role="status">
-      {[
-        blocked86.length ? `${blocked86.join(" · ")} just sold out` : "",
-        notHere.length ? `${notHere.join(" · ")} ${notHere.length === 1 ? "isn't" : "aren't"} poured at ${stopName ?? "this stop"}` : "",
-      ].filter(Boolean).join(", and ")} — remove {blocked === 1 ? "it" : "them"} with the − button to continue.
-    </div>
-  ) : null;
+  const blockedWords = blocked > 0 ? `${[
+    blocked86.length ? `${blocked86.join(" · ")} just sold out` : "",
+    notHere.length ? `${notHere.join(" · ")} ${notHere.length === 1 ? "isn't" : "aren't"} poured at ${stopName ?? "this stop"}` : "",
+  ].filter(Boolean).join(", and ")} — remove ${blocked === 1 ? "it" : "them"} with the − button to continue.` : "";
+  // Said to a screen reader when it appears (R6), from a live region that is there BEFORE it does (R7): a status region
+  // inserted already holding its words is one VoiceOver often skips — sold-out changes live, often while focus is on the
+  // card form. The note on screen is the same words; the region below the name field is what is read.
+  const blockedNote = blocked > 0 ? <div className="co-86">{blockedWords}</div> : null;
   const blockedLabel = blocked86.length ? "Remove sold-out items" : "Remove what this stop doesn't pour";
   // A name is required so the operator can call the order at pickup. It starts from what we know
   // (lib/customerKnown: what they asked to be called, else the name on their record or their last
@@ -152,6 +171,10 @@ export default function Checkout() {
   const keepTip = () => { try { localStorage.setItem(CO_TIP, String(tipPct)); } catch { /* the key still holds; only a restart's tip is lost */ } };
   const tipCents = Math.round(subtotalCents * tipPct);
   const grandCents = subtotalCents + tipCents;
+  // What signs this checkout's key: the drinks, and the tip the customer picked (R7) — and, for a key held from before
+  // R7, what it was signed as then: the tip in cents, at the server's price or at the menu's.
+  const signed = { items, tip: tipPct };
+  const signedBefore = [{ items, tipCents }, { items, tipCents: Math.round(totalCents * tipPct) }];
   // The string three places below print. It was "19.99" with a "$" glued on at each site, which is
   // how the same total could read one way here and another on the receipt.
   const total = money(grandCents);
@@ -174,8 +197,20 @@ export default function Checkout() {
     }
   })();
 
-  // Enable order-status alerts (must run inside a click — a user gesture).
+  // Order-status alerts, offered once the order is in (R7, 2026-10-15) — not asked on the way to the card, where the
+  // browser's question sat between Pay and the payment, and was asked of a guest the push could never reach (a push
+  // follows an account). A member on the web whose browser has not been asked gets "Ping me when it's ready" on the
+  // confirmation; it runs inside that tap (a user gesture), as the browser requires.
+  // Read while drawing the confirmation — a screen only a tap in this browser ever reaches, so no server draws it.
+  const [alertAsked, setAlertAsked] = useState(false);
+  const canAskAlerts = (() => {
+    if (!done || !profile) return false;
+    try { return typeof Notification !== "undefined" && Notification.permission === "default" && "serviceWorker" in navigator && "PushManager" in window; }
+    catch { return false; }   // no Notification here: nothing to offer
+  })();
+  const alertAsk: "ask" | "asked" | null = alertAsked ? "asked" : canAskAlerts ? "ask" : null;
   const enableAlerts = async () => {
+    setAlertAsked(true);
     try {
       if (typeof Notification !== "undefined") {
         if (Notification.permission === "default") await Notification.requestPermission();
@@ -208,6 +243,8 @@ export default function Checkout() {
       // toast and only the last one shows), and `done` had nowhere to put it even if it had.
       // What was charged, as the server says it — not what this screen worked out (C2).
       setDone({ paid: true, total: typeof data.amount === "number" ? data.amount : grandCents, lines: capturedLines, name: capturedName, warn: data.warn, ref: data.ref, ...p, ...t });
+      // Charged, and no order to track (R7): the reference outlives this sheet — the order bar says it until the crew has it.
+      if (data.warn && !t.ticket) holdRef(typeof data.ref === "string" ? data.ref : "", typeof data.amount === "number" ? data.amount : grandCents);
       invalidateCustomerKnown();
     } else {
       trackFunnel("order", "pickup");
@@ -225,7 +262,7 @@ export default function Checkout() {
   // checkout's key, so a retry after "we're offline" is answered with the first order, not a second.
   const recordPreOrder = async (): Promise<{ error: { message: string } | null; data?: Placed }> => {
     keepTip();
-    const attempt = await idem.begin({ items, tipCents });
+    const attempt = await idem.begin(signed, undefined, signedBefore);
     try {
       const res = await authedFetch("/api/checkout", {
         method: "POST",
@@ -248,17 +285,17 @@ export default function Checkout() {
   // the paid path gets.
   const sendPreOrder = async () => {
     if (busy || sending.current) return; // guard against a double-tap firing two pre-orders the kitchen makes
-    if (blocked > 0) { toast(blocked86.length ? "Remove the sold-out items first" : "Remove what this stop doesn't pour first", "error"); return; }
-    if (!customer) { toast("Add a name for pickup", "error"); return; }
+    setErr("");
+    if (blocked > 0) { setErr(blocked86.length ? "Remove the sold-out items first" : "Remove what this stop doesn't pour first"); return; }
+    if (!customer) { setErr("Add a name for pickup"); return; }
     if (items.length === 0) return;
     setBusy(true);
     sending.current = true;
     try {
-      await enableAlerts();
       const { error, data } = await recordPreOrder();
       // The server's own words when it refused (the truck closed between the read and the tap — it
       // says when it opens); the generic retry only when there are none.
-      if (error) { toast(error.message || "That didn't go through — give it another tap", "error"); return; }
+      if (error) { setErr(error.message || "That didn't go through — give it another tap"); return; }
       placed(data ?? {}, false);
     } finally {
       sending.current = false;
@@ -278,11 +315,10 @@ export default function Checkout() {
     sending.current = true;
     let sent: string | null = null;
     try {
-      await enableAlerts();
       // This checkout's key, and the card token already sent under it while the last answer is
       // unknown — a fresh one from the card form only when there is none.
       keepTip();
-      const attempt = await idem.begin({ items, tipCents }, () => paymentRef.current!.tokenize());
+      const attempt = await idem.begin(signed, () => paymentRef.current!.tokenize(), signedBefore);
       if (!attempt.token) {
         setErr("Card details look off — check and retry.");
         return;
@@ -332,10 +368,16 @@ export default function Checkout() {
           ]}
           // With a ticket, the next thing is the order itself — where it is, and telling the truck you're coming (board
           // 09); the pack's pitch is on the ticket. Without one (0395 not pasted, or a charge that didn't record), as before.
-          ctaLabel={done.ticket ? "Track your order" : "Reserve a Saturday pack →"}
-          onCta={() => { const tk = done.ticket; onClose(); router.push(tk ? ticketPath(tk) : "/reserve"); }}
-          secondaryLabel={done.ticket ? "Done" : "Not now"}
-          onSecondary={onClose}
+          // No ticket (a charge that didn't record): Done, and the reference above stays — not a pack's pitch (R7).
+          ctaLabel={done.ticket ? "Track your order" : "Done"}
+          onCta={() => { const tk = done.ticket; onClose(); if (tk) router.push(ticketPath(tk)); }}
+          secondaryLabel={done.ticket ? "Done" : undefined}
+          onSecondary={done.ticket ? onClose : undefined}
+          aside={alertAsk ? (
+            <button type="button" className="sub-link" disabled={alertAsk === "asked"} onClick={() => { void enableAlerts(); }}>
+              {alertAsk === "asked" ? "We'll ping you when it's ready" : "Ping me when it's ready"}
+            </button>
+          ) : undefined}
         />
       ) : (
         <>
@@ -350,13 +392,14 @@ export default function Checkout() {
                 autoComplete="name"
                 enterKeyHint="done"
               />
+              <p className="sr-only" role="status" aria-live="polite">{blockedWords}</p>
               <div className="spec-label" style={{ marginTop: 16 }}>Your pre-order</div>
               {lines.map(([id, q]) => (
                 <div className="co-line" key={id}>
                   <span className="co-qty">
-                    <button type="button" className="k-icon-btn" aria-label={`Remove one ${nameOf(id)}`} onClick={() => dec(id)} disabled={busy}>−</button>
+                    <button type="button" className="k-icon-btn" aria-label={`Remove one ${nameOf(id)}`} onClick={() => dec(id)} disabled={busy || held}>−</button>
                     <b>{q}</b>
-                    <button type="button" className="k-icon-btn" aria-label={`Add one ${nameOf(id)}`} onClick={() => inc(id)} disabled={busy}>+</button>
+                    <button type="button" className="k-icon-btn" aria-label={`Add one ${nameOf(id)}`} onClick={() => inc(id)} disabled={busy || held}>+</button>
                     {nameOf(id)}
                     {lineOf(id)?.perk && <em className="ml-1.5 not-italic text-caption2 text-gold2">{lineOf(id)!.perk}</em>}
                   </span>
@@ -369,9 +412,9 @@ export default function Checkout() {
               {ordering.open && (
                 <button type="button" className="co-upsell-line" onClick={() => router.push("/reserve")}>
                   {packUpsell ? (
-                    <>Bottles for your week? <b>Reserve a Saturday {packUpsell.size}-pack — bottles from {packUpsell.per}, save {packUpsell.pct}% ›</b></>
+                    <>Bottles for your week? <b>Reserve a {packUpsell.size}-pack for the next drop — bottles from {packUpsell.per}, save {packUpsell.pct}% ›</b></>
                   ) : (
-                    <>Bottles for your week? <b>Reserve a Saturday pack ›</b></>
+                    <>Bottles for your week? <b>Reserve a pack for the next drop ›</b></>
                   )}
                 </button>
               )}
@@ -396,8 +439,14 @@ export default function Checkout() {
               ) : squareClientReady ? (
                 <>
                   <div className="co-line"><span>Subtotal</span><span>{money(subtotalCents)}</span></div>
+                  {unquoted && (
+                    <p className="text-footnote text-cream-dim mt-1.5" role="status">
+                      These are the menu&apos;s prices — we couldn&apos;t check yours just now. Pay checks before your card is charged.{" "}
+                      <button type="button" className="btn-ter" onClick={() => setQuoteTry((n) => n + 1)}>Check again</button>
+                    </p>
+                  )}
                   <div className="spec-label" style={{ marginTop: 16 }}>Add a tip</div>
-                  <Segmented label="Tip" kind="choice" fill className="mt-0.5 mb-1.5" value={String(tipPct)} onChange={(k) => setTipPct(Number(k))}
+                  <Segmented label="Tip" kind="choice" fill className="mt-0.5 mb-1.5" value={String(tipPct)} onChange={(k) => setTipPct(Number(k))} disabled={busy || held}
                     options={TIPS.map((p) => ({ key: String(p), label: p === 0 ? "No tip" : `${Math.round(p * 100)}%` }))} />
                   <div className="spec-label" style={{ marginTop: 16 }}>Card</div>
                   <div className="sq-wrap">
@@ -405,6 +454,24 @@ export default function Checkout() {
                     {!ready && <div className="sk sq-sk-bar" />}
                   </div>
                   {err && <div className="auth-err" role="alert">{err}</div>}
+                  {/* A PAYMENT WHOSE ANSWER NEVER CAME (R7): said once, here, with the way out the customer owns — the crew is
+                      the one who can see whether it went through. Until then the drinks and the tip hold still (above). */}
+                  {held && (
+                    <div className="honest" role="status">
+                      <b>Your last payment hasn&apos;t been confirmed yet.</b>{" "}Tap Pay to check on it: if it went through, you&apos;ll
+                      see your order; if it didn&apos;t, it&apos;s paid once now. You won&apos;t be charged twice — so your drinks and tip
+                      stay as they are until it&apos;s answered.
+                      {letGo ? (
+                        <>
+                          <span className="block mt-2">Only start over if the crew says that payment didn&apos;t go through — otherwise this would be a second order.</span>
+                          <button type="button" className="co-paylater" onClick={() => { idem.forget(); setLetGo(false); setErr(""); }}><b>Start over</b></button>
+                          <button type="button" className="co-paylater" onClick={() => setLetGo(false)}>Keep waiting</button>
+                        </>
+                      ) : (
+                        <button type="button" className="co-paylater" onClick={() => setLetGo(true)}>The crew says it didn&apos;t go through? <b>Start over</b></button>
+                      )}
+                    </div>
+                  )}
                   <div className="co-foot">
                     {blockedNote}
                     <div className="co-line co-total"><span>Total</span><span>{total}</span></div>
@@ -423,6 +490,7 @@ export default function Checkout() {
               ) : payLater.on ? (
                 <>
                   {blockedNote}
+                  {err && <div className="auth-err" role="alert">{err}</div>}
                   <div className="co-line co-total"><span>Total</span><span>{money(subtotalCents)}</span></div>
                   <div className="honest" style={{ marginTop: 16 }}>
                     This is a <b>pre-order</b>{" "}— we&apos;ll have it ready and you pay at the truck.

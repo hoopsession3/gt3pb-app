@@ -20,7 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import { haptic } from "@/lib/haptics";
-import { packClosesAt, closesWords } from "@/lib/pickupDay";
+import { packClosesAt, closesWords, PICKUP_STOPS_READ } from "@/lib/pickupDay";
 import TextYes from "./TextYes";
 import { scrollToTop } from "@/lib/appScroll";
 import {
@@ -265,8 +265,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   useEffect(() => {
     if (!supabase) return;
     let live = true;
-    supabase.from("stops").select("id, name, starts_at").is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
-      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(8)
+    supabase.from("stops").select("id, name, starts_at").is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
+      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ)
       .then(({ data }) => {
         if (!live) return;
         setStopsRead(true);

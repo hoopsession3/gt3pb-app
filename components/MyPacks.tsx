@@ -9,7 +9,7 @@ import { mixSummary, dollars, emptyMix, dropForStop, nextDrop, dropDateKey, type
 import { authedFetch } from "@/lib/authedFetch";
 import { haptic } from "@/lib/haptics";
 import { nearDay, timeRange } from "@/lib/dates";
-import { packClosesAt, closesWords } from "@/lib/pickupDay";
+import { packClosesAt, closesWords, PICKUP_STOPS_READ } from "@/lib/pickupDay";
 import Icon from "@/components/Icon";
 import { useConfirm } from "./ConfirmSheet";
 import { isSettled } from "@/lib/settled";
@@ -68,7 +68,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
   useEffect(() => {
     if (!supabase || !user) return;
     supabase.from("stops").select("id, starts_at").is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
-      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(8)
+      .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ)
       .then(({ data }) => {
         const seen = new Set<string>();
         const opts: { key: string; label: string; stopId: string | null }[] = [];

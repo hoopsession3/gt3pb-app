@@ -48,9 +48,9 @@ async function post(req: Request) {
 
   // The cup orders placed for it, still to be picked up: canceled with it, and told.
   // scoped-by: orders.stop_id = this stop, which an owner or admin just canceled through the database's own check.
-  const { data: cupRows } = await supabaseAdmin.from("orders").select("id, user_id, items, paid, total_cents, payment_id")
+  const { data: cupRows } = await supabaseAdmin.from("orders").select("id, user_id, items, paid, total_cents, tip_cents, payment_id")
     .eq("stop_id", id).in("status", ["new", "preparing", "ready"]);
-  const cups = (cupRows ?? []) as { id: string; user_id: string | null; items: string[] | null; paid: boolean; total_cents: number; payment_id: string | null }[];
+  const cups = (cupRows ?? []) as { id: string; user_id: string | null; items: string[] | null; paid: boolean; total_cents: number; tip_cents?: number | null; payment_id: string | null }[];
   if (cups.length) {
     // scoped-by: the ids just read for this stop.
     await supabaseAdmin.from("orders").update({ status: "void" }).in("id", cups.map((c) => c.id)).in("status", ["new", "preparing", "ready"]);
@@ -96,7 +96,8 @@ async function post(req: Request) {
     }
   }
 
-  const paidCups = cups.filter((c) => c.paid).map((c) => ({ no: orderNo(c.id), ref: (c.payment_id || c.id).slice(-6).toUpperCase(), cents: c.total_cents }));
+  // What each card was charged — the drinks and the tip (R7): the list said "of drinks", and that is what was refunded.
+  const paidCups = cups.filter((c) => c.paid).map((c) => ({ no: orderNo(c.id), ref: (c.payment_id || c.id).slice(-6).toUpperCase(), cents: c.total_cents + (c.tip_cents ?? 0) }));
   const line = crewWords(stop, { cups: cups.length, told, paidCups, packs: packs.length });
   await raiseAlert({ severity: paidCups.length ? "critical" : "important", category: paidCups.length ? "money" : "order", kind: "stop_canceled",
     subjectId: id, title: line.title, body: line.body, link: "/crew?s=now" });

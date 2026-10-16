@@ -30,10 +30,10 @@ export function stopCanceledToast(d: { cups?: number; told?: number; paid?: numb
 }
 
 /** The crew's one line: who was told, and the paid pre-orders to refund in Square — each by the number the window
- *  calls ("#4F2A", R3b) and the Square reference to find it by. */
+ *  calls ("#4F2A", R3b), the Square reference to find it by, and all the card was charged, the tip with it (R7). */
 export function crewWords(s: CanceledStop, told: { cups: number; told?: number; paidCups: { no?: string; ref: string; cents: number }[]; packs: number }): { title: string; body: string } {
   const refunds = told.paidCups.length
-    ? ` Refund ${told.paidCups.length} paid ${told.paidCups.length === 1 ? "order" : "orders"} in Square, in full (the tip too): ${told.paidCups.map((p) => `${p.no ? `${p.no} (Square …${p.ref})` : p.ref} — ${money(p.cents)} of drinks`).join(", ")}.`
+    ? ` Refund ${told.paidCups.length} paid ${told.paidCups.length === 1 ? "order" : "orders"} in Square, in full — what each card was charged, the tip with it: ${told.paidCups.map((p) => `${p.no ? `${p.no} (Square …${p.ref})` : p.ref} — ${money(p.cents)}`).join(", ")}.`
     : "";
   const members = typeof told.told === "number" ? Math.min(told.told, told.cups) : told.cups, guests = told.cups - members;
   const cups = told.cups

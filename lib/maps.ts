@@ -1,23 +1,38 @@
 import { stateCode } from "./usAddress";
+import { isIPhoneLike } from "./ios";
 
 // Open native turn-by-turn directions to a coordinate. The universal Google Maps
-// "dir" URL hands off to the Maps app on iOS/Android (or the web) and works
+// "dir" URL hands off to the Maps app on Android (or the web) and works
 // cross-platform without an API key.
-function directionsUrl(lat: number, lng: number) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+//
+// APPLE'S MAP ON AN IPHONE (2026-10-15, R7 of the customer re-audit). Every link went to Google — an iPhone without
+// Google Maps got Google's website, in Safari or the app's browser sheet, with the stop under it. On an iPhone or iPad the
+// directions are Apple Maps' (maps.apple.com hands off to the Maps app; lib/nativeLinks lets the app hand it over too);
+// everywhere else, Google's, as before. Asked when tapped, never while drawing, so a page drawn on the server agrees.
+export function directionsUrl(to: string | { lat: number; lng: number }, apple: boolean = isIPhoneLike()): string {
+  const dest = typeof to === "string" ? encodeURIComponent(to) : `${to.lat},${to.lng}`;
+  return apple
+    ? `https://maps.apple.com/?daddr=${dest}&dirflg=d`
+    : `https://www.google.com/maps/dir/?api=1&destination=${dest}${typeof to === "string" ? "&travelmode=driving" : ""}`;
 }
 
 export function openDirections(lat: number, lng: number) {
   if (typeof window !== "undefined") {
-    window.open(directionsUrl(lat, lng), "_blank", "noopener,noreferrer");
+    window.open(directionsUrl({ lat, lng }), "_blank", "noopener,noreferrer");
   }
 }
 
-// Navigate to a plain address (no coords needed) — hands off to the Maps app.
+// Navigate to a plain address (no coords needed) — hands off to the Maps app. The street is what to send, when there is
+// one: a place name ("WineXpress") is the map's guess, the street its door (R7).
 export function openAddress(address: string) {
   if (typeof window !== "undefined") {
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`, "_blank", "noopener,noreferrer");
+    window.open(directionsUrl(address), "_blank", "noopener,noreferrer");
   }
+}
+
+/** Where a map should take someone: the street first, then the place name — the opposite of how a stop is said. */
+export function directionsTo(row: { address?: string | null; location_text?: string | null }): string | null {
+  return row.address?.trim() || row.location_text?.trim() || null;
 }
 
 // A STREET, NOT A PLACE NAME (2026-10-12). A stop saved without a pin still gets Find Us's map: Saturday's WineXpress

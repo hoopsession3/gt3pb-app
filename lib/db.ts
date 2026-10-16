@@ -91,6 +91,8 @@ export interface Order {
   customer_id?: string | null;
   items: string[];
   total_cents: number;
+  // The tip, charged with the drinks on the same card (0390) — a refund is both (R7).
+  tip_cents?: number | null;
   paid: boolean;
   payment_id: string | null;
   status: "new" | "preparing" | "ready" | "done" | "void";

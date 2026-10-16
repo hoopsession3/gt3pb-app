@@ -7,7 +7,7 @@ import EditCopyPill from "@/components/EditCopyPill";
 import EditableCopy from "@/components/EditableCopy";
 import { Masthead, SectionHeader, InfoRow, ClosingBeat } from "@/components/kit";
 import { RsvpRow } from "@/components/RsvpRow";
-import { openDirections, openAddress, mapStreet } from "@/lib/maps";
+import { openDirections, openAddress, mapStreet, directionsTo } from "@/lib/maps";
 import { supabase } from "@/lib/supabase";
 import { useSiteCopy } from "@/lib/copy";
 import { marketsPresent, rowInMarket, shouldOfferMarketChoice, MARKET_LABEL } from "@/lib/markets";
@@ -15,7 +15,7 @@ import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
 import { closedWords, liveSwitchOn, readyWords, type NamedStop } from "@/lib/ordering";
 import { useCupAvailability } from "@/components/useCupAvailability";
-import { etToday, etRelativeDay, fmt12, clockTime, etDayKey, weekdayOf } from "@/lib/dates";
+import { etToday, etRelativeDay, etWallMs, fmt12, clockTime, etDayKey, weekdayOf } from "@/lib/dates";
 import { isStopAhead } from "@/lib/road";
 import { canceledLine } from "@/lib/stopLine";   // the line alone: the texts and the crew's words stay out of Find Us
 import { clickable } from "@/lib/a11y";
@@ -124,7 +124,8 @@ function sortKey(r: FieldOp): number {
   if (r.kind === "stop") return r.starts_at ? Date.parse(r.starts_at) : Infinity;
   if (!r.day) return Infinity;
   const t = /^(\d{1,2}):(\d{2})/.exec(r.start_time ?? "");
-  return new Date(`${r.day}T${t ? `${String(t[1]).padStart(2, "0")}:${t[2]}` : "12:00"}:00`).getTime();
+  // Its day and time are the truck's, Eastern — not the phone's zone (R7), so it sorts among the stops' instants truly.
+  return etWallMs(r.day, t ? `${String(t[1]).padStart(2, "0")}:${t[2]}` : "12:00");
 }
 // field_ops event row -> the EventRow shape RsvpRow expects (same UUID as events by construction).
 function toEventRow(r: FieldOp): EventRow {
@@ -273,8 +274,13 @@ export default function FindUs() {
   // public road, and this page folded them under "Past events · 2" — each with a live "I'm in", an RSVP to 7/31 and
   // 8/15. Find Us answers where the truck is and will be; what is over is not on it.
   const upcoming = roadOps.filter((r) => r.kind === "stop" || !r.day || r.day >= today);
-  // the hero is the next PLACE TO FIND US — live stop first, else first upcoming stop or event
-  const hero = (isLive && upcoming.find((r) => r.id === live?.current_stop_id)) || upcoming[0];
+  // A STOP UNDER WAY THAT NOBODY FLIPPED LIVE (R7): cup orders are taken for it, made now — lib/ordering's "started",
+  // the missed-toggle grace — and Today and checkout said so while this page said "Next stop". It is on now here too.
+  const startedId = ordering?.state === "started" ? ordering.stop?.id ?? null : null;
+  const liveId = isLive ? live?.current_stop_id ?? null : startedId;
+  const onNow = isLive || !!startedId;
+  // the hero is the next PLACE TO FIND US — the stop on now first, else first upcoming stop or event
+  const hero = (liveId && upcoming.find((r) => r.id === liveId)) || upcoming[0];
   // A CANCELED STOP SAYS SO (H5, 0391): the soonest one called off that would still be on before this page's next
   // stop — not over yet, and starting no later — is said above it, with the reason. It was a row that vanished.
   const heroStartMs = hero?.starts_at ? Date.parse(hero.starts_at) : Number.POSITIVE_INFINITY;
@@ -324,7 +330,7 @@ export default function FindUs() {
   // A stop saved without a pin is still mapped where Apple finds its street (lib/maps mapStreet, app/api/map).
   const heroStreet = hero && !heroHasCoords ? mapStreet(hero) : null;
   // The truck on the map breathes only while it is pouring at this stop.
-  const heroLive = isLive && hero?.id === live?.current_stop_id;
+  const heroLive = !!liveId && hero?.id === liveId;
   // Ryan's polish pass ("is it giving 10/10 CSS?"): a raw one-string address wraps wherever it
   // runs out of column — "…Simpsonville, SC / 29681" with an orphaned ZIP. Split it into a
   // DELIBERATE two-line lockup instead: street as the value, city/state as a quiet support line,
@@ -333,13 +339,15 @@ export default function FindUs() {
   const whereParts = (heroWhere ?? "").split(/,\s*/);
   const whereLoc = whereParts.length >= 2 ? whereParts.slice(1).join(", ").replace(/\s+\d{5}(?:-\d{4})?\s*$/, "").trim() : "";
   const whereStreet = whereLoc ? whereParts[0] : heroWhere;
-  const goHero = () => { if (heroHasCoords) openDirections(hero!.lat as number, hero!.lng as number); else if (heroWhere) openAddress(heroWhere); };
+  // Directions go to the street first — the place's name is the map's guess (R7, lib/maps directionsTo).
+  const heroTo = hero ? directionsTo(hero) : null;
+  const goHero = () => { if (heroHasCoords) openDirections(hero!.lat as number, hero!.lng as number); else if (heroTo) openAddress(heroTo); };
 
   return (
     <section className="screen truck" id="s-find">
       <Masthead
-        eyebrow={isLive ? t("findus.eyebrow_live") : hero?.kind === "event" ? t("findus.eyebrow_event") : t("findus.eyebrow_stop")}
-        live={isLive}
+        eyebrow={onNow ? t("findus.eyebrow_live") : hero?.kind === "event" ? t("findus.eyebrow_event") : t("findus.eyebrow_stop")}
+        live={onNow}
         right={<div className="mast-right"><EditCopyPill group="Truck" /><AccountPill /></div>}
       />
 
@@ -423,8 +431,12 @@ export default function FindUs() {
       {ordering?.state === "closing"
         ? <EditableCopy k="findus.cta_closed" value={t("findus.cta_closed")} as="p" className="k-sub" style={{ marginTop: 4 }} multiline />
         : <>
-            <button type="button" className="btn-pri btn-wide k-cta" onClick={() => router.push("/menu")}>{t(ordering && !ordering.open ? "findus.cta_menu" : "findus.cta_preorder")}</button>
-            <p className="k-sub fu-state" role="status">{ordering ? (ordering.open ? readyWords(ordering) : closedWords(ordering, { named: !!ordering.stop && ordering.stop.id !== hero?.id })) : " "}</p>
+            {/* Pre-order only once the read says cups can be ordered (R7): before it, and when it fails, the menu — a claim
+                is made once it is true. Open for a stop other than the one above, the line names it. */}
+            <button type="button" className="btn-pri btn-wide k-cta" onClick={() => router.push("/menu")}>{t(ordering?.open ? "findus.cta_preorder" : "findus.cta_menu")}</button>
+            <p className="k-sub fu-state" role="status">{ordering ? (ordering.open
+              ? `${ordering.stop?.name && ordering.stop.id !== hero?.id ? `At ${ordering.stop.name}: ` : ""}${readyWords(ordering)}`
+              : closedWords(ordering, { named: !!ordering.stop && ordering.stop.id !== hero?.id })) : " "}</p>
           </>}
 
       {/* Quiet chip row — never a second red CTA. Get directions is the hero's one-tap "take me
@@ -433,7 +445,7 @@ export default function FindUs() {
           Identical for stops and events. LivePing is the push opt-in (0257). */}
       <div className="fu-chips">
         {hero && (heroHasCoords || heroWhere) && (
-          <button type="button" className="k-chip mt-2.5" onClick={() => { if (heroHasCoords) openDirections(hero.lat as number, hero.lng as number); else if (heroWhere) openAddress(heroWhere); }}>
+          <button type="button" className="k-chip mt-2.5" onClick={() => { if (heroHasCoords) openDirections(hero.lat as number, hero.lng as number); else if (heroTo) openAddress(heroTo); }}>
             <Icon name="pin" /> {t("findus.directions")}
           </button>
         )}
@@ -449,7 +461,7 @@ export default function FindUs() {
             {rest.length > 0 && <div className="k-rows">
               {rest.map((r) => {
                 if (r.kind === "event") return <RsvpRow key={r.id} ev={toEventRow(r)} />;
-                const rowLive = isLive && r.id === live?.current_stop_id;
+                const rowLive = !!liveId && r.id === liveId;
                 const isOpen = openStop === r.id;
                 return (
                   <div key={r.id}>
@@ -474,7 +486,8 @@ export default function FindUs() {
                         {/* Where — the same pin-link the event rows carry (RsvpRow), stop/event parity */}
                         {(r.location_text || r.address) && (
                           <div className="k-det-row"><span className="k-det-k">Where</span>
-                            <a href={`https://maps.google.com/?q=${encodeURIComponent((r.location_text ?? r.address) as string)}`} target="_blank" rel="noreferrer"><Icon name="pin" /> {r.location_text ?? r.address}</a>
+                            <a href={`https://maps.google.com/?q=${encodeURIComponent((r.address ?? r.location_text) as string)}`} target="_blank" rel="noreferrer"
+                              onClick={(e) => { e.preventDefault(); openAddress((r.address ?? r.location_text) as string); }}><Icon name="pin" /> {r.location_text ?? r.address}</a>
                           </div>
                         )}
                         <p>{(r.notes ?? r.note) ?? <EditableCopy k="truck.stop_note" value={t("truck.stop_note")} as="span" />}</p>
@@ -484,7 +497,7 @@ export default function FindUs() {
                         {(r.lat != null && r.lng != null) ? (
                           <button type="button" className={`k-chip${rowLive && ordering?.open !== false ? " ml-2" : ""}`} onClick={() => openDirections(r.lat as number, r.lng as number)}>{t("findus.directions")}</button>
                         ) : (r.location_text || r.address) ? (
-                          <button type="button" className={`k-chip${rowLive && ordering?.open !== false ? " ml-2" : ""}`} onClick={() => openAddress((r.location_text ?? r.address) as string)}>{t("findus.directions")}</button>
+                          <button type="button" className={`k-chip${rowLive && ordering?.open !== false ? " ml-2" : ""}`} onClick={() => openAddress((r.address ?? r.location_text) as string)}>{t("findus.directions")}</button>
                         ) : null}
                       </div>
                     )}

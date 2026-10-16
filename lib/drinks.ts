@@ -128,6 +128,10 @@ export function drinkFrom(row: MenuRow | null | undefined, slug: string): Drink 
   };
 }
 
+/** The most cups one order holds — the server refuses more (app/api/checkout, its quote), so the cart stops there too,
+ *  and a cart kept on the phone comes back whole up to it (R7: it came back as 9 of a drink, a new checkout key). */
+export const MAX_CUPS = 25;
+
 /** The price to show when the Catalog's isn't known — the code list's, then nothing. Never a crash. */
 export const fallbackCents = (slug: string): number | null => pxCents(SEED[slug]?.px);
 

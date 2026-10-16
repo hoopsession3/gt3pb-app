@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { nameFrom } from "@/lib/drinks";
+import { MAX_CUPS, nameFrom } from "@/lib/drinks";
 import { readMenuRows } from "@/lib/drinksRead";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
@@ -23,7 +23,7 @@ async function post(req: Request) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const items = Array.isArray(body.items) ? body.items.filter((x): x is string => typeof x === "string") : [];
-  if (items.length === 0 || items.length > 25 || items.length !== (body.items as unknown[]).length) {
+  if (items.length === 0 || items.length > MAX_CUPS || items.length !== (body.items as unknown[]).length) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
   const code = typeof body.code === "string" ? body.code : null;

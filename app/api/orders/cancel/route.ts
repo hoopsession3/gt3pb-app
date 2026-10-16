@@ -159,11 +159,12 @@ async function whyNotPack(id: string, userId: string, failed: boolean): Promise<
 async function lookup(channel: Channel, id: string, userId: string): Promise<Canceled | null> {
   try {
     if (channel === "cup") {
+      // What the card was charged: the drinks and the tip (R7, 0409) — "You paid" named the drinks only.
       const { data } = await supabaseAdmin!
-        .from("orders").select("customer,total_cents,paid").eq("id", id).eq("user_id", userId).maybeSingle();
+        .from("orders").select("customer,total_cents,tip_cents,paid").eq("id", id).eq("user_id", userId).maybeSingle();
       if (!data) return null;
       return { paid: !!data.paid, who: data.customer || "A member",
-        label: `cup order ${orderNo(id)}`, phone: null, total_cents: data.total_cents ?? 0 };
+        label: `cup order ${orderNo(id)}`, phone: null, total_cents: (data.total_cents ?? 0) + (data.tip_cents ?? 0) };
     }
     if (channel === "pickup") {
       const { data } = await supabaseAdmin!

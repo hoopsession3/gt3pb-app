@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { nameFrom } from "@/lib/drinks";
+import { MAX_CUPS, nameFrom } from "@/lib/drinks";
 import { readCityOut, readMenuRows } from "@/lib/drinksRead";
 import { chargeCard, safeIdemKey, type PaidCard } from "@/lib/squareServer";
 import { randomUUID } from "node:crypto";
@@ -21,6 +21,7 @@ import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 import { chargeOnce, claimKey, couldNotConfirm, placeOnce, seenBefore, type Answer, type Stopped } from "@/lib/chargeOnce";
 import { checkoutClaims } from "@/lib/checkoutClaims";
+import { CONNECT_APP } from "@/lib/connect";
 
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
 
@@ -44,7 +45,7 @@ async function post(req: Request) {
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: "Empty order" }, { status: 400 });
   }
-  if (items.length > 25) return NextResponse.json({ error: "Order too large" }, { status: 400 });
+  if (items.length > MAX_CUPS) return NextResponse.json({ error: `${MAX_CUPS} drinks is the most one order holds.` }, { status: 400 });
   // Every line is a drink's slug (the Catalog's key). The code list used to refuse anything else as "Unknown item"; since
   // the Catalog is the menu (R2) the check is said here, before any read.
   if (!items.every((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 64)) {
@@ -244,14 +245,15 @@ async function post(req: Request) {
       const orderRow = { id: orderId, items, total_cents: subtotal, paid: false, payment_id: null, customer, user_id: user?.id ?? null, customer_id: customerId, status: "new", benefit_code: cupsCode, stop_id: ordering.stop?.id ?? null };
       const { error: insErr } = await insertOrder(orderRow);
       if (insErr) return { status: 500, body: { error: "That didn't go through — give it another tap" } };
-      // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
-      // is account-email-only and only for signed-in members; guests just have the on-screen confirm.
-      if (user?.id) {
-        await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in. ${promise.ready} ${promise.pickup}. ${money(subtotal)} at pickup.` });
-      }
       // `paid` says which kind of order this was, because one key covers the checkout whichever button
       // was tapped: a retry from Pay can be answered with this pre-order, and must not read as a charge.
       const ticket = await ticketFor(null);
+      // Confirmation email — cup orders carry no phone (a quick on-the-spot order, not a form), so this
+      // is account-email-only and only for signed-in members; guests just have the on-screen confirm.
+      // Its number and its page (R7): the email named neither, and the number is what the window calls.
+      if (user?.id) {
+        await notifyCustomer({ email: await accountEmail(user.id), subject: `GT3 — order ${orderNo(orderId)} is in`, message: orderInWords(orderNo(orderId), promise, `${money(subtotal)} at pickup`, ticket) });
+      }
       return { status: 200, body: { ok: true, paid: false, amount: subtotal, recorded: true, no: orderNo(orderId), ticket, ...promise } };
     } }));
   }
@@ -306,10 +308,10 @@ async function post(req: Request) {
         await raiseAlert({ severity: "critical", category: "money", title: "Paid order didn't record — add it", body: `A card payment succeeded (${paymentId}, ${money(amount)}) but the order didn't save${why ? `: ${why}` : "."} ${customer ? `Name: ${customer}. ` : ""}Items: ${items.map((slug) => nameFrom(cupRows, slug)).join(", ")}. Add it to the pass — or, if it can't be made, refund that payment in Square.${promise.readyFrom ? ` Placed ahead for ${promise.pickup}.` : ""}` });
         return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your order; show this ref at the window.`, ...promise } };
       }
-      if (user?.id) {
-        await notifyCustomer({ email: await accountEmail(user.id), subject: "GT3 — order in", message: `GT3: your order is in. ${promise.ready} ${promise.pickup}. ${money(amount)} paid.` });
-      }
       const ticket = await ticketFor(paidWith);
+      if (user?.id) {
+        await notifyCustomer({ email: await accountEmail(user.id), subject: `GT3 — order ${orderNo(orderId)} is in`, message: orderInWords(orderNo(orderId), promise, `${money(amount)} paid`, ticket) });
+      }
       return { status: 200, body: { ok: true, paid: true, paymentId, amount, recorded: true, no: orderNo(orderId), ticket, ...promise } };
     } catch {
       // The charge is DONE at this point (we have a paymentId) — an exception here means something
@@ -336,6 +338,12 @@ async function post(req: Request) {
       return { status: 502, body: { ...couldNotConfirm(true).body } };
     },
   }));
+}
+
+/** The "order in" email (R7): its number, where and when, the money, and its page — the email said none of the first or
+ *  the last, so a member had nothing to call at the window and no way back to the order from it. */
+function orderInWords(no: string, promise: { ready: string; pickup: string }, money$: string, ticket: string | null): string {
+  return `GT3: order ${no} is in. ${promise.ready} ${promise.pickup}. ${money$}.${ticket ? ` Follow it, or tell the truck you're on your way: ${CONNECT_APP}/order?t=${ticket}` : ""}`;
 }
 
 export const POST = route("checkout", post);

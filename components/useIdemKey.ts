@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { PayAttempt } from "@/lib/idempotency";
+import { DURABLE_KEY_MS } from "@/lib/payHold";
 
 // THE RULES LOAD WITH THE FIRST TAP OF PAY (2026-10-11). The pack funnel draws on /shop's first paint
 // (components/Shop → OrderFunnel), and this hook carried lib/idempotency into that page whole — the attempt
@@ -38,77 +39,103 @@ export type Tokenize = () => Promise<{ status: string; token?: string }>;
 export type Attempt = { key: string; token: string | null; cardRefused?: boolean; retry?: boolean };
 
 export type CheckoutKey = {
-  begin: (details: unknown, tokenize?: Tokenize) => Promise<Attempt>;
+  /** `was`: what this checkout was signed as before its signature changed shape (lib/idempotency attemptFor). */
+  begin: (details: unknown, tokenize?: Tokenize, was?: readonly unknown[]) => Promise<Attempt>;
   settle: (key: string, status: number | null, body: unknown) => void;
+  /** Whether the last answer under the held key never came — it may have been charged (R7): the cart holds still. */
+  isOpen: () => boolean;
+  /** Let the held key go, by the customer's own choice, once the crew has said the first payment did not go through. */
+  forget: () => void;
 };
 
 // DURABLE (2026-10-12, C7 of the customer audit, approved): the cart survives the app being closed — it is kept in
 // localStorage — and the key that stops a double charge did not: sessionStorage goes with the app's process. Pay, the
 // answer lost, the app closed, the cart still there, Pay again: a new key, and Square charged the card again. A checkout
 // whose server claims its key (the cup checkout, lib/chargeOnce) keeps the key where the cart is, so a retry after a
-// restart is answered from the first request. A durable key is forgotten after two hours: a lost answer is retried in
-// minutes, and the same cart much later is a new order — the claim would answer it with the old one's "order in".
-export const DURABLE_KEY_MS = 2 * 60 * 60 * 1000;
+// restart is answered from the first request. A durable key is forgotten after two hours (lib/payHold DURABLE_KEY_MS): a
+// lost answer is retried in minutes, and the same cart much later is a new order — the claim would answer it with the old
+// one's "order in".
+//
+// OPEN (2026-10-15, R7 of the customer re-audit): the record says whether the last answer under the key never came, so a
+// restart knows the cart is waiting on a payment (lib/payHold) — and the page knows to hold the cart and tip still.
 const storage = (durable: boolean): Storage | null => {
   try { return durable ? window.localStorage : window.sessionStorage; } catch { return null; }
 };
 
+type Held = { attempt: PayAttempt; open: boolean; at: number | null };
+const NOTHING: Held = { attempt: EMPTY, open: false, at: null };
+
 /** The key a reload (or, durable, a restart) left behind, if any. Never a card token: those are not written anywhere. */
-function stored(persist?: string, durable = false): PayAttempt {
-  if (!persist || typeof window === "undefined") return EMPTY;
+function stored(persist?: string, durable = false): Held {
+  if (!persist || typeof window === "undefined") return NOTHING;
   try {
     const st = storage(durable);
     const parsed = JSON.parse(st?.getItem(persist) ?? "null");
     if (parsed && typeof parsed.sig === "string" && typeof parsed.key === "string") {
-      if (durable && !(typeof parsed.at === "number" && Date.now() - parsed.at < DURABLE_KEY_MS)) { st?.removeItem(persist); return EMPTY; }
-      return { sig: parsed.sig, key: parsed.key, token: null };
+      if (durable && !(typeof parsed.at === "number" && Date.now() - parsed.at < DURABLE_KEY_MS)) { st?.removeItem(persist); return NOTHING; }
+      return { attempt: { sig: parsed.sig, key: parsed.key, token: null }, open: parsed.open === true, at: typeof parsed.at === "number" ? parsed.at : null };
     }
   } catch { /* a blocked or cleared store is not a reason to fail a checkout */ }
-  return EMPTY;
+  return NOTHING;
 }
 
 /** Whether a checkout's key is being held — what the page restores alongside it (the cup checkout's tip). */
 export function holdsKey(persist: string, durable = false): boolean {
-  return stored(persist, durable).key !== "";
+  return stored(persist, durable).attempt.key !== "";
 }
 
 export function useIdemKey(persist?: string, durable = false): CheckoutKey {
-  const ref = useRef<PayAttempt | null>(null);
-  if (ref.current === null) ref.current = stored(persist, durable);
+  // Everything this checkout holds, read once from the store (a reload's, or — durable — a restart's key).
+  const held = useRef<Held | null>(null);
+  if (held.current === null) held.current = stored(persist, durable);
+  // The page draws the hold (the cart and the tip still) from isOpen(); this re-renders it when the answer turns.
+  const [, setOpen] = useState(false);
   // Stable identity: a caller that wraps its pay handler in useCallback can list this in its deps
   // without re-creating the handler every render. All the state lives in the ref.
   return useMemo<CheckoutKey>(() => {
-    const keep = (next: PayAttempt) => {
-      const keyChanged = next.key !== ref.current?.key;
-      ref.current = next;
-      if (!keyChanged || !persist || typeof window === "undefined") return;
+    const now = (): Held => held.current ?? NOTHING;
+    const keep = (next: PayAttempt, open: boolean) => {
+      const cur = now();
+      const keyChanged = next.key !== cur.attempt.key;
+      const changed = keyChanged || next.sig !== cur.attempt.sig || open !== cur.open;
+      const at = keyChanged ? (next.key ? Date.now() : null) : cur.at;
+      held.current = { attempt: next, open, at };
+      setOpen(open);
+      if (!changed || !persist || typeof window === "undefined") return;
       try {
         const st = storage(durable);
-        if (next.key) st?.setItem(persist, JSON.stringify(durable ? { sig: next.sig, key: next.key, at: Date.now() } : { sig: next.sig, key: next.key }));
+        if (next.key) st?.setItem(persist, JSON.stringify(durable ? { sig: next.sig, key: next.key, at: at ?? Date.now(), open } : { sig: next.sig, key: next.key, open }));
         else st?.removeItem(persist);
       } catch { /* ignore */ }
     };
     return {
-      async begin(details, tokenize) {
+      async begin(details, tokenize, was) {
         const { attemptFor } = await rules();
-        const a = attemptFor(ref.current, details);
-        if (a !== ref.current) keep(a);
+        const cur = now();
+        const a = attemptFor(cur.attempt, details, undefined, was);
+        // A new key is a new checkout: nothing is waiting on it yet.
+        if (a !== cur.attempt) keep(a, a.key === cur.attempt.key && cur.open);
         if (!tokenize) return { key: a.key, token: null };
         if (a.token) return { key: a.key, token: a.token, retry: true };
         const r = await tokenize();
         if (r.status !== "OK" || !r.token) return { key: a.key, token: null, cardRefused: true };
         // Held against THIS key only: if the cart changed while the card form was answering, the token
         // belongs to the send that asked for it and to nothing after it.
-        if (ref.current?.key === a.key) ref.current = { ...ref.current, token: r.token };
+        const after = now();
+        if (after.attempt.key === a.key) held.current = { ...after, attempt: { ...after.attempt, token: r.token } };
         return { key: a.key, token: r.token };
       },
       settle(key, status, body) {
-        const cur = ref.current;
-        if (!cur || !cur.key || cur.key !== key) return;
+        const cur = now().attempt;
+        if (!cur.key || cur.key !== key) return;
         void rules().then(({ afterAttempt, attemptVerdict }) => {
-          if (ref.current === cur) keep(afterAttempt(cur, attemptVerdict(status, body)));
+          if (now().attempt !== cur) return;
+          const verdict = attemptVerdict(status, body);
+          keep(afterAttempt(cur, verdict), verdict === "unknown");
         });
       },
+      isOpen: () => now().open && now().attempt.key !== "",
+      forget() { keep(EMPTY, false); },
     };
   }, [persist, durable]);
 }

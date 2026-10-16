@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/components/AuthProvider";
 import { useApp } from "@/components/AppProvider";
 import Button from "@/components/Button";
@@ -9,7 +10,7 @@ import { useAlertPermission } from "@/components/DeviceAlerts";
 import { useAppAlerts } from "@/components/AppAlerts";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
-import { APP_BUILD, isNativeApp } from "@/lib/native";
+import { APP_BUILD, isNativeApp, publicOrigin } from "@/lib/native";
 import { NATIVE_PUSH_ON } from "@/lib/nativePush";
 import { clockTime } from "@/lib/dates";
 import { fillCopy } from "@/lib/copy";
@@ -19,7 +20,14 @@ import { fillCopy } from "@/lib/copy";
 // sends it through the push function). Shown only where a push can land — the iPhone app once its alerts are live, or a
 // browser that can take a push — and only once the phone has said yes; a button that cannot ring is not drawn (an
 // iPhone's Safari tab, which has no web push, sees the stop and the time and nothing to tap).
-export default function RemindMe({ stopId, opensAt, t }: { stopId: string; opensAt: string; t: (k: string) => string }) {
+//
+// WHERE NO PUSH CAN LAND, A CALENDAR CAN (2026-10-15, R7 of the customer re-audit). An iPhone's Safari tab had nothing to
+// tap at all. It offers the phone's calendar instead: the minute cup orders open, at the stop, with the menu's link —
+// the same Add to calendar the events and the crew's stops use (lib/ics, components/AddToCalendar).
+const AddToCalendar = dynamic(() => import("@/components/AddToCalendar"));
+const OPEN_FOR_MS = 15 * 60 * 1000;
+
+export default function RemindMe({ stopId, opensAt, stopName, where, t }: { stopId: string; opensAt: string; stopName?: string | null; where?: string | null; t: (k: string) => string }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
   const perm = useAlertPermission();      // the browser's answer ("unsupported" where there is no Notification)
@@ -82,9 +90,17 @@ export default function RemindMe({ stopId, opensAt, t }: { stopId: string; opens
 
   // Its room is kept while the answers come in (the phone's, then the row's), so the rows under it do not jump.
   const maybe = native ? NATIVE_PUSH_ON && app.state !== "unavailable" && !(app.state === "unknown" && waited) : webPush;
-  if (!maybe || unreadable) return null;
+  // No push here (an iPhone's Safari tab; alerts the app can't have): the calendar, at the minute they open.
+  const calendar = (
+    <AddToCalendar label={fillCopy(t("today.remind"), { time: at })} ev={{
+      uid: `cups-open-${stopId}@gt3pb`, title: `GT3 cup orders open${stopName ? ` — ${stopName}` : ""}`,
+      start: new Date(opensAt), end: new Date(Date.parse(opensAt) + OPEN_FOR_MS), allDay: false,
+      location: where ?? undefined, description: "Cup orders are open — pre-order in the GT3 app and skip the line.", url: `${publicOrigin()}/menu`,
+    }} />
+  );
+  if (!maybe || unreadable) return calendar;
   if (kept === null || (native && app.state === "unknown")) return <div className="h-[50px]" aria-hidden="true" />;
-  if (!(webPush || appPush)) return null;
+  if (!(webPush || appPush)) return calendar;
   return kept
     ? <Button kind="secondary" wide aria-pressed="true" disabled={busy} onClick={() => { void off(); }}><Icon name="check" /> {fillCopy(t("today.remind_set"), { time: at })}</Button>
     : <Button kind="primary" wide disabled={busy} onClick={() => { void on(); }}><Icon name="bell" /> {fillCopy(t("today.remind"), { time: at })}</Button>;

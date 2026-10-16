@@ -14,7 +14,7 @@ export function packPick(body: { name?: unknown; phone?: unknown; size?: unknown
   const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 40) : "";
   const size = Number(body.size);
   const glass: GlassPath = body.glass === "new" ? "new" : "return";
-  if (!name || !phone) return { status: 400, error: "Name and phone are required for the pickup text." };
+  if (!name || !phone) return { status: 400, error: "Add your name and phone — the crew uses them at pickup." };
   if (!isPackSize(size)) return { status: 400, error: "Pick a pack size (3, 6, or 12)." };
   const asked = (body.mix && typeof body.mix === "object" ? body.mix : {}) as Partial<Record<string, unknown>>;
   const mix: Mix = { RISE: 0, FLOW: 0, DUSK: 0 };

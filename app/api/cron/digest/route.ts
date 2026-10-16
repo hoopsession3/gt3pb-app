@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { accountEmail, sendEmail, sendSMS, emailEnabled } from "@/lib/notify";
+import { accountEmail, sendEmail, notifyCustomer, emailEnabled } from "@/lib/notify";
 import { moneyRound } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
 import { addDays, etToday } from "@/lib/dates";
@@ -92,8 +92,9 @@ async function post(req: Request) {
     "Open the Pit Wall → Command Board for the full picture.",
   ].join("\n");
 
-  // Recipients = the founders (owner/admin profiles). Email is reliable; SMS best-effort via the
-  // customer phone linked to their account.
+  // Recipients = the founders (owner/admin profiles). Email is reliable; a text goes the way every text goes (R7,
+  // 2026-10-15): through lib/notify's gate — texts switched on, a standing yes from that number, never at night. It went
+  // straight to Twilio, whatever the switch said, to a number that had said yes to nothing.
   const { data: leaders } = await supabaseAdmin.from("profiles").select("id").in("role", ["owner", "admin"]);
   let sent = 0;
   for (const p of (leaders ?? []) as { id: string }[]) {
@@ -101,7 +102,7 @@ async function post(req: Request) {
     if (email) { if ((await sendEmail(email, "📊 GT3 founder digest", emailBody)).ok) sent++; }
     try {
       const { data: cust } = await supabaseAdmin.from("customers").select("phone").eq("user_id", p.id).not("phone", "is", null).limit(1).maybeSingle();
-      if (cust?.phone) await sendSMS(cust.phone, `GT3 digest — ${headline}`);
+      if (cust?.phone) await notifyCustomer({ phone: cust.phone, subject: "GT3 founder digest", message: `GT3 digest — ${headline}` });
     } catch { /* SMS best-effort */ }
   }
 

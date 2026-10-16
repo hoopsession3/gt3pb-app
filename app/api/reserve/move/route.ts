@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { nextDrop, dropDateKey } from "@/lib/orderAhead";
-import { packClosesAt, packIsOpen, pickupDayWords, type PackStop } from "@/lib/pickupDay";
+import { packClosesAt, packIsOpen, pickupDayWords, PICKUP_STOPS_READ, type PackStop } from "@/lib/pickupDay";
 import { route } from "@/lib/apiRoute";
 import { isSettled } from "@/lib/settled";
 import { isMissingColumn, writeAcrossSkew } from "@/lib/schemaSkew";
@@ -37,7 +37,7 @@ async function post(req: Request) {
   // customer Atlanta's drop dates. It stays counted until it is actually fixed.
   const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at")
     .is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
-    .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6);
+    .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ);
   const upcoming = (nextStops ?? []) as { id: string; starts_at: string }[];
   const onDay = upcoming.filter((st) => dropDateKey(new Date(st.starts_at)) === toDate);
   const target = onDay.find((st) => st.id === stopId) ?? onDay.find((st) => packIsOpen(toDate, st)) ?? onDay[0] ?? null;

@@ -21,7 +21,7 @@ export type SegOption<K extends string> = { key: K; label: ReactNode; title?: st
  *  chosen option fills itself, so the first paint is already right. A `value` that is none of the
  *  options chooses none: no thumb, nothing filled. `size="lg"` stands 44 points to the eye, not only
  *  to the thumb — a choice a form is made of (2026-10-12: the Monday audit's 0 · 1 · 2). */
-export function Segmented<K extends string>({ options, value, onChange, onReselect, label, kind = "tabs", size, fill, className }: {
+export function Segmented<K extends string>({ options, value, onChange, onReselect, label, kind = "tabs", size, fill, className, disabled }: {
   options: SegOption<K>[];
   value: K;
   onChange: (key: K) => void;
@@ -32,6 +32,8 @@ export function Segmented<K extends string>({ options, value, onChange, onResele
   size?: "sm" | "lg";
   fill?: boolean;
   className?: string;
+  /** Held still — the choice shows, and no option takes a tap (the checkout's tip while a payment is unconfirmed). */
+  disabled?: boolean;
 }) {
   const track = useRef<HTMLDivElement>(null);
   const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
@@ -72,7 +74,7 @@ export function Segmented<K extends string>({ options, value, onChange, onResele
             const on = o.key === value;
             return (
               <button key={o.key} type="button" role={tabs ? "tab" : "radio"} aria-selected={tabs ? on : undefined} aria-checked={tabs ? undefined : on}
-                className={`k-seg-opt${on ? " on" : ""}`} title={o.title} onClick={() => { if (!on) onChange(o.key); else onReselect?.(o.key); }}>
+                className={`k-seg-opt${on ? " on" : ""} disabled:cursor-default disabled:opacity-55`} title={o.title} disabled={disabled} onClick={() => { if (!on) onChange(o.key); else onReselect?.(o.key); }}>
                 {o.label}
               </button>
             );

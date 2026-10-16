@@ -66,7 +66,7 @@ export default function VipVerify() {
             <p className="vipv-sub">Snap a photo with your bottle and we&rsquo;ll make you a <b>Founding VIP</b> — free straight-brew refills, member pricing, and a reward.{data.status === "rejected" && data.note ? ` (Last time: ${data.note})` : ""}</p>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) submit(f); e.currentTarget.value = ""; }} />
             <Button type="button" kind="secondary" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? "Uploading…" : data.status === "rejected" ? "Try again" : "Upload bottle photo"}</Button>
-            {err && <div className="vipv-err">{err}</div>}
+            {err && <div className="vipv-err" role="alert">{err}</div>}
           </div>
         );
       }}

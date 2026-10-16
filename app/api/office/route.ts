@@ -69,7 +69,7 @@ async function post(req: Request) {
   // now resolves to Atlanta rather than being turned away as "outside our route".
   const market = zipMarket(zip);
   if (!market || !marketServes(market, "corporate")) return NextResponse.json({ error: "That ZIP looks outside our delivery route — text us and we'll see what we can do." }, { status: 400 });
-  if (billing === "prepaid" && !phone) return NextResponse.json({ error: "Add a phone — prepaid sends the payment link by text." }, { status: 400 });
+  if (billing === "prepaid" && !phone) return NextResponse.json({ error: "Add a phone — the crew sends the payment link to it." }, { status: 400 });
 
   // THE DATE IS THE DATABASE'S, IN THE MARKET'S TIME (2026-10-07, 0356). This was nextMondayKey() in
   // the server's own zone — UTC on Vercel — so from a Sunday evening in Greenville it booked the Monday

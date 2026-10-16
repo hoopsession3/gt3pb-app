@@ -375,7 +375,6 @@ export default function ProductPage({ p, gone, cities = NO_CITIES, onCityBack, o
             </select>
           </label>
         )}
-        {draft.bulk_orderable && base.bulk_price_cents != null && <p className="cp-line dim">Packs charge {money(base.bulk_price_cents)} a bottle for it.</p>}
         <div className="cp-block-h mt-3"><span>Event and stop menus</span></div>
         {menus.status === "loading" ? <p className="cp-line dim">Reading the event menus…</p>
           : menus.status === "error" ? (

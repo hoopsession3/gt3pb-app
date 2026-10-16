@@ -5,7 +5,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/money";
-import { orderNo } from "@/lib/activeOrder";
+import { orderNo, wasCanceledHere } from "@/lib/activeOrder";
 import { orderLine } from "@/lib/orderWords";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -47,6 +47,12 @@ export default function Notifications() {
         if (o.user_id !== user.id) return;
         // The order's number and its words, as the bar, Today and the push say them (R3b: lib/orderWords).
         if (o.status === "preparing" || o.status === "ready" || o.status === "done") toast(`${orderNo(String(o.id))} · ${orderLine(o.status)}`);
+        // CANCELED, SAID (R7): a void the crew made — or a stop called off — slipped the order off the bar without a word.
+        // What becomes of the money, as the push says it. One this phone canceled itself is said by its own answer.
+        if (o.status === "void" && !wasCanceledHere(String(o.id)) && !(o.ticket && wasCanceledHere(String(o.ticket)))) {
+          const atWindow = !!o.collected_at, paid = o.paid === true || atWindow || o.payment_status === "paid";
+          toast(`${orderNo(String(o.id))} was canceled — ${atWindow ? "what you paid at the window comes back there" : paid ? "your card is being refunded in full" : "nothing was charged"}.`, "info");
+        }
         // Loyalty points are credited server-side on the 'done' transition — pull the
         // fresh profile so the 3MPIRE ring updates live instead of waiting for a reload.
         if (o.status === "done") refreshProfile();

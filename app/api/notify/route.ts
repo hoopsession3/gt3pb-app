@@ -5,6 +5,7 @@ import { notifyCustomer, emailEnabled, smsEnabled, notifyStatus, sendEmail, acco
 import { route } from "@/lib/apiRoute";
 import { orderNo } from "@/lib/activeOrder";
 import { orderLine } from "@/lib/orderWords";
+import { money } from "@/lib/money";
 
 // LIFECYCLE PINGS the crew fires from the boards — the customer can't be expected to sit in the
 // app. order_ready: the pass advanced an order to Ready (walk-up/pre-orders carry no phone, so
@@ -37,7 +38,7 @@ async function post(req: Request) {
     return NextResponse.json({ ok: true, test: true, to, sent: r.ok, detail: r.detail ?? null });
   }
 
-  if (!id || !["order_ready", "delivered"].includes(kind)) {
+  if (!id || !["order_ready", "delivered", "order_void"].includes(kind)) {
     return NextResponse.json({ ok: false, error: "kind + id required" }, { status: 400 });
   }
 
@@ -54,6 +55,29 @@ async function post(req: Request) {
         email: await accountEmail(o.user_id),
         subject: `GT3 — order ${no} is ready`,
         message: `GT3: ${first ? `${first}, ` : ""}order ${no} is ${orderLine("ready").replace(/^Ready/, "ready")}`,
+      });
+      return NextResponse.json({ ok: true, ...sent });
+    }
+    // A CUP ORDER THE CREW CANCELED (2026-10-15, R7 of the customer re-audit). The Pass's void told nobody: the order
+    // slipped off the member's bar, and an email — which /api/orders/cancel sends when they cancel it themselves, and the
+    // stop route when a stop is called off — never came. What becomes of the money, the tip in it (0409). A guest has no
+    // address with us; their order page and bar say it. A change to the order itself: said whatever the order-updates switch.
+    if (kind === "order_void") {
+      const { data: o } = await supabaseAdmin.from("orders").select("id, customer, user_id, status, paid, total_cents, tip_cents, collected_at")
+        .eq("tenant_id", tenant).eq("id", id).maybeSingle();
+      if (!o) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
+      if (o.status !== "void") return NextResponse.json({ ok: false, error: "not canceled" }, { status: 409 });
+      if (!o.user_id) return NextResponse.json({ ok: true, skipped: "a guest — their order page says it" });
+      const first = (o.customer || "").split(" ")[0];
+      const no = orderNo(o.id);
+      const charged = (o.total_cents ?? 0) + (o.tip_cents ?? 0);
+      const money$ = o.collected_at ? " You paid at the window — the crew gives it back there."
+        : o.paid ? ` The crew is refunding your card in full — ${money(charged)}. If you don't see it within a few business days, reply and we'll sort it.`
+        : " Nothing was charged.";
+      const sent = await notifyCustomer({
+        email: await accountEmail(o.user_id),
+        subject: `GT3 — order ${no} was canceled`,
+        message: `GT3: ${first ? `${first}, ` : ""}order ${no} was canceled by the crew.${money$}`,
       });
       return NextResponse.json({ ok: true, ...sent });
     }

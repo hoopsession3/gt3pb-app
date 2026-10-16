@@ -66,9 +66,9 @@ async function post(req: Request) {
   const say: Say = {
     paidNotRecorded: (c) => {
       const ref = (c.payment_id || "").slice(-6).toUpperCase();
-      return { status: 200, body: { ok: true, paymentId: c.payment_id, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your delivery; we'll confirm it by text or email.` } };
+      return { status: 200, body: { ok: true, paymentId: c.payment_id, recorded: false, ref, warn: `Payment received${ref ? ` — ref ${ref}` : ""}. We've alerted the crew to add your delivery; they'll confirm it with you.` } };
     },
-    couldNotConfirm: () => ({ status: 409, body: { pending: true, error: "We couldn't confirm your payment, and the crew has been told. Don't pay again — we'll confirm your delivery by text or email." } }),
+    couldNotConfirm: () => ({ status: 409, body: { pending: true, error: "We couldn't confirm your payment, and the crew has been told. Don't pay again — the crew will confirm your delivery with you." } }),
   };
   const stopped = async ({ key, claim }: Stopped) => {
     // Who, for the crew to reach (the retry carries the same order): the customer is told "we'll confirm your delivery by
@@ -140,9 +140,11 @@ async function post(req: Request) {
   // The customer picks which Sunday (this one or next). A pick that is no longer on offer — its Friday
   // cutoff passed while the page was open — is refused before any charge, with the Sundays on offer now
   // (C4, 2026-10-12): it used to fall back to the coming slot and charge for a Sunday never shown. The
-  // retry of a send whose answer was lost keeps its Sunday while it is ahead: that send may be charged.
+  // retry of a send whose answer was lost keeps its Sunday while it is ahead: that send may be charged. Only without the
+  // claims (R7): with them, a send that was charged under this key has been answered from its claim above, so a "retry"
+  // that reaches here was never claimed — nothing was charged — and the flag, which the phone sets, books no closed Sunday.
   const slotNow = Date.now();
-  const slot = pickedSlot(b.deliveryDate, slotNow, b.retry === true);
+  const slot = pickedSlot(b.deliveryDate, slotNow, b.retry === true && !seen.claims);
   if (!slot) return NextResponse.json({ error: SUNDAY_CLOSED, slotClosed: true, choices: deliverySlotChoices(slotNow) }, { status: 409 });
 
   // ONE KEY, ONE CHARGE (R5, 2026-10-13 — lib/chargeOnce, 0371): claimed before Square is asked, so a second tap while the

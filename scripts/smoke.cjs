@@ -356,7 +356,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
     const api = rd("app/api/delivery/checkout/route.ts"), fn = rd("components/OrderFunnel.tsx"), ik = rd("components/useIdemKey.ts");
     ok("delivery: the server refuses a closed Sunday with the Sundays on offer, before any charge; the page shows them, the coming one picked",
-      /const slot = pickedSlot\(b\.deliveryDate, slotNow, b\.retry === true\);\s*if \(!slot\) return NextResponse\.json\(\{ error: SUNDAY_CLOSED, slotClosed: true, choices: deliverySlotChoices\(slotNow\) \}, \{ status: 409 \}\);/.test(api)
+      /const slot = pickedSlot\(b\.deliveryDate, slotNow, b\.retry === true && !seen\.claims\);\s*if \(!slot\) return NextResponse\.json\(\{ error: SUNDAY_CLOSED, slotClosed: true, choices: deliverySlotChoices\(slotNow\) \}, \{ status: 409 \}\);/.test(api)
       && api.indexOf("pickedSlot(") < api.indexOf("chargeCard(") && !/\?\? choices\[0\];/.test(api)
       && /const \[choices, setChoices\] = useState\(\(\) => deliverySlotChoices\(Date\.now\(\)\)\);/.test(fn)
       && /setChoices\(data\.choices as typeof choices\);\s*setWhen\(0\);/.test(fn) && /retry: attempt\.retry === true,/.test(fn)
@@ -6374,7 +6374,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /else \{ setCooldown\(30\); setOtp\(""\); setResent\(true\); codeRef\.current\?\.focus\(\); \}/.test(si)
     && /requestAnimationFrame\(\(\) => codeRef\.current\?\.select\(\)\);/.test(si) && /A new code is on its way — use the newest email\./.test(si));
   ok("sign-in: the 3MPIRE page joins by default and the avatar's Sign in lands on Welcome back; a page that needs an account names itself and signs in, without the join pitch",
-    /useState<Intent>\(start \?\? \(context \|\| compact \? "signin" : "join"\)\)/.test(si) && /\{context \? context\.title : intent === "join" \? "Buy 10, the next cup is on us\." : "Welcome back\."\}/.test(si) && /\{!context && \(/.test(si)
+    /useState<Intent>\(start \?\? \(context \|\| compact \? "signin" : "join"\)\)/.test(si) && /\{context \? context\.title : intent === "join" \? `Buy \$\{STAMP_GOAL\}, the next cup is on us\.` : "Welcome back\."\}/.test(si) && /\{!context && \(/.test(si)
     && /if \(!user\) return <Suspense fallback=\{<SignIn \/>\}><GuestDoor \/><\/Suspense>;/.test(read("app/3mpire/page.tsx"))
     && /const signingIn = useSearchParams\(\)\.has\("signin"\);\s+return <SignIn key=\{signingIn \? "signin" : "join"\} start=\{signingIn \? "signin" : "join"\} \/>;/.test(read("app/3mpire/page.tsx")));
   ok("sign-in: inside a sheet that is already doing something — reserve, RSVP, checkout — it is compact: no logo, no pitch",
@@ -7090,10 +7090,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     // the tip (0390, H9) arrives the same way: forgiven by name, nothing else
     && /writeAcrossSkew\(\(r\) => supabaseAdmin!\.from\("orders"\)\.insert\(r\), promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row, \["ready_from", "tip_cents"\]\)/.test(api));
   ok("server: the email says the promise, and every success answers with it",
-    (api.match(/message: `GT3: your order is in\. \$\{promise\.ready\} \$\{promise\.pickup\}\./g) || []).length === 2 && !/ready in ~8 min/.test(api)
+    (api.match(/message: orderInWords\(orderNo\(orderId\), promise, /g) || []).length === 2 && !/ready in ~8 min/.test(api)
+    && /return `GT3: order \$\{no\} is in\. \$\{promise\.ready\} \$\{promise\.pickup\}\. \$\{money\$\}\.\$\{ticket \? ` Follow it, or tell the truck you're on your way: \$\{CONNECT_APP\}\/order\?t=\$\{ticket\}` : ""\}`;/.test(api)
     && (api.match(/\.\.\.promise \}/g) || []).length >= 4);
   ok("Find Us: asks the rule; with nothing to pre-order the button is the menu and the line says when cups open",
-    /useOrderingOpen\(true, viewerMarket, `\$\{live\?\.is_live/.test(fu) && /\}, \[active, market, refreshKey\]\);/.test(hook) && /t\(ordering && !ordering\.open \? "findus\.cta_menu" : "findus\.cta_preorder"\)/.test(fu)
+    /useOrderingOpen\(true, viewerMarket, `\$\{live\?\.is_live/.test(fu) && /\}, \[active, market, refreshKey\]\);/.test(hook) && /t\(ordering\?\.open \? "findus\.cta_preorder" : "findus\.cta_menu"\)/.test(fu)
     && /closedWords\(ordering, \{ named: !!ordering\.stop && ordering\.stop\.id !== hero\?\.id \}\)/.test(fu) && /ordering\?\.state === "closing"/.test(fu) // named unless it is the hero's (R3)
     && /\.fu-state\{min-height:1\.45em/.test(read("app/globals.css")));
   ok("Find Us: the live row's Pre-order chip follows the same rule", /rowLive && ordering\?\.open !== false && <button/.test(fu));
@@ -7120,7 +7121,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /sub=\{confirmWords\(done\.readyFrom, done\.paid\)\}/.test(co) && /\{ label: "Pickup", value: done\.pickup \}/.test(co)
     && !/Ready in ~8 min/.test(co.replace(/"Ready in ~8 min\."/g, "")) && /closedWords\(o, \{ closing: t\("findus\.cta_closed"\) \}\)/.test(co));
   ok("checkout: a refused pre-order shows the server's reason, not a generic retry",
-    /toast\(error\.message \|\| "That didn't go through — give it another tap", "error"\)/.test(co));
+    /setErr\(error\.message \|\| "That didn't go through — give it another tap"\)/.test(co)
+    // R7: said in the sheet beside its button — the pay-later path draws the error too
+    && /\) : payLater\.on \? \(\s*<>\s*\{blockedNote\}\s*\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(co));
   ok("order bar: an order placed ahead says when it is made, not 'Order received' for hours",
     /o\.status === "new" && o\.ready_from && waitingToOpen\(o\)\s*\? readyWords\(\{ state: "ahead", readyFrom: o\.ready_from \}\)/.test(bar));
   {
@@ -9183,9 +9186,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── the cart ──
   ok("cart: a drink in is firmer than a drink out, read from a mirror of the cart kept in an effect — not inside the updater, and no ref written while rendering",
     /const cartNow = useRef\(cart\);\s+useEffect\(\(\) => \{ cartNow\.current = cart; \}, \[cart\]\);/.test(ap)
-    && /const bump = useCallback\(\(id: string\) => \{\s+if \(cartNow\.current\[id\]\) haptic\("light"\); else haptic\("medium"\);\s+setCart\(/.test(ap));
+    && /const bump = useCallback\(\(id: string\) => \{\s+if \(holding\(\)\) return;\s+if \(!cartNow\.current\[id\] && full\(\)\) return;\s+if \(cartNow\.current\[id\]\) haptic\("light"\); else haptic\("medium"\);\s+setCart\(/.test(ap));
   ok("cart: + is increase and − is decrease, said before the update is asked for",
-    /const inc = useCallback\(\(id: string\) => \{ haptic\("increase"\); setCart\(/.test(ap) && /const dec = useCallback\(\(id: string\) => \{ haptic\("decrease"\); setCart\(/.test(ap));
+    /const inc = useCallback\(\(id: string\) => \{\s+if \(holding\(\) \|\| full\(\)\) return;\s+haptic\("increase"\);\s+setCart\(/.test(ap) && /const dec = useCallback\(\(id: string\) => \{ if \(holding\(\)\) return; haptic\("decrease"\); setCart\(/.test(ap));
+  // R7 (2026-10-15): while a payment's answer never came the cart holds still (lib/payHold), said once with the way back;
+  // and a cart stops at what one order holds, said before Pay refuses it.
+  ok("cart: an unconfirmed payment holds the cart still — every way in asks first — and the cart stops at what one order holds",
+    /const holding = useCallback\(\(\): boolean => \{\s+if \(!payHeldOpen\(\)\) return false;/.test(ap)
+    && /const reorder = useCallback\(\(items: string\[\]\) => \{\s+if \(holding\(\)\) return;/.test(ap)
+    && /if \(Object\.values\(cartNow\.current\)\.reduce\(\(s, n\) => s \+ n, 0\) < MAX_CUPS\) return false;/.test(ap)
+    && /let room = MAX_CUPS;/.test(ap) && !/Math\.min\(9,/.test(ap));
   const shop = code(read("components/Shop.tsx"));
   ok("shop: into the cart is medium; a line's quantity says which way it went, read from the cart on screen",
     /const addToCart = \(product: Product, variant: Variant \| null, qty: number\) => \{\s+haptic\("medium"\);/.test(shop)
@@ -11410,7 +11420,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
         && (() => { for (let i = 2; i < pinJpg.length - 9; i++) if (pinJpg[i] === 0xff && (pinJpg[i + 1] === 0xc0 || pinJpg[i + 1] === 0xc2)) return pinJpg.readUInt16BE(i + 5) === pinJpg.readUInt16BE(i + 7); return false; })());
     }
     ok("Find Us: the truck turns the live green and breathes on the map only while it pours at this stop; the pulse holds still for reduced motion, the green does not",
-      /const heroLive = isLive && hero\?\.id === live\?\.current_stop_id;/.test(fu)
+      /const heroLive = !!liveId && hero\?\.id === liveId;/.test(fu)
+      && /const startedId = ordering\?\.state === "started" \? ordering\.stop\?\.id \?\? null : null;\s+const liveId = isLive \? live\?\.current_stop_id \?\? null : startedId;/.test(fu)
       && /<span className=\{`relative z-1 block size-13 rounded-full p-0\.75 shadow-raised \$\{live \? "bg-ok" : "bg-cream"\}`\}>/.test(fu)
       && /\{live && <span className="absolute inset-0 rounded-full animate-\[lv_2s_ease-out_infinite\] motion-reduce:animate-none" \/>\}/.test(fu)
       && /@keyframes lv\{/.test(read("app/globals.css")));
@@ -13325,7 +13336,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     files.filter((f) => !/from "@\/lib\/loyalty"/.test(rd(f)) || /const GOAL = 10;|% 10\b|free earned/.test(rd(f))));
   const scan = rd("app/scan/page.tsx");
   ok("redeem: a card with a free cup offers Redeem, which asks first, then calls redeem_free_cup — one tap is never a redemption",
-    /\{card\.free > 0 && redeem !== "ask" && redeem !== "busy" && \(\s*<button type="button" className="btn-sec btn-wide mt-2\.5" onClick=\{\(\) => setRedeem\("ask"\)\}>Redeem a free cup<\/button>/.test(scan)
+    /\{card\.free > 0 && !ownCard && redeem !== "ask" && redeem !== "busy" && \(\s*<button type="button" className="btn-sec btn-wide mt-2\.5" onClick=\{\(\) => setRedeem\("ask"\)\}>Redeem a free cup<\/button>/.test(scan)
     && /onClick=\{giveFreeCup\} disabled=\{redeem === "busy"\}/.test(scan) && /supabase\.rpc\("redeem_free_cup", \{ p_code: code \}\)/.test(scan)
     && (scan.match(/rpc\("redeem_free_cup"/g) || []).length === 1);
   ok("redeem: the answer is said — given and what is left; nothing to give; failed, with nothing taken",
@@ -13397,7 +13408,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("pack: a good request is the pack, trimmed, its mix from the three flavors only",
     p.pick && p.pick.name === "Jordan" && p.pick.size === 6 && p.pick.glass === "new" && JSON.stringify(p.pick.mix) === JSON.stringify({ RISE: 4, FLOW: 2, DUSK: 0 }), p);
   ok("pack: the refusals /api/reserve always gave, word for word",
-    PO.packPick({ ...good, name: "" }).error === "Name and phone are required for the pickup text."
+    PO.packPick({ ...good, name: "" }).error === "Add your name and phone — the crew uses them at pickup."
     && PO.packPick({ ...good, size: 5 }).error === "Pick a pack size (3, 6, or 12)."
     && PO.packPick({ ...good, mix: { RISE: 1 } }).error === "Your flavor picks must add up to the pack size."
     && PO.packPick({ ...good, glass: "anything" }).pick.glass === "return");
@@ -13455,8 +13466,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("scan: the app orders are named, and the stamp is a walk-up cup's",
     /In the app today: \{inApp\} — those stamp themselves at pickup\./.test(scan) && /Stamp a walk-up cup/.test(scan) && !/> Add a stamp</.test(scan));
   ok("scan: credit is offered when there is some, asked first, taken off once, and the crew told what to ring up",
-    /\{creditCents > 0 && credit !== "ask" && credit !== "busy" && \(/.test(scan) && /rpc\("spend_credit", \{ p_code: code \}\)/.test(scan)
-    && /if \(!supabase \|\| !code \|\| credit === "busy"\) return;/.test(scan) && /Credit used — ring it up \{money\(spent\)\} less\./.test(scan));
+    /\{creditCents > 0 && !ownCard && credit !== "ask" && credit !== "busy" && \(/.test(scan) && /rpc\("spend_credit", \{ p_code: code, p_cents: cents \}\)/.test(scan)
+    && /if \(!supabase \|\| !code \|\| credit === "busy" \|\| !\(cents > 0\)\) return;/.test(scan) && /Credit used — \{money\(spent\)\} off\./.test(scan));
+  // R7 (2026-10-15): "Use credit" took the whole balance whatever the order cost. The crew enters the order's total, and
+  // the credit used is that much at most — what is left stays on the card, and the screen says both before the tap.
+  ok("scan: credit comes off by the order — its total typed, at most what the card holds, the rest left on the card (R7)",
+    /const useCents = Math\.min\(creditCents, orderCents\);/.test(scan) && /onClick=\{\(\) => takeCredit\(useCents\)\} disabled=\{credit === "busy" \|\| useCents <= 0\}/.test(scan)
+    && /stays on the card/.test(scan) && /inputMode="decimal"/.test(scan) && /credit_cents: Math\.max\(\(m\.credit_cents \?\? 0\) - data, 0\)/.test(scan));
   ok("member: the card says scan for walk-up cups; the account and the hub say the credit is used at the window",
     /Scan for walk-up cups · app orders stamp themselves/.test(card) && !/Scan at the truck to earn your stamp/.test(card)
     && /credit at the window` : ""/.test(sheet) && (hub.match(/credit · use it at the window/g) || []).length === 2);
@@ -13492,6 +13508,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const sevenToTen = { id: "s", starts_at: "2026-10-17T11:00:00Z", ends_at: "2026-10-17T14:00:00Z" };
   ok("road: a stop with an end time is over at its end — not 8 hours after it began", R.isStopOver(sevenToTen, at) === true && R.isStopOver(sevenToTen, Date.parse("2026-10-17T13:59:00Z")) === false);
   ok("road: one with no end keeps the grace from its start", R.isStopOver({ starts_at: "2026-10-17T11:00:00Z" }, at) === false && R.isStopOver({ starts_at: "2026-10-17T11:00:00Z" }, Date.parse("2026-10-17T19:01:00Z")) === true);
+  // R7: an end that is not after the start is no close time — the road and lib/ordering read it one way.
+  const overnight = { starts_at: "2026-10-17T20:00:00Z", ends_at: "2026-10-17T01:00:00Z" };
+  ok("road: an end before its start is no end — the grace from the start decides, as ordering's does",
+    R.isStopOver(overnight, Date.parse("2026-10-17T21:00:00Z")) === false && R.isStopOver(overnight, Date.parse("2026-10-18T04:01:00Z")) === true
+    && R.isStopOver({ starts_at: "2026-10-17T20:00:00Z", ends_at: "2026-10-17T20:00:00Z" }, Date.parse("2026-10-17T20:30:00Z")) === false);
   const stop = { name: "WineXpress", starts_at: "2026-10-17T11:00:00Z", cancel_reason: "Rained out" };
   ok("cancel: the cup text says canceled, why, and who refunds a paid one",
     SC.cupWords(stop, { cups: 2, paid: true }) === "GT3: we've had to cancel WineXpress on Sat 10/17 — Rained out. Your order of 2 cups is canceled — the crew is refunding your card in full, nothing for you to do."
@@ -13499,7 +13520,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("cancel: the pack text says move it or cancel it", /Your 6-pack for that day can move to another pickup day in the app \(Your packs\), or be canceled there for a refund\.$/.test(SC.packWords(stop, { size: 6, paid: true })));
   ok("cancel: Find Us's line, and the crew's with the refunds to make",
     SC.canceledLine(stop) === "WineXpress · Sat 10/17 — Rained out"
-    && /Refund 1 paid order in Square, in full \(the tip too\): ABC123 — \$20 of drinks\./.test(SC.crewWords(stop, { cups: 2, paidCups: [{ ref: "ABC123", cents: 2000 }], packs: 0 }).body));
+    && /Refund 1 paid order in Square, in full — what each card was charged, the tip with it: ABC123 — \$20\./.test(SC.crewWords(stop, { cups: 2, paidCups: [{ ref: "ABC123", cents: 2000 }], packs: 0 }).body));
   const api = code(rd("app/api/crew/stops/cancel/route.ts")), co = code(rd("app/api/checkout/route.ts")), fu = code(rd("components/FindUs.tsx"));
   const le = code(rd("components/crew/LocationEditor.tsx")), lc = code(rd("components/crew/LiveControl.tsx"));
   ok("route: crew only; the cancel is the database's, as the caller; then the cups canceled and told, packs only when it counted them",
@@ -13534,7 +13555,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<button type="button" className="btn-del" onClick=\{\(\) => setAsking\(\{ kind: "reject", v \}\)\}/.test(vq));
   ok("scan: your own card offers no stamp, and the 6-in-10-minutes limit is said in words",
     /const ownCard = !!code && \(code === profile\?\.referral_code \|\| code === user\?\.id\);/.test(scan)
-    && /This is your card — another crew member stamps it\./.test(scan) && /\/stamp limit\/i\.test/.test(scan));
+    && /This is your card — another crew member stamps it, gives its free cup and uses its credit\./.test(scan) && /\/stamp limit\/i\.test/.test(scan));
   ok("Activity log: a tier line names the member, read from their profile, not kept in the log",
     /customers: "Tier"/.test(at) && /r\.table_name === "customers" && r\.row_pk/.test(at) && /\|\| "a member"/.test(at));
 }
@@ -13588,7 +13609,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const \[office\] = useState\(\(\) => params\.get\("for"\) === "office"\);\s+return <OrderFunnel initialMode="delivery" initialAudience=\{office \? "office" : "home"\} \/>;/.test(rd("app/delivery/page.tsx"))
     && /router\.push\("\/delivery\?for=office"\)/.test(office));
   ok("join: the offer first and what comes with it, one main button, the password a quieter way, Terms and Privacy where the account is made",
-    /"Buy 10, the next cup is on us\."/.test(si) && /const PERKS = \["A stamp on every cup", "Order ahead, skip the line", "First taste of new reserves"\];/.test(si)
+    /`Buy \$\{STAMP_GOAL\}, the next cup is on us\.`/.test(si) && /import \{ STAMP_GOAL \} from "@\/lib\/loyalty";/.test(si) && /const PERKS = \["A stamp on every cup", "Order ahead, skip the line", "First taste of new reserves"\];/.test(si)
     && /intent === "join" \? "Join free" : "Email me a sign-in code"/.test(si) && /className="auth-link min-h-11 inline-flex items-center text-cream-muted"/.test(si)
     && /By \{intent === "join" \? "joining" : "continuing"\} you agree to the <Link className="text-cream underline decoration-line2 underline-offset-4 hit-44" href="\/terms">Terms<\/Link> and <Link className="text-cream underline decoration-line2 underline-offset-4 hit-44" href="\/privacy">Privacy<\/Link>\./.test(si)
     && !/gt3-pb-wordmark\.png/.test(si) && !/so we can greet you/.test(si));
@@ -13695,7 +13716,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(Array\.isArray\(d\.items\)\) \{\s+setRows\(d\.items as MenuRow\[\]\);\s+if \(!pruned\.current\) \{ pruned\.current = true; pruneCart\.current\(d\.items as MenuRow\[\]\); \}/.test(ap)
     && /const onMenu = new Set\(menuOf\(read\)\.map\(\(d\) => d\.slug\)\);/.test(ap) && /on the menu any more — taken out of your order/.test(ap) && !/from "@\/lib\/menu"/.test(ap));
   ok("menu page: sections and drinks from the menu, read again on open; a stop's menu says Not at this stop; caffeine when the Catalog says",
-    /useEffect\(\(\) => \{ refreshMenu\(\); \}, \[refreshMenu\]\);/.test(menuPage) && /const sections = sectionsOf\(menu\);/.test(menuPage)
+    /useEffect\(\(\) => \{\s+refreshMenu\(\);\s+const tick = \(\) => \{ if \(document\.visibilityState === "visible"\) refreshMenu\(\); \};\s+const id = setInterval\(tick, 60_000\);/.test(menuPage) && /const sections = sectionsOf\(menu\);/.test(menuPage)
     && /const notHere = !out && !!ordering\.stopMenu && !ordering\.stopMenu\.has\(id\);/.test(menuPage)
     && /const facts = \[d\.caffeine === true \? t\("menu\.caffeine"\) : d\.caffeine === false \? t\("menu\.no_caffeine"\) : "", \.\.\.\(d\.contains \?\? \[\]\)\]\.filter\(Boolean\);/.test(menuPage)
     && /useViewerMarket\(CUP_MARKETS\)/.test(menuPage) && !/from "@\/lib\/menu"/.test(menuPage));
@@ -13771,7 +13792,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && TD.orderable(["flow", "forge"], new Set(["flow", "forge"]), new Set(), new Set(["forge"])).join() === "forge");
   ok("today: the drinks in words, a repeat counted once; the number the window calls; four steps from in to picked up; a stop's day in Eastern",
     TD.drinksWords(["flow", "tide", "flow"], (x) => x.toUpperCase()) === "FLOW ×2 · TIDE" && TD.orderNo("4f2a9c1e-0000") === "#4F2A"
-    && [TD.stepOf("new"), TD.stepOf("preparing"), TD.stepOf("ready"), TD.stepOf("done")].join() === "0,1,2,3" && TD.ORDER_STEPS.join() === "In,Making,Ready,Picked up"
+    && [TD.stepOf("new"), TD.stepOf("preparing"), TD.stepOf("ready"), TD.stepOf("done")].join() === "0,1,2,3" && TD.ORDER_STEPS.join() === "In,Being made,Ready,Picked up"
     && TD.etDay("2026-10-17T11:00:00Z") === "Sat 10/17" && TD.etDay("2026-10-18T03:30:00Z") === "Sat 10/17" && TD.etDay(null) === "");
   const th = rd("components/today/TodayHome.tsx"), ap = rd("components/AppProvider.tsx"), os = rd("components/OrderStatus.tsx"), page = rd("app/page.tsx");
   ok("today: one page, drawn by state — the order card, the lead, or the room it keeps until the truck and the usual are read; the TODAY eyebrow went",
@@ -13802,11 +13823,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
   const rm = rd("components/today/RemindMe.tsx"), th = rd("components/today/TodayHome.tsx"), fn = rd("supabase/functions/push/index.ts"), mig = rd("supabase/migrations/0394_remind_me_when_cup_orders_open.sql");
   ok("remind me: drawn for the truck-off lead with a time to remind at, loaded only there",
-    /\{s && lead\.opensAt && <RemindMe stopId=\{s\.id\} opensAt=\{lead\.opensAt\} t=\{t\} \/>\}/.test(th) && /const RemindMe = dynamic\(\(\) => import\("\.\/RemindMe"\)\);/.test(th));
+    /\{s && lead\.opensAt && <RemindMe stopId=\{s\.id\} opensAt=\{lead\.opensAt\} stopName=\{s\.name\} where=\{s\.where \?\? null\} t=\{t\} \/>\}/.test(th) && /const RemindMe = dynamic\(\(\) => import\("\.\/RemindMe"\)\);/.test(th));
   ok("remind me: only where a push can land — the app once its alerts are live, a browser that takes a push — and its room kept while it asks",
     /const \[native\] = useState\(\(\) => APP_BUILD && isNativeApp\(\)\);/.test(rm) && /const appPush = native && NATIVE_PUSH_ON && app\.state !== "unknown" && app\.state !== "unavailable";/.test(rm) && /"PushManager" in window/.test(rm)
     && /!\(app\.state === "unknown" && waited\)/.test(rm)
-    && /if \(!maybe \|\| unreadable\) return null;/.test(rm) && /<div className="h-\[50px\]" aria-hidden="true" \/>/.test(rm));
+    && /if \(!maybe \|\| unreadable\) return calendar;/.test(rm) && /<div className="h-\[50px\]" aria-hidden="true" \/>/.test(rm));
+  // R7 (2026-10-15): where no push can land — an iPhone's Safari tab — the phone's calendar, at the minute cup orders open.
+  ok("remind me: where no push can land, the calendar — the minute cup orders open, at the stop, with the menu's link",
+    /const AddToCalendar = dynamic\(\(\) => import\("@\/components\/AddToCalendar"\)\);/.test(rm) && /uid: `cups-open-\$\{stopId\}@gt3pb`/.test(rm)
+    && /if \(!\(webPush \|\| appPush\)\) return calendar;/.test(rm) && /url: `\$\{publicOrigin\(\)\}\/menu`/.test(rm));
   ok("remind me: the phone is asked first; the database keeps it (keep_cup_reminder) and takes it back (drop_cup_reminder); a refusal is said in its words",
     /if \(!\(await ask\(\)\)\) return;\s+const \{ error \} = await supabase\.rpc\("keep_cup_reminder", \{ p_stop: stopId, p_at: opensAt \}\);\s+if \(error\) \{ toast\(error\.message, "error"\); return; \}/.test(rm)
     && /supabase\.rpc\("drop_cup_reminder", \{ p_stop: stopId \}\)/.test(rm) && /\/\/ arrives-with: 0394/.test(rm));
@@ -13903,11 +13928,18 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("checkout: the card is the brand and the last four Square answered with — four digits or nothing",
     /card: paidCard\(data\?\.payment\?\.card_details\?\.card\)/.test(sq) && /\^\\d\{4\}\$/.test(sq) && /record: \(paymentId, charged\) => recordPaid\(paymentId, charged\.card \?\? null\),/.test(api) && /const ticket = await ticketFor\(paidWith\);/.test(api));
   ok("confirmation: says the order's number and, with a ticket, leads to it — the phone keeps it",
-    /title=\{done\.no \? `Order \$\{done\.no\} is in\.` : "Order in\."\}/.test(co) && /ctaLabel=\{done\.ticket \? "Track your order" : "Reserve a Saturday pack →"\}/.test(co)
-    && /router\.push\(tk \? ticketPath\(tk\) : "\/reserve"\)/.test(co) && /if \(t\.ticket && t\.no\) holdTicket\(t\.ticket, t\.no\);/.test(co));
+    /title=\{done\.no \? `Order \$\{done\.no\} is in\.` : "Order in\."\}/.test(co) && /ctaLabel=\{done\.ticket \? "Track your order" : "Done"\}/.test(co)
+    && /if \(tk\) router\.push\(ticketPath\(tk\)\);/.test(co) && /if \(t\.ticket && t\.no\) holdTicket\(t\.ticket, t\.no\);/.test(co));
   ok("the ticket: one order by its ticket, through the view — refused in the database's words, kept on the phone",
     /supabase\.rpc\("order_ticket", \{ p_ticket: t \}\)/.test(pg) && /refusalText\(e\) \?\? "We couldn't open this order just now/.test(pg)
-    && /if \(no\) holdTicket\(t, no\);/.test(pg) && !/from\("orders"\)/.test(pg));
+    && /if \(no && !shared\) holdTicket\(t, no\);/.test(pg) && !/from\("orders"\)/.test(pg));
+  // R7 (2026-10-15, 0413): Share link sent the ticket — the key that cancels the order. It sends the shared view now, which
+  // reads order_shared and shows the order without a way to change it; the phone it reaches does not keep it.
+  ok("the ticket, shared: Share link sends the shared view, never the ticket; shared, there is no Cancel, no telling the truck, nothing kept",
+    /const shareKey = shared \? t : tk\.share \?\? null;/.test(pg) && /const url = `\$\{publicOrigin\(\)\}\$\{sharePath\(shareKey\)\}`;/.test(pg)
+    && !/\$\{ticketPath\(t\)\}`;\s*const how = await shareLink/.test(pg) && /supabase\.rpc\("order_shared", \{ p_share: t \}\)/.test(pg)
+    && /const canCancel = !shared && tk\.status === "new" && !tk\.at_window;/.test(pg) && /\{active && !shared && <div className="grid grid-cols-2 gap-2"/.test(pg)
+    && /isTicket\(s\) \? <TicketView t=\{s\} shared \/>/.test(pg));
   ok("the ticket: a first read that failed says so in the order's place; a later one keeps the order and says it is the last word heard",
     /const err = ticket\.status === "error" \? ticket\.error\?\.message/.test(pg) && /const stale = !!tk && !!ticket\.error;/.test(pg));
   ok("the ticket: it updates itself only while the order is in progress and the page is in front of someone",
@@ -13953,7 +13985,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const stop = { name: "WineXpress", starts_at: "2026-10-17T11:00:00Z", cancel_reason: "Rained out" };
   ok("stop called off: the crew's refunds name each order by its number and the Square reference to find it by",
     /2 cup orders canceled — 1 told, 1 guest sees it on their order's page/.test(SC.crewWords(stop, { cups: 2, told: 1, paidCups: [{ no: "#4F2A", ref: "ABC123", cents: 2000 }], packs: 0 }).body)
-    && /#4F2A \(Square …ABC123\) — \$20 of drinks/.test(SC.crewWords(stop, { cups: 2, told: 1, paidCups: [{ no: "#4F2A", ref: "ABC123", cents: 2000 }], packs: 0 }).body));
+    && /#4F2A \(Square …ABC123\) — \$20(?! of drinks)/.test(SC.crewWords(stop, { cups: 2, told: 1, paidCups: [{ no: "#4F2A", ref: "ABC123", cents: 2000 }], packs: 0 }).body));
   const sc = code(rd("app/api/crew/stops/cancel/route.ts")), lc = code(rd("components/crew/LiveControl.tsx")), px = code(rd("supabase/functions/push/index.ts"));
   ok("stop called off: the route counts members told and gives each refund its number; the toast says it; the push tells the member why",
     /if \(c\.user_id\) told\+\+;/.test(sc) && /no: orderNo\(c\.id\), ref:/.test(sc) && /cups: cups\.length, told, paid: paidCups\.length/.test(sc)
@@ -14026,8 +14058,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/supabase|fetch\(|authedFetch|setTimeout/.test(ds) && /<p ref=\{sayRef\} className="sr-only" aria-live="polite" aria-atomic="true" \/>/.test(ds)
     && !/aria-live="polite">\s*\{stack/.test(ds) && /Your answers stay on this phone/.test(ds));
   ok("stack: its button adds only the stack's own picks — never a drink it didn't pick, so never a sold-out one — then opens checkout, or keeps them for the next stop",
-    /for \(const p of stack\.picks\) if \(!isInCart\(p\.drink\.slug\)\) bump\(p\.drink\.slug\);/.test(ds) && /if \(button\.kind === "save"\) \{ toast\("Saved in your cart — it's there when cup orders open\."\); return; \}\s*openCheckout\(\);/.test(ds)
-    && /const button = stack \? stackButton\(ordering, stack\.cents, money\) : null;/.test(ds));
+    /const adding = stack \? stack\.picks\.filter\(\(p\) => !isInCart\(p\.drink\.slug\)\) : \[\];/.test(ds) && /for \(const p of adding\) bump\(p\.drink\.slug\);/.test(ds)
+    && /if \(button\.kind === "save"\) \{ toast\(allIn \? "It's in your cart — there when cup orders open\." : "Saved in your cart — it's there when cup orders open\."\); return; \}\s*openCheckout\(\);/.test(ds)
+    // R7: the price is what the button adds, said to a guest only — a member's perks are checkout's to price
+    && /const button = stack \? stackButton\(ordering, user \? null : menuCents, money\) : null;/.test(ds)
+    && /const label = !button \? "" : allIn \? \(button\.kind === "save" \? "In your cart for the next stop" : "In your order — review it"\) : button\.label;/.test(ds)
+    && /We can&apos;t tell which drinks have no caffeine until the menu loads/.test(ds));
   ok("stack: Today hands it the truck's state and the stop's menu, the same reads its lead uses; GenerateDay and its classes are gone",
     /<DailyStack ordering=\{ordering\} stopMenu=\{stopMenu\} \/>/.test(th) && /ordering=\{oo\.checked \? oo\.ordering : null\} stopMenu=\{oo\.stopMenu\}/.test(th)
     && !fs.existsSync(path.join(__dirname, "..", "components/GenerateDay.tsx")) && !/\.gen-|\.hero\{|\.step\{/.test(rd("app/globals.css")));
@@ -14055,8 +14091,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /if \(!live\) return;/.test(gb) && /if \(document\.visibilityState === "visible"\) void reload\(\);/.test(gb) && /const POLL_MS = 20_000;/.test(gb));
   const pg = code(rd("app/order/page.tsx"));
   ok("the ticket: Cancel while it is In and not paid at the window — the member's rule, by the ticket (0396) — asked first, said in the order's words",
-    /const canCancel = tk\.status === "new" && !tk\.at_window;/.test(pg) && /supabase\.rpc\("cancel_by_ticket", \{ p_ticket: t \}\)/.test(pg)
-    && /confirmLabel: "Cancel order", cancelLabel: "Keep order", danger: true/.test(pg) && /const words = cancelWords\(error \? null :/.test(pg)
+    /const canCancel = !shared && tk\.status === "new" && !tk\.at_window;/.test(pg) && /fetch\(apiUrl\("\/api\/orders\/ticket-cancel"\)/.test(pg)
+    && /rpc\("cancel_by_ticket", \{ p_ticket: ticket \}\)/.test(rd("app/api/orders/ticket-cancel/route.ts"))
+    && /confirmLabel: "Cancel order", cancelLabel: "Keep order", danger: true/.test(pg) && /const words = cancelWords\(res && \(res\.ok \|\| res\.outcome\) \? res : null\);/.test(pg)
     && /arrives-with: 0396/.test(rd("app/order/page.tsx")));
   ok("the ticket: the destructive way out sits apart, under the card",
     /\{canCancel && <div className="mt-3 flex justify-center"><button type="button" className="btn-del" disabled=\{busy\}/.test(pg));
@@ -14373,8 +14410,48 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const co = code(rd("components/Checkout.tsx")), dsh = code(rd("components/DrinkSheet.tsx"));
   ok("access: checkout and the drink sheet have a close button; checkout's errors and sold-out notes, and the drink's not-here line, are announced",
     /header=\{<div className="co-head"><div className="oa-kicker" id="checkout-title">Checkout<\/div><CloseButton onClick=\{onClose\} \/><\/div>\}/.test(co)
-    && /\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(co) && /<div className="co-86" role="status">/.test(co)
+    && /\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(co) && /<p className="sr-only" role="status" aria-live="polite">\{blockedWords\}<\/p>/.test(co)
+    && /const blockedNote = blocked > 0 \? <div className="co-86">\{blockedWords\}<\/div> : null;/.test(co)
     && /<div className="sheet-top">\s*<div className="sheet-pillar">[\s\S]{0,80}<CloseButton onClick=\{closeDrink\} \/>/.test(dsh) && /<div className="sheet-signoff" role="status">/.test(dsh));
+  // ── R7 of the customer re-audit (2026-10-15): the card's number said once, every customer error read out, no dead button ──
+  ok("R7 loyalty: the card's number is STAMP_GOAL in the words too — the badge's default, the join pitch, the demo card's ring and line",
+    /default: `Free cup at \$\{STAMP_GOAL\}` \}/.test(rd("lib/copy.ts")) && !/Free cup at 10|Buy 10,/.test(rd("lib/copy.ts") + rd("components/SignIn.tsx") + rd("app/3mpire/page.tsx"))
+    && /const demo = cardOf\(17\);\s+const ringRef = useRingFill\(demo\.stamps \/ STAMP_GOAL\);/.test(rd("app/3mpire/page.tsx"))
+    && /<span><b>\{demo\.stamps\}<\/b>\/\{STAMP_GOAL\} stamps<\/span>/.test(rd("app/3mpire/page.tsx")));
+  ok("R7 access: the shop's payment errors, sign-in's, a new password's and a bottle proof's are read out as they appear",
+    /\{err && <div className="shop-err" role="alert">\{err\}<\/div>\}/.test(rd("components/ShopCheckout.tsx"))
+    && (rd("components/SignIn.tsx").match(/<div className="auth-err" role="alert">/g) || []).length === 3 && !/<div className="auth-err">/.test(rd("components/SignIn.tsx"))
+    && /\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(rd("components/AuthProvider.tsx"))
+    && /\{err && <div className="vipv-err" role="alert">\{err\}<\/div>\}/.test(rd("components/VipVerify.tsx")));
+  ok("R7 wallet: Add to Apple Wallet waits for the route to sign passes — the flag alone drew a button that always failed",
+    /export const APPLE_PASS_SIGNS = false;/.test(rd("lib/wallet.ts"))
+    && /const appleReady = APPLE_PASS_SIGNS && process\.env\.NEXT_PUBLIC_APPLE_WALLET === "1";/.test(rd("components/MembershipCard.tsx"))
+    && /status: 501/.test(rd("app/api/wallet/pass/route.ts")));
+  {
+    const th = rd("components/today/TodayHome.tsx"), fu2 = rd("components/FindUs.tsx"), cc = rd("app/api/concierge/route.ts"), sc = rd("app/scan/page.tsx");
+    const os = rd("components/OrderStatus.tsx"), tk = rd("lib/tickets.ts"), co2 = rd("components/Checkout.tsx"), DT = require("../.smoke/dates.js");
+    ok("R7 Today: a free cup ready is said under the priced usual — given at the window, not taken off this price",
+      /const free = cardOf\(profile\?\.points\)\.free;/.test(th) && /\{free > 0 && <p className="k-rsub whitespace-normal"><span className="k-tag gold fill">On us<\/span> \{fillCopy\(t\("today\.free_at_window"\), \{ ready: freeWords\(free\) \}\)\}<\/p>\}/.test(th)
+      && /key: "today\.free_at_window"[^\n]*default: "\{ready\} — on us at the window when you show your card\. It isn't taken off this price\." \}/.test(rd("lib/copy.ts")));
+    ok("R7 Today: packing up is said as that, never Live — the switch may be off; the header's day is the truck's (Eastern)",
+      /<Eyebrow>\{lead\.stop\?\.name \? `Packing up · \$\{lead\.stop\.name\}` : "Packing up"\}<\/Eyebrow>/.test(th) && !/Live · packing up/.test(th)
+      && /const shortDay = \(d: Date\) => etDay\(d\.toISOString\(\)\);/.test(th));
+    ok("R7 Find Us: a stop under way nobody flipped live is on now here, as Today and checkout say; events sort by the truck's clock",
+      /const onNow = isLive \|\| !!startedId;/.test(fu2) && /eyebrow=\{onNow \? t\("findus\.eyebrow_live"\)/.test(fu2) && /const rowLive = !!liveId && r\.id === liveId;/.test(fu2)
+      && /return etWallMs\(r\.day, t \? /.test(fu2) && DT.etWallMs("2026-10-17", "18:30") === Date.parse("2026-10-17T22:30:00Z") && DT.etWallMs("2026-01-17", "18:30") === Date.parse("2026-01-17T23:30:00Z"));
+    ok("R7 concierge: the chat says what the order button would — open, pre-orders open, packing up, or when cup orders open",
+      /readOrdering\(supabaseAdmin, FOUNDING_MARKET\),\s+\]\);\s+const ordering: Ordering \| null = ord\.inputs \? orderingFrom\(ord\.inputs, Date\.now\(\)\) : null;/.test(cc)
+      && /if \(ordering\) live = truckWords\(ordering\) \?\? live;/.test(cc) && /case "ahead": return `The truck isn't pouring yet, but cup pre-orders are open in the app/.test(cc));
+    ok("R7 scan: a member with an app order today is asked once before a walk-up stamp — it stamps itself at pickup",
+      /onClick=\{inApp \? \(\) => setStampAsk\(true\) : addStamp\}/.test(sc) && /Is this another cup, bought here at the window\?/.test(sc)
+      && /void addStamp\(\)\.then\(\(\) => setStampAsk\(false\)\);/.test(sc));
+    ok("R7 ref: a charge that didn't record keeps its reference — the order bar says it on every page until the crew has it",
+      /if \(data\.warn && !t\.ticket\) holdRef\(/.test(co2) && /export function holdRef\(ref: string, cents: number, now = Date\.now\(\)\): void/.test(tk)
+      && /const REF_KEEP_MS = 12 \* 3600 \* 1000;/.test(tk) && /if \(paidRef\) return <RefBar r=\{paidRef\} \/>;/.test(os) && /onClick=\{forgetRef\}/.test(os));
+    ok("R7 board and packs: the truck's board re-reads the menu every minute; the pack close is lib/pickupDay's one rule",
+      /const t = setInterval\(refreshMenu, 60_000\);/.test(rd("app/display/page.tsx"))
+      && /export const STOP_LEAD_MS = PACK_LEAD_MS;/.test(rd("lib/orderAhead.ts")) && /const closes = \(key: string\): Date => packClosesAt\(key, null\)/.test(rd("lib/orderAhead.ts")));
+  }
   // ── one light palette, and a dark shop ──
   ok("palette: the console's Day look and paper are one light token set — declared once, and no old paper gold left in a rule",
     (g.match(/\.app\.crew-day,\.menu,:is\(\.sheet,\.sheet2\)\.paper\{/g) || []).length === 1 && !/#7a5a1e/.test(gc) && !/\.app\.crew-day\{--muted/.test(g)

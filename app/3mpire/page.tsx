@@ -236,7 +236,10 @@ function MpireDemo() {
   const { toast } = useApp();
   const router = useRouter();
   const t = useSiteCopy();
-  const ringRef = useRingFill(0.7);
+  // One demo card (17 stamps: 7 on the card, a free cup ready), said the way a real one is — the ring, the line and the
+  // free cups agree (R7: the ring said 7 of 10 beside "2/10 stamps").
+  const demo = cardOf(17);
+  const ringRef = useRingFill(demo.stamps / STAMP_GOAL);
   return (
     <section className="screen" id="s-mpire">
       <Masthead eyebrow={<EditableCopy k="mpire.eyebrow" value={t("mpire.eyebrow")} />} right={<AccountPill />} />
@@ -248,19 +251,19 @@ function MpireDemo() {
             <circle cx="44" cy="44" r="37" fill="none" stroke="rgba(245,241,232,.1)" strokeWidth="8" />
             <circle ref={ringRef} cx="44" cy="44" r="37" fill="none" stroke="#B82420" strokeWidth="8" strokeLinecap="round" strokeDasharray={RING} strokeDashoffset={RING} />
           </svg>
-          <div className="rc">7<small>OF 10 STAMPS</small></div>
+          <div className="rc">{demo.stamps}<small>OF {STAMP_GOAL} STAMPS</small></div>
         </div>
         <div className="mt">
           <div className="eyb"><Icon name="star" /> Founding Member</div>
           <h2>Alex R.</h2>
-          <p>Buy 10, the next cup is on us. A stamp on every drink.</p>
+          <p>Buy {STAMP_GOAL}, the next cup is on us. A stamp on every drink.</p>
         </div>
       </div></div>
 
       <div className="memline">
-        <span><b>2</b>/{STAMP_GOAL} stamps</span>
+        <span><b>{demo.stamps}</b>/{STAMP_GOAL} stamps</span>
         <span className="memline-dot">·</span>
-        <span><b>{freeWords(1)}</b></span>
+        <span><b>{freeWords(demo.free)}</b></span>
         <span className="memline-dot">·</span>
         <span><b>$14.00</b> credit · use it at the window</span>
       </div>

@@ -5,8 +5,9 @@
 // so could answer the same customer two ways.
 //
 // What it reads:
-//   · market_live — the city's switch and lead, resolved city → live_status → default (0285);
-//     live_status when the city has no row, exactly the fallback the hook always had;
+//   · market_live — the city's switch and lead, resolved city → live_status → default (0285); the city takes orders
+//     only while the truck is live too (0412: its switch holds it closed, never open); live_status when the city has
+//     no row, exactly the fallback the hook always had;
 //   · live_status.current_stop_id — which stop the truck went live at (trusted by lib/ordering only
 //     when that stop is one of this city's);
 //   · the city's stops that may still be on the road: not archived, not done, not wrapped, started
@@ -50,12 +51,18 @@ export async function readOrdering(sb: SupabaseClient, market: Market, nowMs: nu
       .order("starts_at", { ascending: true }).limit(12),
   ]);
   if (road.error) return { inputs: null, error: road.error.message };
-  const flags = (city.data as Flags | null) ?? (single.data as Flags | null);
-  if (!flags && (city.error || single.error)) return { inputs: null, error: (city.error ?? single.error)!.message };
+  const truck = single.data as Flags | null;
+  // The truck's own switch is part of every answer now (below): unread, there is no answer.
+  if (!truck && single.error) return { inputs: null, error: single.error.message };
+  const flags = (city.data as Flags | null) ?? truck;
+  if (!flags && city.error) return { inputs: null, error: city.error.message };
   const lead = preorderLeadMs(flags?.preorder_lead_h);
   const stops = ((road.data ?? []) as StopRow[]).map((r) => orderingStop(r, lead)).filter((s): s is OrderingStop => s !== null);
-  const isLive = !!flags?.is_live;
-  const liveStopId = isLive ? ((single.data as Flags | null)?.current_stop_id ?? null) : null;
+  // GO OFFLINE STOPS EVERY ORDER (2026-10-15, R7 — 0412). A city's switch holds it closed and never keeps it open: once a
+  // city had been switched on, Go offline cleared the truck and the city's switch kept taking cards, with no stop to pour
+  // at. 0412 says so in market_live; this says so here too, so the rule holds before 0412 is pasted (arrives-with: 0412).
+  const isLive = !!flags?.is_live && !!truck?.is_live;
+  const liveStopId = isLive ? (truck?.current_stop_id ?? null) : null;
   if (!liveStopId || stops.some((s) => s.id === liveStopId)) return { inputs: { isLive, liveStopId, stops }, error: null };
   // The switch names a stop the road does not have: its own row says whether it is still a stop. This city's only — a
   // pointer to another city's stop is that city's truck, not a truck pouring here. (The pointer is the company's one

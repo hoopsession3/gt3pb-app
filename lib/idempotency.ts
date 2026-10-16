@@ -107,14 +107,20 @@ export const NO_ATTEMPT: PayAttempt = { sig: "", key: "", token: null };
  *
  * `details` is what is being bought and what it costs, nothing about who or where: a name fixed
  * after a lost answer is the same checkout, and a new key there would be a second charge.
+ *
+ * `was` (2026-10-15, R7): what the same checkout was signed as before its signature changed shape. A key held
+ * under one of those is the same checkout — kept, with its token, and signed anew — so a page that changed what
+ * it signs never mints a second key for a payment whose answer it is still waiting on.
  */
 export function attemptFor(
   prev: PayAttempt | null | undefined,
   details: unknown,
   mint: () => string = () => globalThis.crypto.randomUUID(),
+  was: readonly unknown[] = [],
 ): PayAttempt {
   const sig = idemSignature(null, details);
   if (prev && prev.sig === sig && prev.key) return prev;
+  if (prev && prev.key && was.some((d) => idemSignature(null, d) === prev.sig)) return { ...prev, sig };
   return { sig, key: mint(), token: null };
 }
 

@@ -52,7 +52,9 @@ export default function DisplayPage() {
 
   useEffect(() => {
     refreshMenu();
-    const t = setInterval(refreshMenu, 5 * 60 * 1000); // this screen never reloads — keep the board fresh across a shift
+    // This screen never reloads: the board follows the Catalog within a minute, as the menu does (R7) — a drink taken off
+    // stayed on the truck's board for up to five.
+    const t = setInterval(refreshMenu, 60_000);
     return () => clearInterval(t);
   }, [refreshMenu]);
 

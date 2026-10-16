@@ -7,9 +7,10 @@ import { readCityOut, readMenuRows } from "@/lib/drinksRead";
 import { FOUNDING_MARKET } from "@/lib/markets";
 import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
-import { etTimeLabel, etToday } from "@/lib/dates";
+import { etTimeLabel, etToday, etWhen } from "@/lib/dates";
 import { money } from "@/lib/money";
-import { liveSwitchOn, type NamedStop } from "@/lib/ordering";
+import { closedWords, liveSwitchOn, readyWords, type NamedStop, type Ordering } from "@/lib/ordering";
+import { orderingFrom, readOrdering } from "@/lib/orderingRead";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 
@@ -65,6 +66,21 @@ function throttled(ip: string): boolean {
   return cur.n > MAX_PER_WINDOW;
 }
 
+// THE TRUCK, IN THE APP'S OWN WORDS (R7): the state Pay decides from (lib/ordering), said with the words the menu and
+// checkout say — so a guest asking the chat is told what the order button would tell them. null: the switch's line stays.
+function truckWords(o: Ordering): string | null {
+  const at = o.stop?.name ? `${o.stop.name}${o.stop.where ? ` — ${o.stop.where}` : ""}` : "";
+  switch (o.state) {
+    case "live":
+    case "started": return `The truck is OPEN now${at ? ` at ${at}` : ""}. Cup orders in the app are ${readyWords(o).replace(/\.$/, "").replace(/^R/, "r")}.`;
+    case "ahead": return `The truck isn't pouring yet, but cup pre-orders are open in the app${at ? ` for ${at}` : ""}: ${readyWords(o)}`;
+    case "closing": return `The truck is packing up${at ? ` at ${at}` : ""}. ${closedWords(o)}`;
+    case "early": return `The truck is not currently open. ${closedWords(o)}${o.stop?.starts_at ? ` It pours ${etWhen(o.stop.starts_at)}${o.stop.where ? ` — ${o.stop.where}` : ""}.` : ""}`;
+    case "none": return `The truck is not currently open. ${closedWords(o)}`;
+    default: return null;
+  }
+}
+
 async function post(req: Request) {
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "Chat isn't available right now." }, { status: 503 });
   const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
@@ -99,7 +115,7 @@ async function post(req: Request) {
   if (supabaseAdmin) {
     // AN 86 IS FOR ONE CITY (0408): the truck the concierge speaks for is live_status's — the founding city's (0285) — so
     // what it calls 86'd is that city's too: sold out everywhere, or sold out there by the Pass.
-    const [pr, ls, ev, pl, here] = await Promise.all([
+    const [pr, ls, ev, pl, here, ord] = await Promise.all([
       readMenuRows(supabaseAdmin),
       supabaseAdmin.from("live_status").select("is_live, current_stop_id").eq("id", 1).maybeSingle(),
       // PUBLIC events only — this is a guest-facing context and the service role bypasses RLS,
@@ -113,7 +129,11 @@ async function post(req: Request) {
         .gte("day", today).order("day").limit(8),
       supabaseAdmin.from("subscription_plans").select("label, price_cents, period_days, active").eq("active", true).order("price_cents"),
       readCityOut(supabaseAdmin, FOUNDING_MARKET),
+      // THE ORDER BUTTON'S OWN ANSWER (R7): what Pay would say now — open, a pre-order made when the truck opens, packing
+      // up, or when cup orders open. The concierge said "not currently open" through every pre-order window.
+      readOrdering(supabaseAdmin, FOUNDING_MARKET),
     ]);
+    const ordering: Ordering | null = ord.inputs ? orderingFrom(ord.inputs, Date.now()) : null;
     if (!pr.error && pr.rows.length) drinks = menuOf(pr.rows.map((r) => (here.out.has(r.slug) ? { ...r, sold_out: true } : r)));
     prices = pr.rows.filter((p) => p.active !== false && typeof p.price_cents === "number").map((p) => `- ${p.name ?? p.slug}: ${money(p.price_cents as number)}`).join("\n");
     if (ls.data) {
@@ -132,8 +152,10 @@ async function post(req: Request) {
       if (!open) {
         // The truck's own schedule, not a hand-typed ETA field — the next stop that hasn't
         // started yet, in date order, same source of truth the Truck page reads.
+        // The truck the concierge speaks for is the founding city's (above): its next stop is that city's too, and never
+        // one called off (R7, 2026-10-15) — it named the next stop anywhere, canceled ones included.
         const { data: n } = await supabaseAdmin.from("stops").select("name, starts_at")
-          .is("archived_at", null).neq("status", "done").gte("starts_at", new Date().toISOString())
+          .is("archived_at", null).is("canceled_at", null).neq("status", "done").eq("market", FOUNDING_MARKET).gte("starts_at", new Date().toISOString())
           .order("starts_at").limit(1).maybeSingle();
         if (n && (n as any).starts_at) {
           // etTimeLabel, not toLocaleDateString/toLocaleTimeString(undefined, ...) — this route
@@ -147,6 +169,7 @@ async function post(req: Request) {
         ? `The truck is OPEN now${where ? ` at ${where}` : ""}.`
         : `The truck is not currently open${next ? `. Next: ${next}` : ""}.`;
     }
+    if (ordering) live = truckWords(ordering) ?? live;
     events = (ev.data ?? []).filter((e: any) => !e.member_only).map((e: any) => `- ${e.public_title || e.title || "Event"}${e.day_label ? ` (${e.day_label})` : e.day ? ` (${e.day})` : ""}${e.start_time ? ` ${e.start_time}` : ""}${e.location_text ? ` — ${e.location_text}` : ""}`).join("\n");
     plans = (pl.data ?? []).map((p: any) => `- ${p.label}: ${money(p.price_cents)} every ${p.period_days} days`).join("\n");
   }

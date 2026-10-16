@@ -44,6 +44,12 @@ import Field from "./Field";
 // "Office delivery · price & minimum" panel in this same section is the one true home, and one
 // home is the point. Recorded here so nobody adds the control without checking who reads it.
 
+// ── A CITY'S SWITCH HOLDS IT CLOSED (2026-10-15, R7 of the customer re-audit — 0412) ─────────────────────────────────
+// The switch here read the raw column and showed a city that follows the truck (null) as "Not live" — so the natural tap
+// was "Put Greenville live", which made the city's own true beat Live Ops' Go offline: cards taken with the truck off the
+// road. A city's switch now holds it closed or lets it follow Live Ops, and says which; whether it is taking orders right
+// now is market_live's answer (the truck live, the city not held, its day come), read beside it.
+
 type Check = {
   market: string; area: string; check_name: string;
   status: "ready" | "blocked" | "unknown"; detail: string; blocking: boolean;
@@ -57,7 +63,7 @@ type Market = {
   active: boolean; is_live: boolean | null; opens_on: string | null;
   offer_disclaimer: string | null;
 };
-type Data = { markets: Market[]; checks: Check[]; summary: Record<string, Summary> };
+type Data = { markets: Market[]; checks: Check[]; summary: Record<string, Summary>; taking: Record<string, boolean> };
 
 const dayStr = (iso?: string | null) =>
   iso ? new Date(iso + "T12:00:00").toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }) : null;
@@ -77,19 +83,23 @@ export default function MarketsPanel() {
   const isOwner = roleOf(profile) === "owner";
 
   const loader = useCallback(async (): Promise<Data> => {
-    if (!supabase) return { markets: [], checks: [], summary: {} };
-    const [m, c, s] = await Promise.all([
+    if (!supabase) return { markets: [], checks: [], summary: {}, taking: {} };
+    const [m, c, s, live] = await Promise.all([
       supabase.from("markets")
         .select("slug, name, region, state, active, is_live, opens_on, offer_disclaimer")
         .order("name"),
       supabase.from("v_market_readiness").select("market, area, check_name, status, detail, blocking"),
       supabase.from("v_market_readiness_summary").select("market, blocked, unknown, ready, advisories, can_open"),
+      supabase.from("market_live").select("market, is_live"),
     ]);
     if (m.error) throw new Error(m.error.message);
     if (c.error) throw new Error(c.error.message);
+    if (live.error) throw new Error(live.error.message);
     const summary: Record<string, Summary> = {};
     ((s.data as Summary[]) ?? []).forEach((r) => { summary[r.market] = r; });
-    return { markets: (m.data as Market[]) ?? [], checks: (c.data as Check[]) ?? [], summary };
+    const taking: Record<string, boolean> = {};
+    ((live.data as { market: string; is_live: boolean }[]) ?? []).forEach((r) => { taking[r.market] = !!r.is_live; });
+    return { markets: (m.data as Market[]) ?? [], checks: (c.data as Check[]) ?? [], summary, taking };
   }, []);
   const state = useAsyncData<Data>(loader, []);
   const reload = state.reload;
@@ -111,7 +121,7 @@ export default function MarketsPanel() {
     <AsyncSection state={state} isEmpty={({ markets }) => markets.length === 0}
       emptyTitle="No markets" emptySub="Every city GT3 operates in lives here."
       loadingLabel="Reading readiness…" errorTitle="Couldn't load markets">
-      {({ markets, checks, summary }) => (
+      {({ markets, checks, summary, taking }) => (
         <div className="adm-sec">
           <SectionHeader label="Markets" annotation={`${markets.length} on file`} />
           <div className="h-sub">
@@ -138,7 +148,7 @@ export default function MarketsPanel() {
                 {/* The headline, in words. "can_open" is the view's own verdict, not ours. */}
                 <p className="cp-line">
                   {sum?.can_open
-                    ? <><b>{mk.is_live ? "Open and live." : "Ready to open."}</b>{" "}
+                    ? <><b>{taking[mk.slug] ? "Open — taking orders now." : mk.is_live === false ? "Held closed." : "Ready — takes orders while the truck is live."}</b>{" "}
                         {sum.advisories > 0 && <span className="dim">{sum.advisories} advisor{sum.advisories === 1 ? "y" : "ies"} outstanding.</span>}</>
                     : <><b>Cannot open yet</b> — {blockers.length} check{blockers.length === 1 ? "" : "s"} outstanding.</>}
                 </p>
@@ -171,16 +181,20 @@ export default function MarketsPanel() {
 
                     <div className="cp-block-h" style={{ marginTop: 14 }}>
                       <span>Settings</span>
-                      <b>{mk.is_live ? "Live" : "Not live"}</b>
+                      <b>{mk.is_live === false ? "Held closed" : "Follows Live Ops"}</b>
                     </div>
 
                     {isOwner ? (
                       <>
                         <p className="cp-line">
+                          {mk.is_live === false
+                            ? <>No orders here, whatever Live Ops says.{" "}</>
+                            : <>Takes orders while the truck is live — Go live and Go offline in Live Ops.{" "}</>}
                           <button type="button" className="cp-inline-act" disabled={busy}
-                                  onClick={() => call("set_market_live", { p_market: mk.slug, p_live: !mk.is_live },
-                                                      mk.is_live ? `${mk.name} is no longer taking orders.` : `${mk.name} is live.`)}>
-                            {mk.is_live ? `Take ${mk.name} offline` : `Put ${mk.name} live`}
+                                  onClick={() => (mk.is_live === false
+                                    ? call("set_market_live", { p_market: mk.slug, p_live: null }, `${mk.name} follows Live Ops — it takes orders while the truck is live.`)
+                                    : call("set_market_live", { p_market: mk.slug, p_live: false }, `${mk.name} is held closed — no orders there, whatever Live Ops says.`))}>
+                            {mk.is_live === false ? `Let ${mk.name} follow Live Ops` : `Hold ${mk.name} closed`}
                           </button>
                         </p>
 

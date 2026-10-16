@@ -85,6 +85,19 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
   ok("a stop called off: no name, no reason, nothing charged — still a true sentence",
     sc2.body === "Your stop was called off. Nothing was charged." && P.stopCanceledShown({ id: "x", payment_status: "paid" }, "A", null).body.endsWith("refunded in full."), sc2);
   ok("the customer's order: done and void send nothing", P.orderStatusShown({ status: "done" }) === null && P.orderStatusShown({ status: "void" }) === null && P.orderStatusShown({}) === null);
+  // R7 (2026-10-15): a void the crew made at the Pass said nothing — it says so now, with what becomes of the money.
+  const vd = P.orderVoidShown({ id: "4f2a-3", paid: true, customer: NAME });
+  ok("a canceled order: its number and the money's fate, never the name — paid online, refunded in full",
+    vd.title === "Order #4F2A · Canceled" && vd.body === "Canceled — your card is being refunded in full." && leaks(vd).length === 0 && vd.tag === "order:4f2a-3:void" && vd.ring === false, vd);
+  ok("a canceled order: paid at the window comes back there; unpaid, nothing was charged",
+    P.orderVoidShown({ id: "x", paid: true, collected_at: "2026-10-15T15:00:00Z" }).body === "Canceled — what you paid at the window comes back there."
+    && P.orderVoidShown({ id: "x", paid: false, collected_at: null }).body === "Canceled — nothing was charged."
+    && P.orderVoidShown({}).title === "Order canceled");
+  const idx = readFileSync(join(ROOT, "supabase/functions/push/index.ts"), "utf8");
+  ok("the push function says every void of a member's order — after a stop called off has had its say, and whatever the order-updates switch",
+    /if \(!shown && record\.status === "void"\) shown = orderVoidShown\(record\);/.test(idx)
+    && idx.indexOf("stopCanceledShown(record") < idx.indexOf("shown = orderVoidShown(record)")
+    && idx.indexOf("CUSTOMER_MUTE.orderUpdates") < idx.indexOf("shown = orderVoidShown(record)"));
   ok("the customer's order: preparing then ready are two tags — ready rings even while preparing is still showing", ready.tag !== making.tag);
 }
 {

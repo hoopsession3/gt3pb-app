@@ -6,7 +6,7 @@ import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { chargeCard, refundPayment, safeIdemKey } from "@/lib/squareServer";
 import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
-import { packIsOpen, type PackStop } from "@/lib/pickupDay";
+import { packIsOpen, PICKUP_STOPS_READ, type PackStop } from "@/lib/pickupDay";
 import { changePack, diffFor, type After, type Money, type Tell, type Who } from "@/lib/packChange";
 import { packChangeStore, packChangeMissing } from "@/lib/packChangeStore";
 import { isUuid } from "@/lib/uuid";
@@ -88,8 +88,8 @@ async function post(req: Request) {
 
   // NOT marked scoped-by, as in /api/reserve/move: the public schedule, unscoped until a second market is real.
   const { data: nextStops } = await sb.from("stops").select("starts_at")
-    .is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
-    .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6);
+    .is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
+    .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ);
   const offered = offeredDays(nextStops as { starts_at: string }[] | null);
   const day = requestedDay(body.dropDate);
   const cutoff = offered.get(day);

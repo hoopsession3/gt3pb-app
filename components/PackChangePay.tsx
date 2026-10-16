@@ -74,7 +74,7 @@ export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, c
   const submitChange = useCallback(async (card: Attempt | null) => {
     if (busy || !changeQuote) return;
     setErr("");
-    if (!body.name || !body.phone) { setErr("Name and phone are required for the pickup text."); return; }
+    if (!body.name || !body.phone) { setErr("Add your name and phone — the crew uses them at pickup."); return; }
     setBusy(true);
     const expectedDiffCents = changeQuote.paid ? changeQuote.diffCents : card ? changeQuote.newCents : 0;
     const attempt = card ?? await idemChange.begin(sig);

@@ -105,7 +105,8 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
         <div className="k-detail">
           {ev.location_text && (
             <div className="k-det-row"><span className="k-det-k">Where</span>
-              <a href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_text)}`} target="_blank" rel="noreferrer"><Icon name="pin" /> {ev.location_text}</a>
+              <a href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_text)}`} target="_blank" rel="noreferrer"
+                onClick={(e) => { e.preventDefault(); openAddress(ev.location_text!); }}><Icon name="pin" /> {ev.location_text}</a>
             </div>
           )}
           {(ev.start_time || ev.end_time) && (

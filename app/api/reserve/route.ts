@@ -8,7 +8,7 @@ import { notifyCustomer, accountEmail, whoAsked, sayTextYes } from "@/lib/notify
 import { textsOn } from "@/lib/texts";
 import { mixSummary, type Mix } from "@/lib/orderAhead";
 import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
-import { packClosesAt, packIsOpen, pickupDayWords } from "@/lib/pickupDay";
+import { packClosesAt, packIsOpen, pickupDayWords, PICKUP_STOPS_READ } from "@/lib/pickupDay";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 import { chargeOnce, claimKey, placeOnce, seenBefore, type Answer, type Say, type Stopped } from "@/lib/chargeOnce";
@@ -96,8 +96,8 @@ async function post(req: Request) {
   // dropDate must match one of them, and its drop must still be open, or we reject — regardless
   // of what the client clock or a stale page said.
   const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at")
-    .is("archived_at", null).neq("status", "done").not("starts_at", "is", null)
-    .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(6);
+    .is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
+    .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ);
   const offered = offeredDays(nextStops as { starts_at: string }[] | null); // dropDate key → its order cutoff
   // Accept a plain day key or a full ISO instant; an instant resolves through the same ET
   // day-key rule the offered map uses (post-8pm-ET stops are otherwise off by one UTC day).

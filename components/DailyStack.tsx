@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
 import Button from "@/components/Button";
 import { InfoRow } from "@/components/kit";
 import Eyebrow from "@/components/today/Eyebrow";
@@ -23,7 +24,8 @@ type Props = { ordering: Ordering | null; stopMenu: ReadonlySet<string> | null }
 const saved = () => { try { return parseAnswers(localStorage.getItem(STACK_KEY)); } catch { return null; } };
 
 export default function DailyStack({ ordering, stopMenu }: Props) {
-  const { menu, bump, isInCart, toast, openCheckout, openDrink } = useApp();
+  const { menu, menuRead, bump, isInCart, toast, openCheckout, openDrink } = useApp();
+  const { user } = useAuth();
   const { soldOut } = useCupAvailability();
   // The sheet mounts on a tap, never on the server: the phone's last answers are read once, as it opens.
   const [last] = useState(saved);
@@ -45,21 +47,35 @@ export default function DailyStack({ ordering, stopMenu }: Props) {
 
   const answered = day !== null && caffeine !== null;
   const stack = answered ? stackFor({ day, caffeine, prefs }, menu, soldOut, stopMenu) : null;
-  const button = stack ? stackButton(ordering, stack.cents, money) : null;
+  // WHAT THE BUTTON ADDS, AT A PRICE THAT IS TRUE (R7). "Add to order · $X" summed every pick at the menu's price: a drink
+  // already in the cart (which the button does not add again) was in X, and a member's perks were not — checkout then
+  // said another number. X is now what goes in; and it is said to a guest only, whose price is the menu's. A member's
+  // perks are the server's to price (checkout quotes them), and asking it here would send the stack's picks off the phone.
+  const adding = stack ? stack.picks.filter((p) => !isInCart(p.drink.slug)) : [];
+  const menuCents = adding.length && adding.every((p) => typeof p.drink.priceCents === "number")
+    ? adding.reduce((s, p) => s + (p.drink.priceCents as number), 0) : null;
+  const button = stack ? stackButton(ordering, user ? null : menuCents, money) : null;
+  // Every pick in the cart already: the button says so, and opens it.
+  const allIn = !!stack && stack.picks.length > 0 && adding.length === 0;
+  const label = !button ? "" : allIn ? (button.kind === "save" ? "In your cart for the next stop" : "In your order — review it") : button.label;
+  // "Not today" needs the Catalog's caffeine (lib/drinks): until the menu is read — or when it can't be — it is not
+  // "nothing the truck can make" (R7), only not known yet.
+  const unknownCaffeine = caffeine === false && !menuRead;
+  const nothing = unknownCaffeine ? "we can't tell which drinks have no caffeine until the menu loads — try again in a moment" : "nothing the truck can make right now";
 
   // WHAT A SCREEN READER HEARS (2026-10-14, R6 — the audit: the result was never announced). One sentence, from a quiet
   // region of its own: the stack's drinks in order, or what is missing. The card itself is no live region any more — its
   // buttons and the fine-tune chips were read out as "updates" whenever they changed. The sentence is written into the
   // region after it is on the page, so a stack restored from the phone as the sheet opens is heard too (a region
   // announces what changes in it, never what it starts with).
-  const said = stack ? `${caffeine ? "Your stack" : "Your stack, no caffeine"}: ${stack.picks.map((p) => `${SLOT_WORD[p.slot]}, ${p.drink.name}`).join("; ") || "nothing the truck can make right now"}.${stack.missing.length ? ` ${missingWords(stack.missing)}` : ""}` : "";
+  const said = stack ? `${caffeine ? "Your stack" : "Your stack, no caffeine"}: ${stack.picks.map((p) => `${SLOT_WORD[p.slot]}, ${p.drink.name}`).join("; ") || nothing}.${stack.missing.length && !unknownCaffeine ? ` ${missingWords(stack.missing)}` : ""}` : "";
   const sayRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => { if (sayRef.current) sayRef.current.textContent = said; }, [said]);
 
   const go = () => {
     if (!stack || !button || !stack.picks.length) return;
-    for (const p of stack.picks) if (!isInCart(p.drink.slug)) bump(p.drink.slug);
-    if (button.kind === "save") { toast("Saved in your cart — it's there when cup orders open."); return; }
+    for (const p of adding) bump(p.drink.slug);
+    if (button.kind === "save") { toast(allIn ? "It's in your cart — there when cup orders open." : "Saved in your cart — it's there when cup orders open."); return; }
     openCheckout();
   };
 
@@ -94,9 +110,11 @@ export default function DailyStack({ ordering, stopMenu }: Props) {
                 ))}
               </div>
             )}
-            {stack.missing.length > 0 && <p className="k-rsub whitespace-normal">{missingWords(stack.missing)}</p>}
+            {unknownCaffeine && !stack.picks.length
+              ? <p className="k-rsub whitespace-normal">We can&apos;t tell which drinks have no caffeine until the menu loads — try again in a moment.</p>
+              : stack.missing.length > 0 && <p className="k-rsub whitespace-normal">{missingWords(stack.missing)}</p>}
             <Button kind="primary" wide className="mt-2" disabled={!stack.picks.length} onClick={go}>
-              {button.label}
+              {label}
             </Button>
             <div className="mt-2 flex items-center justify-between gap-3">
               <button type="button" className="btn-ter" aria-expanded={fine} onClick={() => setFine(!fine)}>Fine-tune</button>

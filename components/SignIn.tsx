@@ -8,6 +8,7 @@ import Gt3Mark from "./Gt3Mark";
 import Icon from "./Icon";
 import { useAuth } from "./AuthProvider";
 import { APP_BUILD, isNativeApp } from "@/lib/native";
+import { STAMP_GOAL } from "@/lib/loyalty";
 import { nextOnEnter } from "@/lib/formKeys";
 import { rememberReturn } from "@/lib/returnTo";
 
@@ -249,7 +250,7 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
         <>
           {/* The offer is the headline, in the card's own terms (lib/loyalty: ten stamps, then a cup on us), and what comes with
               joining is three lines, not a sentence. Compact says nothing here: the sheet around it already did. */}
-          {!compact && <h2 className="auth-headline">{context ? context.title : intent === "join" ? "Buy 10, the next cup is on us." : "Welcome back."}</h2>}
+          {!compact && <h2 className="auth-headline">{context ? context.title : intent === "join" ? `Buy ${STAMP_GOAL}, the next cup is on us.` : "Welcome back."}</h2>}
           {compact ? null : context ? <p className="auth-sub">{context.sub}</p> : intent === "join" ? (
             <ul className="mt-3 flex flex-col gap-1.5">
               {PERKS.map((p) => <li key={p} className="flex items-center gap-2.5 text-callout text-cream"><span className="text-gold2"><Icon name="check" /></span>{p}</li>)}
@@ -270,7 +271,7 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
               )}
               <label className="auth-label" htmlFor="auth-email">Email</label>
               <input id="auth-email" className="auth-input" enterKeyHint="send" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              {err && <div className="auth-err">{err}</div>}
+              {err && <div className="auth-err" role="alert">{err}</div>}
               <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
                 <span>{busy ? "Sending…" : intent === "join" ? "Join free" : "Email me a sign-in code"}</span>
               </button>
@@ -312,7 +313,7 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
                   <input id="pw-confirm" className="auth-input" enterKeyHint="go" type={showPass ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
                 </>
               )}
-              {err && <div className="auth-err">{err}</div>}
+              {err && <div className="auth-err" role="alert">{err}</div>}
               <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
                 <span>{busy ? (isNew ? "Creating…" : "Signing in…") : (isNew ? "Become a member" : "Sign in")}</span>
               </button>

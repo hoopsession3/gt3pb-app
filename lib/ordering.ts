@@ -52,6 +52,7 @@ export type OrderingStop = {
   starts_at: string;
   ends_at: string | null;
   where: string | null;   // location_text, else address — what Find Us prints under Where
+  to?: string | null;     // address, else location_text — where directions go: the street, not the place's name (R7)
   leadMs: number;         // resolved: the stop's own order-ahead lead, else the city's
   pickup: boolean;        // the stop's pickup switch (0191)
 };
@@ -79,6 +80,7 @@ export function orderingStop(r: StopRow, cityLeadMs: number): OrderingStop | nul
   return {
     id: r.id, name: r.name?.trim() || null, starts_at: r.starts_at, ends_at: r.ends_at ?? null,
     where: r.location_text?.trim() || r.address?.trim() || null,
+    to: r.address?.trim() || r.location_text?.trim() || null,
     leadMs: own ?? cityLeadMs, pickup: !!r.pickup_enabled,
   };
 }

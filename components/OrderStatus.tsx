@@ -9,6 +9,8 @@ import Icon from "@/components/Icon";
 import { readyWords, waitingToOpen } from "@/lib/ordering";
 import { leadOrder, orderNo } from "@/lib/activeOrder";   // not lib/today: every page mounts this bar
 import { orderLine } from "@/lib/orderWords";
+import { money } from "@/lib/money";
+import { forgetRef, useHeldRef, type HeldRef } from "@/lib/tickets";
 import { useMyActiveOrders, useOrderActions, ETA_WORDS } from "./useMyOrders";
 
 // A live "your order" banner for signed-in members — preparing → ready in realtime,
@@ -28,6 +30,10 @@ const GuestOrderBar = dynamic(() => import("./GuestOrderBar"), { ssr: false });
 export default function OrderStatus() {
   const path = usePathname();
   const { ready, user } = useAuth();
+  const paidRef = useHeldRef();
+  // A charge that didn't record (R7): its reference, on every page — Today too, which has no card for an order the crew
+  // has yet to add — until the person says the crew has it.
+  if (paidRef) return <RefBar r={paidRef} />;
   // Not on Today (its card is the order) and not on the order's own page (it is the order).
   if (path === "/" || path === "/order") return null;
   if (user) return <OrderBar />;
@@ -81,6 +87,23 @@ function OrderBar() {
       ) : (
         <button type="button" className="eta-tell" onClick={() => setEtaOpen(true)}>Tell the truck ›</button>
       )}
+    </div>
+  );
+}
+
+/** Paid, and the order not saved: what to show at the window, kept for the day (lib/tickets holdRef). */
+function RefBar({ r }: { r: HeldRef }) {
+  const said = r.ref ? `Show ref #${r.ref} at the window` : "Show this at the window";
+  return (
+    <div className="orderbar-wrap st-new">
+      <div className="orderbar st-new" role="status" aria-live="polite">
+        <span className="orderbar-dot" />
+        <div className="orderbar-main">
+          <b>{said}</b>
+          <span>Paid {money(r.cents)} — the crew is adding your order.</span>
+        </div>
+        <button type="button" className="eta-change hit-44" onClick={forgetRef} aria-label={`${said}. Dismiss — the crew has my order`}>Got it</button>
+      </div>
     </div>
   );
 }

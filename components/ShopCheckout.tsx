@@ -139,7 +139,7 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
         {squareClientReady ? (
           <>
             <PaymentCard ref={payRef} onReady={setReady} onError={(m) => setErr(m)} />
-            {err && <div className="shop-err">{err}</div>}
+            {err && <div className="shop-err" role="alert">{err}</div>}
             {/* Pay button + 'Charging…' loading label inside a <button> → plain t()/fillCopy. */}
             <button type="button" className="btn-pri btn-wide mt-3.5" onClick={pay} disabled={!canPay}>{busy ? "Charging…" : fillCopy(t("checkout.pay"), { total: money(payCents) })}</button>
             <EditableCopy k="checkout.fine" value={t("checkout.fine")} as="p" className="shop-fine" multiline />

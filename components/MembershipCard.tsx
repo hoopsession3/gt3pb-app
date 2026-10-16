@@ -11,6 +11,7 @@ import { APP_BUILD, publicOrigin } from "@/lib/native";
 import { authedFetch } from "@/lib/authedFetch";
 import { addToWallet } from "@/lib/deviceActions";
 import { cardOf, STAMP_GOAL } from "@/lib/loyalty";
+import { APPLE_PASS_SIGNS } from "@/lib/wallet";
 
 // GT3 MEMBERSHIP CARD — a premium, scannable member card. The QR encodes a link to the operator
 // scan page keyed to this member (referral_code, or user id as fallback), so at the truck a crew
@@ -24,7 +25,8 @@ export default function MembershipCard() {
   const [busy, setBusy] = useState<"" | "apple" | "google">("");
   const [flexOpen, setFlexOpen] = useState(false);
   const code = profile?.referral_code || user?.id || "";
-  const appleReady = process.env.NEXT_PUBLIC_APPLE_WALLET === "1";
+  // Only once the route signs passes (lib/wallet): the flag alone drew a button that always failed (R7).
+  const appleReady = APPLE_PASS_SIGNS && process.env.NEXT_PUBLIC_APPLE_WALLET === "1";
   // Not in the iPhone app: Google Wallet does not exist on an iPhone, and Apple refuses an app that
   // points to another phone platform's (App Review Guideline 2.3.10).
   const googleReady = process.env.NEXT_PUBLIC_GOOGLE_WALLET === "1" && !APP_BUILD;

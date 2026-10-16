@@ -16,6 +16,17 @@ const ET_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", 
 export const etDayKey = (d: Date) => ET_FMT.format(d);
 export const etToday = () => etDayKey(new Date());
 
+const ET_PARTS = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+/** The instant a wall-clock time on a day is in Eastern — "2026-10-17", "18:30" → 22:30Z — read the same on any phone (R7:
+ *  Find Us placed an event, which carries a day and a time, by the phone's own zone among stops that carry instants). */
+export function etWallMs(day: string, hhmm: string): number {
+  const guess = Date.parse(`${day}T${hhmm}:00Z`);   // the wall time, read as if it were UTC
+  if (!Number.isFinite(guess)) return Number.POSITIVE_INFINITY;
+  const at = Object.fromEntries(ET_PARTS.formatToParts(new Date(guess)).map((p) => [p.type, p.value]));
+  const eastern = Date.UTC(Number(at.year), Number(at.month) - 1, Number(at.day), Number(at.hour) % 24, Number(at.minute));
+  return guess + (guess - eastern);   // Eastern's clock then, less the instant: its offset, added back
+}
+
 // ── WORKING WITH A DAY KEY ─────────────────────────────────────────────────────────────────────
 // Everything below takes and returns a YYYY-MM-DD key rather than a Date, on purpose. A Date is an
 // instant and carries a time zone question with it everywhere it goes; a key is a calendar day and

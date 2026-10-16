@@ -1,6 +1,7 @@
 "use client";
 
 import CountUp from "./CountUp";
+import type { ReactNode } from "react";
 import Icon from "@/components/Icon";
 
 export type ReceiptRow = { label: string; value: string };
@@ -11,7 +12,7 @@ export type ReceiptRow = { label: string; value: string };
 // with no total or receipt, pickup/delivery already had this exact shape (OrderFunnel's dl-done).
 // One component now, reused by all three — the "you're in" moment reads identically everywhere.
 export default function OrderConfirm({
-  title, sub, totalCents, totalLabel = "paid", rows, warn, note, ctaLabel, onCta, secondaryLabel, onSecondary,
+  title, sub, totalCents, totalLabel = "paid", rows, warn, note, aside, ctaLabel, onCta, secondaryLabel, onSecondary,
 }: {
   title: string;
   sub?: string;
@@ -20,6 +21,7 @@ export default function OrderConfirm({
   rows: ReceiptRow[];
   warn?: string;
   note?: string; // quiet what-to-do-next line (e.g. bring your empties) — informational, not an alert
+  aside?: ReactNode; // one quiet offer above the button (the cup checkout's "Ping me when it's ready", R7)
   ctaLabel: string;
   onCta: () => void;
   secondaryLabel?: string;
@@ -38,6 +40,7 @@ export default function OrderConfirm({
       )}
       {warn && <p className="dl-err" role="alert">{warn}</p>}
       {note && <p className="dl-notebox">{note}</p>}
+      {aside}
       <button type="button" className="btn-pri btn-wide mt-4" onClick={onCta}>{ctaLabel}</button>
       {secondaryLabel && onSecondary && <button type="button" className="sub-link" onClick={onSecondary}>{secondaryLabel}</button>}
     </div>

@@ -143,18 +143,25 @@ const realFetch = globalThis.fetch;
   ok("page: both of the cup checkout's sends carry the checkout's key and settle it with the answer",
     (co.match(/idempotencyKey: attempt\.key/g) || []).length === 2 && (co.match(/idem\.settle\(attempt\.key, res\.status, data\)/g) || []).length === 2
     && /useIdemKey\(CO_IDEM, true\)/.test(co) && /const CO_IDEM = "gt3-co-idem", CO_TIP = "gt3-co-tip";/.test(co)
-    && !/\.tokenize\(\)(?![^\n]*idem\.begin)/.test(co.replace(/idem\.begin\([^\n]*\.tokenize\(\)\)/g, "")));
+    && !/\.tokenize\(\)(?![^\n]*idem\.begin)/.test(co.replace(/idem\.begin\([^\n]*\.tokenize\(\)[^\n]*\)/g, "")));
   // 2026-10-12 (C7): the key is kept beside the cart (localStorage), two hours at most, and the tip that signed it — kept
   // as the key is used — comes back with it, only while a key is held, so a new checkout still starts at "No tip";
   // placing the order forgets it.
   ok("page: the cup checkout's key survives a restart, and its tip with it — only while the key is held (C7)",
     /const \[tipPct, setTipPct\] = useState\(restoredTip\);/.test(co) && /if \(typeof window === "undefined" \|\| !holdsKey\(CO_IDEM, true\)\) return 0;/.test(co)
     && /const placed = \(data: Placed, byCard: boolean\) => \{\s*try \{ localStorage\.removeItem\(CO_TIP\); \}/.test(co)
-    && /export const DURABLE_KEY_MS = 2 \* 60 \* 60 \* 1000;/.test(readFileSync(join(ROOT, "components/useIdemKey.ts"), "utf8"))
-    && (co.match(/keepTip\(\);\s*const attempt = await idem\.begin\(\{ items, tipCents \}/g) || []).length === 2 && !/useEffect\(\(\) => \{ try \{ localStorage\.setItem\(CO_TIP/.test(co)
+    && /export const DURABLE_KEY_MS = 2 \* 60 \* 60 \* 1000;/.test(readFileSync(join(ROOT, "lib/payHold.ts"), "utf8"))
+    && (co.match(/keepTip\(\);\s*const attempt = await idem\.begin\(signed, /g) || []).length === 2 && !/useEffect\(\(\) => \{ try \{ localStorage\.setItem\(CO_TIP/.test(co)
     && /durable \? window\.localStorage : window\.sessionStorage/.test(readFileSync(join(ROOT, "components/useIdemKey.ts"), "utf8")));
   ok("page: Pay asks the card form for a token only through the key holder",
-    /const attempt = await idem\.begin\(\{ items, tipCents \}, \(\) => paymentRef\.current!\.tokenize\(\)\);/.test(co));
+    /const attempt = await idem\.begin\(signed, \(\) => paymentRef\.current!\.tokenize\(\), signedBefore\);/.test(co));
+  // 2026-10-15 (R7): the key is signed with the tip the customer chose, not its cents — the cents move with the price;
+  // a key held from before is kept (signedBefore); and while a payment's answer never came the drinks and tip hold still.
+  ok("page: the key is signed with the tip's choice, a key held from before is kept, and an unconfirmed payment holds the cart (R7)",
+    /const signed = \{ items, tip: tipPct \};/.test(co) && /const signedBefore = \[\{ items, tipCents \}, \{ items, tipCents: Math\.round\(totalCents \* tipPct\) \}\];/.test(co)
+    && /const held = idem\.isOpen\(\);/.test(co) && (co.match(/disabled=\{busy \|\| held\}/g) || []).length === 3
+    && /keep\(afterAttempt\(cur, verdict\), verdict === "unknown"\)/.test(readFileSync(join(ROOT, "components/useIdemKey.ts"), "utf8"))
+    && /if \(payHeldOpen\(\)\) return;/.test(readFileSync(join(ROOT, "components/AppProvider.tsx"), "utf8")));
 }
 
 // ── every branch ───────────────────────────────────────────────────────────────────────────────

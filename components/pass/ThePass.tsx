@@ -212,7 +212,8 @@ function PassBoard() {
   // flagged its refunds (and 0242 made those critical so they escalate). Now both say the same.
   const voidOrder = useCallback(async (o: Order) => {
     const how = paidHow(o);
-    const amt = money(o.total_cents);
+    // All of what was paid — the drinks and the tip (R7): the refund the crew makes is the amount said here.
+    const amt = money(o.total_cents + (o.tip_cents ?? 0));
     const body = how === "cash" ? `They paid ${amt} cash — hand it back. This can't be undone.`
       : how === "card_reader" ? `They paid ${amt} on the card reader — refund it in Square; the inbox gets a flag. This can't be undone.`
       : how ? `They paid ${amt} online — refund it in Square; the inbox gets a flag. This can't be undone.`
@@ -230,6 +231,15 @@ function PassBoard() {
         toast(now === null ? `Couldn't void — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
         load(); return;
       }
+    }
+    // The member is told (R7): the push says it (supabase/functions/push), and this sends the email /api/orders/cancel sends
+    // when they cancel it themselves. Fire-and-forget, after the void has landed, as Ready's notice is.
+    if (o.user_id) {
+      void (async () => {
+        try {
+          await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "order_void", id: o.id }) });
+        } catch { /* best-effort */ }
+      })();
     }
     if (how && how !== "cash") {
       await raiseAlertClient({

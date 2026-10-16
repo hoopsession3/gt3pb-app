@@ -26,3 +26,11 @@ export function leadOrder<T extends TodayOrder>(orders: readonly T[]): T | null 
 
 /** An order's number as the window calls it — the first four of its id, as the bar and the Pass print it ("#4F2A"). */
 export const orderNo = (id: string): string => `#${id.slice(0, 4).toUpperCase()}`;
+
+// WHO CANCELED IT (2026-10-15, R7). A member's canceled order is said once: by the cancel's own answer when they canceled
+// it here, by components/Notifications when the crew did. This phone remembers what it canceled itself, for a minute.
+const mine = new Map<string, number>();
+/** This phone just canceled this order — its own answer says so, and the realtime toast should not say it again. */
+export function canceledHere(id: string, now = Date.now()): void { mine.set(id, now); }
+/** Whether this phone canceled this order in the last minute. */
+export function wasCanceledHere(id: string, now = Date.now()): boolean { const at = mine.get(id); return at !== undefined && now - at < 60_000; }

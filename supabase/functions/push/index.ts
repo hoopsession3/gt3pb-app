@@ -16,7 +16,7 @@
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown, packNoticeShown,
+  alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown, orderVoidShown, packNoticeShown,
   packNoticeTold, reminderShown, severityOf, signoffShown, stillUnanswered, stopCanceledShown, subscriptionShown, taskShown,
   CUSTOMER_MUTE, smsPlain, textNumber, textQuiet, whoRings, type NotifPrefsRow, type Shown,
 } from "./policy.ts";
@@ -273,11 +273,14 @@ Deno.serve(async (req) => {
       // called off is a change to the order itself, and is said whatever the switch (below).
       if (shown && await customerMuted(record.user_id, CUSTOMER_MUTE.orderUpdates)) return new Response("skip: order updates off");
       // A stop called off voids its cup orders (crew/stops/cancel): the member hears it here, with why (R3b — 0391's
-      // notices, the push half). A void the crew or the member made themselves says nothing, as before.
+      // notices, the push half). Any other void says so too, with what becomes of the money (R7, 2026-10-15): one the crew
+      // made at the Pass said nothing, and the order slipped off the bar. Like a stop called off, it is a change to the
+      // order itself — said whatever the order-updates switch.
       if (!shown && record.status === "void" && record.stop_id) {
         const { data: st } = await supabase.from("stops").select("name, canceled_at, cancel_reason").eq("id", record.stop_id).maybeSingle();
         if (st?.canceled_at) shown = stopCanceledShown(record, st.name ?? null, st.cancel_reason ?? null);
       }
+      if (!shown && record.status === "void") shown = orderVoidShown(record);
       if (!shown) return new Response("skip");
       targets = await subsFor((q) => q.eq("user_id", record.user_id));
 

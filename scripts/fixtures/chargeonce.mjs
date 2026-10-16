@@ -205,14 +205,14 @@ export function cardPage(I, { old = false } = {}) {
     /** The app closed and opened again (C7, 2026-10-12): sessionStorage went with its process, localStorage did not —
      *  so a durable key comes back (components/useIdemKey `durable`) and a session key does not. Never a card token. */
     restart({ durable }) { state = durable ? { ...state, token: null } : I.NO_ATTEMPT; },
-    begin(details, card = true) {
+    begin(details, card = true, was = []) {
       if (old) {
         // Before 2026-10-11: a new token on every tap, and the key signed over it (Checkout.tsx's idemKeyFor).
         const token = card ? fresh() : null;
         prev = I.nextIdem(prev, token, details);
         return { key: prev.key, token };
       }
-      state = I.attemptFor(state, details, randomUUID);
+      state = I.attemptFor(state, details, randomUUID, was);
       if (!card) return { key: state.key, token: null };
       if (!state.token) state = { ...state, token: fresh() };
       return { key: state.key, token: state.token };
@@ -221,9 +221,14 @@ export function cardPage(I, { old = false } = {}) {
   };
 }
 
+/** What the cup checkout signs its key with (components/Checkout): the drinks and the tip the customer chose — "15%",
+ *  not its cents (R7, 2026-10-15). `cents`: the page before R7, which signed the tip's cents, and so moved with the price. */
+export const signOf = (cart, { cents = false } = {}) =>
+  (cents ? { items: cart.items, tipCents: Math.round((cart.amount ?? 0) * (cart.pct ?? 0) / (1 + (cart.pct ?? 0))) } : { items: cart.items, tip: cart.pct ?? 0 });
+
 /** One tap: begin → the route → settle. `lose`: the route answers, and the page never hears it. */
-export async function tap(page, route, cart, { card = true, lose = false, recordThrows = false } = {}) {
-  const a = page.begin({ items: cart.items, tipCents: cart.tip ?? 0 }, card);
+export async function tap(page, route, cart, { card = true, lose = false, recordThrows = false, cents = false } = {}) {
+  const a = page.begin(signOf(cart, { cents }), card);
   const served = await route.serve({ key: a.key, token: a.token, items: cart.items, amount: cart.amount, recordThrows });
   if (lose) { page.settle(a.key, null, null); return { key: a.key, token: a.token, status: null, body: null, served }; }
   page.settle(a.key, served.status, served.body);
@@ -232,7 +237,7 @@ export async function tap(page, route, cart, { card = true, lose = false, record
 
 const CART = { items: ["rise", "flow"], amount: 2000 };
 const CART_B = { items: ["rise"], amount: 1000 };
-const detailsOf = (cart) => ({ items: cart.items, tipCents: cart.tip ?? 0 });
+const detailsOf = (cart) => signOf(cart);
 // The same JSON, whatever order its keys come back in — jsonb keeps its own order, and a replayed answer is the
 // same answer if every key says the same thing.
 const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));
@@ -417,7 +422,7 @@ export async function branches({ C, SQ, I, store, ok, memory = false }) {
     ok("8 · a different cart is a new key and a new token", changed.key !== first.key && changed.token !== first.token && changed.status === 200);
     ok("8 · …and a new checkout, charged on its own — a different order, by design", sq.payments.length === 2 && route.orders.length === 2);
     const p2 = cardPage(I);
-    const k1 = p2.begin({ items: CART.items, tipCents: 0 }).key, k1again = p2.begin({ items: CART.items, tipCents: 0 }).key, k2 = p2.begin({ items: CART.items, tipCents: 300 }).key;
+    const k1 = p2.begin({ items: CART.items, tip: 0 }).key, k1again = p2.begin({ items: CART.items, tip: 0 }).key, k2 = p2.begin({ items: CART.items, tip: 0.15 }).key;
     ok("8 · the same cart and tip keep the key; a different tip — a different amount — is a new one", k1 === k1again && k2 !== k1);
   }
   {
@@ -471,7 +476,7 @@ export async function branches({ C, SQ, I, store, ok, memory = false }) {
   // The cart survives a restart (localStorage) and a session key did not: the retry was a new checkout. The cup
   // checkout keeps its key beside the cart now, and the tip that is half its signature (components/Checkout).
   {
-    const TIPPED = { ...CART, tip: 300, amount: 2300 };
+    const TIPPED = { ...CART, pct: 0.15, amount: 2300 };
     {
       const { sq, route, page } = fresh();
       const first = await tap(page, route, TIPPED, { lose: true });
@@ -493,9 +498,49 @@ export async function branches({ C, SQ, I, store, ok, memory = false }) {
       const { sq, route, page } = fresh();
       const first = await tap(page, route, TIPPED, { lose: true });
       page.restart({ durable: true });
-      const retry = await tap(page, route, { ...CART, tip: 0, amount: 2000 });
+      const retry = await tap(page, route, { ...CART, pct: 0, amount: 2000 });
       ok("13 · …why the tip is kept: back at \"No tip\" the signature is new, so the key is — and the card is charged again",
         retry.key !== first.key && sq.payments.length === 2, { payments: sq.payments.length });
+    }
+  }
+
+  // ── 14 · the answer is lost; after a restart Pay is tapped before the server's price answers (R7, 2026-10-15) ───────
+  // The quote prices a member's cups below the menu's, and the tip's cents move with the price. Signed with those cents,
+  // the retry at the menu's price was a new key, refused for its amount (expectedCents); the page took the new price, and
+  // the next tap — signed with the member's cents again, but its key long since replaced — was a third key, and charged.
+  // Signed with the tip the customer chose, every one of those taps is the first key, answered from its claim.
+  {
+    const MEMBER = { ...CART, pct: 0.15, amount: 2300 };   // what the first tap paid: the member's price, and 15%
+    const MENU = { ...CART, pct: 0.15, amount: 2645 };     // the menu's price, before the quote answers
+    const priced = async (req) => (req.token && req.amount !== MEMBER.amount ? { status: 409, body: { error: "The price changed", priceChanged: true } } : null);
+    {
+      const { sq, route, page } = fresh({ checks: priced });
+      const first = await tap(page, route, MEMBER, { lose: true, cents: true });
+      page.restart({ durable: true });
+      const early = await tap(page, route, MENU, { cents: true });
+      const again = await tap(page, route, MEMBER, { cents: true });
+      ok("14 · signed with the tip's cents: Pay before the price answers is a new key, refused — and the next tap a third key, charged again (the bug, reproduced)",
+        early.key !== first.key && early.status === 409 && again.key !== first.key && again.key !== early.key && sq.payments.length === 2, { payments: sq.payments.length });
+    }
+    {
+      const { sq, route, page } = fresh({ checks: priced });
+      const first = await tap(page, route, MEMBER, { lose: true });
+      page.restart({ durable: true });
+      const early = await tap(page, route, MENU);
+      ok("14 · signed with the tip the customer chose: Pay at the menu's price is the first key, answered from its claim — one payment",
+        early.key === first.key && early.status === 200 && same(early.body, first.served.body)
+          && sq.calls.length === 1 && sq.payments.length === 1 && route.orders.length === 1, { payments: sq.payments.length, early: early.status });
+    }
+    {
+      // A key held from before R7 is signed with the cents: the page lists what it was signed as (attemptFor's `was`), so
+      // the deploy itself never mints a second key for a payment whose answer is still out.
+      const { sq, route, page } = fresh();
+      const first = await tap(page, route, MEMBER, { lose: true, cents: true });
+      page.restart({ durable: true });
+      const a = page.begin(signOf(MEMBER), true, [signOf(MEMBER, { cents: true })]);
+      const served = await route.serve({ key: a.key, token: a.token, items: MEMBER.items, amount: MEMBER.amount });
+      ok("14 · a key held from before R7 — signed with the cents — is kept by the new page: answered from its claim, one payment",
+        a.key === first.key && served.status === 200 && sq.payments.length === 1 && route.orders.length === 1, { payments: sq.payments.length });
     }
   }
 

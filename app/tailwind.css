@@ -426,3 +426,10 @@
     height: min(88vh, calc(100dvh - var(--kb, 0px) - 32px));
   }
 }
+
+/* A canceled order on the order bar, said for the hour after (R7 of the customer re-audit, components/GuestOrderBar). */
+@utility orderbar-void {
+  border-color: color-mix(in srgb, var(--brand-red) 45%, transparent);
+  background: color-mix(in srgb, var(--brand-red) 10%, transparent);
+  & .orderbar-dot { background: var(--red-h); }
+}
