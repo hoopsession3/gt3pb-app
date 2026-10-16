@@ -39,7 +39,8 @@ export const OWN_OVERLAYS = {
   "components/CommandPalette.tsx#Jump to": "the ⌘K palette — a keyboard surface anchored at the top, closed by Escape or a tap outside",
   "components/MarketingSplash.tsx#A note from GT3": "the splash — any tap on it lets you through",
   "components/OfferLetterPrint.tsx#Printable offer letter": "a print view of a letter — a page to print, not a popout",
-  "components/AuthProvider.tsx#Set a new password": "setting a new password is a step sign-in requires — there is nothing to swipe back to",
+  "components/PasswordRecovery.tsx#Set a new password": "setting a new password is a step sign-in requires — there is nothing to swipe back to",
+  "components/AuthProvider.tsx#Set a new password": "the same step when its screen could not be fetched — Reload or Cancel; there is nothing to swipe back to",
   "components/ConnectHub.tsx#Connect with GT3": "a small panel the rail opens beside itself — a tap outside or the tab closes it",
   "components/DisplayToggle.tsx#Display & text": "a small panel the rail opens beside itself — a tap outside or the tab closes it",
 };

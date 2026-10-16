@@ -190,12 +190,21 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   }, [view]);
   const openView = (v: "settings" | "help") => { cameFrom.current = v; setView(v); };
 
-  const head = (title: string) => (
+  const head = (title: string, lock = false) => (
     <div className="acs-head">
       <span className="acs-head-t"><Gt3Mark tone="cream" /> {title}</span>
-      <button type="button" className="isheet-x" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+      <button type="button" className="isheet-x" onClick={onClose} disabled={lock} aria-label="Close"><Icon name="close" /></button>
     </div>
   );
+  // While the delete is out the sheet stays (R8): swiped away mid-request, the account was deleted and signed out, and
+  // the last step — Apple's, in Settings, or a membership's cancel still going through — was written to a closed sheet.
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  // Back from the delete view, focus goes to where it was asked from — the rows it sat in (R8: it fell to the page).
+  const wasDeleting = useRef(false);
+  useEffect(() => {
+    if (deleting) { wasDeleting.current = true; return; }
+    if (wasDeleting.current) { wasDeleting.current = false; backRef.current?.focus(); }
+  }, [deleting]);
 
   // DELETING STAYS ON SCREEN TO ITS END (2026-10-11, the review): the delete signs this phone out as soon as the server
   // has erased the account, and with no one signed in the sheet below turned into "Membership · Sign in" — taking the
@@ -204,8 +213,8 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   // and before the signed-out sheet.
   if (deleting) {
     return (
-      <Sheet open onClose={onClose} label="Delete your account" header={head("Delete your account")} className="acs-sheet">
-        <DeleteAccount staff={staff} onKeep={() => setDeleting(false)}
+      <Sheet open onClose={onClose} dismissible={!deleteBusy} label="Delete your account" header={head("Delete your account", deleteBusy)} className="acs-sheet">
+        <DeleteAccount staff={staff} onKeep={() => setDeleting(false)} onBusy={setDeleteBusy}
           onDeleted={() => { onClose(); signOut(); toast("Your account is deleted."); router.push("/"); }} />
       </Sheet>
     );
@@ -239,9 +248,11 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
             <Row title="Display & text size" sub="Bigger text, bold, roomier spacing" onClick={() => open("gt3-open-display")} />
             {/* A3 of the account audit (2026-10-15): in the iPhone app, an account signed in with its email can take its
                 Apple ID — Continue with Apple opens it from then on (components/AppleLink; the web has no Apple sheet). */}
-            {APP_BUILD && isNativeApp() && !user.identities?.some((i) => i.provider === "apple") && (
-              <Row title="Link Sign in with Apple" sub="Continue with Apple opens this account" onClick={() => open("gt3-link-apple")} />
-            )}
+            {/* Linked, it says so (R8, 2026-10-16): the row went away once it was done, and nothing in the account said
+                Apple opened it — the one place a member would look to find out. */}
+            {APP_BUILD && isNativeApp() && (user.identities?.some((i) => i.provider === "apple")
+              ? <div className="acs-row cursor-default"><span className="acs-row-x"><b>Sign in with Apple</b><span>Linked — Continue with Apple opens this account</span></span><span className="acs-row-c" aria-hidden>✓</span></div>
+              : <Row title="Link Sign in with Apple" sub="Continue with Apple opens this account" onClick={() => open("gt3-link-apple")} />)}
             {/* App Store Review Guideline 5.1.1(v): deleting the account is in the account — Settings & privacy, the
                 second level, on the web and in the app alike. */}
             <Row title="Delete account" sub="Your profile and details, for good" onClick={() => setDeleting(true)} />
@@ -272,8 +283,18 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
         </div>
         <div className="acs-id">
           <div className="acs-name">{name}</div>
-          <span className={`k-tag mt-1.5${founding ? " gold fill" : ""}`}>{founding ? <><Icon name="star" /> Founding Member</> : "Member"}</span>
-          <div className="acs-line">{card.stamps}<i>/{STAMP_GOAL}</i> · {stamps}{credit > 0 ? ` · $${credit % 1 === 0 ? credit.toFixed(0) : credit.toFixed(2)} credit at the window` : ""}</div>
+          {/* The tier and the card only once the profile is read (R8): before, "Member" and "0/10" stood beside "Couldn't
+              load your account" — a founding member with a free cup ready read as neither. */}
+          {profile ? (
+            <>
+              <span className={`k-tag mt-1.5${founding ? " gold fill" : ""}`}>{founding ? <><Icon name="star" /> Founding Member</> : "Member"}</span>
+              <div className="acs-line">{card.stamps}<i>/{STAMP_GOAL}</i> · {stamps}{credit > 0 ? ` · $${credit % 1 === 0 ? credit.toFixed(0) : credit.toFixed(2)} credit at the window` : ""}</div>
+            </>
+          ) : (
+            profileStatus === "error" ? <div className="acs-line">Your card couldn&apos;t load</div>
+              : profileStatus === "loading" ? <div className="acs-line" aria-busy="true"><span className="sk inline-block h-[1em] w-32 rounded" /></div>
+              : null
+          )}
         </div>
         <span className="acs-row-c" aria-hidden>›</span>
       </button>

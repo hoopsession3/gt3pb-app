@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import PaymentCard, { type PaymentCardHandle } from "@/components/PaymentCard";
@@ -16,6 +17,9 @@ import type { ShopReceipt } from "@/lib/receipt";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { haptic } from "@/lib/haptics";
 import AddressField from "@/components/AddressField";
+
+// The held-payment notice loads when something is held (components/HeldNotice) — a moment few customers see.
+const HeldNotice = dynamic(() => import("./HeldNotice"), { ssr: false });
 
 // THE MERCH CHECKOUT — the cart, where it ships, and the card (0273). Moved out of components/Shop.tsx
 // on 2026-10-04 and loaded only when a shopper opens it (Shop warms it as soon as the cart has
@@ -58,15 +62,31 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
   // change to the cart (an item, a size, a quantity) takes it back to the cart's own number.
   const cartSig = JSON.stringify(cart.map((l) => [l.product.id, variantLabel(l.variant), l.qty]));
   const [agreed, setAgreed] = useState<{ sig: string; cents: number } | null>(null);
-  const payCents = agreed && agreed.sig === cartSig ? agreed.cents : total;
-  const canPay = ready && !busy && cart.length > 0 && ship.name && ship.street && ship.city && ship.state && ship.zip && (isMember || ship.email);
+  // A PAYMENT WHOSE ANSWER NEVER CAME HOLDS ITS ORDER STILL (R8, as the cup checkout has since R7). The quantities and
+  // Back stayed live after a lost answer while the page said "you were not charged twice": any change was a new key, and
+  // the next Pay a second charge and a second order. While it is unknown the cart holds still and the next tap asks about
+  // that payment (the same key, answered from the first request); a held payment for a different cart blocks Pay until
+  // the shopper starts over. The key is signed over what is bought and what it costs — never the card, never the address.
+  const held = idem.isOpen();
+  const was = idem.heldDetails() as { cart?: unknown; cents?: unknown } | null;
+  // Signed before R8 over the cart's own lines ({ cart }) — a payment held across the update: the same cart is the same
+  // payment, at the cart's own total (what that Pay said), and its key is kept (begin's `was`, below).
+  const before = held && Array.isArray(was?.cart) && JSON.stringify(was.cart) === JSON.stringify(cart);
+  const frozen = held && was?.cart === cartSig && typeof was.cents === "number" ? { cents: was.cents } : before ? { cents: total } : null;
+  const heldElsewhere = held && !frozen;
+  // Asking about a held payment, or making one — read when Pay is tapped (the hold opens as the first send leaves).
+  const [rechecking, setRechecking] = useState(false);
+  const payCents = frozen ? frozen.cents : agreed && agreed.sig === cartSig ? agreed.cents : total;
+  const canPay = ready && !busy && !heldElsewhere && cart.length > 0 && ship.name && ship.street && ship.city && ship.state && ship.zip && (isMember || ship.email);
 
   const pay = async () => {
     if (!payRef.current) return;
+    setRechecking(!!frozen);
     setBusy(true); setErr(null);
     const card = payRef.current;
-    const attempt = await idem.begin({ cart }, () => card.tokenize());
+    const attempt = await idem.begin({ cart: cartSig, cents: payCents }, () => card.tokenize(), [{ cart }]);
     if (!attempt.token) { setErr("Card details look off — check and try again."); setBusy(false); return; }
+    idem.sent(attempt.key, true);   // held open from the send: the cart holds still until it is answered
     try {
       const r = await authedFetch("/api/shop/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -87,13 +107,13 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
       onDone(data.warn, data.emailed === true, data.receipt && typeof data.receipt === "object" ? (data.receipt as ShopReceipt) : undefined);
     } catch {
       idem.settle(attempt.key, null, null);
-      setErr("Something went wrong — you were not charged twice; check your email or try again."); setBusy(false);
+      setErr("We couldn't confirm the payment — tap the button to check on it. You won't be charged twice."); setBusy(false);
     }
   };
 
   return (
     <div className="shop-checkout">
-      <button type="button" className="btn-ter shop-back" onClick={onBack}><b style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Icon name="arrowRight" size={14} /></b> {t("shop.back")}</button>
+      <button type="button" className="btn-ter shop-back" onClick={onBack} disabled={!!frozen}><b style={{ transform: "rotate(180deg)", display: "inline-flex" }}><Icon name="arrowRight" size={14} /></b> {t("shop.back")}</button>
       <EditableCopy k="checkout.title" value={t("checkout.title")} as="h1" className="shop-h1 sm" />
 
       <div className="shop-lines">
@@ -104,15 +124,24 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
               {variantLabel(l.variant) && <span className="shop-line-v">{variantLabel(l.variant)}</span>}
             </div>
             <div className="shop-line-qty">
-              <button type="button" className="hit-44" onClick={() => setQty(i, l.qty - 1)} aria-label={l.qty <= 1 ? `Remove ${l.product.title}` : `One fewer ${l.product.title}`}>–</button>
+              <button type="button" className="hit-44 disabled:opacity-40" onClick={() => setQty(i, l.qty - 1)} disabled={!!frozen} aria-label={l.qty <= 1 ? `Remove ${l.product.title}` : `One fewer ${l.product.title}`}>–</button>
               <span aria-live="polite">{l.qty}</span>
-              <button type="button" className="hit-44" onClick={() => setQty(i, l.qty + 1)} disabled={l.qty >= 20} aria-label={`One more ${l.product.title}`}>+</button>
+              <button type="button" className="hit-44 disabled:opacity-40" onClick={() => setQty(i, l.qty + 1)} disabled={l.qty >= 20 || !!frozen} aria-label={`One more ${l.product.title}`}>+</button>
             </div>
             <span className="shop-line-px">{money(l.product.price_cents * l.qty)}</span>
           </div>
         ))}
         <div className="shop-total"><span>{t("checkout.total")}</span><b>{money(payCents)}</b></div>
       </div>
+
+      {held && !busy && (
+        <HeldNotice buttonClass="co-paylater" what="Your last payment hasn’t been confirmed yet."
+          line={frozen
+            ? "Tap the button below to check on it — you won’t be charged twice, and your cart stays as it is until it’s answered."
+            : "It was for a different cart. Check your email for a receipt before paying again — or put that cart together again here to check on it."}
+          warning="Only start over if we’ve told you it didn’t go through — otherwise this would be a second order."
+          onStartOver={() => { idem.forget(); setErr(null); }} />
+      )}
 
       <div className="shop-ship">
         <EditableCopy k="checkout.ship_to" value={t("checkout.ship_to")} as="div" className="shop-ship-n" />
@@ -141,7 +170,7 @@ export default function ShopCheckout({ cart, total, isMember, setQty, onBack, on
             <PaymentCard ref={payRef} onReady={setReady} onError={(m) => setErr(m)} />
             {err && <div className="shop-err" role="alert">{err}</div>}
             {/* Pay button + 'Charging…' loading label inside a <button> → plain t()/fillCopy. */}
-            <button type="button" className="btn-pri btn-wide mt-3.5" onClick={pay} disabled={!canPay}>{busy ? "Charging…" : fillCopy(t("checkout.pay"), { total: money(payCents) })}</button>
+            <button type="button" className="btn-pri btn-wide mt-3.5" onClick={pay} disabled={!canPay}>{busy ? (rechecking ? "Checking…" : "Charging…") : frozen ? "Check on my payment" : fillCopy(t("checkout.pay"), { total: money(payCents) })}</button>
             <EditableCopy k="checkout.fine" value={t("checkout.fine")} as="p" className="shop-fine" multiline />
           </>
         ) : (

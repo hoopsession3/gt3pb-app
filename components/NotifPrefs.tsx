@@ -7,6 +7,7 @@ import { fmt12 } from "@/lib/dates";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { RingThisPhone } from "@/components/RingThisPhone";
+import { withMuted, writeMuted } from "@/lib/notifMuted";
 
 // Notification management (0177) — mute a category's non-critical pings, set a quiet window. Own-row
 // prefs. Criticals always come through; this only quiets the rest.
@@ -77,25 +78,37 @@ export function NotifPrefs({ userId }: { userId: string | null }) {
     window.addEventListener(NOTIF_PREFS_EVENT, onSaved);
     return () => window.removeEventListener(NOTIF_PREFS_EVENT, onSaved);
   }, [userId]);
-  const save = async (nextMuted: string[], nqs: string, nqe: string): Promise<boolean> => {
-    if (!supabase || !userId || read !== "ok") return false;
-    const { error } = await supabase.from("notif_prefs").upsert({ user_id: userId, muted_categories: nextMuted,
-      quiet_start: nqs === "" ? null : Number(nqs), quiet_end: nqe === "" ? null : Number(nqe), updated_at: new Date().toISOString() });
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return false; }
-    window.dispatchEvent(new CustomEvent<NotifPrefsSaved>(NOTIF_PREFS_EVENT, { detail: { userId, muted: nextMuted, qs: nqs, qe: nqe } }));
-    return true;
-  };
+  // EACH SAVE WRITES ITS OWN CHANGE (R8, 2026-10-16; lib/notifMuted). The whole row went back on every tap — the muted
+  // list as this screen read it, hours ago perhaps, the member's own switches in it (lib/customerNotify) — so turning a
+  // category off here turned Order updates back on if they had turned it off on their phone since. A category's tap now
+  // changes that category in the list as it is now; the quiet hours' pick sends the quiet hours alone.
+  const told = (m: string[], nqs: string, nqe: string) =>
+    window.dispatchEvent(new CustomEvent<NotifPrefsSaved>(NOTIF_PREFS_EVENT, { detail: { userId: userId ?? "", muted: m, qs: nqs, qe: nqe } }));
+  // One category's write at a time (R8): two taps a moment apart each read the list before the other wrote, and the second
+  // write took the first one's change back out. The categories wait for the one in flight, as the member's switches do.
+  const [writing, setWriting] = useState(false);
   const toggle = async (k: string) => {
+    if (!supabase || !userId || read !== "ok" || writing) return;
+    setWriting(true);
     const before = muted;
-    const next = muted.includes(k) ? muted.filter((x) => x !== k) : [...muted, k];
-    setMuted(next);
-    if (!(await save(next, qs, qe))) setMuted(before);
+    const mute = !muted.includes(k);   // what they saw, turned over
+    setMuted(withMuted(muted, k, mute));
+    const r = await writeMuted(supabase, userId, (fresh) => withMuted(fresh, k, mute), { updated_at: new Date().toISOString() })
+      .catch((e: unknown) => ({ muted: null, error: e instanceof Error ? e.message : "the connection dropped" }) as const);
+    setWriting(false);
+    if (r.error !== null) { setMuted(before); toast(`Couldn't save — ${r.error}`, "error"); return; }
+    setMuted(r.muted);
+    told(r.muted, qs, qe);
   };
   const setQuiet = async (nqs: string, nqe: string) => {
+    if (!supabase || !userId || read !== "ok") return;
     const before = [qs, qe];
     setQs(nqs); setQe(nqe);
-    if (await save(muted, nqs, nqe)) toast(nqs !== "" && nqe !== "" && nqs !== nqe ? `Quiet ${quietHourLabel(Number(nqs))}–${quietHourLabel(Number(nqe))}` : "Quiet hours off");
-    else { setQs(before[0]); setQe(before[1]); }
+    const { error } = await supabase.from("notif_prefs").upsert({ user_id: userId,
+      quiet_start: nqs === "" ? null : Number(nqs), quiet_end: nqe === "" ? null : Number(nqe), updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) { setQs(before[0]); setQe(before[1]); toast(`Couldn't save — ${error.message}`, "error"); return; }
+    told(muted, nqs, nqe);
+    toast(nqs !== "" && nqe !== "" && nqs !== nqe ? `Quiet ${quietHourLabel(Number(nqs))}–${quietHourLabel(Number(nqe))}` : "Quiet hours off");
   };
   const locked = read !== "ok";
   const halfSet = (qs === "") !== (qe === "");
@@ -111,7 +124,7 @@ export function NotifPrefs({ userId }: { userId: string | null }) {
       )}
       <div className="notif-cats">
         {NOTIF_CATS.map((c) => (
-          <button key={c.key} type="button" className={`notif-cat${muted.includes(c.key) ? " muted" : ""}`} onClick={() => toggle(c.key)} aria-pressed={muted.includes(c.key)} disabled={locked}>
+          <button key={c.key} type="button" className={`notif-cat${muted.includes(c.key) ? " muted" : ""}`} onClick={() => toggle(c.key)} aria-pressed={muted.includes(c.key)} disabled={locked || writing}>
             <span>{c.label}</span><span className="notif-cat-s">{muted.includes(c.key) ? "🔕 Muted" : <><Icon name="bell" /> On</>}</span>
           </button>
         ))}

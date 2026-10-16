@@ -88,6 +88,18 @@ async function post(req: Request) {
   const seen = await seenBefore(checkoutClaims(supabaseAdmin), idemKey, true, now, stopped, say);
   if ("answer" in seen) return reply(seen.answer);
 
+  // Card-testing guard (R8, as /api/checkout's): a guest pays here by card with no sign-in, which makes this the natural
+  // place to run stolen cards through Square — and every try wrote a claim. A tight burst per address and a ceiling for
+  // everyone, in the store every instance shares (rate_limit_hit, 0154 — true is UNDER the cap, false the refusal). Asked
+  // after a seen key is answered, so a retry of a payment already made is never turned away. Fails open if the limiter
+  // can't be asked: Square's own fraud tools are the backstop.
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+  const [ipFits, allFits] = await Promise.all([
+    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `shop-checkout:${ip}`, p_window_ms: 60_000, p_max: 6 }),
+    supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "shop-checkout:global", p_window_ms: 60_000, p_max: 60 }),
+  ]);
+  if (ipFits.data === false || allFits.data === false) return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
+
   // Rebuild the cart from trusted product ids only, and price it from the catalog.
   const rawItems = Array.isArray(body.items) ? body.items.slice(0, 40) : [];
   const ids = [...new Set(rawItems.map((i) => String(i.product_id ?? "")).filter(Boolean))];
@@ -164,9 +176,15 @@ async function post(req: Request) {
         return { status: 200, body: { ok: true, paid: true, recorded: false, ref, warn: `Paid — ref ${ref}. We've alerted the crew; we'll follow up by email.` } };
       }
       const orderId = (order as { id: string }).id;
-      await db.from("shop_order_items").insert(
-        lineItems.map((l) => ({ order_id: orderId, product_id: l.product_id, title: l.title, variant: l.variant, qty: l.qty, unit_cents: l.unit_cents, cost_cents: l.cost_cents }))
-      );
+      // Its lines, checked (R8): the insert's answer was thrown away, and a paid order whose lines didn't save had none —
+      // "Send to printer" refused it ("no line items to send") and a resent receipt said "(no items on this order)", while
+      // the customer had been told it was recorded. Tried twice; still refused, the crew is told what they were.
+      const itemRows = lineItems.map((l) => ({ order_id: orderId, product_id: l.product_id, title: l.title, variant: l.variant, qty: l.qty, unit_cents: l.unit_cents, cost_cents: l.cost_cents }));
+      let { error: itemsErr } = await db.from("shop_order_items").insert(itemRows);
+      if (itemsErr) ({ error: itemsErr } = await db.from("shop_order_items").insert(itemRows));
+      if (itemsErr) {
+        await raiseAlert({ severity: "critical", category: "order", kind: "fulfillment", subjectId: orderId, title: "Paid shop order saved without its items — add them", body: `${shipName}'s order (${money(total)}, paid) saved, and its items didn't (${errorMessage(itemsErr, 120)}): ${lineItems.map((l) => `${l.qty}× ${l.title}${variantLabel((l.variant ?? null) as Variant | null) ? ` (${variantLabel((l.variant ?? null) as Variant | null)})` : ""}`).join(", ")}. Add them to the order before it is resent or reprinted.` });
+      }
 
       // Hand the paid order to Apliiq for print-on-demand. Best-effort: a failure leaves the order in the
       // crew "needs fulfillment" queue (money already collected), never blocks the customer's confirmation.
@@ -182,9 +200,18 @@ async function post(req: Request) {
           items: lineItems.map((l) => ({ id: l.product_id, title: l.title, qty: l.qty, priceCents: l.unit_cents, sku: l.apliiq_sku })),
         });
         if (submit.ok) {
+          // Marked, checked (R8): the update's answer was thrown away, so an order Apliiq had stayed "needs fulfillment"
+          // with no Apliiq id — and the queue offered "Send to printer": a second cap, a second Apliiq charge. Tried twice;
+          // still refused, the crew is told it is at the printer and not to send it again.
+          const marked = { apliiq_order_id: submit.apliiqOrderId, status: "submitted", updated_at: new Date().toISOString() };
           // scoped-by: orderId is the id returned by this request's own INSERT thirty lines above — not a
           // value any caller supplied. Nothing else can be named here.
-          await db.from("shop_orders").update({ apliiq_order_id: submit.apliiqOrderId, status: "submitted", updated_at: new Date().toISOString() }).eq("id", orderId);
+          let { error: markErr } = await db.from("shop_orders").update(marked).eq("id", orderId);
+          // scoped-by: the same row, the same id, once more
+          if (markErr) ({ error: markErr } = await db.from("shop_orders").update(marked).eq("id", orderId));
+          if (markErr) {
+            await raiseAlert({ severity: "critical", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order is at the printer — don't send it again", body: `${shipName}'s order went to Apliiq (order ${submit.apliiqOrderId ?? "id not given"}) and couldn't be marked sent (${errorMessage(markErr, 120)}). It still reads "needs fulfillment": mark it sent by hand — sending it again prints and charges a second one.` });
+          }
         } else {
           await raiseAlert({ severity: "important", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order needs manual fulfillment", body: `Apliiq submit failed (${submit.error}) for ${shipName}'s order. It's paid and queued — submit it by hand.` });
         }

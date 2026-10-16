@@ -84,28 +84,30 @@ export function AppAlertsOffLine({ children }: { children: (off: boolean) => Rea
   return <>{children(state === "prompt" || state === "denied")}</>;
 }
 
-/** The profile sheet, in the app: a customer's order-ready alerts — the same switch, in their words. */
+/** Notifications, in the app: whether this phone shows alerts at all — the switches under it say which (R8, 2026-10-16: it
+ *  promised "a ping when your order is ready" over an Order updates switch the member had turned off; it says what the
+ *  web's row says now). */
 export function AppAlertsProfile() {
   const { toast } = useApp();
   const { state, turnOn } = useAppAlerts();
   if (state === "unknown" || state === "unavailable") return null;
   const ask = async () => {
     const s = await turnOn();
-    if (s === "granted") toast("Order alerts are on");
+    if (s === "granted") toast("Alerts are on for this phone");
     else if (s === "denied") toast(`Alerts are off for GT3PB in ${itsSettings()} — allow them there.`, "error");
   };
   return (
     <div className="prof-notif">
-      <div className="prof-notif-t">Order notifications</div>
+      <div className="prof-notif-t">Alerts on this phone</div>
       {state === "granted" ? (
-        <div className="prof-notif-s on">On — you&apos;ll get a ping when your order is ready.</div>
+        <div className="prof-notif-s on">On — this phone shows the alerts you leave on below.</div>
       ) : state === "denied" ? (
         <>
-          <div className="prof-notif-s">Off for GT3PB in {itsSettings()} — allow them there for &ldquo;order ready&rdquo; pings.</div>
+          <div className="prof-notif-s">Off for GT3PB in {itsSettings()} — allow them there to get the alerts below.</div>
           <button type="button" className="btn-sec btn-wide" onClick={openSettings}>Open Settings</button>
         </>
       ) : (
-        <button type="button" className="btn-sec btn-wide" onClick={ask}>Turn on order-ready alerts</button>
+        <button type="button" className="btn-sec btn-wide" onClick={ask}>Turn on alerts on this phone</button>
       )}
     </div>
   );

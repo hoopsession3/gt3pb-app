@@ -11,6 +11,8 @@ import { aboveShown, shownCents } from "@/lib/shownTotal";
 import { errorMessage } from "@/lib/errorMessage";
 import { chargeOnce, claimKey, seenBefore, type Answer, type Say, type Stopped } from "@/lib/chargeOnce";
 import { checkoutClaims } from "@/lib/checkoutClaims";
+import { cityHolds } from "@/lib/packRoad";
+import { FOUNDING_MARKET } from "@/lib/markets";
 import {
   quoteDelivery, deliverySlotChoices, pickedSlot, SUNDAY_CLOSED, zipInZone, perfTotal, maxRefills,
   DELIVERY_PACKS, type PerfMix,
@@ -146,6 +148,16 @@ async function post(req: Request) {
   const slotNow = Date.now();
   const slot = pickedSlot(b.deliveryDate, slotNow, b.retry === true && !seen.claims);
   if (!slot) return NextResponse.json({ error: SUNDAY_CLOSED, slotClosed: true, choices: deliverySlotChoices(slotNow) }, { status: 409 });
+
+  // A city held closed takes no order of any kind (0412) — a delivery included (R8: only the cups and the packs asked). The
+  // delivery zone is the founding city's (lib/delivery zipInZone); held closed, or not open by that Sunday, it is refused
+  // before the key is claimed. A read that fails is no answer: nothing is charged, and the page holds nothing for it.
+  const hold = await cityHolds(supabaseAdmin, [FOUNDING_MARKET]);
+  if (hold.error !== null) return NextResponse.json({ error: "We couldn't check deliveries just now — try again in a moment. Nothing was charged.", charged: false }, { status: 503 });
+  const zoneCity = hold.holds.get(FOUNDING_MARKET);
+  if (zoneCity && (zoneCity.closed || (zoneCity.opensOn !== null && slot.deliveryDateKey < zoneCity.opensOn))) {
+    return NextResponse.json({ error: "We're not taking delivery orders right now — check back soon. Nothing was charged." }, { status: 409 });
+  }
 
   // ONE KEY, ONE CHARGE (R5, 2026-10-13 — lib/chargeOnce, 0371): claimed before Square is asked, so a second tap while the
   // first is still out hears "still confirming", and an answer Square never gave stays "we couldn't confirm" — the crew

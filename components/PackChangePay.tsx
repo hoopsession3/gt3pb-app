@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import { useIdemKey, type Attempt } from "./useIdemKey";
 import { authedFetch } from "@/lib/authedFetch";
 import { squareClientReady } from "@/lib/square";
 import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
+
+// The held-payment notice loads when something is held (components/HeldNotice) — a moment few customers see.
+const HeldNotice = dynamic(() => import("./HeldNotice"), { ssr: false });
 
 // THE PAY STEP OF A PACK CHANGED IN PLACE (0388, 2026-10-12 — C5 of the customer audit, approved). Loaded only when a
 // member changes a pack (components/OrderFunnel, next/dynamic): every visitor to /reserve and /delivery used to carry it
@@ -32,7 +36,7 @@ function ChangeLine({ q }: { q: ChangeQuote }) {
   return <>Same price — <b>nothing to pay</b></>;
 }
 
-export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, checkoutOff, onDone, onRefresh }: {
+export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, checkoutOff, onDone, onRefresh, onHeld }: {
   body: ChangeBody;
   /** What the change's key is signed over (lib/idempotency): what is bought, never the card token. */
   sig: Record<string, unknown>;
@@ -41,9 +45,23 @@ export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, c
   onDone: (d: ChangeDone) => void;
   /** The pack changed somewhere else first: show it as it stands. */
   onRefresh: (message: string) => void;
+  /** Whether this change is held — a send whose answer never came (R8): the page around it holds the change still. */
+  onHeld?: (held: boolean) => void;
 }) {
   // A change keeps its own key: a change and a new pack are two different things to be charged for.
   const idemChange = useIdemKey("gt3-of-idem-change");
+  // A CHANGE WHOSE ANSWER NEVER CAME HOLDS STILL (R8, 2026-10-16, as every checkout does now). A size-up's answer lost, the
+  // change read "unknown" on the server, and Back and the code were still there: the member edited it and paid again under
+  // a new key — the server refuses a second change only while one is under way, so the difference was charged twice.
+  // Held open from the send; while it is unknown the page around it holds still (onHeld: Back and the code wait) and the
+  // button asks about that change under the same key. One held for another change (another pack, or this one otherwise)
+  // blocks the button and says so; the order stays free to be put back as it was.
+  const held = idemChange.isOpen();
+  const heldOther = held && JSON.stringify(idemChange.heldDetails()) !== JSON.stringify(sig);
+  const heldHere = held && !heldOther;
+  useEffect(() => { onHeld?.(heldHere); }, [heldHere, onHeld]);
+  useEffect(() => () => onHeld?.(false), [onHeld]);
+  const [rechecking, setRechecking] = useState(false);
   const paymentRef = useRef<PaymentCardHandle>(null);
   const [cardReady, setCardReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -72,12 +90,16 @@ export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, c
   // `card` is the card send's attempt (payChangeCard); without one the change moves no card money — a refund, the same
   // price, or a pay-at-pickup pack staying so.
   const submitChange = useCallback(async (card: Attempt | null) => {
-    if (busy || !changeQuote) return;
+    // A held change is asked about even with no quote (R8): the route answers a key it has seen before it prices anything,
+    // and refuses one it has not before any money moves — a quote refused now (the day moved, the city paused) must not
+    // leave a held change with no way to ask.
+    if (busy || (!changeQuote && !heldHere)) return;
     setErr("");
     if (!body.name || !body.phone) { setErr("Add your name and phone — the crew uses them at pickup."); return; }
     setBusy(true);
-    const expectedDiffCents = changeQuote.paid ? changeQuote.diffCents : card ? changeQuote.newCents : 0;
+    const expectedDiffCents = !changeQuote ? 0 : changeQuote.paid ? changeQuote.diffCents : card ? changeQuote.newCents : 0;
     const attempt = card ?? await idemChange.begin(sig);
+    idemChange.sent(attempt.key, !!attempt.token);   // held open from the send: the change holds still until it is answered
     try {
       const res = await authedFetch("/api/reserve/change", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -94,7 +116,7 @@ export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, c
       }
       haptic("success");
       onDone({
-        total: Number(data.totalCents) || changeQuote.newCents, paid: !!data.paid, ref: String(data.id || ""), warn: data.warn,
+        total: Number(data.totalCents) || (changeQuote?.newCents ?? 0), paid: !!data.paid, ref: String(data.id || ""), warn: data.warn,
         change: { charged: Number(data.chargedCents) || 0, refunded: Number(data.refundedCents) || 0, pending: Number(data.refundPendingCents) || 0 },
       });
     } catch {
@@ -102,9 +124,9 @@ export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, c
       // As the reserve's own catch: the answer may have been lost after the money moved. The key (and a card token) are
       // kept, so the next tap is answered from the first — nothing moves twice.
       idemChange.settle(attempt.key, null, null);
-      setErr("Couldn't confirm the change — safe to try again, nothing is charged twice.");
+      setErr("Couldn't confirm the change — tap the button to check on it. Nothing moves twice.");
     }
-  }, [busy, body, sig, changeQuote, idemChange, onDone, onRefresh]);
+  }, [busy, body, sig, changeQuote, heldHere, idemChange, onDone, onRefresh]);
   const payChangeCard = async () => {
     if (busy) return;
     setErr("");
@@ -129,23 +151,51 @@ export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, c
         <span className="dl-quote-t">{changeQuote ? <ChangeLine q={changeQuote} /> : (quoteErr || "Working out the difference…")}</span>
       </div>
       {codeBox}
+      {held && !busy && (
+        <HeldNotice what="Your last change hasn’t been confirmed yet."
+          line={heldOther
+            ? "It was for a different change — check My packs before changing again."
+            : "Tap the button below to check on it — nothing moves twice, and your pack stays as it is until it’s answered."}
+          warning="Only start over if we’ve told you it didn’t go through — otherwise this could move money twice."
+          onStartOver={() => { idemChange.forget(); setErr(""); }} />
+      )}
       {err && <p className="dl-err" role="alert">{err}</p>}
       {!changeQuote && quoteErr && <button type="button" className="btn-sec" onClick={() => setQuoteTick((n) => n + 1)}>Try again</button>}
-      {changeQuote && (changeQuote.paid && changeQuote.diffCents <= 0 ? (
-        <button type="button" className="btn-pri btn-wide" onClick={() => submitChange(null)} disabled={busy}>
-          {busy ? "Changing…" : changeQuote.diffCents < 0 ? `Change my pack — ${money(-changeQuote.diffCents)} back` : "Change my pack"}
+      {/* Held, and no quote to show: the held change is asked about all the same — by card if it was sent with one. */}
+      {!changeQuote && heldHere && (idemChange.heldCard() ? (
+        squareClientReady && (
+          <>
+            <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />
+            <button type="button" className="btn-pri btn-wide" disabled={!cardReady || busy} onClick={() => { setRechecking(true); void payChangeCard(); }}>
+              {busy ? "Checking…" : "Check on my payment"}
+            </button>
+          </>
+        )
+      ) : (
+        <button type="button" className="btn-pri btn-wide" onClick={() => { setRechecking(true); void submitChange(null); }} disabled={busy}>
+          {busy ? "Checking…" : "Check on my change"}
+        </button>
+      ))}
+      {changeQuote && (heldHere && !idemChange.heldCard() ? (
+        // Held without a card (a refund, the same price, pay at pickup): asked the same way — never charged to a card.
+        <button type="button" className="btn-pri btn-wide" onClick={() => { setRechecking(true); void submitChange(null); }} disabled={busy}>
+          {busy ? "Checking…" : "Check on my change"}
+        </button>
+      ) : changeQuote.paid && changeQuote.diffCents <= 0 ? (
+        <button type="button" className="btn-pri btn-wide" onClick={() => { setRechecking(heldHere); void submitChange(null); }} disabled={busy || heldOther}>
+          {busy ? (rechecking ? "Checking…" : "Changing…") : heldHere ? "Check on my change" : changeQuote.diffCents < 0 ? `Change my pack — ${money(-changeQuote.diffCents)} back` : "Change my pack"}
         </button>
       ) : (
         <>
           {squareClientReady && (
             <>
               <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />
-              <button type="button" className="btn-pri btn-wide" disabled={!cardReady || busy} onClick={payChangeCard}>
-                {busy ? "Charging…" : changeQuote.paid ? `Pay the ${money(changeQuote.diffCents)} difference` : `Pay ${money(changeQuote.newCents)} now`}
+              <button type="button" className="btn-pri btn-wide" disabled={!cardReady || busy || heldOther} onClick={() => { setRechecking(heldHere); void payChangeCard(); }}>
+                {busy ? (rechecking ? "Checking…" : "Charging…") : heldHere ? "Check on my payment" : changeQuote.paid ? `Pay the ${money(changeQuote.diffCents)} difference` : `Pay ${money(changeQuote.newCents)} now`}
               </button>
             </>
           )}
-          {!changeQuote.paid && (
+          {!changeQuote.paid && !held && (
             <button type="button" className={squareClientReady ? "oa-paylater" : "btn-pri btn-wide"} onClick={() => submitChange(null)} disabled={busy}>
               {busy ? "Changing…" : `Change it — ${money(changeQuote.newCents)} at pickup`}
             </button>

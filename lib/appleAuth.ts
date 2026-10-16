@@ -71,18 +71,19 @@ export async function appleSignInFlow(supabase: SupabaseClient, reloadProfile: (
 
 /** Apple's word that an Apple ID is the person's: its sheet, a fresh nonce, the identity token — for joining that Apple ID
  *  to the account they are signed in to (lib/appleLink). Nothing signs in. */
-export async function appleIdentity(): Promise<{ idToken: string; nonce: string } | { cancelled: true } | { error: string }> {
+export async function appleIdentity(): Promise<{ idToken: string; nonce: string; code?: string } | { cancelled: true } | { error: string }> {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   const nonce = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
   const { outcome, credential } = await appleSignIn(nonce);
   if (outcome === "cancelled") return { cancelled: true };
   if (outcome !== "done" || !credential) return { error: outcome === "unsupported" ? "Sign in with Apple isn't available here." : "Apple didn't finish. Try again." };
-  return { idToken: credential.identityToken, nonce };
+  // Apple's one-time code too (R8): traded, once the Apple ID is joined, for the token a deletion revokes (linkAppleHere).
+  return { idToken: credential.identityToken, nonce, ...(credential.authorizationCode ? { code: credential.authorizationCode } : {}) };
 }
 
 /** Join the Apple ID to the account signed in now (app/api/account/link-apple), then read the session again so it knows
  *  its new identity. */
-export async function linkAppleHere(supabase: SupabaseClient, apple: { idToken: string; nonce: string }): Promise<{ ok: true; joined: boolean } | { error: string }> {
+export async function linkAppleHere(supabase: SupabaseClient, apple: { idToken: string; nonce: string; code?: string }): Promise<{ ok: true; joined: boolean } | { error: string }> {
   let r: Response;
   try {
     r = await authedFetch("/api/account/link-apple", {
@@ -96,6 +97,13 @@ export async function linkAppleHere(supabase: SupabaseClient, apple: { idToken: 
   const j = (await r.json().catch(() => ({}))) as { ok?: boolean; joined?: boolean; error?: string };
   if (!r.ok || !j.ok) return { error: j.error || "Sign in with Apple couldn't be linked just now. Try again in a minute." };
   await supabase.auth.refreshSession().catch(() => undefined);
+  // THE TOKEN A DELETION REVOKES (R8). Signing in with Apple trades the sheet's code for Apple's refresh token and keeps it
+  // (app/api/auth/apple, 0363), so deleting the account ends GT3's access to the Apple ID. Linking from Settings threw the
+  // code away, and a linked account's deletion could only ask the person to do it in Settings. The code goes the same way
+  // now, once the Apple ID is joined — the route keeps the token only when Apple's answer names this account's Apple ID.
+  if (apple.code) {
+    await authedFetch("/api/auth/apple", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: apple.code }) }).catch(() => undefined);
+  }
   return { ok: true, joined: !!j.joined };
 }
 

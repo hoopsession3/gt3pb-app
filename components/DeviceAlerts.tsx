@@ -3,6 +3,8 @@
 import { useSyncExternalStore } from "react";
 import { subscribePush } from "@/lib/push";
 import { useApp } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
+import { usePushKept } from "./usePushKept";
 import GoLine from "./GoLine";
 import { APP_BUILD } from "@/lib/native";
 import { NATIVE_PUSH_ON } from "@/lib/nativePush";
@@ -55,7 +57,11 @@ const SAYS: Record<AlertPermission | "unknown", string> = {
 /** Settings › You: what this phone says, and the one tap that asks it. */
 export function DeviceAlerts() {
   const { toast } = useApp();
+  const { user } = useAuth();
   const perm = useAlertPermission();
+  // Allowed here, and this phone kept for them as crew (R8, components/usePushKept): a sign-out let the phone go and
+  // took its crew mark; "On" stood over a phone the kitchen's pushes no longer rang.
+  const { kept, recheck } = usePushKept(!APP_BUILD && perm === "granted", user?.id ?? null, true);
   // IN THE IPHONE APP, THE APP'S OWN (2026-10-11). The app has no web notifications to ask for: its alerts come
   // through Apple (components/AppAlerts, lib/nativePush). Until they are live (NATIVE_PUSH_ON) there is no row at all —
   // the row used to say "Alerts come to the app in its next update. Until then, the web app on this phone's Home
@@ -70,14 +76,16 @@ export function DeviceAlerts() {
     // Background push for the kitchen — "on" only once the database has kept this phone (lib/push, 0366).
     if (await subscribePush(true)) toast("Order alerts are on for this phone");
     else toast("Couldn't save this phone for alerts — try again", "error");
+    recheck();
   };
+  const notKept = perm === "granted" && kept === false;
   return (
     <div className="pay-row">
       <div className="pay-row-l">
         <div className="pay-row-t">Order alerts on this phone</div>
-        <div className="pay-row-s">{SAYS[perm]}</div>
+        <div className="pay-row-s">{notKept ? "Allowed, and not set up for you on this phone — new orders won't ring here until it is." : SAYS[perm]}</div>
       </div>
-      {perm === "default"
+      {perm === "default" || notKept
         ? <button type="button" className="btn-sec btn-sm" onClick={turnOn}>Turn on</button>
         : perm === "granted" ? <span className="k-tag ok">On</span>
         : perm === "denied" ? <span className="k-tag">Blocked</span>

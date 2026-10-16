@@ -276,22 +276,39 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
       const up = await uploadToBucket({ bucket: "avatars", file: f, path: `${user.id}/avatar.${(f.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg"}`, upsert: true });
       if ("url" in up) {
         const bust = `${up.url}?v=${Date.now()}`;  // cache-bust so the new photo shows immediately
-        await supabase.from("profiles").update({ avatar_url: bust }).eq("id", user.id);
-        setPhotoUrl(bust);
-        try { URL.revokeObjectURL(url); } catch { /* already gone */ }  // the local preview blob is now replaced
-        await refreshProfile();  // so the account pill + home flag pick up the new portrait at once
-        toast("Photo saved");
+        // The file is up; the profile row is what every screen reads. A write refused is said (R8): "Photo saved" over a
+        // photo no other screen would ever show was the card's word against the account's.
+        const { error: saveErr } = await supabase.from("profiles").update({ avatar_url: bust }).eq("id", user.id);
+        if (saveErr) toast("Couldn't save the photo — check your connection and try again", "error");
+        else {
+          setPhotoUrl(bust);
+          try { URL.revokeObjectURL(url); } catch { /* already gone */ }  // the local preview blob is now replaced
+          await refreshProfile();  // so the account pill + home flag pick up the new portrait at once
+          toast("Photo saved");
+        }
       } else toast(`Couldn't save the photo — ${up.error}`, "error");
       setSaving(false);
       e.target.value = "";
     })();
   };
+  // A REMOVED PHOTO STAYS REMOVED (R8, 2026-10-16). The row was cleared and the profile this app holds was not read again,
+  // so the account circle kept the face, and the next time the card opened it adopted the photo from that profile — back.
+  // And a clear the server refused was never said. Now the row is cleared, the profile read again, and a refusal puts the
+  // photo back where it still is, and says so.
   const clearPhoto = async () => {
+    const was = photoUrl, wasImg = photoRef.current;
     dirtyPhoto.current = true;
     photoRef.current = null; setHasPhoto(false);
-    if (photoUrl?.startsWith("blob:")) { try { URL.revokeObjectURL(photoUrl); } catch { /* ignore */ } }
     setPhotoUrl(null); draw();
-    if (supabase && user) await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+    if (!supabase || !user) return;
+    const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+    if (error) {
+      photoRef.current = wasImg; setPhotoUrl(was); setHasPhoto(Boolean(was));
+      toast("Couldn't remove the photo — check your connection and try again", "error");
+      return;
+    }
+    if (was?.startsWith("blob:")) { try { URL.revokeObjectURL(was); } catch { /* ignore */ } }
+    await refreshProfile();
   };
 
   // ── the flip — a turn-and-a-half spin to the other face, with a steel glint sweep ──
@@ -418,7 +435,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
             onBlur={(e) => saveVision(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveVision((e.target as HTMLInputElement).value); }}
             aria-label="Your 5-year vision" placeholder="Your 5-year goal — e.g. Make great coffee in 3 regions" />
         ) : (
-          <button type="button" className="fc-motto-btn" onClick={() => setEditVision(true)}><Icon name="target" /> Your vision — &ldquo;{vision}&rdquo; · tap to set a 5-year goal</button>
+          <button type="button" className="fc-motto-btn min-h-11" onClick={() => setEditVision(true)}><Icon name="target" /> Your vision — &ldquo;{vision}&rdquo; · tap to set a 5-year goal</button>
         )}
       </div>
       <div className="fc-motto-edit">
@@ -427,7 +444,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
             onBlur={(e) => saveMotto(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveMotto((e.target as HTMLInputElement).value); }}
             aria-label="Your motto" placeholder={MOTTO_DEFAULT} />
         ) : (
-          <button type="button" className="fc-motto-btn" onClick={() => setEditMotto(true)}>✎ Your motto — &ldquo;{motto}&rdquo;</button>
+          <button type="button" className="fc-motto-btn min-h-11" onClick={() => setEditMotto(true)}>✎ Your motto — &ldquo;{motto}&rdquo;</button>
         )}
       </div>
 

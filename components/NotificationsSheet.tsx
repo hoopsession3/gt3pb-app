@@ -10,9 +10,11 @@ import { AppAlertsProfile } from "./AppAlerts";
 import { useLivePing } from "./useLivePing";
 import { supabase } from "@/lib/supabase";
 import { subscribePush } from "@/lib/push";
+import { usePushKept } from "./usePushKept";
 import { NATIVE_PUSH_ON } from "@/lib/nativePush";
 import { haptic } from "@/lib/haptics";
 import { ALWAYS_SENT, CUSTOMER_KINDS, kindMuted, withKind, type CustomerKind } from "@/lib/customerNotify";
+import { writeMuted } from "@/lib/notifMuted";
 
 // NOTIFICATIONS, ONE SCREEN (2026-10-14, R6 of the customer audit — decided by Ryan: every kind but receipts). The account
 // had one switch, the truck-live chip on Find Us; order alerts stopped only in the phone's own Settings, the emails not at
@@ -57,13 +59,14 @@ function NotificationsBody() {
   const flip = async (kind: CustomerKind, title: string) => {
     if (!supabase || !user || muted === null || busy) return;
     const on = kindMuted(muted, kind);              // it is off now, so the tap turns it on
-    const next = withKind(muted, kind, on);
     setBusy(kind);
-    // Only muted_categories is sent, so a crew member's quiet hours on the same row stay as they were.
-    const { error } = await supabase.from("notif_prefs").upsert({ user_id: user.id, muted_categories: next }, { onConflict: "user_id" });
+    // Only muted_categories is sent, so a crew member's quiet hours on the same row stay as they were — and it is the list
+    // as the row holds it now with this one kind changed (R8, lib/notifMuted), so a crew category muted on the console since
+    // this sheet opened stays muted.
+    const r = await writeMuted(supabase, user.id, (fresh) => withKind(fresh, kind, on));
     setBusy(null);
-    if (error) { toast("Couldn't change it — try again.", "error"); return; }
-    setMuted(next);
+    if (r.error !== null) { toast("Couldn't change it — try again.", "error"); return; }
+    setMuted(r.muted);
     if (on) haptic("toggleOn"); else haptic("toggleOff");
     toast(`${title} ${on ? "on" : "off"}`);
   };
@@ -117,9 +120,11 @@ function TruckLive() {
  *  profile sheet (R6) — it is a notification, not a profile. A browser with none shows nothing: a button that cannot work
  *  is worse than no button. */
 function ThisPhone() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { toast } = useApp();
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">(() => (typeof Notification === "undefined" ? "unsupported" : Notification.permission));
+  // Allowed here, and kept for them (R8, components/usePushKept): "On" only when this phone's row is theirs.
+  const { kept, recheck } = usePushKept(!NATIVE_PUSH_ON && perm === "granted", user?.id ?? null);
   if (NATIVE_PUSH_ON) return <AppAlertsProfile />;
   if (perm === "unsupported") return null;
   const turnOn = async () => {
@@ -130,12 +135,18 @@ function ThisPhone() {
       // "On" only once the database has kept this phone (lib/push, 0366).
       if (await subscribePush(!!profile?.is_admin)) toast("Alerts are on for this phone");
       else toast("Couldn't save this phone for alerts — try again", "error");
+      recheck();
     } catch { /* ignore */ }
   };
   return (
     <div className="prof-notif">
       <div className="prof-notif-t">Alerts on this phone</div>
-      {perm === "granted" ? (
+      {perm === "granted" && kept === false ? (
+        <>
+          <div className="prof-notif-s">Not on for your account on this phone yet.</div>
+          <button type="button" className="btn-sec btn-wide" onClick={turnOn}><Icon name="bell" /> Turn on alerts on this phone</button>
+        </>
+      ) : perm === "granted" ? (
         <div className="prof-notif-s on"><Icon name="check" /> On — this phone shows the alerts you leave on below.</div>
       ) : perm === "denied" ? (
         <div className="prof-notif-s">Blocked in your phone&rsquo;s settings — allow notifications for this app to get them.</div>

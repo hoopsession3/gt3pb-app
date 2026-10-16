@@ -449,7 +449,11 @@ function serve() {
 const OWNER_ID = "5a10e000-0000-4000-8000-000000000001";
 const TENANT_ID = "5a10e000-0000-4000-8000-0000000000aa";
 const OWNER = { id: OWNER_ID, aud: "authenticated", role: "authenticated", email: "owner@smoke.test", app_metadata: { provider: "email" }, user_metadata: { display_name: "Smoke Owner" }, created_at: "2026-01-01T00:00:00Z" };
-const PROFILE = { id: OWNER_ID, display_name: "Smoke Owner", role: "owner", is_admin: true, market: "greenville", leads_market: "greenville", title: null, referred_by: null, created_at: "2026-01-01T00:00:00Z", points: 0, credit_cents: 0, tenant_id: TENANT_ID };
+// A referral code, as every real profile has one (0002's handle_new_user mints it at sign-up: up to eight letters of the
+// name, a dash, four of the id's hash). Since R8 (2026-10-16) the 3MPIRE page offers its invite only with the member's own
+// code — it used to stand in a made-up one ("GT3PB-3MP") for a profile without it, and a friend who joined with that was
+// attached to no one.
+const PROFILE = { id: OWNER_ID, display_name: "Smoke Owner", role: "owner", is_admin: true, market: "greenville", leads_market: "greenville", title: null, referred_by: null, created_at: "2026-01-01T00:00:00Z", points: 0, credit_cents: 0, tenant_id: TENANT_ID, referral_code: "SMOKE-0A1B" };
 const OWNER_RPC = { is_staff: true, is_admin: true, is_owner: true, current_tenant: TENANT_ID };
 const b64url = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 function ownerSession() {
@@ -2280,7 +2284,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         const got = await asked(() => invite.click());
         const sheet = got.find((c) => c.plugin === "Share" && c.method === "share");
         ok("device: Share (the invite link) opens the share sheet with the web's address — never the phone's own",
-          got.length === 1 && sheet?.options.url === `${API_ORIGIN}/?ref=GT3PB-3MP` && /use code GT3PB-3MP/.test(sheet.options.text ?? ""), JSON.stringify(got));
+          got.length === 1 && sheet?.options.url === `${API_ORIGIN}/?ref=${PROFILE.referral_code}` && new RegExp(`use code ${PROFILE.referral_code}`).test(sheet.options.text ?? ""), JSON.stringify(got));
       }
 
       // the status card

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
@@ -17,6 +17,8 @@ export default function ReviewPrompt() {
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+  const stars = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Find the most recent picked-up order in the window that hasn't been reviewed/dismissed yet.
   useEffect(() => {
@@ -39,14 +41,27 @@ export default function ReviewPrompt() {
   if (done) return <div className="rvp rvp-done">Thanks — that means a lot.</div>;
 
   const close = () => { try { localStorage.setItem(`gt3-reviewed-${orderId}`, "1"); } catch { /* ignore */ } };
+  // A SEND THAT FAILED SAYS SO (R8, 2026-10-16): "Sending…" went back to "Send it" and nothing else happened, so a member
+  // who had written a few lines could not tell it had not gone. What they wrote stays where it is.
   const submit = async () => {
     if (!supabase || rating < 1 || busy) return;
-    setBusy(true);
+    setBusy(true); setErr("");
     const { error } = await supabase.from("reviews").insert({
       user_id: user.id, name: profile?.display_name ?? null, rating, body: body.trim() || null, source: "app",
     });
     setBusy(false);
     if (!error) { close(); setDone(true); }
+    else setErr("Couldn’t send that — check your connection and try again.");
+  };
+  // One choice among five, as a radio group is used (R8): Tab reaches the group once, the arrows move the rating.
+  const pick = (n: number) => { setRating(n); setErr(""); };
+  const onStarsKey = (e: React.KeyboardEvent) => {
+    const step = e.key === "ArrowRight" || e.key === "ArrowUp" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const n = Math.min(5, Math.max(1, (rating || (step > 0 ? 0 : 6)) + step));
+    pick(n);
+    stars.current[n - 1]?.focus();
   };
 
   return (
@@ -55,16 +70,19 @@ export default function ReviewPrompt() {
         <span className="rvp-k">How was your last order?</span>
         <button type="button" className="rvp-x hit-44" aria-label="Dismiss" onClick={() => { close(); setOrderId(null); }}><Icon name="close" /></button>
       </div>
-      <div className="rvp-stars" role="radiogroup" aria-label="Rating">
+      <div className="rvp-stars" role="radiogroup" aria-label="Rating" onKeyDown={onStarsKey}>
         {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} type="button" role="radio" aria-checked={n === rating} aria-label={`${n} star${n === 1 ? "" : "s"}`}
-            className={`rvp-star${n <= rating ? " on" : ""}`} onClick={() => setRating(n)}><Icon name="star" /></button>
+          <button key={n} ref={(el) => { stars.current[n - 1] = el; }} type="button" role="radio" aria-checked={n === rating}
+            tabIndex={n === (rating || 1) ? 0 : -1} aria-label={`${n} star${n === 1 ? "" : "s"}`}
+            className={`rvp-star inline-flex min-h-11 min-w-11 items-center justify-center${n <= rating ? " on" : ""}`} onClick={() => pick(n)}><Icon name="star" /></button>
         ))}
       </div>
       {rating > 0 && (
         <>
           <textarea className="rvp-in" rows={2} maxLength={280} value={body} onChange={(e) => setBody(e.target.value)}
+            aria-label={rating >= 4 ? "What made it good? (optional)" : "What could be better? (optional)"}
             placeholder={rating >= 4 ? "What made it good? (optional)" : "What could be better? (optional)"} />
+          {err && <p className="mb-2 text-footnote text-red-hover" role="alert">{err}</p>}
           <button type="button" className="btn-pri" disabled={busy} onClick={submit}>{busy ? "Sending…" : "Send it"}</button>
         </>
       )}

@@ -52,6 +52,9 @@ export type CheckoutKey = {
   /** The key being held, and whether its send was a card's — what "Check on my payment" asks about (R7b). */
   heldKey: () => string;
   heldCard: () => boolean;
+  /** What the held key was signed over — the order itself — while its answer never came, else null (R8): a page holds
+   *  that order still (how many, the total) when what it reads moves under it, so the next tap is the same request. */
+  heldDetails: () => unknown;
 };
 
 // DURABLE (2026-10-12, C7 of the customer audit, approved): the cart survives the app being closed — it is kept in
@@ -158,6 +161,13 @@ export function useIdemKey(persist?: string, durable = false): CheckoutKey {
       },
       heldKey: () => now().attempt.key,
       heldCard: () => now().card,
+      heldDetails: () => {
+        const c = now();
+        if (!c.open || !c.attempt.key) return null;
+        // lib/idempotency idemSignature: the nonce, a NUL, then the details as JSON.
+        const at = c.attempt.sig.indexOf("\u0000");
+        try { return at >= 0 ? JSON.parse(c.attempt.sig.slice(at + 1)) : null; } catch { return null; }
+      },
     };
   }, [persist, durable]);
 }

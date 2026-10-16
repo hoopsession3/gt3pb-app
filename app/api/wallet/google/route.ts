@@ -3,7 +3,6 @@ import crypto from "crypto";
 import { userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { route } from "@/lib/apiRoute";
-import { cardOf } from "@/lib/loyalty";
 
 // Google Wallet — a "Save to Google Wallet" link is a JWT (RS256) signed with the GT3 service-account
 // key, carrying the member's loyalty object (stamps + a QR barcode of their card code). No pkpass
@@ -28,20 +27,22 @@ async function get(req: Request) {
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
 
-  const { data: p } = await supabaseAdmin.from("profiles").select("display_name, points, referral_code").eq("id", user.id).maybeSingle();
-  const prof = p as { display_name: string | null; points: number | null; referral_code: string | null } | null;
+  const { data: p } = await supabaseAdmin.from("profiles").select("display_name, referral_code").eq("id", user.id).maybeSingle();
+  const prof = p as { display_name: string | null; referral_code: string | null } | null;
   const code = prof?.referral_code || user.id;
-  const stamps = cardOf(prof?.points).stamps;
   const classId = `${issuerId}.${classSuffix}`;
   const objectId = `${issuerId}.gt3-${user.id.replace(/[^a-zA-Z0-9]/g, "")}`;
   const origin = new URL(req.url).origin;
 
+  // NO STAMP COUNT ON THE PASS (R8, 2026-10-16). A save link writes the object once; nothing here updates it after (that is
+  // Google's REST API, from the server, on every stamp), so "Stamps: 3" stood on the card in Wallet for ever while the cup
+  // count moved on. The pass is the card itself — the name and the code the window scans, which reads the account live —
+  // and the stamps are where they are always current, in the app.
   const loyaltyObject = {
     id: objectId, classId, state: "ACTIVE",
     accountName: prof?.display_name || "GT3 Member",
     accountId: String(code),
-    loyaltyPoints: { label: "Stamps", balance: { int: stamps } },
-    barcode: { type: "QR_CODE", value: `${origin}/scan?m=${encodeURIComponent(String(code))}`, alternateText: String(code).slice(0, 8).toUpperCase() },
+    barcode: { type: "QR_CODE", value: `${origin}/scan?m=${encodeURIComponent(String(code))}`, alternateText: (prof?.referral_code || String(code).slice(0, 8)).toUpperCase() },
   };
   const jwt = signJwt({
     iss: saEmail, aud: "google", typ: "savetowallet",

@@ -7,6 +7,7 @@ import Link from "next/link";
 import Gt3Mark from "./Gt3Mark";
 import Icon from "./Icon";
 import { useAuth } from "./AuthProvider";
+import { useApp } from "./AppProvider";
 import { APP_BUILD, isNativeApp } from "@/lib/native";
 import { STAMP_GOAL } from "@/lib/loyalty";
 import { nextOnEnter } from "@/lib/formKeys";
@@ -65,7 +66,8 @@ type Props = { context?: SignInContext; compact?: boolean; start?: Intent };
 const PERKS = ["A stamp on every cup", "Order ahead, skip the line", "First taste of new reserves"];
 
 export default function SignIn({ context, compact = false, start }: Props = {}) {
-  const { sendCode, verifyCode, signInWithPassword, signUp, resetPassword } = useAuth();
+  const { sendCode, verifyCode, signInWithPassword, signUp, resetPassword, resendConfirm, updatePassword } = useAuth();
+  const { toast } = useApp();
   // In the iPhone app the emailed link can only open Safari, so the app never mentions it, and the form offers Sign in
   // with Apple. The page is drawn ahead of time with no phone (false); the app's first paint keeps that, then draws
   // what the phone has — read as React reads an outside value, so the two never split a hydration (React #418).
@@ -103,6 +105,8 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
   const [confirm, setConfirm] = useState("");
   const isNew = intent === "join"; // joining = creating the account; signing in = you have one
   const [showPass, setShowPass] = useState(false);
+  // Joined with an email that already had an account (R8, AuthProvider signUp): the code that came is a sign-in code.
+  const hadAccount = useRef(false);
 
   const reset = () => {
     setStep("form"); setErr(""); setOtp(""); setResent(false);
@@ -126,7 +130,11 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
     if (busy || cooldown > 0) return;
     setBusy(true); setErr(""); setResent(false);
     try {
-      const { error } = step === "reset-sent" ? await resetPassword(email.trim()) : await sendCode(email.trim(), name.trim() || undefined);
+      // The confirm screen's code is a new account's confirmation — sent again as one — or, for an email that already had
+      // an account (hadAccount), a sign-in code (R8).
+      const { error } = step === "reset-sent" ? await resetPassword(email.trim())
+        : step === "confirm" && !hadAccount.current ? await resendConfirm(email.trim())
+        : await sendCode(email.trim(), name.trim() || undefined);
       if (error) setErr(error);
       else { setCooldown(30); setOtp(""); setResent(true); codeRef.current?.focus(); }
     } catch {
@@ -148,7 +156,19 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
         ? "That code didn't work — it may be from an older email, or expired. Use the newest one, or resend."
         : error);
       requestAnimationFrame(() => codeRef.current?.select());
-    } else if (kind === "email") trackFunnel("signup", "signed_in");
+    } else if (kind === "email") {
+      trackFunnel("signup", "signed_in");
+      // THE ACCOUNT THEY ALREADY HAD (R8). They asked to join with a password, and the code they just typed proves the
+      // email is theirs — the same proof a reset asks for — so the password they chose becomes the account's, and they
+      // are told what happened: this screen is about to give way to the signed-in page.
+      if (step === "confirm" && hadAccount.current && password) {
+        hadAccount.current = false;
+        const set = await updatePassword(password);
+        toast(set.error
+          ? "This email already had an account — you’re signed in to it. Its password didn’t change."
+          : "This email already had an account — you’re signed in to it, with the password you just chose.", "info");
+      }
+    }
     // a reset code's session raises AuthProvider's "Set a new password." over everything (PASSWORD_RECOVERY)
   };
   // Digits only, whatever arrives (a paste with spaces, Mail's suggestion); the whole code sends itself.
@@ -165,7 +185,11 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
     rememberReturn(window.location.pathname + window.location.search);
     const { error } = await resetPassword(email.trim());
     setBusy(false);
-    if (error) setErr(error); else { setOtp(""); setResent(false); setCooldown(30); setStep("reset-sent"); }
+    if (error) setErr(error);
+    else {
+      setOtp(""); setResent(false); setCooldown(30); setStep("reset-sent");
+      void import("./PasswordRecovery").catch(() => {});   // the code's "Set a new password." ready before it is raised (R8)
+    }
   };
 
   // ── password sign in / create account ──
@@ -176,10 +200,11 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
     setBusy(true); setErr("");
     if (isNew) {
       rememberReturn(window.location.pathname + window.location.search);
-      const { error, confirm: needsConfirm } = await signUp(email.trim(), password, name.trim() || undefined);
+      const { error, confirm: needsConfirm, existing } = await signUp(email.trim(), password, name.trim() || undefined);
       setBusy(false);
+      hadAccount.current = !error && existing === true;
       if (error) setErr(error);
-      else if (needsConfirm) setStep("confirm");
+      else if (needsConfirm) { setStep("confirm"); setCooldown(30); }
       // else: auth state change fires and signs in automatically
     } else {
       const { error } = await signInWithPassword(email.trim(), password);
@@ -233,11 +258,9 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
             {!inApp && " Or tap the link in the email."}
           </p>
           <div className="auth-form flex flex-wrap gap-x-5">
-            {step !== "confirm" && (
-              <button type="button" className="auth-link min-h-11 inline-flex items-center disabled:opacity-50" disabled={busy || cooldown > 0} onClick={handleResend}>
-                {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend the code"}
-              </button>
-            )}
+            <button type="button" className="auth-link min-h-11 inline-flex items-center disabled:opacity-50" disabled={busy || cooldown > 0} onClick={handleResend}>
+              {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend the code"}
+            </button>
             <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={reset}>
               {step === "sent" ? "Use a different email" : "Back to sign in"}
             </button>

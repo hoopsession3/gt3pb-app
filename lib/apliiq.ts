@@ -75,6 +75,14 @@ export async function firstSeen(provider: "apliiq" | "square", eventId: string):
   return !(error && (error as { code?: string }).code === "23505");
 }
 
+/** Give an event back (R8): marked seen as it arrived, and its processing failed — so the sender's retry is processed,
+ *  not answered "deduped" with the work undone (a shipped order that never read shipped, a tracking email never sent). */
+export async function forgetSeen(provider: "apliiq" | "square", eventId: string): Promise<void> {
+  if (!supabaseAdmin || !eventId) return;
+  // scoped-by: the inbox's own primary key, this event's — the row firstSeen wrote a moment ago
+  await supabaseAdmin.from("webhook_events").delete().eq("id", `${provider}:${eventId}`);
+}
+
 // Submit a paid merch order to Apliiq for fulfillment. Returns ok + their order id, or the reason it
 // failed — the caller drops a failure into the "needs fulfillment" crew queue (money's already
 // collected; fulfillment never silently fails). Never throws.

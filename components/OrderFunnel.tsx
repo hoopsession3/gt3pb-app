@@ -6,7 +6,6 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { usePayAtPickup } from "./usePayAtPickup";
-import SignIn from "@/components/SignIn";
 import OrderConfirm from "@/components/OrderConfirm";
 import EditableCopy from "@/components/EditableCopy";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
@@ -79,10 +78,17 @@ const PackChangePay = dynamic(() => import("./PackChangePay"));
 // /reserve and /delivery downloaded it for a path few of them take. Choosing "For the office" warms
 // it, so the sheet opens at once.
 const OfficeOrder = dynamic(() => import("./OfficeOrder"));
+// Sign-in, on the details step for a guest only — loaded as a guest opens the funnel (below), not in every visitor's first
+// download of /reserve, /delivery and /shop (R8, 2026-10-16: the routes' weight).
+const SignIn = dynamic(() => import("@/components/SignIn"));
+// The held-payment notice loads when something is held (components/HeldNotice) — a moment few customers see.
+const HeldNotice = dynamic(() => import("./HeldNotice"), { ssr: false });
 
 export default function OrderFunnel({ initialMode, syncUrl = true, initialAudience = "home" }: { initialMode: Mode; syncUrl?: boolean; initialAudience?: "home" | "office" }) {
   const { toast } = useApp();
   const { user, profile } = useAuth();
+  // A guest will be asked to sign in at the details step: its screen is fetched now, so it is there when they arrive.
+  useEffect(() => { if (!user) void import("@/components/SignIn").catch(() => {}); }, [user]);
   const payLater = usePayAtPickup();
   const router = useRouter();
   const t = useSiteCopy();
@@ -339,6 +345,15 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   const idem = useIdemKey(IDEM_STORAGE_KEY);
   const idemDelivery = useIdemKey(`${IDEM_STORAGE_KEY}-delivery`);
   const [cardReady, setCardReady] = useState(false);
+  // A PAYMENT WHOSE ANSWER NEVER CAME HOLDS ITS ORDER STILL (R8, as the cup checkout has since R7). Back, the code and the
+  // Sunday stayed live after a lost answer while the page said "you won't be charged twice": any change was a new key, and
+  // the next Pay a second charge and a second pack or delivery. While it is unknown the order holds still on the pay step
+  // and the button asks about that payment (the same key, answered from the first request); the customer lets it go only
+  // once they've been told it didn't go through.
+  const payIdem = mode === "delivery" ? idemDelivery : idem;
+  // Whether the tap that is out asks about a held payment ("Checking…") or makes one ("Charging…") — read when it is
+  // tapped: the hold opens as the first send leaves, and its label must not turn into "Checking…" mid-charge.
+  const [rechecking, setRechecking] = useState(false);
 
   // ── the toggle: preserve the cart, snap count, route sanely ──
   const switchMode = (next: Mode) => {
@@ -453,6 +468,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     if (!count) return;
     setBusy(true);
     const attempt = card ?? await idem.begin(pickupSig(count, bringBack, mix, dropDateKey(drop.sat), codeState === "ok" ? codeClean : undefined));
+    idem.sent(attempt.key, !!attempt.token);   // held open from the send: the order holds still until it is answered
     try {
       const res = await authedFetch("/api/reserve", {
         method: "POST",
@@ -487,6 +503,11 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     mix: { RISE: mix.rise, FLOW: mix.flow, DUSK: mix.dusk }, dropDate: dropDateKey(drop.sat),
     code: codeState === "ok" ? codeClean : undefined,
   } : null), [mode, replacing, count, name, phone, bringBack, mix, drop, codeState, codeClean]);
+  // A change keeps its own key and pays on its own step (components/PackChangePay): a new pack's held payment holds
+  // nothing there.
+  const payHeld = !changeBody && payIdem.isOpen();
+  // A pack change's own payment held (components/PackChangePay says so): its Back and the code wait, as a new pack's do.
+  const [changeHeld, setChangeHeld] = useState(false);
 
   const payDelivery = async () => {
     if (busy) return; // guard a fast double-tap before the button's disabled attribute takes effect
@@ -501,6 +522,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       const attempt = await idemDelivery.begin({ path: "delivery", count, mix, premiums, refills: refillCount, slot: slot.deliveryDateKey }, () => paymentRef.current!.tokenize());
       if (!attempt.token) { setErr("Card details look off — check and retry."); setBusy(false); return; }
       sent = attempt.key;
+      idemDelivery.sent(attempt.key, true);   // held open from the send: the order holds still until it is answered
       const res = await authedFetch("/api/delivery/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -612,22 +634,34 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   // show flat text — the live countdown/pickup-day VALUES are unchanged, just no longer bolded.
   // The discount code, on Pay for a new pack and for a change alike (a change is priced with the code the pack was
   // reserved with unless another is entered here).
+  // A held payment for a different order — the page was left, and the order built again otherwise: it says so, and Pay
+  // waits on Start over (the order it holds is what "Check on my payment" would ask about).
+  const payHeldElsewhere = payHeld && JSON.stringify(payIdem.heldDetails()) !== JSON.stringify(mode === "delivery"
+    ? { path: "delivery", count, mix, premiums, refills: refillCount, slot: slot?.deliveryDateKey }
+    : pickupSig(count, bringBack, mix, dropDateKey(drop.sat), codeState === "ok" ? codeClean : undefined));
+  // Held for THIS order: it holds still — the code, Back and pay-later wait — and the button asks about it. Held for
+  // another (the page was left, the order built again otherwise — a code not entered again, say): nothing is locked, so
+  // the order it holds can be built again and asked about; only Pay waits.
+  const payFrozen = (payHeld && !payHeldElsewhere) || (!!changeBody && changeHeld);
+  // The held send was a pay-at-pickup one: it is asked about the same way — no card — so a first send that never reached
+  // us is placed as it was chosen, never charged to a card.
+  const heldNoCard = payHeld && !payHeldElsewhere && !payIdem.heldCard();
   const codeBox = mode === "pickup" ? (
     <div className="oa-code">
       {!codeOpen && codeState !== "ok" ? (
-        <button type="button" className="oa-code-toggle hit-44" onClick={() => setCodeOpen(true)}>{t("funnel.have_code")}</button>
+        <button type="button" className="oa-code-toggle hit-44 disabled:opacity-40" onClick={() => setCodeOpen(true)} disabled={payFrozen}>{t("funnel.have_code")}</button>
       ) : codeState === "ok" && codeBenefit ? (
         <div className="oa-code-ok" role="status">
           <span className="oa-code-tag">{codeClean}</span>
           <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${money(codeDiscountCents)} off applied` : codeBenefit.label}</span>
-          <button type="button" className="oa-code-x hit-44" onClick={clearCode} aria-label="Remove code"><Icon name="close" /></button>
+          <button type="button" className="oa-code-x hit-44 disabled:opacity-40" onClick={clearCode} disabled={payFrozen} aria-label="Remove code"><Icon name="close" /></button>
         </div>
       ) : (
         <div className="oa-code-in">
-          <input className="auth-input" value={code} onChange={(e) => { setCode(e.target.value); if (codeState !== "idle") setCodeState("idle"); }}
+          <input className="auth-input" value={code} disabled={payFrozen} onChange={(e) => { setCode(e.target.value); if (codeState !== "idle") setCodeState("idle"); }}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); checkCode(); } }}
             placeholder={t("funnel.code_ph")} aria-label="Discount code" autoCapitalize="characters" />
-          <button type="button" className="btn-sec shrink-0" onClick={checkCode} disabled={!codeClean || codeState === "checking"}>{codeState === "checking" ? "…" : t("funnel.code_apply")}</button>
+          <button type="button" className="btn-sec shrink-0" onClick={checkCode} disabled={!codeClean || codeState === "checking" || payFrozen}>{codeState === "checking" ? "…" : t("funnel.code_apply")}</button>
         </div>
       )}
       {codeState === "bad" && <p className="oa-code-bad" role="alert">That code isn&rsquo;t valid — check it and try again.</p>}
@@ -917,7 +951,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
               </div>
             </>
           )}
-          <button type="button" className="btn-pri btn-wide" disabled={!glassReady} onClick={() => setStep("details")}>
+          {/* Passing the glass step is a choice too (R8): a guest who went on with "Need new glass" and signed in at the details
+              was moved to bring-back — every bottle a refill, a lower total on Pay, and the server's "confirm your empties" with
+              its checkbox two screens back. */}
+          <button type="button" className="btn-pri btn-wide" disabled={!glassReady} onClick={() => { glassTouched.current = true; setStep("details"); }}>
             {mode === "delivery" ? <>{t("funnel.glass_next_del")} <Icon name="arrowRight" /></> : <>{t("funnel.glass_next_pickup")} <Icon name="arrowRight" /></>}
           </button>
         </div>
@@ -992,7 +1029,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
             setStep("done");
             setPacksKey((k) => k + "x");
           }}
-          onRefresh={(message) => { setPacksKey((k) => k + "x"); setReplacing(null); setStep("size"); toast(message, "error"); }} />
+          onRefresh={(message) => { setPacksKey((k) => k + "x"); setReplacing(null); setStep("size"); toast(message, "error"); }}
+          onHeld={setChangeHeld} />
       )}
 
       {/* ── PAY ── */}
@@ -1006,25 +1044,43 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
 
           {codeBox}
 
+          {payHeld && !busy && (
+            <HeldNotice what={payIdem.heldCard() ? "Your last payment hasn’t been confirmed yet." : "Your last reservation hasn’t been confirmed yet."}
+              line={payHeldElsewhere
+                ? `It was for a different ${mode === "delivery" ? "delivery — check your email" : "pack — check My packs"} before ${payIdem.heldCard() ? "paying" : "reserving"} again — or build that one again here to check on it.`
+                : heldNoCard
+                ? "Tap the button below to check on it — it won’t be made twice, and your order stays as it is until it’s answered."
+                : "Tap the button below to check on it — you won’t be charged twice, and your order stays as it is until it’s answered."}
+              warning={`Only start over if we’ve told you it didn’t go through — otherwise this would be a second ${mode === "delivery" ? "delivery" : "pack"}.`}
+              onStartOver={() => { payIdem.forget(); setErr(""); }} />
+          )}
+
           {onUs ? (
             // Nothing to pay (R7b): the perk said by its own name, and one button — no card form for a $0 charge.
             <>
               <p className="dl-sub">{quoted?.perk ? `${quoted.perk} — nothing to pay.` : "This pack is on us — nothing to pay."}</p>
               {err && <p className="dl-err" role="alert">{err}</p>}
-              <button type="button" className="btn-pri btn-wide" onClick={() => submitPickup(null)} disabled={busy}>
-                {busy ? "Reserving…" : "Reserve it — on us"}
+              <button type="button" className="btn-pri btn-wide" onClick={() => { setRechecking(payFrozen); void submitPickup(null); }} disabled={busy || payHeldElsewhere}>
+                {busy ? (rechecking ? "Checking…" : "Reserving…") : payFrozen ? "Check on my reservation" : "Reserve it — on us"}
               </button>
             </>
           ) : squareClientReady ? (
             <>
               {/* "Pay now, or reserve and pay at pickup" only where that second way is offered (R7b). */}
               {(mode === "delivery" || payLater.on) && <p className="dl-sub">{mode === "delivery" ? t("funnel.pay_sub_del") : t("funnel.pay_sub_pickup")}</p>}
-              <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />
+              {!heldNoCard && <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />}
               {err && <p className="dl-err" role="alert">{err}</p>}
-              <button type="button" className="btn-pri btn-wide" disabled={!cardReady || busy} onClick={mode === "delivery" ? payDelivery : payPickupCard}>
-                {busy ? "Charging…" : fillCopy(t("funnel.pay_cta"), { total: money(payCents) })}
-              </button>
-              {mode === "pickup" && payLater.on && (
+              {heldNoCard ? (
+                <button type="button" className="btn-pri btn-wide" onClick={() => { setRechecking(true); void submitPickup(null); }} disabled={busy}>
+                  {busy ? "Checking…" : "Check on my reservation"}
+                </button>
+              ) : (
+                <button type="button" className="btn-pri btn-wide" disabled={!cardReady || busy || payHeldElsewhere}
+                  onClick={() => { setRechecking(payFrozen); void (mode === "delivery" ? payDelivery : payPickupCard)(); }}>
+                  {busy ? (rechecking ? "Checking…" : "Charging…") : payFrozen ? "Check on my payment" : fillCopy(t("funnel.pay_cta"), { total: money(payCents) })}
+                </button>
+              )}
+              {mode === "pickup" && payLater.on && !payHeld && (
                 <button type="button" className="oa-paylater" onClick={() => submitPickup(null)} disabled={busy}>
                   {busy ? "Reserving…" : t("funnel.pay_later")}
                 </button>
@@ -1034,8 +1090,8 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           ) : mode === "pickup" && payLater.on ? (
             <>
               {err && <p className="dl-err" role="alert">{err}</p>}
-              <button type="button" className="btn-pri btn-wide" onClick={() => submitPickup(null)} disabled={busy}>
-                {busy ? "Reserving…" : fillCopy(t("funnel.reserve_pay_later"), { total: money(payCents) })}
+              <button type="button" className="btn-pri btn-wide" onClick={() => { setRechecking(payFrozen); void submitPickup(null); }} disabled={busy || payHeldElsewhere}>
+                {busy ? (rechecking ? "Checking…" : "Reserving…") : payFrozen ? "Check on my reservation" : fillCopy(t("funnel.reserve_pay_later"), { total: money(payCents) })}
               </button>
               <EditableCopy k="funnel.reserve_window_note" value={t("funnel.reserve_window_note")} as="p" className="dl-sub" />
             </>
@@ -1087,7 +1143,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       )}
 
       {/* back — hidden on the first shopping step + on done */}
-      {step !== "done" && !(mode === "delivery" && step === "start") && !(mode === "pickup" && step === "size") && (
+      {step !== "done" && !(mode === "delivery" && step === "start") && !(mode === "pickup" && step === "size") && !(step === "pay" && payFrozen) && (
         <button type="button" className="dl-back" onClick={goBack}>‹ Back</button>
       )}
     </div>

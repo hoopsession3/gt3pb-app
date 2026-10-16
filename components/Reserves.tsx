@@ -12,11 +12,13 @@ import { isMissingColumn, isMissingRelation } from "@/lib/schemaSkew";
 import { reserveClosesAt, reserveOpen, reservePickupWords, type ReserveStop } from "@/lib/reservePickup";
 import { closesWords } from "@/lib/pickupDay";
 import Sheet from "./Sheet";
-import SignIn from "./SignIn";
 import { useConfirm } from "./ConfirmSheet";
 import type { Reserve, ReserveClaim } from "@/lib/db";
 import Icon from "@/components/Icon";
 import { money, moneyRound } from "@/lib/money";
+
+// The sign-in sheet a guest's tap on a reserve opens — loaded with that tap, not in /reserve's and /shop's first download (R8).
+const SignIn = dynamic(() => import("./SignIn"));
 
 // The pay step loads with the first tap of "Reserve yours" — most visitors to /reserve and /shop never make it.
 const ReservePay = dynamic(() => import("./ReservePay"), { ssr: false });

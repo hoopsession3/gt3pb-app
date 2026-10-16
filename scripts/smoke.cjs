@@ -6368,10 +6368,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("sign-in: a forgotten password is reset by code, here — the code's session raises \"Set a new password.\", and a resend sends a reset",
     /"reset-sent": \{ head: "Check your email\.", then: "Enter it, then choose a new password\.", go: "Continue", label: "Reset code", kind: "recovery" \}/.test(si)
     && /const \{ error \} = await verifyCode\(email\.trim\(\), token, kind\);/.test(si)
-    && /step === "reset-sent" \? await resetPassword\(email\.trim\(\)\) : await sendCode\(/.test(si)
+    && /step === "reset-sent" \? await resetPassword\(email\.trim\(\)\)\s+: step === "confirm" && !hadAccount\.current \? await resendConfirm\(email\.trim\(\)\)\s+: await sendCode\(/.test(si)
     && /Forgot your password\? Email me a reset code/.test(si) && !/password-reset link/.test(si)
     && /const \{ error \} = await supabase\.auth\.verifyOtp\(\{ email, token, type: kind \}\);/.test(auth)
-    && /if \(event === "PASSWORD_RECOVERY"\) setRecovery\(true\);/.test(auth));
+    && /if \(event === "PASSWORD_RECOVERY"\) \{ recoveryPending\(true\); setRecovery\(true\); \}/.test(auth));
   ok("sign-in: a resent code empties the field and says to use the newest email; a wrong or old code says so and selects itself",
     /else \{ setCooldown\(30\); setOtp\(""\); setResent\(true\); codeRef\.current\?\.focus\(\); \}/.test(si)
     && /requestAnimationFrame\(\(\) => codeRef\.current\?\.select\(\)\);/.test(si) && /A new code is on its way — use the newest email\./.test(si));
@@ -7322,12 +7322,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     !/parseInt/.test(np) && /<select value=\{qs\}/.test(np) && /<select value=\{qe\}/.test(np) && /QUIET_HOURS\.map/.test(np));
   ok("quiet hours: the hours read the app's way", np.includes("fmt12(`${h}:00`)") && DT3.fmt12("22:00") === "10:00pm" && DT3.fmt12("0:00") === "12:00am" && DT3.fmt12("12:00") === "12:00pm");
   ok("quiet hours: a failed read locks the sheet — saving over prefs it could not read would unmute everything",
-    /if \(error\) \{ setRead\("failed"\)/.test(np) && /read !== "ok"\) return false/.test(np));
+    /if \(error\) \{ setRead\("failed"\)/.test(np) && (np.match(/if \(!supabase \|\| !userId \|\| read !== "ok"( \|\| writing)?\) return;/g) || []).length === 2);
   const inboxSrc = crewSrc.slice(crewSrc.indexOf("function AlertsInbox"), crewSrc.indexOf("if (mine.length === 0 && held.length === 0)", crewSrc.indexOf("function AlertsInbox")) + 400);
   ok("quiet hours: the door to them is on the empty inbox too — not only beside a list with something in it",
     /const prefsDoor = <button type="button" className="alert-prefs-btn" onClick=\{\(\) => setPrefsOpen\(true\)\} aria-label="Notification settings">/.test(inboxSrc)
     && /if \(mine\.length === 0 && held\.length === 0\) \{\s*return \(\s*<div className="adm-sec">\s*<SectionHeader label=\{title\} right=\{prefsDoor\} \/>\s*\{prefsSheet\}/.test(inboxSrc));
-  ok("quiet hours: \"Saved\" is said only when it saved", !/onBlur=\{\(\) => \{ save\(/.test(np) && /if \(error\) \{ toast\(`Couldn't save/.test(np));
+  ok("quiet hours: \"Saved\" is said only when it saved", !/onBlur=\{\(\) => \{ save\(/.test(np)
+    && /if \(error\) \{ setQs\(before\[0\]\); setQe\(before\[1\]\); toast\(`Couldn't save/.test(np) && /if \(r\.error !== null\) \{ setMuted\(before\); toast\(`Couldn't save/.test(np));
   ok("quiet hours: the gear and Settings draw ONE component — the sheet wraps the same controls, and the crew page keeps no copy",
     /export function NotifPrefsSheet\([\s\S]*?<NotifPrefs userId=\{userId\} \/>/.test(np)
     && /const prefsSheet = prefsOpen && <NotifPrefsSheet userId=\{userId\}/.test(inboxSrc)
@@ -9591,7 +9592,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("alerts on this device: the phone's answer is read as it draws (no effect), asked for with one tap, and every answer is said",
     /useSyncExternalStore\(subscribe, readPermission, \(\) => "unknown" as const\)/.test(DA) && /window\.dispatchEvent\(new Event\(ASKED\)\);/.test(DA)
     && /if \(await subscribePush\(true\)\) toast\("Order alerts are on for this phone"\);\s*else toast\(/.test(DA) && ["unknown", "granted", "default", "denied", "unsupported"].every((k) => new RegExp(`\\b${k}: "`).test(DA))
-    && /const perm = useAlertPermission\(\);\s*if \(APP_BUILD\) return NATIVE_PUSH_ON \? <AppAlertsRow \/> : null;/.test(DA) && !/next update|web app on this phone/.test(DA)
+    && /const perm = useAlertPermission\(\);\s*const \{ kept, recheck \} = usePushKept\(!APP_BUILD && perm === "granted", user\?\.id \?\? null, true\);\s*if \(APP_BUILD\) return NATIVE_PUSH_ON \? <AppAlertsRow \/> : null;/.test(DA) && !/next update|web app on this phone/.test(DA)
     && /export const alertsOff = \(p: AlertPermission \| "unknown"\): boolean => p === "default" \|\| p === "denied";/.test(DA));
   {
     // 2026-10-11 (0365/0366, the review of the iPhone app's alerts): the page wrote its own row and never read the answer.
@@ -10150,7 +10151,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /const quiet = shown\.current === uid;\s*if \(!quiet\) setProfileStatus\("loading"\);/.test(au)
       && /if \(quiet && error\) return;[^\n]*\n\s*if \(ask !== profileAsk\.current\) return;/.test(au)
       && /setProfileStatus\("ready"\);[^\n]*\n\s*shown\.current = uid;/.test(au)
-      && /await supabase\?\.auth\.signOut\(\);\s*shown\.current = null;/.test(au));
+      && /const r = await supabase\?\.auth\.signOut\(\)\.catch\(\(e: unknown\) => \(\{ error: e \}\)\);[\s\S]{0,700}?\n\s*shown\.current = null;\s*setUser\(null\);/.test(au));
     {
       // Asked from the phone's own address: the browser tests are served from http://localhost, where the old rule worked.
       const NL = require("../.smoke/nativeLinks.js");
@@ -10203,7 +10204,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
         && /supabase\.auth\.verifyOtp\(\{ email: email\.trim\(\), token, type: "email" \}\)/.test(al) && al.indexOf("verifyOtp(") < al.indexOf("linkAppleHere(supabase, cred)"));
       ok("apple link: the app's alone — built into the app only, as NativeBridge is — and Settings & privacy offers it to an email account without an Apple ID",
         /const AppleLink = process\.env\.NEXT_PUBLIC_GT3_TARGET === "app" \? dynamic\(\(\) => import\("\.\/AppleLink"\), \{ ssr: false \}\) : null;/.test(shell) && /\{AppleLink && <AppleLink \/>\}/.test(shell)
-        && /\{APP_BUILD && isNativeApp\(\) && !user\.identities\?\.some\(\(i\) => i\.provider === "apple"\) && \(\s*<Row title="Link Sign in with Apple" sub="Continue with Apple opens this account" onClick=\{\(\) => open\("gt3-link-apple"\)\} \/>/.test(acs2)
+        && /\{APP_BUILD && isNativeApp\(\) && \(user\.identities\?\.some\(\(i\) => i\.provider === "apple"\)\s*\? <div className="acs-row cursor-default">[^\n]*\n\s*: <Row title="Link Sign in with Apple" sub="Continue with Apple opens this account" onClick=\{\(\) => open\("gt3-link-apple"\)\} \/>\)\}/.test(acs2)
         && /export const LINK_APPLE = "gt3-link-apple";/.test(read("components/AppleLink.tsx")) && !/import .*AppleLink/.test(acs2));
       ok("apple link: the server checks Apple's token itself before anything is deleted, and Supabase links with the member's own session",
         /verify: \(token, raw\) => verifyIdentityToken\(token, raw\)/.test(lr) && /link_identity: true/.test(lr) && /const user = await userFromRequest\(req\);/.test(lr)
@@ -10781,7 +10782,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const hinted = (f) => (read(f).match(/enterKeyHint=/g) || []).length;
   ok("Return says what it does: next moves to the next field; the last field sends",
     /export function nextOnEnter\(e: KeyboardEvent<HTMLInputElement>\): void/.test(read("lib/formKeys.ts"))
-    && hinted("app/book/page.tsx") >= 5 && hinted("components/SignIn.tsx") >= 6 && hinted("components/AuthProvider.tsx") >= 2 && /enterKeyHint="send"/.test(read("components/Concierge.tsx")));
+    && hinted("app/book/page.tsx") >= 5 && hinted("components/SignIn.tsx") >= 6 && hinted("components/PasswordRecovery.tsx") >= 2 && /enterKeyHint="send"/.test(read("components/Concierge.tsx")));
   ok("the KPI board's fields are 16px — an iPhone zooms into anything smaller", /<label key=\{r\.key\} className="prod-f">/.test(read("components/KpiBoard.tsx"))
     && /\.prod-f input,\.prod-f textarea,\.prod-f select,[^{]*\{[^}]*font-size:16px;/.test(read("app/globals.css")));
   ok("the iPhone app opens on the menu, with no front-door ad",
@@ -13337,8 +13338,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     L.cardLine(L.cardOf(8)) === "8/10 · 2 to a free cup" && L.cardLine(L.cardOf(10)) === "1 free cup ready" && L.cardLine(L.cardOf(25)) === "2 free cups ready"
     && L.freeWords(1) === "1 free cup ready" && L.STAMP_GOAL === 10);
   // Today's card is a row of components/today/TodayHome since R3 (2026-10-13); the stamp card it was went.
-  const files = ["components/today/TodayHome.tsx", "components/AccountSheet.tsx", "components/MembershipCard.tsx", "app/scan/page.tsx", "app/3mpire/page.tsx", "app/api/wallet/google/route.ts"];
-  ok("card: the six places that worked out the card ask lib/loyalty — no GOAL = 10, no % 10, no \"free earned\" left",
+  // The Google pass was the sixth until R8 (2026-10-16): it carries no stamp count now — one it could never update.
+  const files = ["components/today/TodayHome.tsx", "components/AccountSheet.tsx", "components/MembershipCard.tsx", "app/scan/page.tsx", "app/3mpire/page.tsx"];
+  ok("card: the five places that work out the card ask lib/loyalty — no GOAL = 10, no % 10, no \"free earned\" left",
     files.every((f) => /from "@\/lib\/loyalty"/.test(rd(f)) && !/const GOAL = 10;/.test(rd(f)) && !/% 10\b/.test(rd(f)) && !/free earned/.test(rd(f))),
     files.filter((f) => !/from "@\/lib\/loyalty"/.test(rd(f)) || /const GOAL = 10;|% 10\b|free earned/.test(rd(f))));
   const scan = rd("app/scan/page.tsx");
@@ -13452,7 +13454,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /export const POST = route\("reserve\/change", post\);/.test(change));
   ok("page: a change goes to /api/reserve/change with the difference it was quoted — no second reservation, no cancel after it",
     /authedFetch\("\/api\/reserve\/change", \{ method: "POST", headers: \{ "Content-Type": "application\/json" \}, body: JSON\.stringify\(\{ \.\.\.body, quote: true \}\) \}\)/.test(pay)
-    && /const expectedDiffCents = changeQuote\.paid \? changeQuote\.diffCents : card \? changeQuote\.newCents : 0;/.test(pay)
+    && /const expectedDiffCents = !changeQuote \? 0 : changeQuote\.paid \? changeQuote\.diffCents : card \? changeQuote\.newCents : 0;/.test(pay)
     && /useIdemKey\("gt3-of-idem-change"\)/.test(pay) && !/cancel_any_order/.test(funnel));
   ok("page: the change's Pay step loads only when a pack is changed — /reserve and /delivery carry none of it",
     /const PackChangePay = dynamic\(\(\) => import\("\.\/PackChangePay"\)\);/.test(funnel) && !/changeQuote|submitChange/.test(funnel));
@@ -14234,7 +14236,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const receipt = shopReceipt\(\{ id: orderId, ship_name: shipName, city: addr\.city, state: addr\.state, total_cents: total, emailed_to: emailed \? email : null,/.test(rt)
     && /body: \{ ok: true, id: orderId, paid: true, recorded: true, emailed, totalCents: total, receipt \}/.test(rt));
   ok("Pay sends the total it shows; a raised total is shown for this cart and agreed to by the next tap",
-    /expectedCents: payCents,/.test(sc) && /const payCents = agreed && agreed\.sig === cartSig \? agreed\.cents : total;/.test(sc)
+    /expectedCents: payCents,/.test(sc) && /const payCents = frozen \? frozen\.cents : agreed && agreed\.sig === cartSig \? agreed\.cents : total;/.test(sc)
     && /fillCopy\(t\("checkout\.pay"\), \{ total: money\(payCents\) \}\)/.test(sc) && /setAgreed\(\{ sig: cartSig, cents: data\.totalCents \}\)/.test(sc));
   ok("the done screen shows the receipt it was handed: lines, the total paid with its order number, where it ships",
     /onDone=\{\(warn, emailed, receipt\) => \{ setDoneRef\(\{ warn, emailed, receipt \}\);/.test(sh) && /<span>Paid · order \{doneRef\.receipt\.no\}<\/span><b>\{money\(doneRef\.receipt\.total_cents\)\}<\/b>/.test(sh)
@@ -14404,7 +14406,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(record\.kind === "pickup_tomorrow" && await customerMuted\(pack\.user_id, CUSTOMER_MUTE\.pickupReminders\)\)/.test(pi) && /detail: "pickup reminders off \(Notifications\)"/.test(pi));
   const ns = code(rd("components/NotificationsSheet.tsx"));
   ok("notifications: the screen writes only its own entry, draws no switch before the read answers, and says what always comes",
-    /upsert\(\{ user_id: user\.id, muted_categories: next \}, \{ onConflict: "user_id" \}\)/.test(ns) && /disabled=\{muted === null \|\| busy !== null\}/.test(ns)
+    /const r = await writeMuted\(supabase, user\.id, \(fresh\) => withKind\(fresh, kind, on\)\);/.test(ns) && /disabled=\{muted === null \|\| busy !== null\}/.test(ns)
+    && /upsert\(\{ user_id: userId, muted_categories: muted, \.\.\.also \}, \{ onConflict: "user_id" \}\)/.test(rd("lib/notifMuted.ts"))
     && /\{ALWAYS_SENT\}/.test(ns) && /<TruckLive \/>/.test(ns) && /<TextsSetting \/>/.test(ns) && /<ThisPhone \/>/.test(ns));
   ok("notifications: the account menu, the account page and the help-sheet host open it; the crew's glance counts only the crew's",
     /<NotificationsSheet onClose=\{close\} \/>/.test(rd("components/HelpSheets.tsx")) && /new Event\("gt3-open-notifications"\)/.test(rd("app/3mpire/page.tsx"))
@@ -14430,7 +14433,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R7 access: the shop's payment errors, sign-in's, a new password's and a bottle proof's are read out as they appear",
     /\{err && <div className="shop-err" role="alert">\{err\}<\/div>\}/.test(rd("components/ShopCheckout.tsx"))
     && (rd("components/SignIn.tsx").match(/<div className="auth-err" role="alert">/g) || []).length === 3 && !/<div className="auth-err">/.test(rd("components/SignIn.tsx"))
-    && /\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(rd("components/AuthProvider.tsx"))
+    && /\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(rd("components/PasswordRecovery.tsx"))
     && /\{err && <div className="vipv-err" role="alert">\{err\}<\/div>\}/.test(rd("components/VipVerify.tsx")));
   ok("R7 wallet: Add to Apple Wallet waits for the route to sign passes — the flag alone drew a button that always failed",
     /export const APPLE_PASS_SIGNS = false;/.test(rd("lib/wallet.ts"))
@@ -14645,7 +14648,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const CANCELED_SAID_MS = 24 \* 60 \* 60 \* 1000;/.test(rd("components/GuestOrderBar.tsx")) && /if \(o\?\.recentlyCanceled && !voidSeen\) \{/.test(rd("components/GuestOrderBar.tsx"))
     && /useEffect\(\(\) => \{ if \(voided && !shared\) markVoidSeen\(t\); \}, \[voided, t, shared\]\);/.test(rd("app/order/page.tsx")));
   ok("R7b access: the account sheet and the duplicate-order sheet are named; Ask us is a log; Bold and Roomy reach sheets and bars",
-    (rd("components/AccountSheet.tsx").match(/<Sheet open onClose=\{onClose\} label=/g) || []).length === 4 && /label="Already on the books"/.test(of)
+    (rd("components/AccountSheet.tsx").match(/<Sheet open onClose=\{onClose\} (dismissible=\{!deleteBusy\} )?label=/g) || []).length === 4 && /label="Already on the books"/.test(of)
     && /<div role="log" aria-live="polite" aria-label="Conversation">/.test(rd("components/Concierge.tsx"))
     && /\.app\.rd-bold :is\(\.body,\.sheet2,\.cartbar,\.toast,\.orderbar-wrap\)\{font-weight:600\}/.test(rd("app/globals.css")));
   // ── the re-audit of R7b (2026-10-16): two fresh reviews of R7b's own diff, every finding fixed and pinned here ──
@@ -14726,6 +14729,224 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R8 order numbers: the checkout's id is drawn free of today's numbers, before the row is written",
     /const orderId = await orderIdForToday\(supabaseAdmin, randomUUID\);/.test(r)
     && r.indexOf("const orderId = await orderIdForToday(") < r.indexOf("const orderRow = { id: orderId,"));
+}
+
+// ── R8: TWO AUDITS — THE MONEY PATHS NOT YET HELD, AND THE MEMBER'S OWN SCREENS (2026-10-16) ────────────────────────────
+// Ryan: "Keep working to improve to a 10." A fresh audit of the shop, the delivery and the reserves (a lost answer let the
+// order move and the next Pay be a second charge; a guest card tester's open door; paid orders saved half; a held city's
+// deliveries), and one of the member's own screens (a sign-up that waited on a code never sent, a photo that came back,
+// a switch another screen wrote back, sheets that dropped focus, words that promised what a switch had turned off).
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const ID = require("../.smoke/idempotency.js"), NM = require("../.smoke/notifMuted.js");
+
+  // ── money: a lost answer holds its order still, on every page that takes a card ──
+  const uk = rd("components/useIdemKey.ts");
+  ok("R8 held: the key says what it was signed over while its answer never came — the order itself, read back from the signature",
+    /heldDetails: \(\) => \{\s+const c = now\(\);\s+if \(!c\.open \|\| !c\.attempt\.key\) return null;/.test(uk)
+    && /const at = c\.attempt\.sig\.indexOf\("\\u0000"\);/.test(uk) && /try \{ return at >= 0 \? JSON\.parse\(c\.attempt\.sig\.slice\(at \+ 1\)\) : null; \} catch \{ return null; \}/.test(uk)
+    && JSON.parse(ID.idemSignature(null, { cart: "x", cents: 5 }).split("\u0000")[1]).cents === 5);
+  const rp = rd("components/ReservePay.tsx");
+  ok("R8 reserves: what was sent is what is shown and sent again — how many and the total hold still while the answer is unknown",
+    /const frozen = was && was\.reserve === reserve\.id && typeof was\.qty === "number" && typeof was\.cents === "number" \? \{ n: was\.qty, cents: was\.cents \} : null;/.test(rp)
+    && /const n = frozen \? frozen\.n : Math\.min\(qty, max\);/.test(rp) && /const totalCents = frozen \? frozen\.cents : agreed && agreed\.n === n \? agreed\.cents : n \* reserve\.price_cents;/.test(rp)
+    && (rp.match(/disabled=\{n (<=|>=) (1|max) \|\| busy \|\| !!frozen\}/g) || []).length === 2
+    && rp.indexOf("idem.sent(attempt.key, withCard);") > 0 && rp.indexOf("idem.sent(attempt.key, withCard);") < rp.indexOf('authedFetch("/api/reserves/pay"'));
+  ok("R8 reserves: the button asks about that payment; one held for another reserve blocks Pay until Start over",
+    /frozen \? "Check on my payment" : `Pay \$\{money\(totalCents\)\}`/.test(rp) && /frozen \? "Check on my reservation" : "Reserve it — no charge"/.test(rp)
+    && /const heldElsewhere = idem\.isOpen\(\) && !frozen;/.test(rp) && (rp.match(/busy \|\| heldElsewhere/g) || []).length === 2
+    && /warning="Only start over if we’ve told you it didn’t go through — otherwise this would be a second payment\."/.test(rp));
+  const hn = rd("components/HeldNotice.tsx");
+  ok("R8 held: one notice for every held payment, loaded only when something is held — Start over behind a second tap that says what it means",
+    ["components/ShopCheckout.tsx", "components/ReservePay.tsx", "components/PackChangePay.tsx", "components/OrderFunnel.tsx"].every((f) => /const HeldNotice = dynamic\(\(\) => import\("\.\/HeldNotice"\), \{ ssr: false \}\);/.test(rd(f)) && /<HeldNotice /.test(rd(f)) && !/setLetGo/.test(rd(f)))
+    && /onClick=\{\(\) => \{ setLetGo\(false\); onStartOver\(\); \}\}><b>Start over<\/b>/.test(hn) && /<span className="block mt-2">\{warning\}<\/span>/.test(hn) && /role="status"/.test(hn));
+  const sc = rd("components/ShopCheckout.tsx");
+  ok("R8 shop: the key is signed over the cart and its total; the cart, its quantities and Back hold still while a payment is unknown",
+    /const attempt = await idem\.begin\(\{ cart: cartSig, cents: payCents \}, \(\) => card\.tokenize\(\), \[\{ cart \}\]\);/.test(sc)
+    && sc.indexOf("idem.sent(attempt.key, true);") > 0 && sc.indexOf("idem.sent(attempt.key, true);") < sc.indexOf('authedFetch("/api/shop/checkout"')
+    && /onClick=\{onBack\} disabled=\{!!frozen\}/.test(sc) && /onClick=\{\(\) => setQty\(i, l\.qty - 1\)\} disabled=\{!!frozen\}/.test(sc) && /disabled=\{l\.qty >= 20 \|\| !!frozen\}/.test(sc)
+    && /const canPay = ready && !busy && !heldElsewhere && /.test(sc) && /frozen \? "Check on my payment" : fillCopy\(t\("checkout\.pay"\)/.test(sc));
+  const oldSig = ID.idemSignature(null, { cart: [{ product: { id: "p1" }, qty: 2 }] });
+  const keptOld = ID.attemptFor({ sig: oldSig, key: "k-old", token: "tok" }, { cart: "[[\"p1\",null,2]]", cents: 5000 }, () => "k-new", [{ cart: [{ product: { id: "p1" }, qty: 2 }] }]);
+  const other = ID.attemptFor({ sig: oldSig, key: "k-old", token: "tok" }, { cart: "[[\"p2\",null,1]]", cents: 900 }, () => "k-new", [{ cart: [{ product: { id: "p2" }, qty: 1 }] }]);
+  ok("R8 shop: a payment held across the update — signed over the cart's lines, as before — keeps its key and token; another cart is a new key",
+    keptOld.key === "k-old" && keptOld.token === "tok" && keptOld.sig === ID.idemSignature(null, { cart: "[[\"p1\",null,2]]", cents: 5000 })
+    && other.key === "k-new" && other.token === null
+    && /const before = held && Array\.isArray\(was\?\.cart\) && JSON\.stringify\(was\.cart\) === JSON\.stringify\(cart\);/.test(sc));
+  const of = rd("components/OrderFunnel.tsx");
+  ok("R8 packs and deliveries: held open from the send; Back, the code, pay-later and another order wait while the payment is unknown",
+    of.indexOf("idem.sent(attempt.key, !!attempt.token);") > 0 && of.indexOf("idem.sent(attempt.key, !!attempt.token);") < of.indexOf('authedFetch("/api/reserve", {')
+    && of.indexOf("idemDelivery.sent(attempt.key, true);") > 0 && of.indexOf("idemDelivery.sent(attempt.key, true);") < of.indexOf('authedFetch("/api/delivery/checkout"')
+    && /const payIdem = mode === "delivery" \? idemDelivery : idem;/.test(of) && /const payHeld = !changeBody && payIdem\.isOpen\(\);/.test(of)
+    && of.indexOf("const changeBody = useMemo(") < of.indexOf("const payHeld = !changeBody && payIdem.isOpen();")
+    && /const payFrozen = \(payHeld && !payHeldElsewhere\) \|\| \(!!changeBody && changeHeld\);/.test(of)
+    && /!\(step === "pay" && payFrozen\) && \(\s+<button type="button" className="dl-back" onClick=\{goBack\}>/.test(of)
+    && /\{mode === "pickup" && payLater\.on && !payHeld && \(/.test(of) && (of.match(/disabled=\{payFrozen\}/g) || []).length === 3
+    && (of.match(/busy \|\| payHeldElsewhere/g) || []).length === 3 && /: payFrozen \? "Check on my payment" : fillCopy\(t\("funnel\.pay_cta"\)/.test(of));
+  ok("R8 packs: a held pay-at-pickup reservation is asked about without a card — never charged to one; Charging stays Charging on the first send",
+    /const heldNoCard = payHeld && !payHeldElsewhere && !payIdem\.heldCard\(\);/.test(of) && /\{!heldNoCard && <PaymentCard /.test(of)
+    && /\{heldNoCard \? \(\s+<button type="button" className="btn-pri btn-wide" onClick=\{\(\) => \{ setRechecking\(true\); void submitPickup\(null\); \}\} disabled=\{busy\}>/.test(of)
+    && /onClick=\{\(\) => \{ setRechecking\(payFrozen\); void \(mode === "delivery" \? payDelivery : payPickupCard\)\(\); \}\}/.test(of)
+    && /\{busy \? \(rechecking \? "Checking…" : "Charging…"\)/.test(of) && /setRechecking\(!!frozen\);/.test(sc) && /setRechecking\(!!frozen\);/.test(rp)
+    && !/busy \? \(frozen \? "Checking…"/.test(sc + rp));
+  const pcp = rd("components/PackChangePay.tsx");
+  ok("R8 pack changes: a change's own payment holds still — held open from the send, asked about under the same key (without a card when it was sent without one), its Back and code waiting",
+    pcp.indexOf("idemChange.sent(attempt.key, !!attempt.token);") > 0 && pcp.indexOf("idemChange.sent(attempt.key, !!attempt.token);") < pcp.indexOf('authedFetch("/api/reserve/change", {\n        method: "POST"')
+    && /const heldOther = held && JSON\.stringify\(idemChange\.heldDetails\(\)\) !== JSON\.stringify\(sig\);/.test(pcp)
+    && /useEffect\(\(\) => \{ onHeld\?\.\(heldHere\); \}, \[heldHere, onHeld\]\);/.test(pcp)
+    && /\{changeQuote && \(heldHere && !idemChange\.heldCard\(\) \? \(/.test(pcp) && /heldHere \? "Check on my payment" : changeQuote\.paid/.test(pcp)
+    && (pcp.match(/busy \|\| heldOther/g) || []).length === 2 && /\{!changeQuote\.paid && !held && \(/.test(pcp)
+    && /const payFrozen = \(payHeld && !payHeldElsewhere\) \|\| \(!!changeBody && changeHeld\);/.test(of) && /onHeld=\{setChangeHeld\} \/>/.test(of)
+    && /if \(busy \|\| \(!changeQuote && !heldHere\)\) return;/.test(pcp) && /\{!changeQuote && heldHere && \(idemChange\.heldCard\(\) \? \(/.test(pcp)
+    && /const expectedDiffCents = !changeQuote \? 0 : changeQuote\.paid/.test(pcp));
+  ok("R8 weight: sign-in loads when a guest needs it — the funnel fetches it as a guest opens it, a reserve's sheet with its tap — not in the routes' first download",
+    /const SignIn = dynamic\(\(\) => import\("@\/components\/SignIn"\)\);/.test(of) && /useEffect\(\(\) => \{ if \(!user\) void import\("@\/components\/SignIn"\)\.catch\(\(\) => \{\}\); \}, \[user\]\);/.test(of)
+    && !/^import SignIn/m.test(of) && /const SignIn = dynamic\(\(\) => import\("\.\/SignIn"\)\);/.test(rd("components/Reserves.tsx")) && !/^import SignIn/m.test(rd("components/Reserves.tsx")));
+  ok("R8 packs: passing the glass step is a choice — a guest's Need new glass stays new glass after signing in",
+    /disabled=\{!glassReady\} onClick=\{\(\) => \{ glassTouched\.current = true; setStep\("details"\); \}\}/.test(of));
+  const shop = rd("app/api/shop/checkout/route.ts");
+  ok("R8 shop: a card-testing guard — six a minute an address, sixty for everyone — after a seen key is answered, before the cart is read",
+    /p_bucket: `shop-checkout:\$\{ip\}`, p_window_ms: 60_000, p_max: 6/.test(shop) && /p_bucket: "shop-checkout:global", p_window_ms: 60_000, p_max: 60/.test(shop)
+    && /if \(ipFits\.data === false \|\| allFits\.data === false\) return NextResponse\.json\(\{ error: "Too many attempts — give it a minute\." \}, \{ status: 429 \}\);/.test(shop)
+    && shop.indexOf("await seenBefore(") < shop.indexOf('"shop-checkout:global"') && shop.indexOf('"shop-checkout:global"') < shop.indexOf("const rawItems ="));
+  ok("R8 shop: a paid order's lines and its printer mark are checked and tried twice; still refused, the crew is told what to do",
+    /let \{ error: itemsErr \} = await db\.from\("shop_order_items"\)\.insert\(itemRows\);\s+if \(itemsErr\) \(\{ error: itemsErr \} = await db\.from\("shop_order_items"\)\.insert\(itemRows\)\);/.test(shop)
+    && /title: "Paid shop order saved without its items — add them"/.test(shop)
+    && /let \{ error: markErr \} = await db\.from\("shop_orders"\)\.update\(marked\)\.eq\("id", orderId\);/.test(shop)
+    && /if \(markErr\) \(\{ error: markErr \} = await db\.from\("shop_orders"\)\.update\(marked\)\.eq\("id", orderId\)\);/.test(shop)
+    && /title: "Shop order is at the printer — don't send it again"/.test(shop));
+  const dl = rd("app/api/delivery/checkout/route.ts");
+  ok("R8 deliveries: a city held closed, or not open by that Sunday, takes no delivery — refused before the key is claimed; a failed read charges nothing",
+    /const hold = await cityHolds\(supabaseAdmin, \[FOUNDING_MARKET\]\);/.test(dl)
+    && /if \(hold\.error !== null\) return NextResponse\.json\(\{ error: "We couldn't check deliveries just now — try again in a moment\. Nothing was charged\.", charged: false \}, \{ status: 503 \}\);/.test(dl)
+    && /if \(zoneCity && \(zoneCity\.closed \|\| \(zoneCity\.opensOn !== null && slot\.deliveryDateKey < zoneCity\.opensOn\)\)\) \{/.test(dl)
+    && dl.indexOf("await seenBefore(") < dl.indexOf("await cityHolds(") && dl.indexOf("await cityHolds(") < dl.indexOf("const held = await claimKey(")
+    && ID.attemptVerdict(503, { charged: false }) === "refused" && ID.attemptVerdict(409, { error: "x" }) === "refused");
+  const ap = rd("lib/apliiq.ts"), ff = rd("app/api/apliiq/fulfillment/route.ts");
+  ok("R8 printer: an event not done is not seen — an order not found, or a write refused, gives the event back for Apliiq's retry",
+    /export async function forgetSeen\(provider: "apliiq" \| "square", eventId: string\): Promise<void> \{/.test(ap)
+    && /await supabaseAdmin\.from\("webhook_events"\)\.delete\(\)\.eq\("id", `\$\{provider\}:\$\{eventId\}`\);/.test(ap)
+    && /if \(!order\) \{ await forgetSeen\("apliiq", eventId\); return NextResponse\.json\(\{ ok: false, error: "order not found" \}, \{ status: 404 \}\); \}/.test(ff)
+    && /if \(fulfilled\.error \|\| shipped\.error\) \{ await forgetSeen\("apliiq", eventId\); return NextResponse\.json\(\{ ok: false, error: "not recorded — send it again" \}, \{ status: 500 \}\); \}/.test(ff)
+    && /\.eq\("order_id", orderId\)\.eq\("tracking_number", tracking\)\.limit\(1\)/.test(ff) && /\(had\.data \?\? \[\]\)\.length \? \{ error: null \} : await supabaseAdmin\.from\("merch_fulfillments"\)\.insert\(/.test(ff));
+  const gw = rd("app/api/wallet/google/route.ts");
+  ok("R8 wallet: the Google pass carries the card — the name and the code the window scans — and no stamp count it could never update",
+    !/loyaltyPoints/.test(gw) && !/lib\/loyalty/.test(gw) && /select\("display_name, referral_code"\)/.test(gw) && /barcode: \{ type: "QR_CODE"/.test(gw));
+
+  // ── the member's own screens ──
+  const au = rd("components/AuthProvider.tsx"), si = rd("components/SignIn.tsx");
+  ok("R8 join: an email that already has an account is sent a sign-in code on the same screen — nobody learns from the form who is a member",
+    /if \(data\.user && !data\.session && Array\.isArray\(data\.user\.identities\) && data\.user\.identities\.length === 0\) \{\s+await supabase\.auth\.signInWithOtp\(\{\s+email,\s+options: \{ shouldCreateUser: false, /.test(au)
+    && /return \{ confirm: true, existing: true \};/.test(au) && /hadAccount\.current = !error && existing === true;/.test(si)
+    && /else if \(needsConfirm\) \{ setStep\("confirm"\); setCooldown\(30\); \}/.test(si)
+    && !/step !== "confirm" && \(/.test(si) && /await supabase\.auth\.resend\(\{ type: "signup", email, options: \{ emailRedirectTo:/.test(au));
+  ok("R8 join: once the code proves the email theirs, the password they chose is the account's, and they are told — only then",
+    /if \(step === "confirm" && hadAccount\.current && password\) \{\s+hadAccount\.current = false;\s+const set = await updatePassword\(password\);/.test(si)
+    && /This email already had an account — you’re signed in to it, with the password you just chose\./.test(si)
+    && /This email already had an account — you’re signed in to it\. Its password didn’t change\./.test(si));
+  const pr = rd("components/PasswordRecovery.tsx");
+  ok("R8 reset: \"Password updated.\" is seen — the overlay stays until Continue, which keeps them signed in; the heading takes focus",
+    !/setRecovery\(false\);\s+return \{\};/.test(au) && /onDone=\{\(\) => \{ recoveryPending\(false\); setRecovery\(false\); \}\}/.test(au)
+    && /const finish = useCallback\(\(\) => \{ restoreRef\.current\?\.focus\?\.\(\); onDone\(\); \}, \[onDone\]\);/.test(pr)
+    && /useEffect\(\(\) => \{ if \(done\) doneHead\.current\?\.focus\(\); \}, \[done\]\);/.test(pr) && /onClick=\{finish\}><span>Continue<\/span>/.test(pr)
+    && /if \(e\.key === "Escape"\) \(done \? finish : close\)\(\);/.test(pr));
+  ok("R8 weight: the set-a-new-password overlay loads when a reset raises it — not in the bundle every page downloads — fetched as the code is asked for, said if it cannot load, raised again by a reload",
+    /const PasswordRecovery = dynamic\(\(\) => import\("\.\/PasswordRecovery"\)\.catch\(\(\) => \(\{ default: RecoveryDidNotLoad \}\)\), \{ ssr: false \}\);/.test(au) && !/function PasswordRecovery\(/.test(au)
+    && /void import\("\.\/PasswordRecovery"\)\.catch\(\(\) => \{\}\);/.test(si)
+    && /if \(event === "PASSWORD_RECOVERY"\) \{ recoveryPending\(true\); setRecovery\(true\); \}/.test(au)
+    && /else if \(u && event === "INITIAL_SESSION" && recoveryPending\(null\)\) setRecovery\(true\);/.test(au)
+    && /onDone=\{\(\) => \{ recoveryPending\(false\); setRecovery\(false\); \}\}/.test(au)
+    && /updatePassword=\{async \(pw\) => \{ const r = await updatePassword\(pw\); if \(!r\.error\) recoveryPending\(false\); return r; \}\}/.test(au)
+    && !/useFocusTrap/.test(au) && /export default function PasswordRecovery\(/.test(pr) && /aria-label="Set a new password"/.test(pr));
+  ok("R8 sign out: out is out offline too — a refused sign-out removes this phone's copy, and keeps the library's refresh for the next sign-in",
+    /const r = await supabase\?\.auth\.signOut\(\)\.catch\(\(e: unknown\) => \(\{ error: e \}\)\);/.test(au) && /if \(typeof auth\._removeSession === "function"\) await auth\._removeSession\(\);/.test(au)
+    && /else for \(const k of Object\.keys\(localStorage\)\) if \(\/\^sb-\.\*-auth-token\/\.test\(k\)\) localStorage\.removeItem\(k\);/.test(au) && !/stopAutoRefresh\(\)/.test(au));
+  const aa = rd("lib/appleAuth.ts");
+  ok("R8 Apple: linking from Settings keeps the token a deletion revokes — the sheet's code goes the way a sign-in's does, once joined",
+    /\.\.\.\(credential\.authorizationCode \? \{ code: credential\.authorizationCode \} : \{\}\)/.test(aa)
+    && aa.indexOf("await supabase.auth.refreshSession()") < aa.indexOf('authedFetch("/api/auth/apple"') && /if \(apple\.code\) \{/.test(aa));
+  const pk = rd("components/usePushKept.ts"), ns = rd("components/NotificationsSheet.tsx"), da = rd("components/DeviceAlerts.tsx");
+  ok("R8 alerts: \"On\" only when this phone's row is the person's (and, for the crew, marked crew) — a sign-out's let-go phone offers Turn on",
+    /\.from\("push_subscriptions"\)\.select\("user_id, is_admin"\)\.eq\("endpoint", sub\.endpoint\)\.maybeSingle\(\);/.test(pk)
+    && /setKept\(error \? null : !!row && row\.user_id === userId && \(!crew \|\| row\.is_admin === true\)\);/.test(pk)
+    && /usePushKept\(!NATIVE_PUSH_ON && perm === "granted", user\?\.id \?\? null\)/.test(ns) && /perm === "granted" && kept === false \? \(/.test(ns)
+    && /usePushKept\(!APP_BUILD && perm === "granted", user\?\.id \?\? null, true\)/.test(da) && /\{perm === "default" \|\| notKept\s+\? <button/.test(da));
+  ok("R8 alerts: in the app, the phone's row says what the switches below it decide — no \"ping when your order is ready\" over Order updates off",
+    !/you&apos;ll get a ping when your order is ready/.test(rd("components/AppAlerts.tsx")) && /On — this phone shows the alerts you leave on below\./.test(rd("components/AppAlerts.tsx")));
+  const npf = rd("components/NotifPrefs.tsx");
+  ok("R8 switches: a tap changes its own entry in the list as the row holds it now — the crew's console and the member's switches no longer write each other back",
+    /const r = await writeMuted\(supabase, userId, \(fresh\) => withMuted\(fresh, k, mute\), \{ updated_at: new Date\(\)\.toISOString\(\) \}\)\s+\.catch\(/.test(npf)
+    && /if \(!supabase \|\| !userId \|\| read !== "ok" \|\| writing\) return;\s+setWriting\(true\);/.test(npf) && /disabled=\{locked \|\| writing\}/.test(npf)
+    && /const \{ error \} = await supabase\.from\("notif_prefs"\)\.upsert\(\{ user_id: userId,\s+quiet_start:/.test(npf) && !/muted_categories: nextMuted/.test(npf)
+    && /const r = await writeMuted\(supabase, user\.id, \(fresh\) => withKind\(fresh, kind, on\)\);/.test(ns) && !/muted_categories: next \}/.test(ns));
+  PENDING.push((async () => {
+    const calls = [];
+    const fake = (row, readErr = null, writeErr = null) => ({
+      from(table) {
+        const b = {
+          select(c) { calls.push(["select", table, c]); return b; }, eq() { return b; },
+          maybeSingle() { return Promise.resolve(readErr ? { data: null, error: readErr } : { data: row, error: null }); },
+          upsert(v, o) { calls.push(["upsert", table, v, o]); return Promise.resolve({ error: writeErr }); },
+        };
+        return b;
+      },
+    });
+    // The console opened at 9 with ["brew"]; at noon the member turned Order updates off on their phone; at 3 the console mutes Money.
+    const r = await NM.writeMuted(fake({ muted_categories: ["brew", "order_updates"] }), "u1", (fresh) => NM.withMuted(fresh, "money", true), { updated_at: "t" });
+    const up = calls.find((c) => c[0] === "upsert");
+    const none = await NM.writeMuted(fake(null), "u1", (fresh) => NM.withMuted(fresh, "order_updates", true));
+    calls.length = 0;
+    const readFail = await NM.writeMuted(fake(null, { message: "down" }), "u1", (f) => f);
+    const wroteOnFail = calls.some((c) => c[0] === "upsert");
+    const writeOk = await NM.writeMuted(fake({ muted_categories: [] }), "u1", (f) => NM.withMuted(f, "brew", true));
+    const refused = await NM.writeMuted(fake({ muted_categories: [] }, null, { message: "nope" }), "u1", (f) => f);
+    ok("R8 switches: the noon change survives the 3pm tap — read fresh, one entry changed, only the list (and what is asked) sent",
+      r.error === null && r.muted.join() === "brew,order_updates,money" && up && up[2].muted_categories.join() === "brew,order_updates,money"
+      && up[2].updated_at === "t" && Object.keys(up[2]).sort().join() === "muted_categories,updated_at,user_id" && up[3].onConflict === "user_id"
+      && none.muted.join() === "order_updates" && readFail.error === "down" && readFail.muted === null && !wroteOnFail
+      && writeOk.error === null && writeOk.muted.join() === "brew" && refused.error === "nope" && refused.muted === null
+      && NM.withMuted(["a", "b"], "a", false).join() === "b" && NM.withMuted(["a"], "a", true).join() === "a");
+  })());
+  const shf = rd("components/Sheet.tsx");
+  ok("R8 focus: a sheet opened from inside another gives focus back to that one's opener — Your account's rows, closed in the same tap",
+    /const backTo = new WeakMap<HTMLElement, HTMLElement>\(\);/.test(shf) && /const panel = from\?\.closest\?\.<HTMLElement>\("\.sheet2"\);/.test(shf)
+    && /const \[handBack\] = useState<HTMLElement \| null>\(\(\) => handedFrom\(openedFrom\)\);/.test(shf)
+    && /const back = useCallback\(\(el: HTMLElement \| null\): HTMLElement \| null => \(el\?\.isConnected \? el : handBack\?\.isConnected \? handBack : null\), \[handBack\]\);/.test(shf)
+    && /if \(panel && keep\) backTo\.set\(panel, keep\);/.test(shf) && /const el = back\(restoreRef\.current\);\s+restoreRef\.current = null;\s+if \(el\) giveBack\(el\);/.test(shf)
+    && /const el = backNow\.current\(restoreRef\.current\);/.test(shf) && /\}, \[onClose, back\]\);/.test(shf));
+  const st = rd("components/StatusCard.tsx");
+  ok("R8 card: a removed photo stays removed — the row cleared, the profile read again, a refusal put back and said; a refused save is said",
+    /const \{ error \} = await supabase\.from\("profiles"\)\.update\(\{ avatar_url: null \}\)\.eq\("id", user\.id\);\s+if \(error\) \{\s+photoRef\.current = wasImg; setPhotoUrl\(was\); setHasPhoto\(Boolean\(was\)\);/.test(st)
+    && /Couldn't remove the photo — check your connection and try again/.test(st) && /if \(was\?\.startsWith\("blob:"\)\) \{ try \{ URL\.revokeObjectURL\(was\); \} catch \{ \/\* ignore \*\/ \} \}\s+await refreshProfile\(\);/.test(st)
+    && /const \{ error: saveErr \} = await supabase\.from\("profiles"\)\.update\(\{ avatar_url: bust \}\)\.eq\("id", user\.id\);\s+if \(saveErr\) toast\(/.test(st));
+  const rv = rd("components/ReviewPrompt.tsx"), css = rd("app/tailwind.css");
+  ok("R8 review: the stars are 44pt, one stop on Tab and moved by the arrows; a send that failed says so and keeps what was written",
+    /className=\{`rvp-star inline-flex min-h-11 min-w-11 items-center justify-center\$\{n <= rating \? " on" : ""\}`\}/.test(rv)
+    && (st.match(/className="fc-motto-btn min-h-11"/g) || []).length === 2 && /--spacing: 4px|--spacing:4px|--spacing: 0\.25rem/.test(css)
+    && /tabIndex=\{n === \(rating \|\| 1\) \? 0 : -1\}/.test(rv) && /onKeyDown=\{onStarsKey\}/.test(rv) && /stars\.current\[n - 1\]\?\.focus\(\);/.test(rv)
+    && /else setErr\("Couldn’t send that — check your connection and try again\."\);/.test(rv) && /\{err && <p className="mb-2 text-footnote text-red-hover" role="alert">\{err\}<\/p>\}/.test(rv));
+  ok("R8 reach: the card's Show off your status and the shop's quantity buttons reach 44 — the pill no longer clips their reach",
+    /className="mp-flex min-h-11"/.test(rd("components/MembershipCard.tsx"))
+    && /\.shop-line-qty\{display:flex;align-items:center;border:1px solid var\(--line2\);border-radius:var\(--r-pill\);background:var\(--card\)\}/.test(rd("app/globals.css"))
+    && !/\.shop-line-qty\{[^}]*overflow:hidden/.test(rd("app/globals.css")) && (sc.match(/className="hit-44 disabled:opacity-40" onClick=\{\(\) => setQty\(i, l\.qty [-+] 1\)\}/g) || []).length === 2);
+  ok("R8 card: the member number is the whole code — its first eight cut a name's code short — and the Google pass says the same",
+    /<div className="mp-code">#\{\(profile\.referral_code \|\| String\(code\)\.slice\(0, 8\)\)\.toUpperCase\(\)\}<\/div>/.test(rd("components/MembershipCard.tsx"))
+    && /alternateText: \(prof\?\.referral_code \|\| String\(code\)\.slice\(0, 8\)\)\.toUpperCase\(\)/.test(gw));
+  const ts = rd("components/TextsSetting.tsx");
+  ok("R8 texts: a read that failed is not Off — the switch waits for its read, and a failure says so with Try again",
+    /if \(error\) \{ setReadFailed\(true\); return; \}/.test(ts) && /const readOk = rows !== null && !readFailed;/.test(ts)
+    && /disabled=\{busy \|\| !readOk\}/.test(ts) && /readFailed \? "Couldn’t check just now" : rows === null \? "Checking…" : yes \? "On" : "Off"/.test(ts));
+  const acs = rd("components/AccountSheet.tsx"), del = rd("components/DeleteAccount.tsx");
+  ok("R8 account: the tier and the card wait for the profile; Apple linked says so; a delete under way holds the sheet; Back returns focus",
+    /\{profile \? \(\s+<>\s+<span className=\{`k-tag mt-1\.5/.test(acs) && /profileStatus === "error" \? <div className="acs-line">Your card couldn&apos;t load<\/div>\s+: profileStatus === "loading" \?/.test(acs)
+    && /Linked — Continue with Apple opens this account/.test(acs) && /dismissible=\{!deleteBusy\}/.test(acs) && /onBusy=\{setDeleteBusy\}/.test(acs)
+    && /if \(wasDeleting\.current\) \{ wasDeleting\.current = false; backRef\.current\?\.focus\(\); \}/.test(acs)
+    && /useEffect\(\(\) => \{ onBusy\?\.\(phase\.at === "deleting"\); \}, \[phase\.at, onBusy\]\);/.test(del) && /<div ref=\{top\} tabIndex=\{-1\} role="alert" className="outline-none">/.test(del));
+  const mp = rd("app/3mpire/page.tsx");
+  ok("R8 3MPIRE: nothing said before it is read — no made-up referral code, no 0/10 for a full card; a copy that failed gives the code",
+    /const code = profile\?\.referral_code \|\| null;/.test(mp) && !/referral_code \|\| "GT3PB-3MP"/.test(mp) && /\{code && <ReferralCard code=\{code\} \/>\}/.test(mp)
+    && /We couldn&apos;t load your card just now\./.test(mp) && /\) : profileStatus === "loading" \? \(\s+<div id="rewards" className="memline acs-anchor" aria-busy="true">/.test(mp) && /catch \{ toast\(`Couldn't copy it — your code is \$\{code\}`, "error"\); return; \}/.test(mp));
 }
 
 Promise.all(PENDING).then(() => {

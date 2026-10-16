@@ -18,6 +18,15 @@ const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input
 // opened from a row the page had partly scrolled under the title bar moved the page when it closed. The page under a
 // sheet is exactly where it was left, as on an iPhone; the focus ring still says which control you came from.
 const giveBack = (el: HTMLElement) => el.focus?.({ preventScroll: true });
+// HANDED ON (R8, 2026-10-16). A row in one sheet that opens another closes the first in the same tap — Your account's
+// Notifications, Payment, Help. The second sheet's opener was that row, gone with its sheet by the time the second
+// closed, so focus fell to the page and a keyboard or VoiceOver user started again from the top. Each open sheet keeps
+// what it gives focus back to, by its panel; a sheet opened from inside another takes that one's as its own way back.
+const backTo = new WeakMap<HTMLElement, HTMLElement>();
+const handedFrom = (from: HTMLElement | null): HTMLElement | null => {
+  const panel = from?.closest?.<HTMLElement>(".sheet2");
+  return panel ? backTo.get(panel) ?? null : null;
+};
 
 // THE canonical popout. One implementation, so the scroll contract, safe-area, keyboard-awareness,
 // spring-in, and swipe-to-dismiss are guaranteed identical everywhere — no per-sheet drift. Bottom
@@ -96,6 +105,9 @@ export default function Sheet({
   // the page. The button that was pressed is read here instead, while the sheet first renders, before any of
   // its children exist.
   const [openedFrom] = useState<HTMLElement | null>(() => (open && typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null));
+  // The way back of the sheet the opener sat in, read while it is still there (HANDED ON, above).
+  const [handBack] = useState<HTMLElement | null>(() => handedFrom(openedFrom));
+  const back = useCallback((el: HTMLElement | null): HTMLElement | null => (el?.isConnected ? el : handBack?.isConnected ? handBack : null), [handBack]);
   const usedOpener = useRef(false);
   const askId = useId();
   const [me] = useState(() => Symbol("sheet"));
@@ -158,9 +170,9 @@ export default function Sheet({
     // that transition is also unreachable via this path even when the parent keeps rendering, since
     // phase is already "closing" by the time the open-prop effect would react to onClose's result).
     if (restoreRef.current) {
-      const el = restoreRef.current;
+      const el = back(restoreRef.current);
       restoreRef.current = null;
-      giveBack(el);
+      if (el) giveBack(el);
     }
     closeT.current = setTimeout(() => {
       closeT.current = null;
@@ -175,7 +187,7 @@ export default function Sheet({
         scrimRef.current?.style.removeProperty("--scrim");
       }, 400);
     }, ms);
-  }, [onClose]);
+  }, [onClose, back]);
   const requestClose = useCallback(() => finish(210, false), [finish]);
   useEffect(() => () => { if (closeT.current) clearTimeout(closeT.current); if (keptT.current) clearTimeout(keptT.current); }, []);
 
@@ -245,28 +257,32 @@ export default function Sheet({
     const opener = !usedOpener.current ? openedFrom : null;
     usedOpener.current = true;
     restoreRef.current = opener ?? (document.activeElement as HTMLElement) ?? null;
+    const panel = panelRef.current, keep = back(restoreRef.current);
+    if (panel && keep) backTo.set(panel, keep);
     const raf = requestAnimationFrame(() => {
       if (panelRef.current?.contains(document.activeElement)) return;   // a field inside took focus itself (autoFocus)
       const first = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
       (first ?? panelRef.current)?.focus();
     });
     return () => cancelAnimationFrame(raf);
-  }, [phase, openedFrom]);
+  }, [phase, openedFrom, back]);
   // Unmounted by its parent (X, Cancel, Save — the common case): focus goes back to the opener, unless it
   // has already gone somewhere real.
+  const backNow = useRef(back);
+  useLayoutEffect(() => { backNow.current = back; });
   useEffect(() => () => {
-    const el = restoreRef.current;
-    if (!el || !el.isConnected) return;
+    const el = backNow.current(restoreRef.current);
+    if (!el) return;
     const now = document.activeElement;
     if (now && now !== document.body && now.isConnected) return;
     requestAnimationFrame(() => giveBack(el));
   }, []);
   useEffect(() => {
     if (phase !== "closed" || !restoreRef.current) return;
-    const el = restoreRef.current;
+    const el = back(restoreRef.current);
     restoreRef.current = null;
-    requestAnimationFrame(() => giveBack(el));
-  }, [phase]);
+    if (el) requestAnimationFrame(() => giveBack(el));
+  }, [phase, back]);
   const onTab = useEffectEvent((e: KeyboardEvent) => {
     if (e.key !== "Tab" || stack[stack.length - 1] !== me) return;
     const scope = (ask ? scrimRef.current?.querySelector<HTMLElement>(".sheet2-ask-scrim") : null) ?? panelRef.current;

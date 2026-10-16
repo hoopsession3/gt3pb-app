@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Sheet from "./Sheet";
 import PaymentCard, { type PaymentCardHandle } from "./PaymentCard";
 import { useIdemKey, type Attempt } from "./useIdemKey";
@@ -10,6 +11,9 @@ import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
 import { payErrorText } from "@/lib/idempotency";
 import { closesWords } from "@/lib/pickupDay";
+
+// The held-payment notice loads when something is held (components/HeldNotice) — a moment few customers see.
+const HeldNotice = dynamic(() => import("./HeldNotice"), { ssr: false });
 
 // PAY FOR A LIMITED RESERVE (0400, 2026-10-14 — R5 of the customer audit). Loaded with the first tap of "Reserve yours"
 // (components/Reserves, next/dynamic). How many, where and when it is picked up, the total, the card — and the one key
@@ -42,13 +46,25 @@ export default function ReservePay({ reserve, pickup, closes, have, onClose, onD
 
   const max = Math.max(1, Math.min(MAX_QTY, reserve.per_member_limit - have, reserve.stock_remaining));
   const [qty, setQty] = useState(1);
-  const n = Math.min(qty, max);
   // A total the server raised for these bottles, agreed to by the next tap; anything else is priced as the page saw it.
   const [agreed, setAgreed] = useState<{ n: number; cents: number } | null>(null);
-  const totalCents = agreed && agreed.n === n ? agreed.cents : n * reserve.price_cents;
+  // A PAYMENT WHOSE ANSWER NEVER CAME HOLDS ITS ORDER STILL (R8). The first request holds the bottles, so the stock and
+  // the member's own count move under the page — and "how many" moved with them: 2 became 1, the key's signature changed,
+  // and "Pay $40" was a second charge beside the first $80. While the answer is unknown, what was sent is what is shown
+  // and sent again (the same key, answered from the first request); the count holds still until it is answered.
+  const was = idem.heldDetails() as { reserve?: unknown; qty?: unknown; cents?: unknown } | null;
+  const frozen = was && was.reserve === reserve.id && typeof was.qty === "number" && typeof was.cents === "number" ? { n: was.qty, cents: was.cents } : null;
+  // Held for another reserve (the key is this phone's, across reserves): said, and Pay waits on Start over — a new key here
+  // would let that payment go unasked.
+  const heldElsewhere = idem.isOpen() && !frozen;
+  const n = frozen ? frozen.n : Math.min(qty, max);
+  const totalCents = frozen ? frozen.cents : agreed && agreed.n === n ? agreed.cents : n * reserve.price_cents;
+  // Asking about a held payment, or making one — read when the button is tapped (the hold opens as the first send leaves).
+  const [rechecking, setRechecking] = useState(false);
 
   const send = async (withCard: boolean) => {
     if (busy) return;
+    setRechecking(!!frozen);
     setErr("");
     setBusy(true);
     // The key is signed over what is bought — the reserve, how many, the total — never the card.
@@ -62,6 +78,7 @@ export default function ReservePay({ reserve, pickup, closes, have, onClose, onD
       return;
     }
     if (withCard && !attempt.token) { setBusy(false); setErr("Card details look off — check and retry."); return; }
+    idem.sent(attempt.key, withCard);   // held open from the send: what it bought holds still until it is answered
     try {
       const res = await authedFetch("/api/reserves/pay", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -82,7 +99,7 @@ export default function ReservePay({ reserve, pickup, closes, have, onClose, onD
       // The answer may have been lost after the card was charged: the key and the card token are kept, so the next tap
       // is answered from the first — nothing is charged twice.
       idem.settle(attempt.key, null, null);
-      setErr("Couldn't confirm the payment — safe to try again, nothing is charged twice.");
+      setErr("Couldn't confirm the payment — tap the button to check on it. Nothing is charged twice.");
     }
   };
 
@@ -95,9 +112,9 @@ export default function ReservePay({ reserve, pickup, closes, have, onClose, onD
           <div className="dl-ctr">
             <span className="dl-ctr-n">How many <em>Up to {max} for you</em></span>
             <div className="dl-ctr-b">
-              <button type="button" onClick={() => setQty(Math.max(1, n - 1))} disabled={n <= 1 || busy} aria-label="One fewer">−</button>
+              <button type="button" onClick={() => setQty(Math.max(1, n - 1))} disabled={n <= 1 || busy || !!frozen} aria-label="One fewer">−</button>
               <b>{n}</b>
-              <button type="button" onClick={() => setQty(Math.min(max, n + 1))} disabled={n >= max || busy} aria-label="One more">+</button>
+              <button type="button" onClick={() => setQty(Math.min(max, n + 1))} disabled={n >= max || busy || !!frozen} aria-label="One more">+</button>
             </div>
           </div>
         )}
@@ -105,16 +122,24 @@ export default function ReservePay({ reserve, pickup, closes, have, onClose, onD
           <span>{pickup ? `Pickup ${pickup}` : "Pickup to be named"}</span>
           <span className="dl-quote-t">total <b>{money(totalCents)}</b></span>
         </div>
+        {(frozen || heldElsewhere) && !busy && (
+          <HeldNotice buttonClass="co-paylater" what="Your last payment hasn’t been confirmed yet."
+            line={frozen
+              ? "Tap the button to check on it — you won’t be charged twice, and how many stays as it is until it’s answered."
+              : "It was for a different reserve. Check your email for a receipt before paying again."}
+            warning="Only start over if we’ve told you it didn’t go through — otherwise this would be a second payment."
+            onStartOver={() => { idem.forget(); setErr(""); }} />
+        )}
         {totalCents === 0 ? (
           <>
             {err && <p className="dl-err" role="alert">{err}</p>}
-            <button type="button" className="btn-pri btn-wide" onClick={() => send(false)} disabled={busy}>{busy ? "Reserving…" : "Reserve it — no charge"}</button>
+            <button type="button" className="btn-pri btn-wide" onClick={() => send(false)} disabled={busy || heldElsewhere}>{busy ? (rechecking ? "Checking…" : "Reserving…") : frozen ? "Check on my reservation" : "Reserve it — no charge"}</button>
           </>
         ) : squareClientReady ? (
           <>
             <PaymentCard ref={paymentRef} className="sq-card" onReady={setCardReady} onError={(m) => setErr(m ?? "")} />
             {err && <p className="dl-err" role="alert">{err}</p>}
-            <button type="button" className="btn-pri btn-wide" disabled={!cardReady || busy} onClick={() => send(true)}>{busy ? "Charging…" : `Pay ${money(totalCents)}`}</button>
+            <button type="button" className="btn-pri btn-wide" disabled={!cardReady || busy || heldElsewhere} onClick={() => send(true)}>{busy ? (rechecking ? "Checking…" : "Charging…") : frozen ? "Check on my payment" : `Pay ${money(totalCents)}`}</button>
           </>
         ) : (
           <p className="dl-sub">Card payments aren&rsquo;t switched on yet — check back shortly.</p>

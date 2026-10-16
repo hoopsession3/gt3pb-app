@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authedFetch } from "@/lib/authedFetch";
 import { haptic } from "@/lib/haptics";
 import { supabase } from "@/lib/supabase";
@@ -33,13 +33,20 @@ type Phase =
 
 const OFFLINE = "You're offline. Connect, then try again.";
 
-export default function DeleteAccount({ staff, onKeep, onDeleted }: {
+export default function DeleteAccount({ staff, onKeep, onDeleted, onBusy }: {
   staff: boolean;
   onKeep: () => void;
   onDeleted: () => void;
+  /** While the delete is out (R8): the sheet around it holds still until it answers. */
+  onBusy?: (busy: boolean) => void;
 }) {
   const [phase, setPhase] = useState<Phase>({ at: "checking" });
   const [asked, setAsked] = useState(0);   // "Try again" asks once more
+  useEffect(() => { onBusy?.(phase.at === "deleting"); }, [phase.at, onBusy]);
+  // Each step is read where it appears (R8): the button pressed is gone with the step, and focus with it — so it moves to
+  // the words that replaced it, and a screen reader says why deleting was refused, or what is left.
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (phase.at !== "checking" && phase.at !== "deleting") top.current?.focus({ preventScroll: true }); }, [phase.at]);
 
   useEffect(() => {
     let live = true;
@@ -87,7 +94,7 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
 
   if (phase.at === "blocked") {
     return (
-      <div>
+      <div ref={top} tabIndex={-1} role="alert" className="outline-none">
         <p className="cfm-body">Not yet.</p>
         {phase.blockers.map((b) => <p key={b.code} className="dp-hint">{b.message}</p>)}
         <div className="prod-actions cfm-actions">
@@ -99,7 +106,7 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
 
   if (phase.at === "after") {
     return (
-      <div>
+      <div ref={top} tabIndex={-1} className="outline-none">
         <p className="cfm-body" role="status">Your account is deleted.</p>
         {phase.membership && (
           <p className="dp-hint">
@@ -122,7 +129,7 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
 
   if (phase.at === "failed") {
     return (
-      <div>
+      <div ref={top} tabIndex={-1} className="outline-none">
         <p className="cfm-body" role="alert">{phase.message}</p>
         <div className="prod-actions cfm-actions">
           <button type="button" className="note-arch" onClick={onKeep}>Back</button>
@@ -134,7 +141,7 @@ export default function DeleteAccount({ staff, onKeep, onDeleted }: {
 
   const busy = phase.at === "deleting";
   return (
-    <div>
+    <div ref={top} tabIndex={-1} className="outline-none">
       <p className="cfm-body">This deletes your GT3 account for good. It can&rsquo;t be undone.</p>
 
       <div className="acs-group">Deleted</div>

@@ -4,12 +4,39 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { User } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "@/lib/supabase";
 import { writeViewerHint } from "@/lib/viewerHint";
-import { useFocusTrap } from "@/lib/useFocusTrap";
 import type { Role } from "@/lib/roles";
 import { publicOrigin } from "@/lib/native";
 import { takeReturn } from "@/lib/returnTo";
 import { useRouter } from "next/navigation";
-import { nextOnEnter } from "@/lib/formKeys";
+import dynamic from "next/dynamic";
+
+// SET A NEW PASSWORD, LOADED WHEN IT IS NEEDED (R8, 2026-10-16). The overlay a reset code or link raises
+// (PASSWORD_RECOVERY) rode in every page's first download — the one bundle every route carries — for a screen a member
+// sees once in a long while. It loads the moment it is asked for (components/PasswordRecovery).
+// Its code fetched as the reset screen asks for the code (components/SignIn), so it is here when the code is checked; and
+// if it still cannot be fetched — the connection dropped at that moment — the overlay says so and offers a reload, which
+// raises it again (RECOVERY_KEY, below), instead of Next's "Application error" over the whole app.
+const PasswordRecovery = dynamic(() => import("./PasswordRecovery").catch(() => ({ default: RecoveryDidNotLoad })), { ssr: false });
+const RECOVERY_KEY = "gt3-recovery";   // this tab is mid-reset: a reload raises the overlay again
+const recoveryPending = (on: boolean | null): boolean => {
+  try {
+    if (on === true) sessionStorage.setItem(RECOVERY_KEY, "1");
+    else if (on === false) sessionStorage.removeItem(RECOVERY_KEY);
+    return sessionStorage.getItem(RECOVERY_KEY) === "1";
+  } catch { return false; }
+};
+function RecoveryDidNotLoad({ onCancel }: { updatePassword: unknown; onDone: () => void; onCancel: () => void }) {
+  return (
+    <div className="qd-scrim z-[200]" role="alertdialog" aria-modal="true" aria-label="Set a new password">
+      <div className="qd-sheet max-w-[460px]"><div className="qd-body p-[22px]">
+        <h1 className="auth-headline mt-0">Set a new password.</h1>
+        <p className="auth-sub">This screen didn&apos;t load — check your connection, then reload to set your new password.</p>
+        <button type="button" className="btn-pri btn-wide mt-4.5" onClick={() => window.location.reload()}><span>Reload</span></button>
+        <button type="button" className="auth-link hit-44 mt-2.5" onClick={onCancel}>Cancel</button>
+      </div></div>
+    </div>
+  );
+}
 
 export interface Profile {
   id: string;
@@ -64,8 +91,11 @@ interface AuthCtx {
   verifyCode: (email: string, token: string, kind?: "email" | "recovery") => Promise<{ error?: string }>;
   signInWithUrl: (url: string) => Promise<{ error?: string }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string, displayName?: string) => Promise<{ error?: string; confirm?: boolean }>;
+  // `existing`: the email already had an account — a sign-in code went to it instead (R8, below).
+  signUp: (email: string, password: string, displayName?: string) => Promise<{ error?: string; confirm?: boolean; existing?: boolean }>;
   resetPassword: (email: string) => Promise<{ error?: string }>;
+  /** A new account's confirmation sent again — its email and code (R8: the confirm screen's Resend). */
+  resendConfirm: (email: string) => Promise<{ error?: string }>;
   updatePassword: (password: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   // Whose profile to read again: the signed-in person's, or — right after a sign-in this provider has not heard about
@@ -204,7 +234,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       else if (u && event === "INITIAL_SESSION") import("@/lib/track").then((m) => m.trackUser("open"), () => {});
       // A reset link, or the reset code (verifyOtp type "recovery"), signs the user in with a short-lived recovery
       // session and fires this event — gate the app behind a "set a new password" overlay until they pick one.
-      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+      if (event === "PASSWORD_RECOVERY") { recoveryPending(true); setRecovery(true); }
+      // A reload in the middle of setting a new password (the overlay's Reload, above): raised again.
+      else if (u && event === "INITIAL_SESSION" && recoveryPending(null)) setRecovery(true);
       // THE PAGE YOU STARTED ON (2026-10-09, lib/returnTo): a sign-in link lands on the front door; the
       // sign-in it completes goes back to the page the link was asked for on, once.
       if (u && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
@@ -280,6 +312,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       },
     });
     if (error) return { error: error.message };
+    // AN EMAIL THAT ALREADY HAS AN ACCOUNT (R8, 2026-10-16). Supabase answers a sign-up for it as if it were new — no
+    // error, a user with no identities, and no email sent — so nobody can learn from the form who is a member. The screen
+    // then said "We sent a code" and nothing came: the member waited on a code that was never sent. The address is sent a
+    // sign-in code instead, on the same screen (the code screen checks either kind), so whoever owns the email gets in and
+    // whoever doesn't learns nothing; the one who owns it is told once they are in (SignIn). A send refused (too soon
+    // after the last) is not said either: the screen's Resend is there.
+    if (data.user && !data.session && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false, emailRedirectTo: typeof window !== "undefined" ? publicOrigin() : undefined },
+      }).catch(() => null);
+      return { confirm: true, existing: true };
+    }
     // If session is null but user exists, email confirmation is required
     return { confirm: !data.session && !!data.user };
   }, []);
@@ -295,18 +340,41 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return error ? { error: error.message } : {};
   }, []);
 
-  // Set the new password while in the recovery session, then drop the overlay (the user is now
-  // signed in normally with their new password).
+  // THE CONFIRMATION, SENT AGAIN (R8, 2026-10-16). The confirm screen had no Resend: an email that never came, or a
+  // join met by the account the email already had (a sign-in code goes instead — signUp, above — and a send refused for
+  // coming too soon was said nowhere), left the member waiting with no way on. A new account's Resend is Supabase's own
+  // resend of its "Confirm sign up" email; the account that was already there is sent a sign-in code (SignIn).
+  const resendConfirm = useCallback<AuthCtx["resendConfirm"]>(async (email) => {
+    if (!supabase) return { error: "Sign-in isn't configured yet." };
+    const { error } = await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: typeof window !== "undefined" ? publicOrigin() : undefined } });
+    return error ? { error: error.message } : {};
+  }, []);
+
+  // Set the new password (the recovery session's, or — R8 — a join that met the account it already had: SignIn). The
+  // overlay is not dropped here (R8, 2026-10-16): it dropped the moment the password saved, so "Password updated." was
+  // never seen — the sheet vanished and the focus with it. Its Continue drops it (PasswordRecovery, onDone).
   const updatePassword = useCallback<AuthCtx["updatePassword"]>(async (password) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
     const { error } = await supabase.auth.updateUser({ password });
     if (error) return { error: error.message };
-    setRecovery(false);
     return {};
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase?.auth.signOut();
+    // OUT IS OUT, OFFLINE TOO (R8). supabase-js asks the server first and, on a network error or a 5xx, returns that error
+    // without clearing the session it stored: the screen said "Signed out", and the next time the app came back to the
+    // front the same person was signed in again — on a shared phone, the next person was in their account. Its answer is
+    // read now: refused, this phone's copy is removed by the library's own step for it (which says SIGNED_OUT to every
+    // listener), else by its stored keys. The server's copy of the session expires on its own.
+    const r = await supabase?.auth.signOut().catch((e: unknown) => ({ error: e }));
+    if (r?.error && supabase) {
+      // Not stopAutoRefresh: it takes the library's visibility listener with it, and the next sign-in would never refresh.
+      const auth = supabase.auth as unknown as { _removeSession?: () => Promise<void> };
+      try {
+        if (typeof auth._removeSession === "function") await auth._removeSession();
+        else for (const k of Object.keys(localStorage)) if (/^sb-.*-auth-token/.test(k)) localStorage.removeItem(k);
+      } catch { /* storage refused: the in-app state below is cleared all the same */ }
+    }
     shown.current = null;
     setUser(null);
     setProfile(null);
@@ -322,77 +390,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // Memoize the context value so incidental provider re-renders don't re-render the whole admin
   // subtree (which churns the Studio realtime channel). supabaseEnabled is a module constant.
-  const value = useMemo(() => ({ ready, enabled: supabaseEnabled, user, profile, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, updatePassword, signOut, refreshProfile }), [ready, user, profile, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, updatePassword, signOut, refreshProfile]);
+  const value = useMemo(() => ({ ready, enabled: supabaseEnabled, user, profile, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, resendConfirm, updatePassword, signOut, refreshProfile }), [ready, user, profile, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, resendConfirm, updatePassword, signOut, refreshProfile]);
 
   return (
     <Ctx.Provider value={value}>
       {children}
-      {recovery && <PasswordRecovery updatePassword={updatePassword} onCancel={() => { setRecovery(false); signOut(); }} />}
+      {/* Saved is saved (R8): the reload flag goes the moment the new password is, not at Continue — a reload on "Password
+          updated." would raise "Set a new password." again, and its Cancel sign them out of the account they just secured. */}
+      {recovery && <PasswordRecovery updatePassword={async (pw) => { const r = await updatePassword(pw); if (!r.error) recoveryPending(false); return r; }} onDone={() => { recoveryPending(false); setRecovery(false); }} onCancel={() => { recoveryPending(false); setRecovery(false); signOut(); }} />}
     </Ctx.Provider>
-  );
-}
-
-// Shown over the app when the user arrives from a reset link — they pick a new password before
-// they can use the app. Reuses the auth styling so it feels like the sign-in screen.
-function PasswordRecovery({ updatePassword, onCancel }: { updatePassword: AuthCtx["updatePassword"]; onCancel: () => void }) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [show, setShow] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const [done, setDone] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
-  useFocusTrap(true, panelRef);
-  // useFocusTrap's own restore fires on open→false, but this component is always "open" while
-  // mounted (it's unmounted wholesale instead) — so restore that contract locally: capture on
-  // mount, fire it from whichever exit path (Escape/Cancel/Continue) actually gets used.
-  useEffect(() => { restoreRef.current = (document.activeElement as HTMLElement) ?? null; }, []);
-  const close = useCallback(() => { restoreRef.current?.focus?.(); onCancel(); }, [onCancel]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [close]);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password.length < 8) { setErr("Use at least 8 characters."); return; }
-    if (password !== confirm) { setErr("Passwords don't match."); return; }
-    setBusy(true); setErr("");
-    const { error } = await updatePassword(password);
-    setBusy(false);
-    if (error) setErr(error); else setDone(true);
-  };
-
-  return (
-    <div className="qd-scrim" style={{ zIndex: 200 }} ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Set a new password">
-      <div className="qd-sheet" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-        <div className="qd-body" style={{ padding: 22 }}>
-          {done ? (
-            <>
-              <h1 className="auth-headline" style={{ marginTop: 0 }}>Password updated.</h1>
-              <p className="auth-sub">You&apos;re all set — you&apos;re signed in with your new password.</p>
-              <button type="button" className="btn-pri btn-wide mt-4.5" onClick={close}><span>Continue</span></button>
-            </>
-          ) : (
-            <form className="auth-form" onSubmit={submit}>
-              <h1 className="auth-headline" style={{ marginTop: 0 }}>Set a new password.</h1>
-              <p className="auth-sub">Pick a new password for your account. At least 8 characters.</p>
-              <label className="auth-label" htmlFor="rec-pass">New password</label>
-              <div className="auth-pass-wrap">
-                <input id="rec-pass" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type={show ? "text" : "password"} autoComplete="new-password" placeholder="New password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoFocus />
-                <button type="button" className="auth-show-pass" onClick={() => setShow((v) => !v)} tabIndex={-1}>{show ? "Hide" : "Show"}</button>
-              </div>
-              <label className="auth-label" htmlFor="rec-confirm">Confirm password</label>
-              <input id="rec-confirm" className="auth-input" enterKeyHint="go" type={show ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-              {err && <div className="auth-err" role="alert">{err}</div>}
-              <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}><span>{busy ? "Saving…" : "Save new password"}</span></button>
-              <button type="button" className="auth-link hit-44" onClick={close} style={{ marginTop: 10 }}>Cancel</button>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }

@@ -123,7 +123,8 @@ function ReferralCard({ code }: { code: string }) {
     try { await navigator.clipboard.writeText(link); toast("Invite link copied"); } catch { toast(link); }
   };
   const copyCode = async () => {
-    try { await navigator.clipboard.writeText(code); } catch { /* clipboard may be blocked */ }
+    // Said only when it was copied (R8): a blocked clipboard still said "Referral code copied".
+    try { await navigator.clipboard.writeText(code); } catch { toast(`Couldn't copy it — your code is ${code}`, "error"); return; }
     setCopyLbl(t("account.copied"));
     setTimeout(() => setCopyLbl(t("account.copy")), 1400);
     toast("Referral code copied");
@@ -146,7 +147,7 @@ function ReferralCard({ code }: { code: string }) {
 // ───────────────────────── signed-in, profile-driven ─────────────────────────
 function MpireReal() {
   const { toast } = useApp();
-  const { profile, user, signOut } = useAuth();
+  const { profile, profileStatus, user, signOut, refreshProfile } = useAuth();
   const router = useRouter();
   const t = useSiteCopy();
 
@@ -154,7 +155,11 @@ function MpireReal() {
   // counted every ten points forever.
   const card = cardOf(profile?.points);
   const credit = moneyPlain(profile?.credit_cents);
-  const code = profile?.referral_code || "GT3PB-3MP";
+  // NOTHING SAID BEFORE IT IS READ (R8). While the profile loaded — every cold open — or when its read failed, the page said
+  // "0/10 stamps · 10 to a free cup", dropped the credit and the founding tier, and offered a made-up referral code
+  // ("GT3PB-3MP") whose Copy and Share worked: a friend who joined with it was attached to no one. Until the row is here
+  // the card's line holds its place, the referral card waits, and a failed read says so with a way to try again.
+  const code = profile?.referral_code || null;
   const creditCents = profile?.credit_cents ?? 0;
 
   // Deep-link landing — the account popout routes here with #orders / #rewards; scroll to the
@@ -175,13 +180,26 @@ function MpireReal() {
           in one quiet line, and credit only speaks up when there's actually credit. */}
       <MembershipCard />
       <VipVerify />
-      <div id="rewards" className="memline acs-anchor">
-        <span><b>{card.stamps}</b>/{STAMP_GOAL} stamps</span>
-        <span className="memline-dot">·</span>
-        <span>{card.free > 0 ? <b>{freeWords(card.free)}</b> : `${card.toNext} to a free cup`}</span>
-        {/* Spent at the window (0389, H8): the crew sees it on the scan screen and takes it off. */}
-        {creditCents > 0 && <><span className="memline-dot">·</span><span><b>${credit}</b> credit · use it at the window</span></>}
-      </div>
+      {profile ? (
+        <div id="rewards" className="memline acs-anchor">
+          <span><b>{card.stamps}</b>/{STAMP_GOAL} stamps</span>
+          <span className="memline-dot">·</span>
+          <span>{card.free > 0 ? <b>{freeWords(card.free)}</b> : `${card.toNext} to a free cup`}</span>
+          {/* Spent at the window (0389, H8): the crew sees it on the scan screen and takes it off. */}
+          {creditCents > 0 && <><span className="memline-dot">·</span><span><b>${credit}</b> credit · use it at the window</span></>}
+        </div>
+      ) : profileStatus === "error" ? (
+        <div id="rewards" className="memline acs-anchor" role="status">
+          <span>We couldn&apos;t load your card just now.</span>
+          <button type="button" className="btn-ter" onClick={() => { void refreshProfile(); }}>Try again</button>
+        </div>
+      ) : profileStatus === "loading" ? (
+        <div id="rewards" className="memline acs-anchor" aria-busy="true"><span className="sk inline-block h-[1em] w-48 rounded" /></div>
+      ) : (
+        // Read, and no row (an account whose profile was never made): nothing is said about a card that is not there —
+        // never a placeholder that waits for ever.
+        <div id="rewards" className="acs-anchor" />
+      )}
 
       <ReviewPrompt />
 
@@ -194,7 +212,7 @@ function MpireReal() {
 
       <OrderHistory />
 
-      <ReferralCard code={code} />
+      {code && <ReferralCard code={code} />}
 
       <SectionHeader label={<EditableCopy k="account.section_label" value={t("account.section_label")} />} annotation={<EditableCopy k="account.section_note" value={t("account.section_note")} />} />
       <div className="rows">

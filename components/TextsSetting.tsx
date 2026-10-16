@@ -38,13 +38,19 @@ export default function TextsSetting() {
 
   // Read again after each change (tick): the member's own rows, as 0398's policy lets them.
   const [tick, setTick] = useState(0);
+  // A READ THAT FAILED IS NOT "OFF" (R8, 2026-10-16). It drew as no rows — "Off" — for a member whose texts were on, and
+  // the switch, tapped to turn them off, turned them on. Until the read answers the switch waits; a failed read says so.
+  const [readFailed, setReadFailed] = useState(false);
   useEffect(() => {
     if (!on || !supabase || !user) return;
     let live = true;
-    // arrives-with: 0398 — until it is pasted the table is not there: the read errs and the switch shows Off for the number on
-    // their orders; turning it on answers "Couldn't change it" (app/api/account/texts). Shown only once texts are switched on.
     supabase.from("text_consents").select("phone, yes_at, stop_at").eq("user_id", user.id)
-      .then(({ data }) => { if (live) setRows((data ?? []) as Row[]); });
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setReadFailed(true); return; }
+        setReadFailed(false);
+        setRows((data ?? []) as Row[]);
+      });
     return () => { live = false; };
   }, [on, user, tick]);
 
@@ -54,8 +60,9 @@ export default function TextsSetting() {
   if (!num) return null;
   const yes = !!rows?.some((r) => r.phone === num && stands(r));
 
+  const readOk = rows !== null && !readFailed;
   const flip = async () => {
-    if (busy) return;
+    if (busy || !readOk) return;
     setBusy(true);
     try {
       const r = await authedFetch("/api/account/texts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: num, on: !yes }) });
@@ -71,10 +78,12 @@ export default function TextsSetting() {
     <>
     <div className="row" aria-label="Texts about my packs and deliveries">
       <div className="ri"><svg viewBox="0 0 24 24" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg></div>
-      <div className="rl"><b>Texts about my packs</b><span>{yes ? "On" : "Off"} · {phoneShown(num)}</span></div>
-      <button type="button" role="switch" aria-checked={yes} aria-label="Texts about my packs and deliveries" className={`k-switch${yes ? " on" : ""}`} onClick={flip} disabled={busy}>
-        <span className="k-switch-k" />
-      </button>
+      <div className="rl"><b>Texts about my packs</b><span>{readFailed ? "Couldn’t check just now" : rows === null ? "Checking…" : yes ? "On" : "Off"} · {phoneShown(num)}</span></div>
+      {readFailed
+        ? <button type="button" className="btn-sec btn-sm" onClick={() => { setReadFailed(false); setRows(null); setTick((n) => n + 1); }}>Try again</button>
+        : <button type="button" role="switch" aria-checked={yes} aria-label="Texts about my packs and deliveries" className={`k-switch${yes ? " on" : ""}`} onClick={flip} disabled={busy || !readOk}>
+            <span className="k-switch-k" />
+          </button>}
     </div>
     <div className="texts-fine border-b border-line pb-3.5 pl-14 pr-0.5">
       <p className="mt-1 text-caption leading-normal text-cream-muted">{t("funnel.text_yes")}</p>

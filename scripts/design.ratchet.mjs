@@ -703,12 +703,20 @@ export const PROD_ROUTE = {
 // alone in lib/packClose) — −505 bytes on every route between them, the re-audit's own fixes included. Crossed the
 // rounding line upward on every route, recorded. /3mpire is 287.49 KB (294 393 bytes), nine bytes under a rounding line:
 // its ceiling is the line above, 288, so the same code built twice does not fail on a few bytes of gzip.
+// 2026-10-16 (R8 of the customer audit): sign-in loads when a guest needs it — on the funnel's details step (fetched as a
+// guest opens the funnel) and in a reserve's sheet — not in every visitor's first download of /reserve, /delivery and
+// /shop: −3.1 to −3.2 KB there. R8's own additions — the order held on every card page while a payment's answer is unknown
+// (useIdemKey heldDetails; the one notice for it, loaded only when something is held, components/HeldNotice), a pack
+// change's hold, sign-up meeting an existing account and the confirm screen's Resend, the reset overlay's fallback — fit in
+// what that and the reset overlay's move out of the bundle every route carries (components/PasswordRecovery) left: every
+// other route within its line. Lowered to what they weigh: /reserve 300 → 297, /delivery 297 → 295, /shop 305 → 302
+// (304 484, 301 741 and 309 535 bytes).
 export const WEIGHT = {
   "/truck":                    { js: 286, css: 89, chunks: 16 },
   "/events":                   { js: 286, css: 89, chunks: 16 },
   "/menu":                     { js: 274, css: 90, chunks: 15 },
-  "/reserve":                  { js: 300, css: 90, chunks: 17 },
-  "/delivery":                 { js: 297, css: 90, chunks: 17 },
+  "/reserve":                  { js: 297, css: 90, chunks: 17 },
+  "/delivery":                 { js: 295, css: 90, chunks: 17 },
   "/3mpire":                   { js: 288, css: 90, chunks: 15 },
   "/craft":                    { js: 273, css: 90, chunks: 15 },
   "/book":                     { js: 274, css: 90, chunks: 15 },
@@ -722,7 +730,7 @@ export const WEIGHT = {
   "/offer":                    { js: 285, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 271, css: 90, chunks: 15 },
   "/display":                  { js: 272, css: 90, chunks: 15 },
-  "/shop":                     { js: 305, css: 90, chunks: 17 },
+  "/shop":                     { js: 302, css: 90, chunks: 17 },
   "/primal":                   { js: 274, css: 90, chunks: 15 },
   "/privacy":                  { js: 270, css: 90, chunks: 14 },
   "/terms":                    { js: 270, css: 90, chunks: 14 },

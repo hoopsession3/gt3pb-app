@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { verifyApliiq, firstSeen } from "@/lib/apliiq";
+import { verifyApliiq, firstSeen, forgetSeen } from "@/lib/apliiq";
 import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
 import { shippedNotice } from "@/lib/receipt";
@@ -38,14 +38,25 @@ async function post(req: Request) {
     .select("id, user_id, email").eq("tenant_id", tenant)
     .or(`id.eq.${externalId || "00000000-0000-0000-0000-000000000000"},apliiq_order_id.eq.${apliiqOrderId || "___none___"}`)
     .maybeSingle();
-  if (!order) return NextResponse.json({ ok: false, error: "order not found" }, { status: 404 });
+  // NOT DONE IS NOT SEEN (R8): the event was marked seen as it arrived, so an order not found yet, or a write that failed,
+  // answered every retry "deduped" — the order never read shipped and the customer never had the tracking. Each of those
+  // gives the event back, and answers so Apliiq sends it again.
+  if (!order) { await forgetSeen("apliiq", eventId); return NextResponse.json({ ok: false, error: "order not found" }, { status: 404 }); }
 
   const trackingUrl = p?.TrackingUrl ?? p?.tracking_url ?? (tracking ? `https://google.com/search?q=${encodeURIComponent(tracking)}` : null);
-  await supabaseAdmin.from("merch_fulfillments").insert({
-    order_id: (order as any).id, carrier: p?.Carrier ?? p?.carrier ?? null,
+  const orderId = (order as { id: string }).id;
+  // Once per order and tracking number, so a retry after a half-done first try adds no second shipment.
+  // scoped-by: orderId came from the shop_orders lookup above, which filters on tenant_id
+  const had = tracking
+    ? await supabaseAdmin.from("merch_fulfillments").select("id").eq("order_id", orderId).eq("tracking_number", tracking).limit(1)
+    : await supabaseAdmin.from("merch_fulfillments").select("id").eq("order_id", orderId).limit(1);
+  const fulfilled = had.error ? had : (had.data ?? []).length ? { error: null } : await supabaseAdmin.from("merch_fulfillments").insert({
+    order_id: orderId, carrier: p?.Carrier ?? p?.carrier ?? null,
     tracking_number: tracking || null, tracking_url: trackingUrl, shipped_at: new Date().toISOString(),
   });
-  await supabaseAdmin.from("shop_orders").update({ status: "shipped", updated_at: new Date().toISOString() }).eq("id", (order as any).id);
+  // scoped-by: orderId came from the shop_orders lookup above, which filters on tenant_id
+  const shipped = fulfilled.error ? fulfilled : await supabaseAdmin.from("shop_orders").update({ status: "shipped", updated_at: new Date().toISOString() }).eq("id", orderId);
+  if (fulfilled.error || shipped.error) { await forgetSeen("apliiq", eventId); return NextResponse.json({ ok: false, error: "not recorded — send it again" }, { status: 500 }); }
 
   try {
     // Named once rather than cast at each use. The casts above this line predate me and are left
