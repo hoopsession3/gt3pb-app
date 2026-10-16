@@ -27,6 +27,15 @@ async function post(req: Request) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });
   }
   const code = typeof body.code === "string" ? body.code : null;
+  // A code asked about is counted (R9 — the abuse audit's eleventh): a price that changed told a script which of the
+  // codes it tried were real. A hundred and twenty an address in ten minutes, with a code — a cart re-priced as it
+  // changes stays far under, a venue's Wi-Fi too; without one, nothing is counted. Past it the quote says to wait — never
+  // a price without the code, which Pay would then refuse as changed. Fails open.
+  if (code) {
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+    const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `quote-code:${ip}`, p_window_ms: 600_000, p_max: 120 });
+    if (fits.data === false) return NextResponse.json({ error: "Too many tries with a code — give it a minute." }, { status: 429 });
+  }
 
   const uniq = [...new Set(items)];
   // The Catalog's rows for this cart (lib/drinksRead — the menu's read; 0393's columns when they are there).

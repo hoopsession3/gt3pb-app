@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
+import { cardTryFits, callerAddress, CARD_TRIES_WORDS } from "@/lib/cardGuard";
+import { refusalWords } from "@/lib/squareServer";
 import { SQUARE_BASE, squareHeaders, planForPack, subsConfigured, mapSubStatus } from "@/lib/squareServer";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { route } from "@/lib/apiRoute";
@@ -29,6 +31,8 @@ async function post(req: Request) {
   const pack = String(body.pack || "");
   const planId = planForPack(pack);
   if (!["6", "12", "18"].includes(pack) || !planId) return NextResponse.json({ error: "Choose a pack size (6, 12, or 18)." }, { status: 400 });
+  // A card try, counted at every card door (R9, lib/cardGuard): saving a card at Square is one.
+  if (!(await cardTryFits(supabaseAdmin, { userId: user.id, ip: callerAddress(req) }))) return NextResponse.json({ error: CARD_TRIES_WORDS }, { status: 429 });
 
   // Self-heal: clear the caller's own stale 'pending' rows that never reached Square
   // (a prior attempt that died before vaulting the card). Only rows older than 10 min
@@ -84,7 +88,9 @@ async function post(req: Request) {
       body: JSON.stringify({ idempotency_key: `card-${rowId}`, source_id: body.sourceId, card: { customer_id: customerId } }),
     });
     const cardData = await cardRes.json();
-    if (!cardRes.ok) throw new Error(cardData?.errors?.[0]?.detail || "Card couldn't be saved");
+    // Square's reason stays here (R9): a security code, a ZIP, funds — what a script running stolen cards reads for. The
+    // member is told one sentence, as a declined charge is (lib/squareServer refusalWords).
+    if (!cardRes.ok) throw new Error(refusalWords(cardRes.status, cardData));
     const cardId = cardData?.card?.id;
 
     // 3) create the subscription

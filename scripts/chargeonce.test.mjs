@@ -58,7 +58,13 @@ const realFetch = globalThis.fetch;
     sq.calls[1].idempotency_key === key45 && !("reference_id" in sq.calls[1]), sq.calls[1]);
   sq.script.push("decline");
   const d = await SQ.chargeCard({ ...base, sourceId: "cnon:TEST-3", idempotencyKey: "decline-key-0003" });
-  ok("chargeCard: a decline is returned, with Square's words", d.ok === false && d.error === "Card declined.", d);
+  // R9: one sentence for every card's refusal — never Square's reason (what a script running stolen cards reads for).
+  ok("chargeCard: a decline is returned, in one sentence — never Square's reason", d.ok === false && d.error === SQ.DECLINE_WORDS && !/GENERIC_DECLINE|Card declined\./.test(d.error), d);
+  ok("chargeCard: a refusal that isn't the card's is not called a decline — payments aren't working; an expired card entry asks for the card again",
+    SQ.refusalWords(401, { errors: [{ category: "AUTHENTICATION_ERROR", code: "UNAUTHORIZED", detail: "token" }] }) === SQ.SQUARE_DOWN_WORDS
+    && SQ.refusalWords(404, { errors: [{ category: "INVALID_REQUEST_ERROR", code: "NOT_FOUND", detail: "location" }] }) === SQ.SQUARE_DOWN_WORDS
+    && SQ.refusalWords(400, { errors: [{ category: "INVALID_REQUEST_ERROR", code: "CARD_TOKEN_EXPIRED" }] }) === SQ.CARD_ENTRY_WORDS
+    && SQ.refusalWords(402, { errors: [{ category: "PAYMENT_METHOD_ERROR", code: "CVV_FAILURE", detail: "Authorization error: 'CVV_FAILURE'" }] }) === SQ.DECLINE_WORDS);
   const throwsUnknown = async (f) => { try { await f(); return null; } catch (e) { return e; } };
   sq.script.push("503");
   const e503 = await throwsUnknown(() => SQ.chargeCard({ ...base, sourceId: "cnon:TEST-4", idempotencyKey: "unknown-key-0004" }));

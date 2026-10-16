@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
@@ -12,6 +12,7 @@ import { staffAccess } from "@/lib/access";
 import { haptic } from "@/lib/haptics";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 import { money } from "@/lib/money";
+import { isNetworkError } from "@/components/offline";
 // The sign-in is for a visitor who is signed out — staff signed in never download it (2026-10-09).
 const SignIn = dynamic(() => import("@/components/SignIn"));
 
@@ -39,7 +40,14 @@ type Member = {
   display_name: string | null; points: number; founding_member: boolean;
   credit_cents?: number; orders_today?: number; cups_today?: number; packs_today?: number;
 };
-type Redeem = "idle" | "ask" | "busy" | "done" | "none" | "failed";
+// "unclear": the answer never came back (R9) — the card is read again and shown as it stands, and the tap's key is kept, so
+// tapping again returns the first answer instead of giving a second cup or taking the credit twice (0416).
+type Redeem = "idle" | "ask" | "busy" | "done" | "none" | "failed" | "unclear";
+/** The database's refusal, said to the crew (R9): their own card, or a staff-only call — else none (the line says it failed). */
+const refusalWords = (m: string | undefined | null): string =>
+  /your own card/i.test(m ?? "") ? "it's your own card: another crew member does it" : /staff only/i.test(m ?? "") ? "it's for the crew only" : "";
+/** A key for one tap at the window: kept until the database answers, so a repeat after a lost answer is the same tap. */
+const tapKey = (what: string) => `${what}-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`}`;
 
 export default function ScanPage() {
   return <Suspense fallback={<section className="screen" id="s-scan" />}><ScanInner /></Suspense>;
@@ -68,6 +76,11 @@ function ScanInner() {
   // A member with an app order today is asked about once before a walk-up stamp (R7): its cups stamp themselves at
   // pickup, and the note above the button was all that stood between that order and a second stamp for it.
   const [stampAsk, setStampAsk] = useState(false);
+  // The tap in flight, by its key (R9, 0416): one for the free cup, one for the credit and the amount it was for.
+  const cupTap = useRef<string | null>(null);
+  const creditTap = useRef<{ key: string; cents: number } | null>(null);
+  const [creditRetry, setCreditRetry] = useState(0);   // the amount a credit tap with no answer was for, shown to retry
+  const [refusal, setRefusal] = useState("");
 
   const load = async () => {
     if (!supabase || !code) return;
@@ -85,6 +98,17 @@ function ScanInner() {
     setState(error || !m ? "notfound" : "idle");
   };
   useEffect(() => { if (isStaff) load(); }, [isStaff, code]);
+  // The card as it stands, read again after an answer that never came (R9 review): a read that fails keeps the card on
+  // screen. load() would say "No member found" with no signal — and take away the panel that offers the same tap again.
+  const reread = async () => {
+    if (!supabase || !code) return;
+    const card = await supabase.rpc("member_card", { p_code: code });
+    if (!card.error) { if (card.data) setMember(card.data as Member); return; }
+    if (isNetworkError(card.error.message)) return;
+    const { data, error } = await supabase.rpc("member_by_code", { p_code: code });   // before 0389
+    const m = (data as Member[] | null)?.[0];
+    if (!error && m) setMember(m);
+  };
 
   const addStamp = async () => {
     if (!supabase || !code || busy) return; // guard the double-tap → double point
@@ -101,16 +125,27 @@ function ScanInner() {
   const giveFreeCup = async () => {
     if (!supabase || !code || redeem === "busy") return; // a second tap waits for the first answer
     setRedeem("busy");
-    const { data, error } = await supabase.rpc("redeem_free_cup", { p_code: code });
-    if (!error && typeof data === "number") { setMember((m) => (m ? { ...m, points: data } : m)); setRedeem("done"); setState("idle"); haptic("success"); }
-    else { setRedeem(/no free cup/i.test(error?.message ?? "") ? "none" : "failed"); haptic("error"); }
+    setRefusal("");
+    cupTap.current ??= tapKey("cup");
+    const { data, error } = await supabase.rpc("give_free_cup", { p_code: code, p_key: cupTap.current });
+    if (!error && typeof data === "number") { cupTap.current = null; setMember((m) => (m ? { ...m, points: data } : m)); setRedeem("done"); setState("idle"); haptic("success"); return; }
+    haptic("error");
+    // No answer: it may have landed. The card is read again, and the key kept — a second tap is this one again (R9).
+    if (isNetworkError(error?.message)) { await reread(); setRedeem("unclear"); return; }
+    cupTap.current = null;
+    setRefusal(refusalWords(error?.message));
+    setRedeem(/no free cup/i.test(error?.message ?? "") ? "none" : "failed");
   };
 
   const takeCredit = async (cents: number) => {
     if (!supabase || !code || credit === "busy" || !(cents > 0)) return; // a second tap waits for the first answer
     setCredit("busy");
-    const { data, error } = await supabase.rpc("spend_credit", { p_code: code, p_cents: cents });
+    setRefusal("");
+    // One key per amount asked for: the same amount again after a lost answer is the same tap; a new amount is a new one.
+    if (creditTap.current?.cents !== cents) creditTap.current = { key: tapKey("credit"), cents };
+    const { data, error } = await supabase.rpc("use_credit", { p_code: code, p_cents: cents, p_key: creditTap.current.key });
     if (!error && typeof data === "number") {
+      creditTap.current = null;
       setSpent(data);
       setMember((m) => (m ? { ...m, credit_cents: Math.max((m.credit_cents ?? 0) - data, 0) } : m));
       setOrderStr("");
@@ -126,7 +161,14 @@ function ScanInner() {
       setCreditNote("Less credit on the card than this screen had — the amount below is what's on it now.");
       setCredit("ask");
     }
-    else { setCredit(/no credit/i.test(error?.message ?? "") ? "none" : "failed"); haptic("error"); }
+    else if (isNetworkError(error?.message)) {
+      // No answer: it may have come off. The card is read again and the key kept — tapping again takes nothing twice (R9).
+      haptic("error");
+      await reread();
+      setCreditRetry(cents);
+      setCredit("unclear");
+    }
+    else { creditTap.current = null; setRefusal(refusalWords(error?.message)); setCredit(/no credit/i.test(error?.message ?? "") ? "none" : "failed"); haptic("error"); }
   };
 
   // "Staff only" is only honest once we know. While the profile is unknown, say that instead —
@@ -208,7 +250,13 @@ function ScanInner() {
           )}
           {redeem === "done" && <div className="scan-added" role="status">Free cup given. {card.free > 0 ? `${freeWords(card.free)} still.` : `${card.toNext} more till the next one.`}</div>}
           {redeem === "none" && <div className="h-sub" role="status">No free cup on this card any more — it may have just been given.</div>}
-          {redeem === "failed" && <div className="h-sub" role="status">Couldn&apos;t redeem — nothing was taken off the card. Try again.</div>}
+          {redeem === "failed" && <div className="h-sub" role="status">Couldn&apos;t redeem{refusal ? ` — ${refusal}` : ""}. Nothing was taken off the card.</div>}
+          {redeem === "unclear" && (
+            <div className="h-sub" role="status">
+              No answer came back — the card above is as it stands now. If the cup came off, tapping again won&apos;t give a second.
+              <button type="button" className="btn-sec btn-wide mt-2.5" onClick={giveFreeCup}>Try the free cup again</button>
+            </div>
+          )}
           {creditCents > 0 && !ownCard && credit !== "ask" && credit !== "busy" && (
             <button type="button" className="btn-sec btn-wide mt-2.5" onClick={() => { setCreditNote(""); setCredit("ask"); }}>Use credit · {money(creditCents)} on the card</button>
           )}
@@ -231,7 +279,13 @@ function ScanInner() {
           )}
           {credit === "done" && <div className="scan-added" role="status">Credit used — {money(spent)} off.{creditCents > 0 ? ` ${money(creditCents)} still on the card.` : ""}</div>}
           {credit === "none" && <div className="h-sub" role="status">No credit on this card any more — it may have just been used.</div>}
-          {credit === "failed" && <div className="h-sub" role="status">Couldn&apos;t use the credit — nothing was taken off. Try again.</div>}
+          {credit === "failed" && <div className="h-sub" role="status">Couldn&apos;t use the credit{refusal ? ` — ${refusal}` : ""}. Nothing was taken off.</div>}
+          {credit === "unclear" && (
+            <div className="h-sub" role="status">
+              No answer came back — the card above is as it stands now. If the credit came off, tapping again won&apos;t take it twice.
+              {creditRetry > 0 && <button type="button" className="btn-sec btn-wide mt-2.5" onClick={() => void takeCredit(creditRetry)}>Try {money(creditRetry)} again</button>}
+            </div>
+          )}
         </div>
       )}
       <ClosingBeat />

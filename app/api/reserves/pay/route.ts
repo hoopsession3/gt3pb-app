@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
+import { cardTryFits, callerAddress, CARD_TRIES_WORDS } from "@/lib/cardGuard";
 import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { accountEmail, notifyCustomer, whoAsked } from "@/lib/notify";
@@ -37,6 +38,8 @@ async function post(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   if (sourceId && (!token || !locationId)) return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
+  // A card try, counted at every card door (R9, lib/cardGuard) — before the reserve is read or a key is claimed.
+  if (sourceId && !(await cardTryFits(supabaseAdmin, { userId: user.id, ip: callerAddress(req) }))) return NextResponse.json({ error: CARD_TRIES_WORDS, charged: false }, { status: 429 });
 
   // The reserve, with its pickup.
   // arrives-with: 0400 — until it is pasted reserves.stop_id is not there: the reserve is read without its pickup, and

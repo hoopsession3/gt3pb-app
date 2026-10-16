@@ -117,7 +117,40 @@ export async function chargeCard(opts: {
     const said = String(data?.errors?.[0]?.code || data?.errors?.[0]?.detail || "");
     throw new ChargeUnknown(`Square answered ${res.status}${said ? ` (${said})` : ""}`);
   }
-  return { ok: false, error: data?.errors?.[0]?.detail || "Payment declined" };
+  return { ok: false, error: refusalWords(res.status, data) };
+}
+
+/** What a refused card is told, at every card door. */
+export const DECLINE_WORDS = "Your card was declined — nothing was charged. Check its details, or try another card.";
+export const CARD_ENTRY_WORDS = "That card entry expired — enter the card again. Nothing was charged.";
+export const SQUARE_DOWN_WORDS = "Card payments aren't working just now — nothing was charged. Try again in a moment.";
+
+/** ONE SENTENCE FOR EVERY DECLINE (R9 — the abuse audit's fifth). Square's own reason — a security code that didn't
+ *  match, a ZIP, insufficient funds, an expired card — went back to the page as it came, and so to anyone calling a card
+ *  door with a script: which stolen numbers were good, and what each still needed. A card's refusal is one sentence now.
+ *  A refusal that is not the card's (R9 review) — the access token, the location, a malformed request — is not called a
+ *  decline: it would read as every customer's card failing. The person paying is told payments aren't working; the
+ *  crew are told what Square said, once a reason (sayRefusal). Pure but for that. */
+export function refusalWords(status: number, data: unknown): string {
+  const e = (data as { errors?: { category?: unknown; code?: unknown; detail?: unknown }[] } | null)?.errors?.[0];
+  const category = String(e?.category ?? ""), code = String(e?.code ?? "");
+  if (category === "PAYMENT_METHOD_ERROR") return DECLINE_WORDS;
+  if (/^CARD_TOKEN_(EXPIRED|USED)$|^INVALID_CARD_DATA$|^CARD_EXPIRED$|^INVALID_EXPIRATION/.test(code)) return CARD_ENTRY_WORDS;
+  sayRefusal(status, code || category || "no code", String(e?.detail ?? ""));
+  return SQUARE_DOWN_WORDS;
+}
+
+/** A refusal that is not the card's, said where the crew read it — in the running app only (a test compiles this file
+ *  alone), once a reason while it is open. Never throws. */
+function sayRefusal(status: number, code: string, detail: string): void {
+  console.error(`[square] a charge was refused, and not for the card: ${status} ${code} ${detail.slice(0, 200)}`);
+  if (typeof process === "undefined" || !process.env.NEXT_RUNTIME) return;
+  void import("./serverAlerts").then((m) => m.raiseAlertOnce({
+    severity: "critical", category: "money", kind: "square_refused", subjectId: `square:${code}`,
+    title: "Square is refusing card payments — not the cards",
+    body: `Square answered ${status} (${code}) to a card payment: ${detail.slice(0, 160) || "no detail"}. Customers are told payments aren't working. Check the Square access token and location in the deploy's settings.`,
+    link: "/crew?s=money&a=pay",
+  })).catch(() => { /* the log line above stands */ });
 }
 
 /** Square answered a refund, and the answer does not say whether the money went back. */

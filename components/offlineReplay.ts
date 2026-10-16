@@ -3,6 +3,7 @@ import { pruneStale, settleOp } from "@/lib/offline";
 import { setOrderStatus, movedTo, type Refused } from "@/lib/orderStatus";
 import { readQueue, writeQueue, isNetworkError } from "./offline";
 import { reportClientError } from "./ErrorReporter";
+import { notifyVoid } from "@/lib/voidNotice";
 
 // THE REPLAY — the offline queue (components/offline) sent when the signal returns. Its own file since 2026-10-11:
 // the queue rides in every page, the replay only in the console (components/OfflineChip runs it).
@@ -40,6 +41,9 @@ export async function flushQueue(supabase: SupabaseClient | null): Promise<numbe
         : await setOrderStatus(supabase, op.id, op.value, op.from);
       if (error && isNetworkError(error.message)) break;       // still offline — try again later
       writeQueue(settleOp(pruneStale(readQueue(), Date.now()), op, !error));   // done (or definitively rejected)
+      // A void that waited for signal has landed: the member's email goes now (R9), as it does from the Pass. Its refund
+      // flag went with the void itself — the database's (0416).
+      if (!error && op.kind === "order_status" && op.value === "void") notifyVoid(op.id);
       if (!error) continue;
       const now = op.kind === "order_status" ? movedTo(error) : null;
       refused.push({ kind: op.kind, id: op.id, value: op.value, reason: error.message, now });

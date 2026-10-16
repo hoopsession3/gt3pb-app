@@ -48,6 +48,8 @@ type BOrder = {
   cutoff_at: string | null;
   // a client's own hand on it (0359) — select("*") brings them once the columns exist
   moved_from?: string | null; gallons_changed_at?: string | null; change_reason?: string | null; client_note?: string | null;
+  // its Square payment link (0221), and the link's own id (0417) — select("*") brings them
+  paylink_url?: string | null; paylink_id?: string | null;
 };
 // What a client asked GT3 for (0359's company_requests): the crew's to answer, here beside the route.
 type Req = { id: string; kind: string; body: string; status: string; order_id: string | null; created_at: string; companies: { name: string } | null };
@@ -227,8 +229,18 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
         setBusyId(null); toast(`Couldn't make the invoice — ${invErr.message}`, "error"); reload(); return;
       }
     }
+    // Paid another way, its payment link goes (R9): left live, it was paid a second time and nothing said so. Said back
+    // when Square would not switch it off; a payment landing on it anyway is flagged by the webhook.
+    let linkWord = "";
+    if (status === "paid" && o.paylink_url) {
+      try {
+        const r = await authedFetch("/api/office/paylink", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: o.id, off: true }) });
+        const j = await r.json().catch(() => null) as { link?: string } | null;
+        linkWord = j?.link === "off" ? " — its payment link is off" : " — its payment link may still work: switch it off in Square";
+      } catch { linkWord = " — its payment link may still work: switch it off in Square"; }
+    }
     setBusyId(null);
-    toast(status === "paid" ? `${o.company} — marked paid` : `${o.company} — invoiced, ${o.billing_terms === "net30" ? "due in 30 days" : "due in 15 days"}`);
+    toast(status === "paid" ? `${o.company} — marked paid${linkWord}` : `${o.company} — invoiced, ${o.billing_terms === "net30" ? "due in 30 days" : "due in 15 days"}`);
     reload();
   };
 
@@ -264,14 +276,32 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
   // CANCEL ASKS, AND SAYS WHEN IT DIDN'T (2026-10-11). One tap took a delivery off the route with no question, and the
   // write was not checked, so a refused one still read "canceled". A canceled delivery leaves the route, the driver's
   // run and the client's page, and nothing here brings it back — so it asks first, like every step that can't be undone.
+  // AND SAYS WHAT BECOMES OF THE MONEY (R9, 2026-10-16). It went through a plain update that said nothing of money: a paid
+  // order canceled raised no refund flag, and an owed one's payment link stayed live — the client paid it, and the
+  // canceled order read paid. The cancel is the server's now (app/api/office/cancel): the link is switched off first, the
+  // order canceled once, and a paid one's refund flag is the database's (0416).
   const cancel = async (o: BOrder) => {
-    if (!supabase || busyId) return;
-    if (!(await confirm({ title: `Cancel ${o.company}'s ${mondayLabel(o.delivery_date)} delivery?`, body: "It comes off the route, the driver's run and their GT3 page. It can't be undone here.", confirmLabel: "Cancel delivery", danger: true }))) return;
+    if (busyId) return;
+    const paid = o.payment_status === "paid";
+    const body = paid
+      ? `They paid ${money(o.total_cents)} — refund it in Square; the crew inbox gets a flag. It comes off the route, the driver's run and their GT3 page.`
+      : o.paylink_url
+        ? "Its payment link is switched off, so it can't be paid. It comes off the route, the driver's run and their GT3 page."
+        : "It comes off the route, the driver's run and their GT3 page. It can't be undone here.";
+    if (!(await confirm({ title: `Cancel ${o.company}'s ${mondayLabel(o.delivery_date)} delivery?`, body, confirmLabel: "Cancel delivery", danger: true }))) return;
     setBusyId(o.id);
-    const { error } = await supabase.from("business_orders").update({ canceled_at: new Date().toISOString(), status: "issue" }).eq("id", o.id);
+    let j: { ok?: boolean; already?: boolean; link?: string; error?: string } | null = null;
+    try {
+      const r = await authedFetch("/api/office/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: o.id }) });
+      j = await r.json().catch(() => null);
+    } catch { /* said below */ }
     setBusyId(null);
-    if (error) { toast(`Didn't cancel — ${error.message}`, "error"); return; }
-    toast(`${o.company} — canceled`); reload();
+    if (!j?.ok) { toast(`Didn't cancel — ${j?.error ?? "no answer came back; check the route before trying again"}`, "error"); reload(); return; }
+    toast(j.already ? `${o.company} was already canceled`
+      : j.link === "unknown" ? `${o.company} — canceled. Square didn't confirm its payment link is off: switch it off in Square`
+      : paid ? `${o.company} — canceled. Refund ${money(o.total_cents)} in Square (it's in your alerts)`
+      : `${o.company} — canceled`, j.link === "unknown" ? "error" : undefined);
+    reload();
   };
 
   if (board.status === "loading") return null; // quiet during initial load, same as the original gate

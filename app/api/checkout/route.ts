@@ -26,6 +26,9 @@ import { CONNECT_APP } from "@/lib/connect";
 
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
 
+/** Orders one member may have waiting to be paid at the window at once (R9): a fourth is paid by card. */
+const OPEN_AT_WINDOW_MAX = 3;
+
 async function post(req: Request) {
   // Every write into `orders` goes through here now — paid (Square) AND pay-at-pickup (unpaid).
   // Pay-at-pickup used to insert directly from the client (RLS-gated to unpaid rows only); moving
@@ -121,14 +124,41 @@ async function post(req: Request) {
   // limiter (rate_limit_hit, 0154, shared across lambdas): a tight per-IP burst cap plus a global
   // ceiling so a rotating-IP script still can't grind cards through Square. Pay-at-pickup is exempt
   // (no charge). Fails open if the limiter is unreachable — Square's own fraud tools are the backstop.
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+  // Who is ordering, read once: the limiter below, the member's perks and the order's own row all ask it.
+  const caller = await userFromRequest(req);
   if (paying) {
-    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
     const [ipHit, allHit] = await Promise.all([
       supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `checkout:${ip}`, p_window_ms: 60_000, p_max: 6 }),
       supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "checkout:global", p_window_ms: 60_000, p_max: 60 }),
     ]);
     if (ipHit.data === false || allHit.data === false) {
       return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
+    }
+  } else {
+    // PAY AT PICKUP IS LIMITED TOO (R9 — the abuse audit's first). It charges nothing, so it was never asked, and every
+    // order rings the Pass on every crew phone — then again each quarter hour it waits (0369). A script posting a name
+    // and a drink put tickets on the Pass all service. A member is limited by their account (venue Wi-Fi shares one
+    // address among a crowd) and by the orders they already have waiting at the window; a guest by their address, loosely
+    // (a carrier's or a venue's address is a crowd's); and guests together by a ceiling no rush at one truck reaches — a
+    // flood past it is the owner's to stop with the pay-at-pickup switch (live_status, 0147). Fails open, as the card
+    // guard does.
+    const hits = await Promise.all(caller
+      ? [supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `checkout-later:u:${caller.id}`, p_window_ms: 600_000, p_max: 4 })]
+      : [supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `checkout-later:${ip}`, p_window_ms: 600_000, p_max: 20 }),
+         supabaseAdmin.rpc("rate_limit_hit", { p_bucket: "checkout-later:guests", p_window_ms: 60_000, p_max: 30 })]);
+    if (hits.some((h) => h.data === false)) {
+      return NextResponse.json({ error: "Too many orders to pay at the window just now — pay by card, or give it a few minutes.", charged: false }, { status: 429 });
+    }
+    if (caller) {
+      // scoped-by: user_id = the caller's own id, read from their verified bearer above.
+      // Today's only: an order from days ago left at Ready (nothing closes those) isn't waiting at the window.
+      const waiting = await supabaseAdmin.from("orders").select("id", { count: "exact", head: true })
+        .eq("user_id", caller.id).eq("paid", false).is("collected_at", null).in("status", ["new", "preparing", "ready"])
+        .gte("created_at", new Date(Date.now() - 18 * 3600_000).toISOString());
+      if (!waiting.error && (waiting.count ?? 0) >= OPEN_AT_WINDOW_MAX) {
+        return NextResponse.json({ error: `You have ${waiting.count} orders waiting to be paid at the window — pick those up first, or pay for this one by card.`, charged: false }, { status: 409 });
+      }
     }
   }
 
@@ -217,8 +247,7 @@ async function post(req: Request) {
   const squarePrices = needsSquare && token ? await squarePriceMap(token) : {};
   // Member benefits (0176): a founding member's tier perks (e.g. $8 latte) apply to the authoritative
   // per-slug price. Server-resolved from the caller's tier — never trusts a client-sent discount.
-  const benefitUser = await userFromRequest(req);
-  const benefits = await benefitsForUser(benefitUser?.id ?? null, body.code);
+  const benefits = await benefitsForUser(caller?.id ?? null, body.code);
   // lib/cupPrice — the one pricing the quote (/api/checkout/quote) runs too, so the page shows what this charges.
   const priced = priceCups(items, productPrices, squarePrices, benefits, (slug) => nameFrom(cupRows, slug));
   if ("unknown" in priced) return NextResponse.json({ error: `Unknown item: ${priced.unknown}` }, { status: 400 });
@@ -243,7 +272,7 @@ async function post(req: Request) {
   }
 
   // Canonical customer link (0151) + who's ordering — shared by both branches below.
-  const user = await userFromRequest(req); // null for guest checkout
+  const user = caller; // null for guest checkout
   const customerId = user?.id
     ? ((await supabaseAdmin.rpc("resolve_customer", { p_user_id: user.id, p_phone: null, p_email: null, p_name: customer })).data as string | null)
     : null;

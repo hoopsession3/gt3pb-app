@@ -331,7 +331,7 @@ export async function branches({ C, SQ, I, store, ok, memory = false }) {
     const { sq, route, page } = fresh();
     sq.script.push("decline");
     const d = await tap(page, route, CART);
-    ok("5 · decline: a 400 that says so, flagged declined", d.status === 400 && d.body.declined === true && d.body.error === "Card declined.", d.body);
+    ok("5 · decline: a 400 that says so, flagged declined — in one sentence, never Square's reason (R9)", d.status === 400 && d.body.declined === true && /^Your card was declined — nothing was charged\./.test(d.body.error ?? ""), d.body);
     ok("5 · decline: the page lets the key and the token go", page.state.key === "" && page.state.token === null);
     const c = await claimOf(d.key);
     ok("5 · decline: the claim is done with the decline", c?.state === "done" && c.status === 400 && c.answer?.declined === true, c);

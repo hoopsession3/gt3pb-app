@@ -19,6 +19,8 @@ import { chargeOnce, claimKey, seenBefore, type Answer, type Say, type Stopped }
 import { checkoutClaims } from "@/lib/checkoutClaims";
 
 export const runtime = "nodejs";
+// After the charge, Apliiq is given 25 seconds (lib/apliiq APLIIQ_SUBMIT_TIMEOUT_MS): the function outlives the wait.
+export const maxDuration = 60;
 
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
 
@@ -125,6 +127,9 @@ async function post(req: Request) {
     if (!p.published_at || p.archived_at) return NextResponse.json({ error: `"${p.title}" is no longer available.` }, { status: 409 });
     const qty = Math.max(1, Math.min(20, Math.floor(Number(it.qty) || 1)));
     const unit = Math.max(0, Number(p.price_cents) || 0);
+    // An unpriced line is not free (R9): a product sync without a price once wrote $0 over a live one, and a cart with it
+    // charged for the rest and shipped it too. Refused before any charge, naming it.
+    if (unit <= 0) return NextResponse.json({ error: `"${p.title}" isn't priced yet — take it out to check out.` }, { status: 409 });
     subtotal += unit * qty;
     lineItems.push({ product_id: p.id, title: p.title, variant: it.variant ?? null, qty, unit_cents: unit, cost_cents: p.cost_cents ?? null, apliiq_product_id: p.apliiq_product_id ?? null, apliiq_sku: skuFor(p.variants, it.variant ?? null) });
   }
@@ -188,32 +193,57 @@ async function post(req: Request) {
 
       // Hand the paid order to Apliiq for print-on-demand. Best-effort: a failure leaves the order in the
       // crew "needs fulfillment" queue (money already collected), never blocks the customer's confirmation.
+      //
+      // AS SEND TO PRINTER DOES (R9, 0417): the order is claimed first (0335's claim — a crew press on this brand-new
+      // order in the queue meanwhile is refused, not a second cap), and it reads "no clear answer" from before it leaves
+      // until Apliiq gives one — a function stopped mid-send leaves it for the crew to look in Apliiq, never to send it
+      // again. Not claimed, or not marked: not sent; the crew sends it from the order.
+      // scoped-by: orderId is the id returned by this request's own INSERT above — not a value any caller supplied — and
+      // every write below names that row alone, while Apliiq has no id for it.
+      const unsent = () => db.from("shop_orders").update({ apliiq_submit_started_at: null, apliiq_submit_unknown_at: null }).eq("id", orderId).is("apliiq_order_id", null);
       try {
-        const submit = await submitOrderToApliiq({
-          id: orderId,
-          ship: { name: shipName, street: addr.street, city: addr.city, state: addr.state, zip: addr.zip },
-          // EVERY line, not only the ones with a POD link. Filtering here is what let a half-order
-          // reach Apliiq: a two-item cart where one item had no link submitted the other and called
-          // the whole order "submitted", so the customer paid for two and one was never made.
-          // buildOrderPayload refuses the whole order instead, and it lands in the crew queue naming
-          // the item that is missing its SKU.
-          items: lineItems.map((l) => ({ id: l.product_id, title: l.title, qty: l.qty, priceCents: l.unit_cents, sku: l.apliiq_sku })),
-        });
-        if (submit.ok) {
-          // Marked, checked (R8): the update's answer was thrown away, so an order Apliiq had stayed "needs fulfillment"
-          // with no Apliiq id — and the queue offered "Send to printer": a second cap, a second Apliiq charge. Tried twice;
-          // still refused, the crew is told it is at the printer and not to send it again.
-          const marked = { apliiq_order_id: submit.apliiqOrderId, status: "submitted", updated_at: new Date().toISOString() };
-          // scoped-by: orderId is the id returned by this request's own INSERT thirty lines above — not a
-          // value any caller supplied. Nothing else can be named here.
-          let { error: markErr } = await db.from("shop_orders").update(marked).eq("id", orderId);
-          // scoped-by: the same row, the same id, once more
-          if (markErr) ({ error: markErr } = await db.from("shop_orders").update(marked).eq("id", orderId));
-          if (markErr) {
-            await raiseAlert({ severity: "critical", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order is at the printer — don't send it again", body: `${shipName}'s order went to Apliiq (order ${submit.apliiqOrderId ?? "id not given"}) and couldn't be marked sent (${errorMessage(markErr, 120)}). It still reads "needs fulfillment": mark it sent by hand — sending it again prints and charges a second one.` });
-          }
+        const claimed = await db.rpc("claim_shop_order_for_submit", { p_order: orderId, p_tenant: tenant });
+        // scoped-by: the same row, the one this request inserted
+        const ready = claimed.data === "ok"
+          ? await db.from("shop_orders").update({ apliiq_submit_unknown_at: new Date().toISOString() }).eq("id", orderId).is("apliiq_order_id", null).select("id")
+          : null;
+        if (!ready || ready.error || !ready.data?.length) {
+          if (claimed.data === "ok") await unsent();
+          await raiseAlert({ severity: "important", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order needs sending to the printer", body: `${shipName}'s order is paid and wasn't sent to Apliiq (${claimed.error || ready?.error ? "the send couldn't be started" : String(claimed.data ?? "not claimed")}). Nothing reached the printer — send it from the order.` });
         } else {
-          await raiseAlert({ severity: "important", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order needs manual fulfillment", body: `Apliiq submit failed (${submit.error}) for ${shipName}'s order. It's paid and queued — submit it by hand.` });
+          const submit = await submitOrderToApliiq({
+            id: orderId,
+            ship: { name: shipName, street: addr.street, city: addr.city, state: addr.state, zip: addr.zip },
+            // EVERY line, not only the ones with a POD link. Filtering here is what let a half-order
+            // reach Apliiq: a two-item cart where one item had no link submitted the other and called
+            // the whole order "submitted", so the customer paid for two and one was never made.
+            // buildOrderPayload refuses the whole order instead, and it lands in the crew queue naming
+            // the item that is missing its SKU.
+            items: lineItems.map((l) => ({ id: l.product_id, title: l.title, qty: l.qty, priceCents: l.unit_cents, sku: l.apliiq_sku })),
+          });
+          if (submit.ok) {
+            // Marked, checked (R8): the update's answer was thrown away, so an order Apliiq had stayed "needs fulfillment"
+            // with no Apliiq id — and the queue offered "Send to printer": a second cap, a second Apliiq charge. Tried twice;
+            // still refused, the crew is told it is at the printer — and the order still reads "no clear answer", so the
+            // button cannot send it meanwhile.
+            const marked = { apliiq_order_id: submit.apliiqOrderId, status: "submitted", apliiq_submit_unknown_at: null, updated_at: new Date().toISOString() };
+            // scoped-by: orderId is the id returned by this request's own INSERT thirty lines above — not a
+            // value any caller supplied. Nothing else can be named here.
+            let { error: markErr } = await db.from("shop_orders").update(marked).eq("id", orderId);
+            // scoped-by: the same row, the same id, once more
+            if (markErr) ({ error: markErr } = await db.from("shop_orders").update(marked).eq("id", orderId));
+            if (markErr) {
+              await raiseAlert({ severity: "critical", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order is at the printer — don't send it again", body: `${shipName}'s order went to Apliiq (order ${submit.apliiqOrderId}) and couldn't be marked sent (${errorMessage(markErr, 120)}). On the order, say it's at Apliiq as ${submit.apliiqOrderId} — sending it again prints and charges a second one.` });
+            }
+          } else if (submit.unclear) {
+            // scoped-by: the same row, the one this request inserted
+            const settle = () => db.from("shop_orders").update({ apliiq_submit_unknown_at: new Date().toISOString(), apliiq_submit_started_at: null }).eq("id", orderId).is("apliiq_order_id", null);
+            if ((await settle()).error) await settle();
+            await raiseAlert({ severity: "important", category: "order", kind: "printer_unclear", subjectId: orderId, title: "Sent to the printer — no clear answer", body: `${shipName}'s order went to Apliiq and no clear answer came back (${submit.error}). Apliiq may have it. Look in Apliiq's pending orders, then say on the order whether it's there — sending it again before that could print and charge a second one.` });
+          } else {
+            if ((await unsent()).error) await unsent();
+            await raiseAlert({ severity: "important", category: "order", kind: "fulfillment", subjectId: orderId, title: "Shop order needs sending to the printer", body: `Apliiq didn't take ${shipName}'s order (${submit.error}). Nothing reached the printer. It's paid and in the queue — fix that, then send it from the order.` });
+          }
         }
       } catch { /* keep the confirmation clean; the order is safely 'needs_fulfillment' */ }
 

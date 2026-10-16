@@ -63,7 +63,7 @@ async function post(req: Request) {
     // stop route when a stop is called off — never came. What becomes of the money, the tip in it (0409). A guest has no
     // address with us; their order page and bar say it. A change to the order itself: said whatever the order-updates switch.
     if (kind === "order_void") {
-      const { data: o } = await supabaseAdmin.from("orders").select("id, customer, user_id, status, paid, total_cents, tip_cents, collected_at")
+      const { data: o } = await supabaseAdmin.from("orders").select("id, customer, user_id, status, paid, total_cents, tip_cents, collected_at, collected_via")
         .eq("tenant_id", tenant).eq("id", id).maybeSingle();
       if (!o) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
       if (o.status !== "void") return NextResponse.json({ ok: false, error: "not canceled" }, { status: 409 });
@@ -71,8 +71,14 @@ async function post(req: Request) {
       const first = (o.customer || "").split(" ")[0];
       const no = orderNo(o.id);
       const charged = (o.total_cents ?? 0) + (o.tip_cents ?? 0);
-      const money$ = o.collected_at ? " You paid at the window — the crew gives it back there."
-        : o.paid ? ` The crew is refunding your card in full — ${money(charged)}. If you don't see it within a few business days, reply and we'll sort it.`
+      // How it was settled says what comes back (R9): cash across the window, a card — online or on the reader — refunded
+      // in full, and a free cup or credit (covered, 0416) took no money at all.
+      const refunding = (cents: number) => ` The crew is refunding your card in full — ${money(cents)}. If you don't see it within a few business days, reply and we'll sort it.`;
+      const money$ = o.collected_via === "cash" ? " You paid cash at the window — the crew gives it back there."
+        : o.collected_via === "card_reader" ? refunding(o.total_cents ?? 0)
+        : o.collected_via === "covered" ? " It was covered by a free cup or credit — nothing was charged."
+        : o.collected_at ? " You paid at the window — the crew gives it back there."
+        : o.paid ? refunding(charged)
         : " Nothing was charged.";
       const sent = await notifyCustomer({
         email: await accountEmail(o.user_id),

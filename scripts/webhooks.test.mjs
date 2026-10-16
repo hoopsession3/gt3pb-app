@@ -54,7 +54,7 @@ const svixSign = (id, t, body, secret = SVIX_SECRET) =>
 const STRIPE_SECRET = "whsec_made_up_stripe_secret_for_tests";
 const stripeSign = (t, body, secret = STRIPE_SECRET) => createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
 const APLIIQ_SECRET = "made-up-apliiq-shared-secret";
-const apliiqHeader = (body, { rts = "1760180000", appid = "app-test", state = "nonce1234", secret = APLIIQ_SECRET } = {}) =>
+const apliiqHeader = (body, { rts = String(Math.floor(Date.now() / 1000)), appid = "app-test", state = "nonce1234", secret = APLIIQ_SECRET } = {}) =>
   `x-apliiq-auth ${rts}:${createHmac("sha256", secret).update(appid + rts + state + (body ? Buffer.from(body).toString("base64") : "")).digest("base64")}:${appid}:${state}`;
 // Twilio: HMAC-SHA1 of the URL set on the number followed by each form field, name then value, in name order — base64.
 const TW_TOKEN = "made-up-twilio-auth-token", TW_URL = "https://app.example.test/api/sms/inbound";
@@ -122,6 +122,16 @@ const now = Math.floor(Date.now() / 1000);
     !W.apliiqSignatureOk(body, null, APLIIQ_SECRET) && !W.apliiqSignatureOk(body, "x-apliiq-auth 1:2:3", APLIIQ_SECRET)
     && !W.apliiqSignatureOk(body, apliiqHeader(body, { secret: "not-ours" }), APLIIQ_SECRET) && !W.apliiqSignatureOk(body + "x", apliiqHeader(body), APLIIQ_SECRET));
   ok("apliiq: no secret configured — closed", !W.apliiqSignatureOk(body, apliiqHeader(body), ""));
+  // R9: the signed RTS has an age. A week, and an hour ahead for a fast clock — inside the inbox's 30 days.
+  const weekS = W.APLIIQ_MAX_AGE_S, at = (rts) => apliiqHeader(body, { rts: String(rts) });
+  ok("apliiq: the window is a week, inside the inbox's 30 days", weekS === 7 * 24 * 3600 && W.APLIIQ_MAX_AHEAD_S === 3600, [weekS, W.APLIIQ_MAX_AHEAD_S]);
+  ok("apliiq: signed six days ago, or a minute ahead — passes", W.apliiqSignatureOk(body, at(now - 6 * 86400), APLIIQ_SECRET, now) && W.apliiqSignatureOk(body, at(now + 60), APLIIQ_SECRET, now));
+  ok("apliiq: signed eight days ago, or two hours ahead — refused, though the signature is right",
+    !W.apliiqSignatureOk(body, at(now - 8 * 86400), APLIIQ_SECRET, now) && !W.apliiqSignatureOk(body, at(now + 7200), APLIIQ_SECRET, now));
+  ok("apliiq: RTS in milliseconds reads as the same time — fresh passes, stale refused",
+    W.apliiqSignatureOk(body, at(now * 1000), APLIIQ_SECRET, now) && !W.apliiqSignatureOk(body, at((now - 8 * 86400) * 1000), APLIIQ_SECRET, now));
+  ok("apliiq: an RTS that reads as no time can only be Apliiq's own format — let through, as before",
+    W.apliiqSignatureOk(body, at("rts-word"), APLIIQ_SECRET, now));
 }
 {
   // Twilio's own worked example (its "Webhooks security" page): token 12345, this URL and these five fields sign to this.
@@ -154,7 +164,7 @@ class NextResponseShim extends Response {
   static json(body, init) { return new Response(JSON.stringify(body), { status: init?.status ?? 200, headers: { "content-type": "application/json" } }); }
 }
 const nextServer = { NextResponse: NextResponseShim };
-function world({ rpc: answer = () => ({ data: null, error: null }) } = {}) {
+function world({ rpc: answer = () => ({ data: null, error: null }), table: tableAnswer = () => ({ data: null, error: null, count: 0 }) } = {}) {
   const calls = [], alerts = [], filed = [], rpcs = [];
   const rpc = async (name, args) => { rpcs.push({ name, args }); return answer(name, args); };
   const from = (table) => {
@@ -162,7 +172,7 @@ function world({ rpc: answer = () => ({ data: null, error: null }) } = {}) {
     calls.push({ table, steps });
     const chain = new Proxy({}, {
       get(_t, prop) {
-        if (prop === "then") return (res, rej) => Promise.resolve({ data: null, error: null, count: 0 }).then(res, rej);
+        if (prop === "then") return (res, rej) => Promise.resolve(tableAnswer(table, steps)).then(res, rej);
         return (...args) => { steps.push([String(prop), ...args]); return chain; };
       },
     });
@@ -205,6 +215,46 @@ await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: SQ_KEY, SQUARE_WEBHOOK_URL: SQ_URL
   const good = await run({ "x-square-hmacsha256-signature": sqSign(body) }, body);
   ok("square route: correctly signed → 200, and it records the event (the inbox insert, 0230)",
     good.status === 200 && good.w.calls.some((c) => c.table === "webhook_events" && c.steps.some(([m]) => m === "insert")), { status: good.status, json: good.json });
+
+  // R9 (0417): a shop order refunded in parts. $5 recorded; Square has now given back $5 and $5. The second refund alone
+  // equals what is recorded — it used to say nothing; all of what went back is $10, and the alert says the $5 missing.
+  const refundRun = async (recorded, completed) => {
+    const w = world({ table: (table, steps) => {
+      const m = steps.map(([x]) => x);
+      if (table === "shop_orders" && m.includes("select")) return { data: { id: "6f1c2b8e-5d4a-4c3b-9a21-0e8f7d6c5b4a", refund_amount_cents: recorded, ship_name: "Ana Ruiz", email: null }, error: null };
+      if (table === "square_refunds" && m.includes("select")) return { data: completed.map((c) => ({ amount_cents: c })), error: null };
+      return { data: null, error: null };
+    } });
+    const rb = JSON.stringify({ type: "refund.updated", event_id: `evt-rf-${recorded}-${completed.join("-")}`, data: { object: { refund: { id: "rf-2", payment_id: "sq-pay-1", status: "COMPLETED", amount_money: { amount: completed[completed.length - 1] } } } } });
+    const r = await post(loader(w.shims)("app/api/square/webhook/route.ts"), SQ_URL, { "x-square-hmacsha256-signature": sqSign(rb) }, rb);
+    return { ...r, w };
+  };
+  const parts = await refundRun(500, [500, 500]);
+  const said = parts.w.alerts.find((a) => a.kind === "refund_unrecorded");
+  ok("square route: a second part refunded in Square is summed with the first — $10 back, $5 recorded, the $5 missing is said",
+    parts.status === 200 && !!said && /refunded \$10\.00 in Square, and this order records \$5\.00\. Record the other \$5\.00 on the order/.test(said.body), said?.body);
+  const square = await refundRun(1000, [500, 500]);
+  ok("square route: …and once the order records all of it, nothing is said", square.status === 200 && !square.w.alerts.some((a) => a.kind === "refund_unrecorded"), square.w.alerts);
+
+  // R9 review: an office link paid when its order is already paid by hand, or canceled.
+  const linkRun = async (bo) => {
+    const w = world({ table: (table, steps) => {
+      const m = steps.map(([x]) => x);
+      if (table === "events") return { data: null, error: null };
+      if (table === "business_orders" && m.includes("select")) return { data: bo, error: null };
+      return { data: null, error: null };
+    } });
+    const pb = JSON.stringify({ type: "payment.updated", event_id: `evt-pay-${bo.payment_status}-${bo.canceled_at ? "c" : "o"}`, data: { object: { payment: { id: "sq-link-pay-77", status: "COMPLETED", order_id: "sq-order-9", amount_money: { amount: 13500 } } } } });
+    const r = await post(loader(w.shims)("app/api/square/webhook/route.ts"), SQ_URL, { "x-square-hmacsha256-signature": sqSign(pb) }, pb);
+    return { ...r, w, wroteOrder: w.calls.some((c) => c.table === "business_orders" && c.steps.some(([x]) => x === "update")) };
+  };
+  const twice = await linkRun({ id: "b0000000-0000-4000-8000-000000000001", company: "Acme", payment_status: "paid", payment_id: null, canceled_at: null });
+  ok("square route: a link paid on an order already paid by hand is asked about — and left on no order, so its refund comes off walk-up, not the office's",
+    twice.status === 200 && !twice.wroteOrder && twice.w.alerts.some((a) => a.kind === "office_paid_twice" && /ending ay-77|ending pay-77/.test(a.body)), { wrote: twice.wroteOrder, alerts: twice.w.alerts.map((a) => a.body) });
+  const gone = await linkRun({ id: "b0000000-0000-4000-8000-000000000002", company: "Acme", payment_status: "paid", payment_id: null, canceled_at: "2026-10-16T12:00:00Z" });
+  const flag = gone.w.alerts.find((a) => a.kind === "refund_needed");
+  ok("square route: a link paid on a canceled order raises its own refund flag, keyed by the payment — never folded into the cancel's",
+    gone.status === 200 && !!flag && flag.subjectId === "office-pay:sq-link-pay-77" && flag.severity === "critical", flag);
 });
 await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: undefined, SQUARE_WEBHOOK_URL: undefined }, async () => {
   const w = world();
@@ -283,6 +333,118 @@ await withEnv({ APLIIQ_SHARED_SECRET: undefined }, async () => {
   const r = await post(loader(w.shims)("app/api/apliiq/search/route.ts"), "https://app.example.test/api/apliiq/search", { authorization: apliiqHeader(body) }, body);
   ok("apliiq route: with its secret unset it is closed (401), as it always has been", r.status === 401 && w.calls.length === 0, r.status);
 });
+
+// Sending an order to Apliiq (R9, 0417): not taken is not the same as no answer. A refusal — or a connection that never
+// opened — is "refused": nothing at the printer. A timeout, a reset, a 5xx, a 409, a 2xx with no id is "unclear": Apliiq
+// may have it, and the order waits for the crew to look. Run against a stand-in fetch; nothing here talks to Apliiq.
+await withEnv({ APLIIQ_SHARED_SECRET: APLIIQ_SECRET, APLIIQ_APP_KEY: "app-test" }, async () => {
+  const w = world();
+  const A = loader({ ...w.shims, "./apliiqOrder": { buildOrderPayload: () => ({ ok: true, payload: { id: "o-1" }, skus: [] }) } })("lib/apliiq.ts");
+  const order = { id: "o-1", ship: {}, items: [] };
+  const answer = (status, body) => async () => new Response(body === undefined ? "" : JSON.stringify(body), { status });
+  const thrown = (e) => async () => { throw e; };
+  const netErr = (code) => Object.assign(new TypeError("fetch failed"), { cause: { code } });
+  const timeout = Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+  const run = (f) => A.submitOrderToApliiq(order, f);
+  const [ok200, noId, s500, s502, s409, s408, s400, s422, s429, dns, refused, connTimeout, aborted, reset] = await Promise.all([
+    run(answer(200, { Id: 4471023 })), run(answer(200, {})), run(answer(500, { error: "x" })), run(answer(502)), run(answer(409, { error: "exists" })),
+    run(answer(408)), run(answer(400, { error: "sku" })), run(answer(422)), run(answer(429)),
+    run(thrown(netErr("ENOTFOUND"))), run(thrown(netErr("ECONNREFUSED"))), run(thrown(netErr("UND_ERR_CONNECT_TIMEOUT"))),
+    run(thrown(timeout)), run(thrown(netErr("ECONNRESET"))),
+  ]);
+  ok("apliiq send: a 2xx with their id is the only success, and carries it", ok200.ok === true && ok200.apliiqOrderId === "4471023", ok200);
+  ok("apliiq send: a 2xx with no id, a 5xx, a 409 or a 408 is unclear — Apliiq may have it",
+    [noId, s500, s502, s409, s408].every((r) => r.ok === false && r.unclear === true), [noId, s500, s502, s409, s408].map((r) => r.unclear));
+  ok("apliiq send: a 400, 422 or 429 is a refusal — nothing there, safe to send again once fixed",
+    [s400, s422, s429].every((r) => r.ok === false && !r.unclear) && /Apliiq 400 — /.test(s400.error), [s400, s422, s429].map((r) => r.unclear));
+  ok("apliiq send: a connection that never opened (no address, refused, connect timeout) never reached them — refused",
+    [dns, refused, connTimeout].every((r) => r.ok === false && !r.unclear), [dns, refused, connTimeout].map((r) => r.unclear));
+  ok("apliiq send: a timeout or a reset mid-request may have reached them — unclear",
+    [aborted, reset].every((r) => r.ok === false && r.unclear === true), [aborted, reset].map((r) => r.unclear));
+  let init = null;
+  await A.submitOrderToApliiq(order, async (_u, i) => { init = i; return new Response(JSON.stringify({ Id: 1 }), { status: 200 }); });
+  ok("apliiq send: it waits no longer than its timeout (an abort signal on the request), well inside the two-minute claim",
+    init?.signal instanceof AbortSignal && A.APLIIQ_SUBMIT_TIMEOUT_MS === 25_000 && init?.method === "POST", { signal: !!init?.signal, ms: A.APLIIQ_SUBMIT_TIMEOUT_MS });
+});
+
+// Apliiq's shipping update and product sync (R9, the money audit's A10): the order found by each id in its own query,
+// checked for its shape; the inbox keyed on the signed body, never on x-apliiq-delivery; a delivered order not walked
+// back; a product update that says only what it carries.
+{
+  const TEN = "00000000-0000-0000-0000-0000000000aa", OID = "6f1c2b8e-5d4a-4c3b-9a21-0e8f7d6c5b4a";
+  const stateful = ({ order = null, product = null } = {}) => {
+    const seen = new Set(), updates = [], inserts = [];
+    const w = world({ table: (table, steps) => {
+      const m = steps.map(([x]) => x), arg = (k) => (steps.find(([x]) => x === k) ?? [])[1];
+      if (table === "webhook_events" && m.includes("insert")) {
+        const id = arg("insert").id;
+        if (seen.has(id)) return { data: null, error: { code: "23505" } };
+        seen.add(id); return { data: null, error: null };
+      }
+      if (table === "webhook_events" && m.includes("delete")) { seen.delete(steps.find(([x]) => x === "eq")[2]); return { data: null, error: null }; }
+      if (table === "shop_orders" && m.includes("select")) return { data: m.includes("maybeSingle") ? order : order ? [order] : [], error: null };
+      if (table === "shop_products" && m.includes("select")) return { data: product ? [product] : [], error: null };
+      if (m.includes("update")) { updates.push({ table, patch: arg("update"), steps }); return { data: null, error: null }; }
+      if (m.includes("insert")) { inserts.push({ table, row: arg("insert") }); return { data: null, error: null }; }
+      if (table === "merch_fulfillments" || table === "shop_order_items") return { data: [], error: null };
+      return { data: null, error: null };
+    } });
+    const shims = { ...w.shims, "@/lib/tenantScope": { integrationTenant: () => TEN },
+      "@/lib/notify": { accountEmail: async () => null }, "@/lib/customerMessage": { tellCustomer: async () => ({ ok: true }) },
+      "@/lib/receipt": { shippedNotice: () => ({ subject: "s", text: "t" }) } };
+    return { w, seen, updates, inserts, load: loader(shims) };
+  };
+  const send = (load, file, body, headers = {}) => post(load(file), `https://app.example.test/${file}`, { authorization: apliiqHeader(body), ...headers }, body);
+  await withEnv({ APLIIQ_SHARED_SECRET: APLIIQ_SECRET }, async () => {
+    const FF = "app/api/apliiq/fulfillment/route.ts", PR = "app/api/apliiq/product/route.ts";
+    const body = JSON.stringify({ external_id: OID, OrderId: "4471023", TrackingNumber: "1Z999AA10123456784" });
+    const a = stateful({ order: { id: OID, user_id: null, email: null, status: "needs_fulfillment", apliiq_order_id: null } });
+    const first = await send(a.load, FF, body, { "x-apliiq-delivery": "delivery-1" });
+    const look = a.w.calls.find((c) => c.table === "shop_orders" && c.steps.some(([x]) => x === "select"));
+    const patch = a.updates.find((u) => u.table === "shop_orders")?.patch ?? {};
+    ok("apliiq shipping: found by our id in its own query, scoped to the storefront — never a pasted filter",
+      first.status === 200 && look?.steps.some(([x, k, v]) => x === "eq" && k === "id" && v === OID) && look.steps.some(([x, k, v]) => x === "eq" && k === "tenant_id" && v === TEN)
+      && !a.w.calls.some((c) => c.steps.some(([x]) => x === "or")), { status: first.status, look: look?.steps });
+    ok("apliiq shipping: shipped, Apliiq's id kept where the order had none, and an unclear send's marks come off",
+      patch.status === "shipped" && patch.apliiq_order_id === "4471023" && patch.apliiq_submit_unknown_at === null && patch.apliiq_submit_started_at === null, patch);
+    const again = await send(a.load, FF, body, { "x-apliiq-delivery": "delivery-2" });
+    ok("apliiq shipping: the same signed call with a new x-apliiq-delivery is answered deduped — shipped and emailed once",
+      again.status === 200 && again.json?.deduped === true && a.updates.filter((u) => u.table === "shop_orders").length === 1, { again: again.json, updates: a.updates.length });
+
+    const b = stateful({ order: { id: OID, user_id: null, email: null, status: "needs_fulfillment", apliiq_order_id: null } });
+    const forged = await send(b.load, FF, JSON.stringify({ OrderId: "1,id.neq.0", TrackingNumber: "X" }));
+    ok("apliiq shipping: an id with a filter's punctuation names no order — 400, nothing read", forged.status === 400 && !b.w.calls.some((c) => c.table === "shop_orders"), forged.status);
+
+    const c = stateful({ order: { id: OID, user_id: null, email: null, status: "delivered", apliiq_order_id: "4471023" } });
+    await send(c.load, FF, body);
+    const cp = c.updates.find((u) => u.table === "shop_orders")?.patch ?? {};
+    ok("apliiq shipping: a delivered order is not walked back to shipped, and its Apliiq id is not replaced", !("status" in cp) && !("apliiq_order_id" in cp), cp);
+
+    const d = stateful({ order: null });
+    const lost = await send(d.load, FF, body);
+    ok("apliiq shipping: no order carries it — 404 for Apliiq's retry, nothing marked seen, the crew told once",
+      lost.status === 404 && d.seen.size === 0 && d.w.alerts.some((x) => x.kind === "printer_unmatched"), { status: lost.status, seen: d.seen.size, alerts: d.w.alerts.map((x) => x.kind) });
+
+    const e = stateful({ order: { id: OID, user_id: null, email: null, status: "needs_fulfillment", apliiq_order_id: null } });
+    const stale = await post(e.load(FF), "https://app.example.test/x", { authorization: apliiqHeader(body, { rts: String(now - 8 * 86400) }) }, body);
+    ok("apliiq shipping: a correctly signed call from eight days ago is refused (401), nothing read", stale.status === 401 && e.w.calls.length === 0, stale.status);
+
+    const prodBody = JSON.stringify({ Id: "P-7781", Name: "Six-Panel Cap" });
+    const f = stateful({ product: { id: "row-1" } });
+    const synced = await send(f.load, PR, prodBody, { "x-apliiq-delivery": "p-1" });
+    const pp = f.updates.find((u) => u.table === "shop_products");
+    ok("apliiq product: an update without a price leaves the price alone — never $0 over a live product",
+      synced.status === 200 && pp && !("price_cents" in pp.patch) && pp.patch.title === "Six-Panel Cap" && pp.steps.some(([x, k, v]) => x === "eq" && k === "tenant_id" && v === TEN), pp?.patch);
+    const resent = await send(f.load, PR, prodBody, { "x-apliiq-delivery": "p-2" });
+    ok("apliiq product: the same signed body with a new delivery header is deduped — an old price can't be put back",
+      resent.json?.deduped === true && f.updates.filter((u) => u.table === "shop_products").length === 1, resent.json);
+    const g = stateful({ product: null });
+    await send(g.load, PR, JSON.stringify({ Id: "P-9", Name: "Beanie", Price: "28.00" }));
+    const born = g.inserts.find((i) => i.table === "shop_products")?.row ?? {};
+    ok("apliiq product: a new one is born hidden, in this storefront, at the price it carried",
+      born.tenant_id === TEN && born.price_cents === 2800 && !("published_at" in born) && born.title === "Beanie", born);
+  });
+}
 
 // Twilio — a text sent to the GT3 number (app/api/sms/inbound, R5 of the customer audit: a recorded yes, STOP honoured)
 const text = (Body, extra = {}) => ({ ToCountry: "US", From: "+18645550100", To: "+18645550199", Body, MessageSid: "SM-made-up-1", NumMedia: "0", ...extra });

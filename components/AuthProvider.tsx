@@ -7,6 +7,7 @@ import { writeViewerHint } from "@/lib/viewerHint";
 import type { Role } from "@/lib/roles";
 import { publicOrigin } from "@/lib/native";
 import { takeReturn } from "@/lib/returnTo";
+import { markSigninAsked, signinAskedHere, OPENED_WITH_SESSION } from "@/lib/linkSignin";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
@@ -17,6 +18,8 @@ import dynamic from "next/dynamic";
 // if it still cannot be fetched — the connection dropped at that moment — the overlay says so and offers a reload, which
 // raises it again (RECOVERY_KEY, below), instead of Next's "Application error" over the whole app.
 const PasswordRecovery = dynamic(() => import("./PasswordRecovery").catch(() => ({ default: RecoveryDidNotLoad })), { ssr: false });
+// Loaded only when a link signs a device in that asked for none (R9): every route carries this provider.
+const LinkSigninNotice = dynamic(() => import("./LinkSigninNotice"), { ssr: false });
 const RECOVERY_KEY = "gt3-recovery";   // this tab is mid-reset: a reload raises the overlay again
 const recoveryPending = (on: boolean | null): boolean => {
   try {
@@ -115,6 +118,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const router = useRouter();
   const [ready, setReady] = useState(!supabaseEnabled); // if no Supabase, we're "ready" immediately
   const [user, setUser] = useState<User | null>(null);
+  // A sign-in this device never asked for, said (R9, lib/linkSignin): the email it is signed in as, until answered —
+  // asked once a page load, of the session the address brought.
+  const [linkNotice, setLinkNotice] = useState<string | null>(null);
+  const linkSeen = useRef(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   // WHY THIS EXISTS. `profile === null` meant three different things — not fetched yet, the fetch
   // failed, and this person genuinely has no profile row — and roleOf(null) returns "member". So
@@ -239,6 +246,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       else if (u && event === "INITIAL_SESSION" && recoveryPending(null)) setRecovery(true);
       // THE PAGE YOU STARTED ON (2026-10-09, lib/returnTo): a sign-in link lands on the front door; the
       // sign-in it completes goes back to the page the link was asked for on, once.
+      // A session that arrived in the address, on a device that asked for no sign-in in the last day (R9): whose it is,
+      // said once, with a way out — a link someone else asked for, opened here, signed this device into their account.
+      if (u && (event === "SIGNED_IN" || event === "INITIAL_SESSION") && OPENED_WITH_SESSION && !linkSeen.current) {
+        linkSeen.current = true;
+        if (!signinAskedHere()) setLinkNotice(u.email ?? "another account");
+      }
       if (u && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
         const to = takeReturn();
         if (to && to !== window.location.pathname + window.location.search) router.replace(to);
@@ -258,6 +271,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // detectSessionInUrl (set in lib/supabase) completes it.
     // publicOrigin (lib/native): the web's own address on the web, app.gt3pb.com in the iPhone app,
     // whose own address (capacitor://localhost) means nothing to a mail app.
+    markSigninAsked();   // this device asked: its link reads as its own (R9, lib/linkSignin)
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
@@ -288,8 +302,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const refresh_token = p.get("refresh_token");
       if (!access_token || !refresh_token)
         return { error: "Paste the full URL from your browser's address bar after clicking the sign-in link." };
-      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-      return error ? { error: error.message } : {};
+      const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+      if (error) return { error: error.message };
+      // The iPhone app's sign-in link (NativeBridge): the same notice when this phone asked for none (R9, lib/linkSignin).
+      if (!signinAskedHere()) setLinkNotice(data.user?.email ?? "another account");
+      return {};
     } catch {
       return { error: "That doesn't look like a valid sign-in URL." };
     }
@@ -303,6 +320,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const signUp = useCallback<AuthCtx["signUp"]>(async (email, password, displayName) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
+    markSigninAsked();   // its confirmation link, or the sign-in code sent instead, is this device's own (R9)
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -346,6 +364,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // resend of its "Confirm sign up" email; the account that was already there is sent a sign-in code (SignIn).
   const resendConfirm = useCallback<AuthCtx["resendConfirm"]>(async (email) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
+    markSigninAsked();   // this device asked: its link reads as its own (R9, lib/linkSignin)
     const { error } = await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: typeof window !== "undefined" ? publicOrigin() : undefined } });
     return error ? { error: error.message } : {};
   }, []);
@@ -397,6 +416,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       {children}
       {/* Saved is saved (R8): the reload flag goes the moment the new password is, not at Continue — a reload on "Password
           updated." would raise "Set a new password." again, and its Cancel sign them out of the account they just secured. */}
+      {linkNotice && <LinkSigninNotice email={linkNotice} onKeep={() => { markSigninAsked(); setLinkNotice(null); }} onLeave={() => { setLinkNotice(null); void signOut(); }} />}
       {recovery && <PasswordRecovery updatePassword={async (pw) => { const r = await updatePassword(pw); if (!r.error) recoveryPending(false); return r; }} onDone={() => { recoveryPending(false); setRecovery(false); }} onCancel={() => { recoveryPending(false); setRecovery(false); signOut(); }} />}
     </Ctx.Provider>
   );

@@ -4,7 +4,7 @@ import { memo } from "react";
 import LongPress, { type MenuItem } from "@/components/LongPress";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
-import { canCollect, canUndo, isSettled, passWord } from "@/lib/collect";
+import { canCollect, canUndo, isSettled, passWord, viaOf, VIA_CHIP, VIA_UNDO } from "@/lib/collect";
 import { ticketNo } from "@/lib/orderStatus";
 import { ACT_CLASS, PREV, ago, itemLines, ticketAge } from "@/lib/passBoard";
 import type { Order } from "@/lib/db";
@@ -71,7 +71,7 @@ export const Ticket = memo(function Ticket({ o, action, flash, me, admin, act, n
     { key: "next", label: action, icon: "arrowRight", run: () => { void act.advance(o); } },
     ...(PREV[o.status] ? [{ key: "back", label: "Move back a stage", icon: "chevronLeft", run: () => { void act.recall(o); } } satisfies MenuItem] : []),
     ...(canCollect(o) ? [{ key: "collect", label: `Collect ${money(o.total_cents)}`, run: () => { void act.collect(o); } }] : []),
-    ...(canUndo(o, me, admin) ? [{ key: "undo", label: `Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment`, run: () => { void act.undoTake(o); } }] : []),
+    ...(canUndo(o, me, admin) ? [{ key: "undo", label: `Undo ${VIA_UNDO[viaOf(o) ?? "card_reader"]}`, run: () => { void act.undoTake(o); } }] : []),
     { key: "void", label: "Void order", icon: "close", danger: true, run: () => { void act.voidOrder(o); } },
   ];
   return (
@@ -96,8 +96,8 @@ export const Ticket = memo(function Ticket({ o, action, flash, me, admin, act, n
           {PREV[o.status] && <button className="k-icon-btn lg shrink-0" onClick={() => act.recall(o)} aria-label="Move back a stage">↩</button>}
           {canCollect(o) && <button type="button" className="btn-sec shrink-0" onClick={() => act.collect(o)}>Collect {money(o.total_cents)}</button>}
           {canUndo(o, me, admin) && (
-            <button type="button" className="btn-sec shrink-0 text-ok border-ok" onClick={() => act.undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
-              {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
+            <button type="button" className="btn-sec shrink-0 text-ok border-ok" onClick={() => act.undoTake(o)} aria-label={`Undo ${VIA_UNDO[viaOf(o) ?? "card_reader"]} from ${o.customer ?? "Guest"}`}>
+              {VIA_CHIP[viaOf(o) ?? "card_reader"]} <Icon name="check" />
             </button>
           )}
           <button className={`adm-act ${ACT_CLASS[o.status]}`} onClick={() => act.advance(o)}>{action}</button>
@@ -113,7 +113,7 @@ export const DoneTicket = memo(function DoneTicket({ o, me, admin, act, nameOf }
   const items: MenuItem[] = [
     { key: "recall", label: "Bring it back to ready", icon: "chevronLeft", run: () => { void act.recall(o); } },
     ...(canCollect(o) ? [{ key: "collect", label: `Collect ${money(o.total_cents)}`, run: () => { void act.collect(o); } } satisfies MenuItem] : []),
-    ...(canUndo(o, me, admin) ? [{ key: "undo", label: `Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment`, run: () => { void act.undoTake(o); } } satisfies MenuItem] : []),
+    ...(canUndo(o, me, admin) ? [{ key: "undo", label: `Undo ${VIA_UNDO[viaOf(o) ?? "card_reader"]}`, run: () => { void act.undoTake(o); } } satisfies MenuItem] : []),
   ];
   return (
     <LongPress title={`${o.customer ?? "Guest"} · ${ticketNo(o.id)}`} items={items}>{(press) => (
@@ -131,8 +131,8 @@ export const DoneTicket = memo(function DoneTicket({ o, me, admin, act, nameOf }
               still money taken at the window, and this tray is where that order still is. */}
           {canCollect(o) && <button type="button" className="btn-sec shrink-0" onClick={() => act.collect(o)}>Collect {money(o.total_cents)}</button>}
           {canUndo(o, me, admin) && (
-            <button type="button" className="btn-sec shrink-0 text-ok border-ok" onClick={() => act.undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.customer ?? "Guest"}`}>
-              {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
+            <button type="button" className="btn-sec shrink-0 text-ok border-ok" onClick={() => act.undoTake(o)} aria-label={`Undo ${VIA_UNDO[viaOf(o) ?? "card_reader"]} from ${o.customer ?? "Guest"}`}>
+              {VIA_CHIP[viaOf(o) ?? "card_reader"]} <Icon name="check" />
             </button>
           )}
         </div>

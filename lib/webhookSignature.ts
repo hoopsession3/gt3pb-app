@@ -15,7 +15,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 //
 // These are the checks, pure: the raw body exactly as it arrived, the headers that sign it, the secret. Each answers
 // true only for a valid signature, and false for a missing one, a wrong one, a stale one or one that cannot be read
-// — never throws. A route answers false with 401. scripts/webhooks.test.mjs signs with made-up secrets and runs them,
+// — never throws (Apliiq's has a staleness window since R9: APLIIQ_MAX_AGE_S, below). A route answers false with 401. scripts/webhooks.test.mjs signs with made-up secrets and runs them,
 // and runs each route on top of them.
 
 /** The same bytes, compared in constant time; false (never a throw) when the lengths differ. */
@@ -75,9 +75,32 @@ export function stripeSignatureOk(rawBody: string, header: string | null | undef
   return v1.some((s) => sameBytes(s, expected));
 }
 
+/** How old an Apliiq signature may be (R9, 2026-10-16). Apliiq's guide does not say how long it retries an event, or
+ *  whether a retry is signed again, so the window is wide — a week — and it only has to be shorter than the inbox keeps
+ *  what it has seen (webhook_events, 30 days, 0230): inside it a replay is answered "deduped" (each route keys its
+ *  inbox row on the signed body, never on a header anyone can change); past it, refused. Without it, a captured product
+ *  update could be sent again once the inbox had forgotten it, and put back an old price. */
+export const APLIIQ_MAX_AGE_S = 7 * 24 * 3600;
+/** A signature from the future: a sender's clock a little ahead is fine; an hour is not a clock. */
+export const APLIIQ_MAX_AHEAD_S = 3600;
+
+/** RTS as unix seconds: seconds as Apliiq's guide signs them (and lib/apliiq signs its own), milliseconds read as
+ *  such, a date string parsed. null when it reads as none of them. */
+function rtsSeconds(rts: string): number | null {
+  if (/^\d{1,16}$/.test(rts)) {
+    const n = Number(rts);
+    return n > 1e12 ? n / 1000 : n;
+  }
+  const ms = Date.parse(rts);
+  return Number.isFinite(ms) ? ms / 1000 : null;
+}
+
 /** Apliiq: `x-apliiq-auth RTS:SIG:APPID:STATE`, SIG = base64(HMAC-SHA256(shared secret, APPID + RTS + STATE +
- *  base64(raw body))) — their Authentication Guide, as lib/apliiq signs its own calls to them. */
-export function apliiqSignatureOk(rawBody: string, authHeader: string | null | undefined, secret: string | null | undefined): boolean {
+ *  base64(raw body))) — their Authentication Guide, as lib/apliiq signs its own calls to them. RTS is inside the signed
+ *  string, so only the secret's holder can choose it: a signature older than APLIIQ_MAX_AGE_S, or more than an hour
+ *  ahead, is refused. An RTS that reads as no time at all can only be Apliiq's own format, and is let through — the
+ *  routes' inbox still answers its replays. */
+export function apliiqSignatureOk(rawBody: string, authHeader: string | null | undefined, secret: string | null | undefined, nowS: number = Date.now() / 1000): boolean {
   if (!secret) return false;
   const token = (authHeader || "").replace(/^\s*x-apliiq-auth\s+/i, "").trim();
   const parts = token.split(":");
@@ -86,7 +109,9 @@ export function apliiqSignatureOk(rawBody: string, authHeader: string | null | u
   if (!rts || !sig || !appid || !state) return false;
   const b64 = rawBody ? Buffer.from(rawBody).toString("base64") : "";
   const expected = createHmac("sha256", secret).update(appid + rts + state + b64).digest("base64");
-  return sameBytes(sig, expected);
+  if (!sameBytes(sig, expected)) return false;
+  const at = rtsSeconds(rts);
+  return at === null || (nowS - at <= APLIIQ_MAX_AGE_S && at - nowS <= APLIIQ_MAX_AHEAD_S);
 }
 
 /** Twilio (2026-10-14, R5 — a text sent to us, STOP honoured): base64(HMAC-SHA1(auth token, the URL Twilio called +

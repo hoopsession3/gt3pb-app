@@ -46,7 +46,15 @@ export type ErrorReport = {
   ua?: string;            // user agent family, or "server"
   fatal?: boolean;        // true = error-boundary hit (white-screen class)
   skew?: boolean;         // true = a stale-build crash the client is about to heal
+  browser?: boolean;      // true = sent by a browser (/api/errors/report): anyone can send one (R9) — see below
 };
+
+/** What a browser's report may put in an alert (R9 — the abuse audit's seventh). Anyone can post one, and the alert's body
+ *  goes into the admins' email and Teams: a "message" carrying a link was a phishing note sent from our own address. Its
+ *  words are kept, with any link taken out; the row under Settings › Errors keeps all of it. Pure. */
+export function reportWords(message: string): string {
+  return message.replace(/\b(?:https?:\/\/|www\.)\S+/gi, "[link]").replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|app|xyz|info|biz|ru|cn|top|link|click|me|us)\b\S*/gi, "[link]").slice(0, 160);
+}
 
 export const NEW_ROWS = { bucket: "client-errors:new", windowMs: 3_600_000, max: 30 } as const;
 export const NEW_ALERTS = { bucket: "client-errors:alert", windowMs: 600_000, max: 5 } as const;
@@ -128,13 +136,15 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
       });
       return true;
     }
-    // A screen that healed itself is news, not an emergency. Anything the client could not heal —
-    // including a skew that exhausted its reloads — is still the critical it always was. A server
-    // route that threw is important: the caller got a 500, but nothing crashed on their screen.
+    // A screen that healed itself is news, not an emergency. A server route that threw is important: the caller got a
+    // 500, but nothing crashed on their screen. A browser's crash is important too since R9: anyone can post one, and a
+    // critical rings every owner, emails and posts to Teams, and rings again ten minutes on — thirty an hour, in words
+    // the sender chose. The crew at a crashed screen sees it; the inbox and the Errors list say it, important.
     const healed = skew && !fatal;
     const server = r.ua === "server";
+    const browser = r.browser === true;
     await deps.raiseAlert({
-      severity: healed ? "fyi" : fatal ? "critical" : "important",
+      severity: healed ? "fyi" : fatal && !browser ? "critical" : "important",
       category: "system",
       kind: "client_error",
       subjectId: (filed as { id?: string } | null)?.id,
@@ -143,7 +153,7 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
         : fatal ? "App error — a screen crashed" : server ? "Server error — a route threw" : "App error (new)",
       body: healed
         ? `A tab was one deploy behind and reloaded itself${path ? ` · ${path}` : ""}. Nothing was lost; no action needed.`
-        : `${message.slice(0, 200)}${path ? ` · ${path}` : ""}`,
+        : `${browser ? reportWords(message) : message.slice(0, 200)}${path ? ` · ${(browser ? path.replace(/[^\w/.-]/g, "") : path).slice(0, 80)}` : ""}`,
       link: ERRORS_LINK,
     });
     return true;

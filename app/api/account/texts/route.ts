@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { sayTextConsent, sayTextYes } from "@/lib/notify";
-import { e164, textsOn } from "@/lib/texts";
+import { e164, textsOn, usTextable } from "@/lib/texts";
 import { route } from "@/lib/apiRoute";
 
 // TEXTS ON OR OFF, FROM THE ACCOUNT (2026-10-14, R5 — 0398 text_consents). The member's own switch (components/
@@ -19,6 +19,11 @@ async function post(req: Request) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const num = e164(typeof body.phone === "string" ? body.phone : "");
   if (!num || typeof body.on !== "boolean") return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  // R9 (the abuse audit's third): a yes is for a US number (lib/texts usTextable — a stop is kept for any), and the
+  // switch is counted: six changes an hour a member. Off and on again in a loop re-sent the confirmation text each time.
+  if (body.on && !usTextable(num)) return NextResponse.json({ error: "We can only text US numbers." }, { status: 400 });
+  const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `texts:u:${user.id}`, p_window_ms: 3_600_000, p_max: 6 });
+  if (fits.data === false) return NextResponse.json({ error: "That's a lot of changes — give it a while." }, { status: 429 });
 
   // Theirs: the phone on their customer record, a pack or a delivery of theirs.
   const [cust, packs, dels] = await Promise.all([
@@ -32,6 +37,10 @@ async function post(req: Request) {
   // On: a new yes is confirmed by text at once (R6, lib/notify sayTextYes). Off: recorded; the switch's own toast says it.
   const r = body.on ? await sayTextYes(num, "account", user.id) : await sayTextConsent(num, false, "account", user.id);
   if (!r.ok) return NextResponse.json({ error: "Couldn't change it just now — try again." }, { status: 502 });
+  // A STOP texted from the phone is undone only from the phone (0418): the switch can't turn it back on, and says how.
+  if (body.on && r.standing !== true) {
+    return NextResponse.json({ ok: true, on: false, stoppedByText: true, error: "This number texted STOP to us. Text START to the GT3 number from it to turn texts back on." });
+  }
   return NextResponse.json({ ok: true, on: r.standing === true });
 }
 

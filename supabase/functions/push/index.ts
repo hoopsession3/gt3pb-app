@@ -18,7 +18,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   alertShown, channelsFor, escalationShown, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown, orderVoidShown, packNoticeShown,
   packNoticeTold, reminderShown, severityOf, signoffShown, stillUnanswered, stopCanceledShown, subscriptionShown, taskShown,
-  CUSTOMER_MUTE, smsPlain, textNumber, textQuiet, whoRings, type NotifPrefsRow, type Shown,
+  CUSTOMER_MUTE, pushHostOk, SEND_AT_ONCE, smsPlain, textNumber, textQuiet, usTextable, whoRings, type NotifPrefsRow, type Shown,
 } from "./policy.ts";
 
 webpush.setVapidDetails(
@@ -98,10 +98,18 @@ type Sub = { endpoint: string; p256dh: string | null; auth: string | null; platf
 type SubQuery = ReturnType<ReturnType<typeof supabase.from>["select"]>;
 
 async function subsFor(filter: (q: SubQuery) => SubQuery): Promise<Sub[]> {
-  const { data } = await filter(supabase.from("push_subscriptions").select("*"));
+  // Page by page (R9): one read stopped at the API's row cap, so the go-live ping reached the first thousand devices and
+  // not the rest. Twenty pages at most — far past every subscriber this business has.
+  const rows: Sub[] = [];
+  for (let page = 0; page < 20; page++) {
+    const { data, error } = await filter(supabase.from("push_subscriptions").select("*")).order("endpoint").range(page * 1000, page * 1000 + 999);
+    if (error || !data) break;
+    rows.push(...(data as Sub[]));
+    if (data.length < 1000) break;
+  }
   // One send per device - dedup by endpoint so a duplicated row can't double-notify.
   const seen = new Set<string>();
-  return ((data ?? []) as Sub[]).filter((s) => (seen.has(s.endpoint) ? false : (seen.add(s.endpoint), true)));
+  return rows.filter((s) => (seen.has(s.endpoint) ? false : (seen.add(s.endpoint), true)));
 }
 
 async function nameForUser(userId: string) {
@@ -231,7 +239,7 @@ async function textMember(phone: unknown, body: string): Promise<{ result: "sent
   const sid = Deno.env.get("TWILIO_ACCOUNT_SID"), token = Deno.env.get("TWILIO_AUTH_TOKEN"), from = Deno.env.get("TWILIO_FROM_NUMBER");
   if (Deno.env.get("TEXTS_ON") !== "1" || !sid || !token || !from) return { result: "off" };
   const num = textNumber(phone);
-  if (!num) return { result: "no-number" };
+  if (!num || !usTextable(num)) return { result: "no-number" };   // US numbers only (R9, ./policy.ts)
   const { data: yes, error } = await supabase.rpc("text_consent_standing", { p_phone: num });
   if (error || yes !== true) return { result: "not-asked" };
   if (textQuiet(new Date())) return { result: "quiet" };
@@ -510,7 +518,7 @@ Deno.serve(async (req) => {
     // tag and ring are the browser's (public/sw.js): one notification per event, and shown even with the app open
     // for a critical, an escalation and a test. A worker from before reads title, body and url as it always did.
     const payload = JSON.stringify({ title, body: message, url, tag: shown.tag, ring: shown.ring });
-    await Promise.all(targets.map(async (s) => {
+    const sendOne = async (s: Sub) => {
       try {
         // The iPhone app's row: Apple's service, not a browser's (0367).
         if (s.platform === "apns") {
@@ -518,12 +526,17 @@ Deno.serve(async (req) => {
           if (status === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
           return;
         }
+        // A web device at a browser's push service only (R9, 0418 push_host_ok): a row kept at any other address is
+        // left alone, never posted to.
+        if (!pushHostOk(s.endpoint)) return;
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh ?? "", auth: s.auth ?? "" } }, payload);
       } catch (e) {
         const code = (e as { statusCode?: number })?.statusCode;
         if (code === 404 || code === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
       }
-    }));
+    };
+    // A few at a time (R9): every subscriber at the same moment was one burst of posts as wide as the list.
+    for (let i = 0; i < targets.length; i += SEND_AT_ONCE) await Promise.all(targets.slice(i, i + SEND_AT_ONCE).map(sendOne));
     if (after) await after();
     return new Response("ok");
   } catch (e) {

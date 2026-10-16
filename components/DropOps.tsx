@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useApp } from "./AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { FLAVORS, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
@@ -17,7 +16,7 @@ import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useAuth } from "./AuthProvider";
 import { canOf } from "@/lib/roles";
-import { canCollect, canUndo, collectPayment, undoCollection, isSettled, paidHow, type CollectVia } from "@/lib/collect";
+import { canCollect, canUndo, collectPayment, undoCollection, isSettled, paidHow, viaOf, VIA_CHIP, VIA_UNDO, type CollectVia } from "@/lib/collect";
 import { useCollectSheet } from "./CollectSheet";
 import FoldCard from "@/components/crew/FoldCard";
 import { dueLead, type PickupFeed } from "@/lib/dueNext";
@@ -156,12 +155,12 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
   };
   const collect = async (o: DropOrder) => {
     const how = await askCollect({ who: o.name, cents: o.total_cents });
-    if (how === "cash" || how === "card_reader") await takeMoney(o, how);
+    if (how && how !== "unpaid") await takeMoney(o, how);
   };
   const undoTake = async (o: DropOrder) => {
     if (!supabase) return;
-    const how = o.collected_via === "cash" ? "cash" : "card-reader";
-    if (!(await confirm({ title: `Undo the ${dollars(o.total_cents / 100)} ${how} payment from ${o.name}?`, body: "Only if it wasn't paid that way. You can collect it again after.", confirmLabel: "Undo it" }))) return;
+    const via = viaOf(o) ?? "card_reader";
+    if (!(await confirm({ title: `Undo ${VIA_UNDO[via]} — ${dollars(o.total_cents / 100)} from ${o.name}?`, body: "Only if it wasn't settled that way. You can collect it again after.", confirmLabel: "Undo it" }))) return;
     const res = await undoCollection(supabase, "pickup", o.id);
     if (res.error) toast(`Couldn't undo it — ${res.error}`, "error");
     else toast(res.already ? "Nothing to undo — it wasn't taken at the window" : `${o.name} — back to unpaid`);
@@ -222,26 +221,23 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
 
   // Cancel keeps the row (audit trail) and drops it from the sheet; a paid cancel flags the refund.
   // How it was paid decides what the refund is (0341): cash goes back across the window, a card —
-  // online or on the reader — is refunded in Square. The flag is critical, like the member's own
-  // cancel (0242: an 'important' refund alert has no escalation behind it).
+  // online or on the reader — is refunded in Square. The flag is the database's (0416, refund_flag_pack): raised by the
+  // cancel itself, from the row as it is — a pack another phone just took on the card reader is flagged too, which this
+  // screen, judging from the row it drew, could not do. Critical, like the member's own (0242: an 'important' refund alert
+  // has no escalation behind it).
   const cancel = async (o: DropOrder) => {
     if (!supabase) return;
     const how = paidHow(o);
     const amt = dollars(o.total_cents / 100);
     if (!(await confirm(
       how === "cash" ? { title: `Cancel ${o.name}'s ${o.size}-pack, paid ${amt} cash?`, body: "Hand the cash back — nothing to refund in Square.", confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }
+      : how === "covered" ? { title: `Cancel ${o.name}'s ${o.size}-pack?`, body: "It was covered by a free cup or credit — no money to give back.", confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }
       : how ? { title: `Cancel ${o.name}'s PAID ${o.size}-pack (${amt})?`, body: `${how === "card_reader" ? "Paid on the card reader" : "Paid by card"} — the refund is done in Square, and the crew inbox gets a flag.`, confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }
       : { title: `Cancel ${o.name}'s ${o.size}-pack?`, body: "Pay at pickup — nothing was charged.", confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }))) return;
-    const { error } = await supabase.from("drop_orders").update({ canceled_at: new Date().toISOString() }).eq("id", o.id);
+    // Once: a pack already canceled (another phone, a second tap) is not canceled again.
+    const { data: gone, error } = await supabase.from("drop_orders").update({ canceled_at: new Date().toISOString() }).eq("id", o.id).is("canceled_at", null).select("id");
     if (error) { toast(`Couldn't cancel — ${error.message}`, "error"); reload(); return; }
-    if (how && how !== "cash") {
-      await raiseAlertClient({
-        severity: "critical", category: "money", kind: "refund_needed", subjectId: o.id,
-        title: "Canceled a PAID reservation — refund needed",
-        body: `${o.name} · ${o.size}-pack · ${amt} ${how === "card_reader" ? "on the card reader" : "paid online"} for ${satLabel}'s drop. Refund it in Square.`,
-        link: "/crew",
-      });
-    }
+    if (!gone?.length) { toast(`${o.name}'s pack was already canceled`, "info"); reload(); return; }
     toast(how === "cash" ? `Reservation canceled — hand back ${amt} cash` : "Reservation canceled");
     reload();
   };
@@ -376,8 +372,8 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
                           {nextLabel && <button type="button" className="btn-sec btn-sm flex-1" onClick={() => setStage(o, PACK_STAGES[cur + 1].key)}>{nextLabel}</button>}
                           {canCollect(o) && <button type="button" className="btn-sec btn-sm flex-1" onClick={() => collect(o)}>Collect {dollars(o.total_cents / 100)}</button>}
                           {canUndo(o, me, admin) && (
-                            <button type="button" className="k-chip sm ok on flex-1" onClick={() => undoTake(o)} aria-label={`Undo the ${o.collected_via === "cash" ? "cash" : "card-reader"} payment from ${o.name}`}>
-                              {o.collected_via === "cash" ? "Cash" : "Reader"} <Icon name="check" />
+                            <button type="button" className="k-chip sm ok on flex-1" onClick={() => undoTake(o)} aria-label={`Undo ${VIA_UNDO[viaOf(o) ?? "card_reader"]} from ${o.name}`}>
+                              {VIA_CHIP[viaOf(o) ?? "card_reader"]} <Icon name="check" />
                             </button>
                           )}
                           {batches.length > 0 && (

@@ -280,7 +280,9 @@ const SETTLED = compileTs("lib/settled.ts", () => ({}));
 const C = compileTs("lib/collect.ts", (id) => (id === "./settled" ? SETTLED : {}));
 ok("known pair: the crew's isSettled is the customer's — one function, re-exported, not a copy", C.isSettled === SETTLED.isSettled);
 ok("known pair: lib/collect compiled, and isSettled found", typeof C.isSettled === "function" && typeof C.collectedPatch === "function");
-ok("known pair: the app's two ways are the table's two ways", JSON.stringify(C.COLLECT_VIA) === JSON.stringify(["cash", "card_reader"]));
+// 0341's two ways, and covered — a free cup or credit — which 0416 adds to the table (scripts/db.r9money.test.mjs runs it).
+ok("known pair: the app's ways are the table's — 0341's two, and 0416's covered", JSON.stringify(C.COLLECT_VIA) === JSON.stringify(["cash", "card_reader", "covered"])
+  && /check \(collected_via in \('cash', 'card_reader', 'covered'\)\)/.test(readFileSync(join(ROOT, "supabase/migrations/0416_a_refund_is_flagged_where_the_money_goes_back.sql"), "utf8")));
 {
   // Every legal combination: paid or not, collected or not, by either way.
   const combos = [];

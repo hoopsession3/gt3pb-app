@@ -371,6 +371,26 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
     "0864555010", "123-456-7890", "21864555010", "+0123456789", "+1234567", "call me", "+8645550100"];
   const differ = inputs.filter((x) => P.textNumber(x) !== texts.e164(x));
   ok("the push function reads a number as lib/texts does", differ.length === 0, differ);
+  // R9: and texts a US number only, as lib/texts does — the same answer on every number read above.
+  // Every area code, both ways: the two lists are one list.
+  const everyCode = Array.from({ length: 800 }, (_, i) => `+1${200 + i}5550100`);
+  const us = [...inputs.map((x) => texts.e164(x)), "+18641550100", "+11645550100", ...everyCode].filter((x) => P.usTextable(x) !== texts.usTextable(x));
+  ok("…and texts only a US phone, as lib/texts does — every area code answered the same", us.length === 0 && P.usTextable("+18645550100")
+    && !P.usTextable("+442079460958") && !P.usTextable("+18765550100") && everyCode.filter((x) => texts.usTextable(x)).length === 800 - 122 - 8, us.slice(0, 5));
+  // R9 (0418): a web device is posted to only at a browser's push service — the database's push_host_ok, the same list.
+  const hosts = ["https://fcm.googleapis.com/fcm/send/abc", "https://updates.push.services.mozilla.com/wpush/v2/x", "https://web.push.apple.com/QK",
+    "https://wns2-by3p.notify.windows.com/w/?token=x", "https://android.googleapis.com/gcm/send/y", "https://jmt17.google.com/fcm/send/z"];
+  const strangers = ["https://example.com/push", "https://fcm.googleapis.com.evil.test/x", "http://fcm.googleapis.com/x", "https://evilnotify.windows.com.test/x",
+    "https://notgoogle.com/x", "https://apple.com.evil.test/x", "fcm.googleapis.com/x", null, ""];
+  const m418 = readFileSync(join(ROOT, "supabase/migrations/0418_every_public_door_that_rings_is_counted.sql"), "utf8");
+  ok("a web device is posted to only at a browser's push service — the same list as the database's push_host_ok (0418)",
+    hosts.every((h) => P.pushHostOk(h)) && strangers.every((h) => !P.pushHostOk(h))
+    && m418.includes("(googleapis\\.com|google\\.com|mozilla\\.com|apple\\.com|windows\\.com)"),
+    hosts.filter((h) => !P.pushHostOk(h)).concat(strangers.filter((h) => P.pushHostOk(h))));
+  ok("…a few at a time, and every page of subscribers read",
+    (() => { const src = readFileSync(join(ROOT, "supabase/functions/push/index.ts"), "utf8");
+      return P.SEND_AT_ONCE === 25 && /for \(let i = 0; i < targets\.length; i \+= SEND_AT_ONCE\) await Promise\.all\(targets\.slice\(i, i \+ SEND_AT_ONCE\)\.map\(sendOne\)\);/.test(src)
+        && /\.range\(page \* 1000, page \* 1000 \+ 999\)/.test(src) && /if \(!pushHostOk\(s\.endpoint\)\) return;/.test(src); })());
   const hours = [0, 7, 8, 12, 20, 21, 23].map((h) => [h, P.textQuiet(new Date(Date.UTC(2026, 9, 24, h + 4))), texts.quietHours(new Date(Date.UTC(2026, 9, 24, h + 4)))]);
   ok("…and keeps its night: 9pm to 8am Eastern, as lib/texts", hours.every(([, a, b]) => a === b) && hours.filter(([, a]) => a).map(([h]) => h).join() === "0,7,21,23", hours);
 

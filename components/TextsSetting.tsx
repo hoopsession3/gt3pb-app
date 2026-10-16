@@ -68,6 +68,8 @@ export default function TextsSetting() {
       const r = await authedFetch("/api/account/texts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: num, on: !yes }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { toast(d?.error || "Couldn't change it — try again.", "error"); return; }
+      // A STOP texted from the phone holds until the phone says START (R9, 0418): said, and the switch stays off.
+      if (d?.stoppedByText) { toast(d.error || "This number texted STOP — text START from it to turn texts back on.", "info"); setTick((n) => n + 1); return; }
       if (yes) haptic("toggleOff"); else haptic("toggleOn");
       toast(!yes ? `Texts on for ${phoneShown(num)}` : "Texts off");
       setTick((n) => n + 1);

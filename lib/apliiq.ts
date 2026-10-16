@@ -83,6 +83,13 @@ export async function forgetSeen(provider: "apliiq" | "square", eventId: string)
   await supabaseAdmin.from("webhook_events").delete().eq("id", `${provider}:${eventId}`);
 }
 
+/** An inbox key from the signed body itself (R9, 2026-10-16). The routes keyed their inbox row on x-apliiq-delivery when
+ *  it came — a header outside the signature, so a captured call sent again with a new one was processed again. The same
+ *  bytes give the same key; nothing outside the signature changes it. */
+export function bodyKey(raw: string): string {
+  return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 32);
+}
+
 // Submit a paid merch order to Apliiq for fulfillment. Returns ok + their order id, or the reason it
 // failed — the caller drops a failure into the "needs fulfillment" crew queue (money's already
 // collected; fulfillment never silently fails). Never throws.
@@ -107,40 +114,74 @@ export async function forgetSeen(provider: "apliiq" | "square", eventId: string)
 // apliiq_order_id, so a null one cannot ever be joined: the order could not hear back even if
 // Apliiq did something. Success now REQUIRES the id, so "we have no idea whether they took it"
 // lands in the crew queue with a reason instead of wearing the word for its opposite.
-export type ApliiqSubmit = { ok: true; apliiqOrderId: string } | { ok: false; error: string };
+//
+// ── NOT TAKEN IS NOT THE SAME AS NO ANSWER (R9, 2026-10-16 — 0417) ─────────────────────────────
+// Every failure read as "not sent": a timeout, a dropped connection, a 5xx, a 2xx with no id. The
+// claim aged out in two minutes and Send to printer was offered again — a second cap, on the
+// business card, whenever Apliiq had in fact taken the first. Now a failure says which it is:
+//   refused  (unclear absent) — Apliiq said no, or it never reached them: nothing there; send again
+//            once the reason is fixed.
+//   unclear  (unclear: true)  — it may have reached them and no clear answer came back: Apliiq may
+//            have it. The order waits for the crew to look (0417, apliiq_submit_unknown_at).
+export type ApliiqSubmit =
+  | { ok: true; apliiqOrderId: string }
+  | { ok: false; error: string; unclear?: false }
+  | { ok: false; error: string; unclear: true };
+
+/** How long a send waits for Apliiq: longer than any round trip they need, well inside the two-minute claim (0335). */
+export const APLIIQ_SUBMIT_TIMEOUT_MS = 25_000;
+
+/** A connection that never opened: no address, refused, unreachable, no secure channel. The request cannot have reached
+ *  Apliiq. Everything else that throws — a timeout, a reset mid-request — may have. */
+const NEVER_REACHED = new Set([
+  "ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT",
+  "CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+]);
+function neverReached(e: unknown): boolean {
+  const cause = (e as { cause?: { code?: unknown } } | null)?.cause;
+  return typeof cause?.code === "string" && NEVER_REACHED.has(cause.code);
+}
+
+/** A status Apliiq answered with that says it did not take the order: a refusal of the request itself. 408 (it gave up
+ *  waiting) and 409 (a conflict — it may already hold this order) are not that, nor is any 5xx. */
+const refusedStatus = (s: number) => s >= 400 && s < 500 && s !== 408 && s !== 409;
+
 export async function submitOrderToApliiq(order: {
   id: string;
   ship: OrderShip;
   items: OrderLine[];
-}): Promise<ApliiqSubmit> {
+}, fetcher: typeof fetch = fetch): Promise<ApliiqSubmit> {
   if (!SECRET || !APP_KEY) return { ok: false, error: "Apliiq not configured (env)" };
   // Refuse rather than post something Apliiq will reject. The crew queue then carries a reason a
   // human can act on — "no Apliiq SKU for: 6-Panel Cap" — instead of a bare 400.
   const built = buildOrderPayload(order);
   if (!built.ok) return { ok: false, error: built.reason };
   const raw = JSON.stringify(built.payload);
+  let r: Response;
   try {
-    const r = await fetch(`${API_BASE}/Order`, {
+    r = await fetcher(`${API_BASE}/Order`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: outboundAuthHeader(raw) },
       body: raw,
+      signal: AbortSignal.timeout(APLIIQ_SUBMIT_TIMEOUT_MS),
     });
-    if (!r.ok) {
-      // Their message, not just the number — the first real order is how this contract gets
-      // confirmed, and "Apliiq 400" tells whoever reads the alert nothing about which field.
-      const detail = await r.text().catch(() => "");
-      return { ok: false, error: `Apliiq ${r.status}${detail ? ` — ${detail.slice(0, 90)}` : ""}` };
-    }
-    const data = (await r.json().catch(() => ({}))) as { Id?: string | number; id?: string | number };
-    const id = data.Id ?? data.id ?? null;
-    const idStr = id == null ? "" : String(id).trim();
-    // A 2xx we cannot read is not an acceptance. Reported as a failure so the order goes to the
-    // crew queue as needs_fulfillment — which is exactly what it is: paid, and nobody can show the
-    // printer has it. The status text for that one says "the printer either wasn't reachable or
-    // hasn't been asked", and both of those are truer than "Apliiq returned an id".
-    if (!idStr) return { ok: false, error: `Apliiq ${r.status} but no order id in the reply — cannot prove they took it` };
-    return { ok: true, apliiqOrderId: idStr };
   } catch (e) {
-    return { ok: false, error: errorMessage(e, 120) };
+    if (neverReached(e)) return { ok: false, error: `Apliiq couldn't be reached — ${errorMessage(e, 100)}` };
+    return { ok: false, unclear: true, error: `no answer from Apliiq — ${errorMessage(e, 100)}` };
   }
+  if (!r.ok) {
+    // Their message, not just the number — the first real order is how this contract gets
+    // confirmed, and "Apliiq 400" tells whoever reads the alert nothing about which field.
+    const detail = await r.text().catch(() => "");
+    const error = `Apliiq ${r.status}${detail ? ` — ${detail.slice(0, 90)}` : ""}`;
+    return refusedStatus(r.status) ? { ok: false, error } : { ok: false, unclear: true, error };
+  }
+  const data = (await r.json().catch(() => ({}))) as { Id?: string | number; id?: string | number };
+  const id = data?.Id ?? data?.id ?? null;
+  const idStr = id == null ? "" : String(id).trim();
+  // A 2xx we cannot read is not an acceptance — and not a refusal either: Apliiq answered yes to
+  // something. Unclear, so the order waits for someone to look before it can be sent again.
+  if (!idStr) return { ok: false, unclear: true, error: `Apliiq ${r.status} but no order id in the reply — it may have the order` };
+  return { ok: true, apliiqOrderId: idStr };
 }

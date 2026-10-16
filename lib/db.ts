@@ -105,7 +105,7 @@ export interface Order {
   // derive from it (lib/collect isSettled). The three collected_* keys are ABSENT on a row read
   // before 0341 is applied, and that absence is how the pass knows it cannot record one yet.
   payment_status?: string | null;
-  collected_via?: "cash" | "card_reader" | null;
+  collected_via?: "cash" | "card_reader" | "covered" | null;
   collected_at?: string | null;
   collected_by?: string | null;
   // When the truck said it would make it (0343): null = as soon as it is in; a time = placed ahead

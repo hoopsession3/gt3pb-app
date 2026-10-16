@@ -111,14 +111,25 @@ async function post(req: Request) {
         // Only a COMPLETED refund is money that left, and only say something when this app's own
         // record does not already cover it — a refund entered here and then confirmed by Square is
         // the workflow working, not a problem.
-        if (!err && String(rf?.status) === "COMPLETED" && o?.id && (o.refund_amount_cents ?? 0) < cents) {
-          await raiseAlertOnce({
-            severity: "critical", category: "money", kind: "refund_unrecorded", subjectId: o.id,
-            title: "A refund was issued in Square and this app does not know",
-            body: `${o.ship_name || o.email || "A customer"} was refunded $${moneyPlain(cents)} in Square, but this order records $${moneyPlain(o.refund_amount_cents)}. Mark the order refunded with a reason, or the books disagree.`,
-            // The order is the Catalog's since 2026-10-15 (the shop's queue moved there from Money): the refund is marked on it.
-            link: "/crew?s=catalog&a=shoporders",
-          });
+        //
+        // ALL OF WHAT WENT BACK, NOT THIS ONE (R9, 0417): it compared this refund alone with the order's total recorded,
+        // so a second $5 back in Square, after the first was recorded, said nothing — $10 out, $5 on the books. Every
+        // completed refund on the payment is summed, and the alert says what is missing; a part is recorded on the order
+        // now (0417), and the order stays open.
+        if (!err && String(rf?.status) === "COMPLETED" && o?.id) {
+          // scoped-by: payment_id is minted by Square — the same payment this order was matched on above.
+          const all = await supabaseAdmin.from("square_refunds").select("amount_cents").eq("payment_id", String(rf.payment_id)).eq("status", "COMPLETED");
+          const back = all.error ? cents : (all.data ?? []).reduce((n, r) => n + (Number((r as { amount_cents?: number }).amount_cents) || 0), 0);
+          const recorded = o.refund_amount_cents ?? 0;
+          if (recorded < back) {
+            await raiseAlertOnce({
+              severity: "critical", category: "money", kind: "refund_unrecorded", subjectId: o.id,
+              title: "A refund was issued in Square and this app does not know",
+              body: `${o.ship_name || o.email || "A customer"} has been refunded $${moneyPlain(back)} in Square, and this order records $${moneyPlain(recorded)}. Record the other $${moneyPlain(back - recorded)} on the order — Record a refund, with that amount and a reason. A part keeps the order open; all of it ends it.`,
+              // The order is the Catalog's since 2026-10-15 (the shop's queue moved there from Money): the refund is marked on it.
+              link: "/crew?s=catalog&a=shoporders",
+            });
+          }
         }
       }
     } else if (type.startsWith("dispute.")) {
@@ -176,14 +187,43 @@ async function post(req: Request) {
         // An office payment link paid → auto-mark the business order + store the payment id (0221),
         // which also powers the walk-up dedupe. Best-effort: non-office payments match zero rows,
         // and a failure here must never make Square retry the whole event.
+        // THE ORDER AS IT IS (R9, 2026-10-16). Only an order still owed was ever matched, so two payments went unseen:
+        //   · a link paid after its order was canceled — the money is in, and a refund is owed: flagged, critical. Its
+        //     payment stays on no order, so the books count it as walk-up money until it is given back (0417 takes the
+        //     refund off there);
+        //   · a link paid after the order was marked paid by hand — the crew is asked whether they paid twice. The payment
+        //     stays on no order: Money counts it as walk-up money, and when the extra one is given back its refund comes off
+        //     there (0417). Put on the order, its refund came off the office's — the order paid by hand read $0.
         if (p.order_id) {
           try {
-            // Only forward transitions: never let a delayed Square retry flip a refunded order back to paid.
             // scoped-by: square_order_id is minted by Square and matched against the row we created
             // when the invoice was raised. A caller cannot supply it — Square signs this request.
-            await supabaseAdmin.from("business_orders")
-              .update({ payment_status: "paid", payment_id: p.id })
-              .eq("square_order_id", p.order_id).in("payment_status", ["pending", "invoiced", "failed"]);
+            const { data: bo } = await supabaseAdmin.from("business_orders")
+              .select("id, company, payment_status, payment_id, canceled_at").eq("square_order_id", p.order_id).maybeSingle();
+            const cents = p?.amount_money?.amount ?? 0;
+            if (bo?.canceled_at) {
+              // Its own flag, by the payment (R9): keyed on the order, it met the flag its cancel had raised ("marked paid —
+              // settle it") and was never written — the card payment was flagged nowhere.
+              await raiseAlertOnce({
+                severity: "critical", category: "money", kind: "refund_needed", subjectId: `office-pay:${p.id}`,
+                title: "A canceled office order was paid — refund needed",
+                body: `${bo.company || "An office"} paid $${moneyPlain(cents)} through the payment link of an order that was canceled. Refund it in Square — or put the order back with them.`,
+                link: "/crew?s=money&a=pay",
+              });
+            } else if (bo && ["pending", "invoiced", "failed"].includes(String(bo.payment_status))) {
+              // Only forward transitions: never let a delayed Square retry flip a refunded order back to paid.
+              // scoped-by: the row Square's own order id just matched, and only while it is still owed.
+              await supabaseAdmin.from("business_orders")
+                .update({ payment_status: "paid", payment_id: p.id })
+                .eq("id", bo.id).in("payment_status", ["pending", "invoiced", "failed"]);
+            } else if (bo && bo.payment_status === "paid" && bo.payment_id !== p.id) {
+              await raiseAlertOnce({
+                severity: "important", category: "money", kind: "office_paid_twice", subjectId: String(bo.id),
+                title: "An office order already paid was paid by its link too",
+                body: `${bo.company || "An office"} was already marked paid, and its payment link was just paid ($${moneyPlain(cents)}, Square payment ending ${String(p.id).slice(-6)}). If they paid twice, refund that one in Square.`,
+                link: "/crew?s=money&a=pay",
+              });
+            }
           } catch { /* best-effort */ }
         }
       }

@@ -28,6 +28,10 @@ async function post(req: Request) {
   // from the verified session (lib/apiAuth.userFromRequest), never the client body.
   const caller = await userFromRequest(req);
   if (!caller) return NextResponse.json({ error: "Sign in to set up office delivery." }, { status: 401 });
+  // Counted (R9 — the abuse audit's fourth): every booking is an alert on the crew's phones, and a weekly one sets up a
+  // standing program. Five an hour a member — an office books once — in the store every instance shares. Fails open.
+  const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `office:u:${caller.id}`, p_window_ms: 3_600_000, p_max: 5 });
+  if (fits.data === false) return NextResponse.json({ error: "That's a lot of bookings in one go — give it a while, or text us." }, { status: 429 });
   const userId = caller.id;
   const userEmail = caller.email;
 
@@ -81,7 +85,9 @@ async function post(req: Request) {
   let windowCode: string = OFFICE.window;
   let cutoffAt: string | null = null;
   const next = await supabaseAdmin.rpc("office_next_delivery", { p_market: market });
-  if (next.error && !isMissingFunction(next.error)) return NextResponse.json({ error: `Couldn't work out the delivery date — ${next.error.message}` }, { status: 500 });
+  // The database's own words stay in the logs (R9 — the abuse audit's twelfth): a member is told what didn't happen, and
+  // how to get it done — never a table's or a function's name.
+  if (next.error && !isMissingFunction(next.error)) { console.warn(`[office] office_next_delivery: ${next.error.message}`); return NextResponse.json({ error: "Couldn't work out the delivery date — try again in a moment, or text us." }, { status: 500 }); }
   const slot = (next.data as { delivery_date: string; cutoff_at: string; delivery_window: string }[] | null)?.[0];
   if (slot) { dateKey = slot.delivery_date; windowCode = slot.delivery_window; cutoffAt = slot.cutoff_at; }
 
@@ -109,7 +115,7 @@ async function post(req: Request) {
       .eq("user_id", userId).ilike("company", companyNorm.replace(/[%_\\]/g, (c) => `\\${c}`)).maybeSingle();
     if (existing?.id) {
       const { error } = await writeAcrossSkew((row) => supabaseAdmin!.from("business_accounts").update(row).eq("id", existing.id), acctRow, ["access_instructions"]);
-      if (error) return NextResponse.json({ error: `Couldn't update your standing account — ${error.message}` }, { status: 500 });
+      if (error) { console.warn(`[office] account update: ${error.message}`); return NextResponse.json({ error: "Couldn't update your standing account — try again in a moment, or text us." }, { status: 500 }); }
       businessId = existing.id as string;
     } else {
       let made: { id: string } | null = null;
@@ -118,7 +124,7 @@ async function post(req: Request) {
         made = (r.data as { id: string } | null) ?? null;
         return r;
       }, acctRow, ["access_instructions"]);
-      if (error) return NextResponse.json({ error: `Couldn't set up your standing account — ${error.message}` }, { status: 500 });
+      if (error) { console.warn(`[office] account insert: ${error.message}`); return NextResponse.json({ error: "Couldn't set up your standing account — try again in a moment, or text us." }, { status: 500 }); }
       businessId = (made as { id: string } | null)?.id ?? null;
     }
   }
@@ -132,7 +138,7 @@ async function post(req: Request) {
   let totalCents = q.totalCents;
   if (standing && businessId) {
     const booked = await supabaseAdmin.rpc("book_office_standing", { p_account: businessId });
-    if (booked.error && !isMissingFunction(booked.error)) return NextResponse.json({ error: `Couldn't schedule your first delivery — ${booked.error.message}` }, { status: 500 });
+    if (booked.error && !isMissingFunction(booked.error)) { console.warn(`[office] book_office_standing: ${booked.error.message}`); return NextResponse.json({ error: "Couldn't schedule your first delivery — try again in a moment, or text us." }, { status: 500 }); }
     const first = (booked.data as { order_id: string; delivery_date: string; total_cents: number; cutoff_at: string; delivery_window: string }[] | null)?.[0];
     if (!booked.error && !first) return NextResponse.json({ error: "Couldn't schedule your first delivery — text us and we'll set it up." }, { status: 500 });
     if (first) { orderId = first.order_id; dateKey = first.delivery_date; windowCode = first.delivery_window; totalCents = first.total_cents; cutoffAt = first.cutoff_at; }
@@ -148,7 +154,7 @@ async function post(req: Request) {
       billing_terms: billing, standing, market,
       ...(cutoffAt ? { cutoff_at: cutoffAt } : {}),   // arrives-with: 0356
     }).select("id").single();
-    if (error) return NextResponse.json({ error: `Couldn't book it — ${error.message}` }, { status: 500 });
+    if (error) { console.warn(`[office] order insert: ${error.message}`); return NextResponse.json({ error: "Couldn't book it — try again in a moment, or text us." }, { status: 500 }); }
     orderId = (order as { id: string } | null)?.id;
   }
 

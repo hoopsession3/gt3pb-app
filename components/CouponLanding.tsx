@@ -16,17 +16,26 @@ import { btn } from "./Button";
 // logged crew-side, not a checkout event). Codes are DATA — rename, retire, or re-offer in Money ›
 // Codes and this page follows with zero deploys. The printed QR never goes stale.
 
-type Cpn = { ok: boolean; code?: string; kind?: string; label?: string; active?: boolean };
+// busy: the code couldn't be checked just now (R9) — the lookup is counted per address, and a venue's shared Wi-Fi or a
+// dropped signal is not an offer that ended. A FAILED READ IS NOT "ENDED": it says so, and asks again on a tap.
+type Cpn = { ok: boolean; code?: string; kind?: string; label?: string; active?: boolean; busy?: boolean };
 
 export default function CouponLanding({ code }: { code: string }) {
   const t = useSiteCopy();
   const [cpn, setCpn] = useState<Cpn | null>(null);
+  const [asked, setAsked] = useState(0);   // a tap on "Try again" asks once more
   useEffect(() => {
     trackFunnel("coupon", code.toUpperCase().slice(0, 40));   // the scan counter — fire once per landing
-    fetch(apiUrl(`/api/coupon/${encodeURIComponent(code)}`))
-      .then((r) => r.json()).then(setCpn)
-      .catch(() => setCpn({ ok: false }));
   }, [code]);
+  useEffect(() => {
+    fetch(apiUrl(`/api/coupon/${encodeURIComponent(code)}`))
+      .then(async (r) => {
+        const j = (await r.json().catch(() => null)) as Cpn | null;
+        // Not found is an offer that isn't running (404); too many asks or a failure is "couldn't check" — never "ended".
+        setCpn(r.status === 404 ? { ok: false } : r.ok && j ? j : { ok: false, busy: true });
+      })
+      .catch(() => setCpn({ ok: false, busy: true }));
+  }, [code, asked]);
 
   const checkoutKind = cpn?.kind === "amount_off" || cpn?.kind === "percent_off" || cpn?.kind === "price_override";
   return (
@@ -36,6 +45,11 @@ export default function CouponLanding({ code }: { code: string }) {
         <div className="cpn-brand">GT3 PERFORMANCE BAR</div>
         {cpn === null ? (
           <p className="cpn-sub">One sec…</p>
+        ) : cpn.busy ? (
+          <>
+            <p className="cpn-sub" role="status">Couldn&apos;t check this code just now.</p>
+            <button type="button" className={btn("primary", { wide: true })} onClick={() => { setCpn(null); setAsked((n) => n + 1); }}>Try again</button>
+          </>
         ) : cpn.ok && cpn.active ? (
           <>
             <h1 className="cpn-offer">{cpn.label}</h1>

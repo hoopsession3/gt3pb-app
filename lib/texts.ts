@@ -16,6 +16,29 @@ export function e164(raw: string | null | undefined): string | null {
   return null;
 }
 
+/** Area codes inside +1 that are not a US phone (R9 review): Canada, the Caribbean and Bermuda — +1 is twenty-five
+ *  countries, and the Caribbean's are where SMS pumping is billed — and the codes that reach no person's phone: toll-free,
+ *  premium 900, carrier and government services, personal-number blocks. US territories (Puerto Rico, the US Virgin
+ *  Islands, Guam) stay. supabase/functions/push/policy.ts and the database (0418 us_textable) hold the same list. */
+export const NOT_US_AREA_CODES: ReadonlySet<string> = new Set((
+  "204 226 236 242 246 249 250 257 263 264 268 273 284 289 306 343 345 354 365 367 368 382 387 403 416 " +
+  "418 428 431 437 438 441 450 456 460 468 473 474 500 506 514 519 521 522 523 524 525 526 527 528 529 " +
+  "533 544 548 566 577 579 581 584 587 588 600 604 613 622 633 639 644 647 649 655 658 664 672 677 683 " +
+  "688 700 705 709 710 721 742 753 758 767 778 780 782 784 800 807 809 819 822 825 829 833 844 849 855 " +
+  "866 867 868 869 873 876 877 879 880 881 882 883 884 885 886 887 888 889 900 902 905 942"
+).split(" "));
+
+/** A number we text (R9 — the abuse audit's third): a US one — area code and exchange each starting 2–9, the area code a
+ *  US one. GT3 serves US cities, and a yes typed for any +country was a text paid to any carrier. A number may still be
+ *  read (e164) and its STOP kept; only a US one is ever texted or recorded as a yes (0418). */
+export function usTextable(num: string | null | undefined): boolean {
+  const m = /^\+1([2-9]\d{2})[2-9]\d{6}$/.exec(String(num ?? ""));
+  return !!m && !/^[2-9]11$/.test(m[1]) && !NOT_US_AREA_CODES.has(m[1]);
+}
+
+/** Texts one number may be sent in a day, all told (R9): a pack's few, a confirmation — never a stream. */
+export const TEXTS_PER_NUMBER_DAY = 8;
+
 /** "(864) 555-0100" from "+18645550100" — how a US number is shown back to its owner. Others as they are. */
 export function phoneShown(num: string | null | undefined): string {
   const s = String(num ?? "");

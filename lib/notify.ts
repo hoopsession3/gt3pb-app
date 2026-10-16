@@ -8,7 +8,8 @@ import { supabaseAdmin } from "./supabaseAdmin";
 import { errorMessage } from "./errorMessage";
 import { raiseAlert } from "./serverAlerts";
 import { kindMuted, type CustomerKind } from "./customerNotify";
-import { e164, phoneShown, quietHours, smsPlain, textsOn, TEXT_YES_CONFIRMATION } from "./texts";
+import { e164, phoneShown, quietHours, smsPlain, textsOn, usTextable, TEXTS_PER_NUMBER_DAY, TEXT_YES_CONFIRMATION } from "./texts";
+import { createHash } from "node:crypto";
 
 // The three notifyCustomer() call sites each looked up the account email the same way
 // (auth.admin.getUserById → .user?.email) — one lookup instead of three copies.
@@ -82,10 +83,21 @@ export async function sendEmail(to: string, subject: string, text: string): Prom
   }
 }
 
+/** A number as the limiter's store keeps it: a digest — the counts, never the number. */
+const numberKey = (num: string) => createHash("sha256").update(num).digest("hex").slice(0, 24);
+
 export async function sendSMS(to: string, body: string): Promise<Sent> {
   if (!smsEnabled()) return { ok: false, detail: "no Twilio keys" };
   const num = e164(to);
   if (!num) return { ok: false, detail: `unparseable phone number` };
+  // US numbers only, and a day's few to each (R9 — the abuse audit's third): a text is paid per message, to whichever
+  // carrier the number is on. The count is kept by a digest of the number, in the store every instance shares; it fails
+  // open, as every limiter here does.
+  if (!usTextable(num)) return { ok: false, detail: "we text US numbers only" };
+  if (supabaseAdmin) {
+    const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `sms:${numberKey(num)}`, p_window_ms: 86_400_000, p_max: TEXTS_PER_NUMBER_DAY }).then((r) => r, () => ({ data: null }));
+    if ((fits as { data?: unknown }).data === false) return { ok: false, detail: "this number has had today's texts" };
+  }
   try {
     const sid = process.env.TWILIO_ACCOUNT_SID!;
     const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
@@ -174,6 +186,12 @@ export async function sayTextYes(phone: string | null | undefined, source: "pack
   const r = await sayTextConsent(num, true, source, userId);
   if (!r.ok || r.standing !== true || was) return r;
   if (!smsEnabled() || !textsOn()) return { ...r, confirmed: "off" };
+  // Once a day to a number (R9): a yes switched off and on again from the account re-sent it every time — a text, paid,
+  // to a number of the caller's choosing, for each tap. The yes is kept; its confirmation goes once.
+  if (supabaseAdmin) {
+    const once = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `text-yes:${numberKey(num)}`, p_window_ms: 86_400_000, p_max: 1 }).then((x) => x, () => ({ data: null }));
+    if ((once as { data?: unknown }).data === false) return { ...r, confirmed: "off" };
+  }
   const s = await sendSMS(num, TEXT_YES_CONFIRMATION);
   // A confirmation Twilio refused is the first sign the number or its keys are wrong — every order text after it fails
   // the same way. The crew hear it once, with the reason; the yes itself stays recorded.

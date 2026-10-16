@@ -46,6 +46,12 @@ async function post(req: Request) {
     if (now - windowStart > WINDOW_MS) { windowStart = now; windowCount = 0; }
     if (++windowCount > WINDOW_MAX) return done;
     if (!supabaseAdmin) return done;
+    // One address, thirty reports in ten minutes (R9 — the abuse audit's seventh): a browser sends at most eight a session
+    // (components/ErrorReporter); one script filled the hour's budget of new errors alone, hiding real ones behind it.
+    // In the store every instance shares; fails open, as telemetry must.
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+    const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `error-report:${ip}`, p_window_ms: 600_000, p_max: 30 });
+    if (fits.data === false) return done;
 
     const raw = await req.text();
     if (!raw || raw.length > 8_000) return done;
@@ -60,7 +66,7 @@ async function post(req: Request) {
 
     // Fingerprint, dedupe, first-sight alert: lib/errorIntake.ts — the same path a server route
     // that throws takes (lib/apiRoute.ts), so one bug is one row whichever side of the wire hit it.
-    await fileError({ message, stack, url, ua, fatal, skew });
+    await fileError({ message, stack, url, ua, fatal, skew, browser: true });
   } catch { /* telemetry never throws */ }
   return done;
 }

@@ -6,7 +6,7 @@ import AccountPill from "@/components/AccountPill";
 import EditCopyPill from "@/components/EditCopyPill";
 import EditableCopy from "@/components/EditableCopy";
 import { Masthead, ClosingBeat } from "@/components/kit";
-import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/authedFetch";
 import { useSiteCopy, fillCopy } from "@/lib/copy";
 import { etToday } from "@/lib/dates";
 import { useCustomerKnown, useKnownField } from "@/components/useCustomerKnown";
@@ -31,6 +31,8 @@ export default function BookScreen() {
   const { market: viewerMarket } = useViewerMarket();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // A field no person sees or fills (R9): a bot that fills every field is thanked by /api/book and its request dropped.
+  const [website, setWebsite] = useState("");
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
 
   const submit = async (e: React.FormEvent) => {
@@ -41,25 +43,29 @@ export default function BookScreen() {
     // in this codebase does.
     if (!name.trim() || !email.trim()) { toast("Add your name and email", "error"); return; }
     setBusy(true);
-    if (supabase) {
-      const { error } = await supabase.from("booking_requests").insert({
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || null,
-        market: known?.market ?? viewerMarket,
-        event_date: f.event_date || null,
-        headcount: f.headcount ? parseInt(f.headcount) : null,
-        location_text: f.location_text.trim() || null,
-        notes: f.notes.trim() || null,
+    // THROUGH /api/book (R9): it was a write straight from the browser that anyone could loop — each row an alert on the
+    // crew's phones and an email to every admin. The route counts them, and keeps the fields to the table's limits.
+    let answer: { ok?: boolean; error?: string } | null = null;
+    try {
+      const r = await authedFetch("/api/book", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(), email: email.trim(), phone: phone.trim() || null,
+          market: known?.market ?? viewerMarket,
+          event_date: f.event_date || null,
+          headcount: f.headcount ? parseInt(f.headcount) : null,
+          location_text: f.location_text.trim() || null,
+          notes: f.notes.trim() || null,
+          website,
+        }),
       });
-      setBusy(false);
-      // Missing the "error" variant meant a failed insert rendered as a GREEN, checkmark-styled
-      // toast — the same look as success — while the form sat there unsubmitted. Every other
-      // error-toast call site in this codebase passes the variant; this was the one that didn't.
-      if (error) { toast(`Couldn't send — try again in a moment`, "error"); return; }
-    } else {
-      setBusy(false);
-    }
+      answer = await r.json().catch(() => null);
+    } catch { /* said below */ }
+    setBusy(false);
+    // Missing the "error" variant meant a failed insert rendered as a GREEN, checkmark-styled
+    // toast — the same look as success — while the form sat there unsubmitted. Every other
+    // error-toast call site in this codebase passes the variant; this was the one that didn't.
+    if (!answer?.ok) { toast(answer?.error || "Couldn't send — try again in a moment", "error"); return; }
     setDone(true);
     // No success toast (2026-07-30 audit) — the full-screen "Request received" card below IS the
     // confirmation; a toast over it said the same thing twice at the same moment. Error toasts stay.
@@ -112,6 +118,14 @@ export default function BookScreen() {
         <input id="b-email" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("book.ph_email")} maxLength={200} required />
         <label className="auth-label" htmlFor="b-phone">{t("book.f_phone")} <span>(optional)</span></label>
         <input id="b-phone" className="auth-input" enterKeyHint="send" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("book.ph_phone")} maxLength={40} />
+        {/* For bots only: off screen, out of the tab order, hidden from screen readers — and named so no autofill
+            profile matches it (a "Website" field was one a password manager's identity fills, and that person's
+            request was dropped). */}
+        <div aria-hidden="true" className="sr-only">
+          <label htmlFor="b-hp-leave">Leave this empty</label>
+          <input id="b-hp-leave" name="hp_leave_empty" tabIndex={-1} autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-form-type="other"
+            value={website} onChange={(e) => setWebsite(e.target.value)} />
+        </div>
         <EditableCopy k="book.consent" value={t("book.consent")} as="p" className="tel-consent" multiline />
         <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}><span>{busy ? "Sending…" : t("book.submit")}</span></button>
       </form>

@@ -106,14 +106,18 @@ export function stopCanceledShown(order: { id?: unknown; paid?: unknown; collect
  *  nothing: the order slipped off the bar and Today, the card refunded or not, and nobody said which. Its number, and
  *  what becomes of the money — paid online, the card is refunded in full; paid at the window, it comes back there; not
  *  paid, nothing was charged — never the customer's name. A stop called off says so instead (stopCanceledShown). */
-export function orderVoidShown(order: { id?: unknown; paid?: unknown; collected_at?: unknown; payment_status?: unknown }): Shown {
+export function orderVoidShown(order: { id?: unknown; paid?: unknown; collected_at?: unknown; collected_via?: unknown; payment_status?: unknown }): Shown {
   const no = orderNoOf(order.id);
   const atWindow = !!order.collected_at;
   const paid = order.paid === true || atWindow || order.payment_status === "paid";
+  // How it was settled at the window says what comes back (R9): the reader is a card, refunded like one; covered — a free
+  // cup or credit (0416) — took no money.
+  const via = typeof order.collected_via === "string" ? order.collected_via : "";
   return {
     title: no ? `Order ${no} · Canceled` : "Order canceled",
     // The title says Canceled; the body says what becomes of the money, once (R7b: "Canceled —" twice on one lock screen).
-    body: atWindow ? "What you paid at the window comes back there." : paid ? "Your card is being refunded in full." : "Nothing was charged.",
+    body: via === "covered" ? "Nothing was charged." : via === "card_reader" ? "Your card is being refunded in full."
+      : atWindow ? "What you paid at the window comes back there." : paid ? "Your card is being refunded in full." : "Nothing was charged.",
     tag: `order:${idOf(order.id)}:void`, ring: false,
   };
 }
@@ -174,6 +178,13 @@ export const KIND_WORDS: Readonly<Record<string, string>> = {
   text_stop_unrecorded: "A STOP text wasn't recorded",
   text_confirm_failed: "A texts sign-up wasn't confirmed",       // lib/notify sayTextYes (R6): Twilio refused the first text
   ops_incident: "An order needs a hand",
+  printer_unclear: "A send to the printer needs checking",     // R9 (0417): no clear answer from Apliiq — never "send it by hand"
+  printer_unmatched: "The printer shipped an order we can't match",
+  printer_shipped_closed: "The printer shipped an order we'd closed",
+  stop_canceled: "A stop was called off",                      // app/api/crew/stops/cancel: never the stop's customers
+  office_link_live: "An office payment link may still work",   // app/api/office/cancel (R9): Square didn't confirm it off
+  office_paid_twice: "An office order was paid twice",         // app/api/square/webhook (R9)
+  square_refused: "Square is refusing card payments",          // lib/squareServer (R9): the token or location, not the cards
   refund_needed: "A refund is needed",
   refund_unrecorded: "A Square refund isn't recorded here",
   chargeback_open: "A card dispute was opened",
@@ -464,6 +475,34 @@ export function textNumber(raw: unknown): string | null {
   if (digits.length === 10 && !/^[01]/.test(digits)) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1") && !/^1[01]/.test(digits)) return `+${digits}`;
   return null;
+}
+
+/** A web device at one of the browsers' push services — the database's push_host_ok (0418), the same list (R9). A row
+ *  kept before that rule, at any other address, is not posted to: the post went wherever the row said. */
+export function pushHostOk(endpoint: unknown): boolean {
+  const m = /^https:\/\/([^/:?#]+)/.exec(String(endpoint ?? ""));
+  if (!m) return false;
+  return /(^|\.)(googleapis\.com|google\.com|mozilla\.com|apple\.com|windows\.com)$/.test(m[1].toLowerCase());
+}
+
+/** How many devices are posted to at once: a go-live ping to every subscriber went to all of them at the same moment. */
+export const SEND_AT_ONCE = 25;
+
+/** lib/texts NOT_US_AREA_CODES, the same list (Deno cannot import it; scripts/push.policy.test.mjs asks both of every
+ *  area code): +1 codes that are not a US phone. */
+export const NOT_US_AREA_CODES: ReadonlySet<string> = new Set((
+  "204 226 236 242 246 249 250 257 263 264 268 273 284 289 306 343 345 354 365 367 368 382 387 403 416 " +
+  "418 428 431 437 438 441 450 456 460 468 473 474 500 506 514 519 521 522 523 524 525 526 527 528 529 " +
+  "533 544 548 566 577 579 581 584 587 588 600 604 613 622 633 639 644 647 649 655 658 664 672 677 683 " +
+  "688 700 705 709 710 721 742 753 758 767 778 780 782 784 800 807 809 819 822 825 829 833 844 849 855 " +
+  "866 867 868 869 873 876 877 879 880 881 882 883 884 885 886 887 888 889 900 902 905 942"
+).split(" "));
+
+/** A number texted — lib/texts usTextable, line for line (R9; Deno cannot import it, scripts/push.policy.test.mjs holds
+ *  them together): a US one only. A yes can only be recorded for one (0418); this holds the send to it too. */
+export function usTextable(num: unknown): boolean {
+  const m = /^\+1([2-9]\d{2})[2-9]\d{6}$/.exec(String(num ?? ""));
+  return !!m && !/^[2-9]11$/.test(m[1]) && !NOT_US_AREA_CODES.has(m[1]);
 }
 
 // WHAT A CUSTOMER TURNED OFF (2026-10-14, R6) — lib/customerNotify's two keys, by name (Deno cannot import it;

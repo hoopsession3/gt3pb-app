@@ -181,6 +181,16 @@ export const moveWarning = (to: string | null | undefined): string | null => {
 export { money } from "./money";
 
 /**
+ * What is still on an order to refund (0417): what it charged, less what has gone back already. A refund for less than
+ * this is a part — recorded, and the order stays where it is; the one that leaves nothing ends it. Null when the order
+ * carries no total, never a guess.
+ */
+export const refundLeft = (o: { total_cents?: number | null; refund_amount_cents?: number | null }): number | null => {
+  if (o.total_cents == null || !Number.isFinite(Number(o.total_cents))) return null;
+  return Math.max(0, Number(o.total_cents) - Math.max(0, Number(o.refund_amount_cents ?? 0) || 0));
+};
+
+/**
  * Margin as a percentage of what was charged. Null in, null out — an order whose lines carry no
  * cost has an UNKNOWN margin, and 0313's view already refuses to invent one. Repeating that refusal
  * here rather than defaulting to 0 is the whole point: a margin computed from an unknown cost is a

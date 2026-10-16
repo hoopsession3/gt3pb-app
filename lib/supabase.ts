@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+// Read before the client below takes a sign-in's session out of the address (R9, lib/linkSignin): this import runs first.
+import "./linkSignin";
 
 // Browser Supabase client. Returns null until the env keys are set, so importing
 // this never crashes the build/UI — callers gate on `supabaseEnabled`.

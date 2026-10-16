@@ -34,6 +34,16 @@ const TOOL: ToolDef = {
   },
 };
 
+/** An address in this project's Supabase storage — the one place a studio upload lands. */
+function fromOurStorage(url: string): boolean {
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/+$/, "");
+  if (!/^https:\/\/[^/]+$/.test(base)) return false;
+  try {
+    const u = new URL(url), b = new URL(base);
+    return u.protocol === "https:" && u.host === b.host && u.pathname.startsWith("/storage/v1/object/") && !u.pathname.includes("..");
+  } catch { return false; }
+}
+
 async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   if (!anthropicEnabled()) return NextResponse.json({ ok: false, error: "AI not configured (set ANTHROPIC_API_KEY)" }, { status: 503 });
@@ -44,13 +54,16 @@ async function post(req: Request) {
   const mime = String(body.mime ?? "");
   const channel = body.channel ? String(body.channel).slice(0, 40) : "";
   if (!url) return NextResponse.json({ ok: false, error: "url required" }, { status: 400 });
+  // A photo in our own storage, only (R9 — the abuse audit's ninth): the server fetched any address it was handed, from
+  // inside — a door to whatever the server can reach and a browser can't. And it follows no redirect off it.
+  if (!fromOurStorage(url)) return NextResponse.json({ ok: false, error: "That photo isn't in the studio's storage." }, { status: 400 });
   if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mime.toLowerCase())) {
     return NextResponse.json({ ok: false, error: "not a classifiable image" }, { status: 400 });
   }
 
   let b64 = "";
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { redirect: "error" });
     if (!res.ok) return NextResponse.json({ ok: false, error: "couldn't read the uploaded photo" }, { status: 502 });
     const buf = await res.arrayBuffer();
     if (buf.byteLength > MAX_BYTES) return NextResponse.json({ ok: false, error: "photo too large to classify" }, { status: 413 });

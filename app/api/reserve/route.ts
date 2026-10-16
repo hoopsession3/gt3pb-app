@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
+import { cardTryFits, callerAddress, CARD_TRIES_WORDS } from "@/lib/cardGuard";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail, whoAsked, sayTextYes } from "@/lib/notify";
@@ -17,6 +18,7 @@ import { money } from "@/lib/money";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
 import { writeAcrossSkew } from "@/lib/schemaSkew";
 import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
+import { etToday } from "@/lib/dates";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
 // SERVER-SIDE from lib/orderAhead (never trust the client), the charge is a Square ONE-TIME payment
@@ -24,6 +26,9 @@ import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
 // /api/checkout. Member-only: a reservation always belongs to an account (guests browse; the walk-up
 // window stays open to everyone).
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
+
+/** Packs one member may have waiting to be paid at pickup at once (R9): a fourth is paid by card. */
+const PACKS_AT_WINDOW_MAX = 3;
 
 async function post(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
@@ -156,6 +161,25 @@ async function post(req: Request) {
   // and an answer Square never gave stays "we couldn't confirm" — the crew told, nothing under that key sent to Square
   // again. It was a bare 502, "Reservation service unavailable", with nobody told, whether Square's answer was lost or
   // the pack failed to save after the card was charged.
+  // COUNTED (R9 — the abuse audit's fourth and fifth). A card try, at every card door (lib/cardGuard). A pack to pay at
+  // pickup — charged nothing, and each an alert on the crew's phones and an email to every admin — four an hour a member,
+  // and no more than three still to be paid at the window at once. After a seen key is answered, before it is claimed.
+  if (charging) {
+    if (!(await cardTryFits(supabaseAdmin, { userId: user.id, ip: callerAddress(req) }))) return NextResponse.json({ error: CARD_TRIES_WORDS, charged: false }, { status: 429 });
+  } else {
+    const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `reserve-later:u:${user.id}`, p_window_ms: 3_600_000, p_max: 4 });
+    if (fits.data === false) return NextResponse.json({ error: "That's a lot of packs in one go — pay for this one by card, or give it a while.", charged: false }, { status: 429 });
+    if (!free) {
+      // scoped-by: user_id = the caller's own id, from their verified bearer.
+      // Packs still to come only: one from a drop gone by, never picked up (nothing closes those), isn't waiting.
+      const waiting = await supabaseAdmin.from("drop_orders").select("id", { count: "exact", head: true })
+        .eq("user_id", user.id).eq("paid", false).is("collected_at", null).is("canceled_at", null).eq("picked_up", false).gt("total_cents", 0)
+        .gte("drop_date", etToday());
+      if (!waiting.error && (waiting.count ?? 0) >= PACKS_AT_WINDOW_MAX) {
+        return NextResponse.json({ error: `You have ${waiting.count} packs waiting to be paid at pickup — pick those up first, or pay for this one by card.`, charged: false }, { status: 409 });
+      }
+    }
+  }
   const held = await claimKey(seen.claims, idemKey, { channel: "packs", card: charging, amountCents: amount }, now, stopped, say);
   if ("answer" in held) return reply(held.answer);
 

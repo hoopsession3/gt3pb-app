@@ -40,17 +40,25 @@ import { isSettled, type Collectable } from "./settled";
 // loads what they import. Re-exported so the crew's code has one place to import from.
 export { isSettled, type Collectable };
 
-/** The two ways money is taken at the window. */
+/** The ways an order is settled at the window: the two that take money, and covered — a free cup or the member's credit
+ *  (0416), which takes none and is counted nowhere as money. */
 // vocab: orders.collected_via
-export const COLLECT_VIA = ["cash", "card_reader"] as const;
+export const COLLECT_VIA = ["cash", "card_reader", "covered"] as const;
 export type CollectVia = (typeof COLLECT_VIA)[number];
 
 /** What the crew reads on the button, and what the tap means for the count. */
-export const VIA_LABEL: Record<CollectVia, string> = { cash: "Cash", card_reader: "Card reader" };
+export const VIA_LABEL: Record<CollectVia, string> = { cash: "Cash", card_reader: "Card reader", covered: "Free cup or credit" };
 export const VIA_HINT: Record<CollectVia, string> = {
   cash: "In the till. Don't ring it on Square too — it counts here.",
   card_reader: "Rung on the Square reader — it counts there.",
+  covered: "Their free cup or credit — take it off on the scan screen first. No money changes hands, and none is counted.",
 };
+/** The chip a settled ticket wears, and what its undo takes back. */
+export const VIA_CHIP: Record<CollectVia, string> = { cash: "Cash", card_reader: "Reader", covered: "Covered" };
+export const VIA_UNDO: Record<CollectVia, string> = { cash: "the cash payment", card_reader: "the card-reader payment", covered: "the covered settle" };
+/** A settled row's way, or null — a value older code wrote that is not one of the three reads as none. */
+export const viaOf = (r: { collected_via?: string | null }): CollectVia | null =>
+  (COLLECT_VIA as readonly string[]).includes(r.collected_via ?? "") ? (r.collected_via as CollectVia) : null;
 
 /** Which board the row is on: the channel words cancel_any_order and all_orders already use. */
 export type CollectKind = "cup" | "pickup";
@@ -66,9 +74,10 @@ export function canCollect(r: Collectable & { total_cents?: number | null }): bo
   return "collected_at" in r && !isSettled(r) && r.total_cents !== 0;
 }
 
-/** How it was paid: at the window by one of the two ways, online by card, paid some other way, or not. */
+/** How it was paid: at the window by one of the ways (covered included), online by card, paid some other way, or not. */
 export function paidHow(r: Collectable): CollectVia | "online" | "paid" | null {
-  if (r.collected_via === "cash" || r.collected_via === "card_reader") return r.collected_via;
+  const via = viaOf(r);
+  if (via) return via;
   if (!isSettled(r)) return null;
   return r.payment_id ? "online" : "paid";
 }
@@ -78,6 +87,7 @@ export function passWord(r: Collectable, done = false): string {
   const how = paidHow(r);
   if (how === "cash") return "PAID · cash";
   if (how === "card_reader") return "PAID · reader";
+  if (how === "covered") return "COVERED · free cup or credit";
   if (how) return "PAID";
   return done ? "UNPAID" : "UNPAID · collect at pickup";
 }
@@ -87,6 +97,7 @@ export function ledgerWord(r: Collectable): string {
   const how = paidHow(r);
   if (how === "cash") return "cash at the window";
   if (how === "card_reader") return "card reader at the window";
+  if (how === "covered") return "covered at the window (free cup or credit)";
   if (how === "online") return "paid online";
   if (how === "paid") return "paid";
   return "unpaid";
@@ -119,7 +130,7 @@ export const UNDO_WINDOW_MS = 60 * 60 * 1000;
 
 /** May this viewer take back this collection? Their own within the hour, or an admin any time. */
 export function canUndo(r: Collectable, me: string | null, admin: boolean, now = Date.now()): boolean {
-  if (!r.collected_at || !(r.collected_via === "cash" || r.collected_via === "card_reader")) return false;
+  if (!r.collected_at || !viaOf(r)) return false;
   if (admin) return true;
   const at = Date.parse(r.collected_at);
   return !!me && r.collected_by === me && Number.isFinite(at) && now - at < UNDO_WINDOW_MS;

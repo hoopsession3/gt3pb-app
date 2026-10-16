@@ -4986,7 +4986,23 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const healed = intake();
     await healed.file(10, { skew: true });
     ok("budget: a screen that healed itself is an fyi, not an emergency", healed.alerts[0].severity === "fyi");
+    // R9 (the abuse audit's seventh): anyone can post a browser's report, so its crash is important, never the critical that
+    // rings every owner, emails and re-rings — and a link in its words is taken out of the alert the admins are emailed.
+    const pub = intake();
+    await pub.file(11, { fatal: true, browser: true, message: "Your Square account is locked — sign in at https://evil.example/login or www.evil.example now", url: "https://app.gt3pb.com/menu<script>" });
+    const srvFatal = intake();
+    await srvFatal.file(12, { fatal: true });
+    ok("budget: a browser's crash report is important, not critical — and its words reach the alert without a link in them",
+      pub.alerts[0].severity === "important" && pub.alerts[0].title === "App error — a screen crashed" && !/https?:|www\.|evil\.example/.test(pub.alerts[0].body)
+      && /\[link\]/.test(pub.alerts[0].body) && / · \/menu/.test(pub.alerts[0].body) && !/[<>%]/.test(pub.alerts[0].body) && pub.rows[0].message.includes("https://evil.example/login")
+      && srvFatal.alerts[0].severity === "critical", { pub: pub.alerts[0], srv: srvFatal.alerts[0]?.severity });
   })());
+  {
+    const er = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "app/api/errors/report/route.ts"), "utf8");
+    ok("intake: a browser's report is counted by its address — thirty in ten minutes — and filed as a browser's",
+      /p_bucket: `error-report:\$\{ip\}`, p_window_ms: 600_000, p_max: 30/.test(er) && /await fileError\(\{ message, stack, url, ua, fatal, skew, browser: true \}\);/.test(er)
+      && er.indexOf("error-report:") < er.indexOf("await fileError("));
+  }
 }
 
 // ── THE NAV THAT MOVED UNDER YOUR THUMB: three parts, one gate ────────────────────────────────
@@ -5827,9 +5843,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("money: undo is the collector's inside the hour, an admin's any time, and never an online card's — the database's rule",
     C.canUndo(mine, "u1", false, t0) && !C.canUndo(mine, "u2", false, t0) && !C.canUndo(mine, "u1", false, t0 + 3600e3)
     && C.canUndo(mine, "u2", true, t0 + 9 * 3600e3) && !C.canUndo({ paid: true, payment_id: "p" }, "u1", true, t0) && C.UNDO_WINDOW_MS === 3600e3);
-  ok("money: each way tells the crew what it does to the count — cash is not rung on Square too; the reader counts there",
+  ok("money: each way tells the crew what it does to the count — cash is not rung on Square too; the reader counts there; covered (0416) is taken off the card first and counted nowhere",
     /Don't ring it on Square too/.test(C.VIA_HINT.cash) && /counts there/.test(C.VIA_HINT.card_reader)
-    && JSON.stringify(C.COLLECT_VIA) === JSON.stringify(["cash", "card_reader"]) && /\/\/ vocab: orders\.collected_via\nexport const COLLECT_VIA/.test(read("lib/collect.ts")));
+    && /scan screen first/.test(C.VIA_HINT.covered) && /none is counted/.test(C.VIA_HINT.covered)
+    && JSON.stringify(C.COLLECT_VIA) === JSON.stringify(["cash", "card_reader", "covered"]) && /\/\/ vocab: orders\.collected_via\nexport const COLLECT_VIA/.test(read("lib/collect.ts"))
+    && C.passWord({ collected_via: "covered", collected_at: "x" }) === "COVERED · free cup or credit" && C.collectedPatch({ paid: false }, "covered", "x", "u1").paid === false
+    && C.viaOf({ collected_via: "covered" }) === "covered" && C.viaOf({ collected_via: "comp" }) === null);
   {
     const calls = [];
     const fake = (answer) => ({ rpc: async (fn, args) => { calls.push([fn, args]); return answer; } });
@@ -5918,9 +5937,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<span className=\{isSettled\(o\) \? "kds-paid" : "unp"\}>\{passWord\(o\)\}<\/span>/.test(kit) && /\{passWord\(o, true\)\}/.test(kit) && !/o\.paid \? "PAID"/.test(kit));
   ok("pass: a collection can be undone by the one who took it, inside the hour, where canUndo says it will work",
     (kit.match(/\{canUndo\(o, me, admin\) && \(/g) || []).length === 2 && /await undoCollection\(supabase, "cup", o\.id\)/.test(kit));
-  ok("pass: voiding a paid order says what the refund is, and a card refund is flagged critical — it said only 'can't be undone'",
-    /how === "cash" \? `They paid \$\{amt\} cash — hand it back\./.test(kit) && /severity: "critical", category: "money", kind: "refund_needed", subjectId: o\.id,/.test(kit)
-    && /if \(how && how !== "cash"\) \{/.test(kit));
+  // R9 (0416): the flag is the database's — raised by the void itself, under the order's lock, from the row as it is — so a
+  // void made with no signal is flagged when it lands, and the screen raises none of its own.
+  const m416 = read("supabase/migrations/0416_a_refund_is_flagged_where_the_money_goes_back.sql");
+  ok("pass: voiding a paid order says what the refund is — and its critical flag is the database's, raised by the void (0416), never the browser's",
+    /how === "cash" \? `They paid \$\{amt\} cash — hand it back\./.test(kit) && /: how === "covered" \? "It was covered by a free cup or credit — no money to give back\./.test(kit)
+    && !/kind: "refund_needed"/.test(kit) && !/raiseAlertClient/.test(kit)
+    && /create trigger orders_refund_flag after update of status on public\.orders/.test(m416) && /perform public\.alert_open_once\('refund_needed', new\.id, 'critical', 'money'/.test(m416));
   ok("pass: the collect sheet is mounted on the board that asks", /\{collectSheet\}\s*<\/div>\s*\);\s*\}\s*$/.test(passScreen.trimEnd() + "\n"));
 
   // ── THE PASS, AFTER THE KDS AUDIT (2026-10-11) ──
@@ -5965,7 +5988,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /useEffect\(\(\) => \{ setPassUp\(true\); return \(\) => setPassUp\(false\); \}, \[\]\);/.test(kit));
   }
   ok("delivery boards: Cancel asks first (the confirm sheet) and says when it didn't; a status, a batch, a hold, not-home and undo are checked; the delivered text follows the save",
-    /if \(!\(await confirm\(\{ title: `Cancel \$\{o\.company\}'s/.test(read("components/OfficeOrders.tsx")) && /if \(error\) \{ toast\(`Didn't cancel — \$\{error\.message\}`, "error"\); return; \}/.test(read("components/OfficeOrders.tsx"))
+    /if \(!\(await confirm\(\{ title: `Cancel \$\{o\.company\}'s/.test(read("components/OfficeOrders.tsx")) && /authedFetch\("\/api\/office\/cancel", \{/.test(read("components/OfficeOrders.tsx"))
+    && /if \(!j\?\.ok\) \{ toast\(`Didn't cancel — \$\{j\?\.error \?\? "no answer came back; check the route before trying again"\}`, "error"\); reload\(\); return; \}/.test(read("components/OfficeOrders.tsx"))
+    && !/from\("business_orders"\)\.update\(\{ canceled_at/.test(read("components/OfficeOrders.tsx"))
     && (code(read("components/DeliveryOps.tsx")).match(/const \{ error \} = await supabase\.from\("delivery_orders"\)\.update\(/g) || []).length === 2
     && (code(read("components/DriverRun.tsx")).match(/const \{ error \} = await supabase\.from\("delivery_orders"\)\.update\(/g) || []).length === 5
     && /if \(error\) toast\("Didn't save — check the porch", "error"\); else notifyDelivered\(o\);/.test(read("components/DriverRun.tsx")) && /if \(!error\) notifyDelivered\(o\);/.test(read("components/DriverRun.tsx"))
@@ -5984,9 +6009,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{canCollect\(o\) && <button type="button" className="btn-sec btn-sm flex-1" onClick=\{\(\) => collect\(o\)\}>/.test(dops)
     && /if \(stage === "picked_up" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.name, cents: o\.total_cents, handOff: true \}\);/.test(dops)
     && (dops.match(/setStage\(o, /g) || []).length === 2 && !/setStage\(o\.id,/.test(dops) && /\{collectSheet\}/.test(dops));
-  ok("pickup: a canceled pack's refund is what its payment was — cash back across the window, a card in Square, flagged critical (0242's rule)",
+  ok("pickup: a canceled pack's refund is what its payment was — cash back across the window, a card in Square, flagged critical by the database (0242's rule, 0416's trigger), once",
     /how === "cash" \? \{ title: `Cancel \$\{o\.name\}'s \$\{o\.size\}-pack, paid \$\{amt\} cash\?`, body: "Hand the cash back — nothing to refund in Square\."/.test(dops)
-    && /severity: "critical", category: "money", kind: "refund_needed"/.test(dops) && !/severity: "important", category: "money"/.test(dops));
+    && !/kind: "refund_needed"/.test(dops) && !/raiseAlertClient/.test(dops)
+    && /\.update\(\{ canceled_at: new Date\(\)\.toISOString\(\) \}\)\.eq\("id", o\.id\)\.is\("canceled_at", null\)\.select\("id"\);/.test(dops)
+    && /create trigger drop_orders_refund_flag after update of canceled_at on public\.drop_orders/.test(read("supabase/migrations/0416_a_refund_is_flagged_where_the_money_goes_back.sql")));
   ok("pickup: a stage, a bottle check or a batch that did not save says so — they wrote and reloaded without looking",
     (dops.match(/if \(error\) toast\(`Didn't save — \$\{error\.message\}`, "error"\);/g) || []).length === 3);
   ok("pickup: 'paid' on the upcoming and past lists is settled, not paid-online", /\{isSettled\(o\) \? <> · paid <Icon name="check" \/><\/> : ""\}/.test(dops) && /\{isSettled\(o\) \? "" : " · unpaid"\}/.test(dops));
@@ -6087,7 +6114,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const officeRoute = code(read("app/api/office/route.ts")), crewOffice = code(read("components/OfficeOrders.tsx"));
     ok("office run: the booking asks the database for the date, window and cutoff in the market's time, and keeps the old answer only while 0356 is unpasted",
       /await supabaseAdmin\.rpc\("office_next_delivery", \{ p_market: market \}\);/.test(officeRoute)
-      && /if \(next\.error && !isMissingFunction\(next\.error\)\) return NextResponse\.json/.test(officeRoute));
+      && /if \(next\.error && !isMissingFunction\(next\.error\)\) \{ console\.warn\(`\[office\] office_next_delivery: \$\{next\.error\.message\}`\); return NextResponse\.json/.test(officeRoute));
     ok("office run: a weekly booking's deliveries come from its program (book_office_standing), never a second hand-made order for the same day",
       /await supabaseAdmin\.rpc\("book_office_standing", \{ p_account: businessId \}\);/.test(officeRoute)
       && /if \(!orderId\) \{\s*const \{ data: order, error \} = await supabaseAdmin\.from\("business_orders"\)\.insert\(/.test(officeRoute));
@@ -9615,7 +9642,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── links still land: the pay anchor, the aliases, the Pass ──
   ok("links land: Money's pay anchor stays where refund alerts point (/crew?s=money&a=pay), and the alias table leaves it alone",
-    /link: "\/crew\?s=money&a=pay",/.test(code(read("components/pass/ThePass.tsx"))) && idCount("pay") === 1 && !("money#pay" in PH.PANEL_MOVES)
+    (read("supabase/migrations/0416_a_refund_is_flagged_where_the_money_goes_back.sql").match(/'\/crew\?s=money&a=pay'/g) || []).length === 3
+    && /link: "\/crew\?s=money&a=pay",/.test(code(read("app/api/office/cancel/route.ts"))) && idCount("pay") === 1 && !("money#pay" in PH.PANEL_MOVES)
     && JSON.stringify(PH.panelHome("money", "pay")) === JSON.stringify({ section: "money", anchor: "pay" }));
   const J = (x) => JSON.stringify(x);
   ok("links land: a link to a panel that moved goes to its new home in one step — the Catalog's six, the broadcast, Train the AI, and the seven that left Money (2026-10-15)",
@@ -13346,10 +13374,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const scan = rd("app/scan/page.tsx");
   ok("redeem: a card with a free cup offers Redeem, which asks first, then calls redeem_free_cup — one tap is never a redemption",
     /\{card\.free > 0 && !ownCard && redeem !== "ask" && redeem !== "busy" && \(\s*<button type="button" className="btn-sec btn-wide mt-2\.5" onClick=\{\(\) => setRedeem\("ask"\)\}>Redeem a free cup<\/button>/.test(scan)
-    && /onClick=\{giveFreeCup\} disabled=\{redeem === "busy"\}/.test(scan) && /supabase\.rpc\("redeem_free_cup", \{ p_code: code \}\)/.test(scan)
-    && (scan.match(/rpc\("redeem_free_cup"/g) || []).length === 1);
+    && /onClick=\{giveFreeCup\} disabled=\{redeem === "busy"\}/.test(scan) && /supabase\.rpc\("give_free_cup", \{ p_code: code, p_key: cupTap\.current \}\)/.test(scan)
+    && (scan.match(/rpc\("give_free_cup"/g) || []).length === 1 && !/rpc\("redeem_free_cup"/.test(scan));
+  ok("redeem: keyed per tap (0416) — an answer lost on the way leaves the key, the card is read again, and the same tap again gives no second cup",
+    /cupTap\.current \?\?= tapKey\("cup"\);/.test(scan) && /if \(isNetworkError\(error\?\.message\)\) \{ await reread\(\); setRedeem\("unclear"\); return; \}/.test(scan)
+    && /if \(isNetworkError\(card\.error\.message\)\) return;/.test(scan)
+    && /Try the free cup again/.test(scan));
   ok("redeem: the answer is said — given and what is left; nothing to give; failed, with nothing taken",
-    /Free cup given\./.test(scan) && /No free cup on this card any more/.test(scan) && /Couldn&apos;t redeem — nothing was taken off the card\./.test(scan)
+    /Free cup given\./.test(scan) && /No free cup on this card any more/.test(scan) && /Couldn&apos;t redeem\{refusal \? ` — \$\{refusal\}` : ""\}\. Nothing was taken off the card\./.test(scan)
     && /setRedeem\(\/no free cup\/i\.test\(error\?\.message \?\? ""\) \? "none" : "failed"\);/.test(scan));
   ok("redeem: the copy says free cups READY — a given one leaves the count",
     /default: "\{count\} free cup ready"/.test(rd("lib/copy.ts")) && /default: "\{count\} free cups ready"/.test(rd("lib/copy.ts")));
@@ -13475,7 +13507,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("scan: the app orders are named, and the stamp is a walk-up cup's",
     /In the app today: \{inApp\} — those stamp themselves at pickup\./.test(scan) && /Stamp a walk-up cup/.test(scan) && !/> Add a stamp</.test(scan));
   ok("scan: credit is offered when there is some, asked first, taken off once, and the crew told what to ring up",
-    /\{creditCents > 0 && !ownCard && credit !== "ask" && credit !== "busy" && \(/.test(scan) && /rpc\("spend_credit", \{ p_code: code, p_cents: cents \}\)/.test(scan)
+    /\{creditCents > 0 && !ownCard && credit !== "ask" && credit !== "busy" && \(/.test(scan) && /rpc\("use_credit", \{ p_code: code, p_cents: cents, p_key: creditTap\.current\.key \}\)/.test(scan)
+    && /if \(creditTap\.current\?\.cents !== cents\) creditTap\.current = \{ key: tapKey\("credit"\), cents \};/.test(scan) && !/rpc\("spend_credit"/.test(scan)
     && /if \(!supabase \|\| !code \|\| credit === "busy" \|\| !\(cents > 0\)\) return;/.test(scan) && /Credit used — \{money\(spent\)\} off\./.test(scan));
   // R7 (2026-10-15): "Use credit" took the whole balance whatever the order cost. The crew enters the order's total, and
   // the credit used is that much at most — what is left stays on the card, and the screen says both before the tap.
@@ -13524,18 +13557,21 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && R.isStopOver({ starts_at: "2026-10-17T20:00:00Z", ends_at: "2026-10-17T20:00:00Z" }, Date.parse("2026-10-17T20:30:00Z")) === false);
   const stop = { name: "WineXpress", starts_at: "2026-10-17T11:00:00Z", cancel_reason: "Rained out" };
   ok("cancel: the cup text says canceled, why, and who refunds a paid one",
-    SC.cupWords(stop, { cups: 2, paid: true }) === "GT3: we've had to cancel WineXpress on Sat 10/17 — Rained out. Your order of 2 cups is canceled — the crew is refunding your card in full, nothing for you to do."
-    && /nothing was charged\.$/.test(SC.cupWords(stop, { cups: 1, paid: false })));
+    SC.cupWords(stop, { cups: 2, how: "online" }) === "GT3: we've had to cancel WineXpress on Sat 10/17 — Rained out. Your order of 2 cups is canceled — the crew is refunding your card in full, nothing for you to do."
+    && /nothing was charged\.$/.test(SC.cupWords(stop, { cups: 1, how: null }))
+    // R9: a cup paid on the card reader is a card too (it was told "nothing was charged"); cash comes back at the window
+    && /refunding your card in full/.test(SC.cupWords(stop, { cups: 1, how: "card_reader" })) && /cash you paid comes back at the window\.$/.test(SC.cupWords(stop, { cups: 1, how: "cash" }))
+    && /nothing was charged\.$/.test(SC.cupWords(stop, { cups: 1, how: "covered" })));
   ok("cancel: the pack text says move it or cancel it", /Your 6-pack for that day can move to another pickup day in the app \(Your packs\), or be canceled there for a refund\.$/.test(SC.packWords(stop, { size: 6, paid: true })));
   ok("cancel: Find Us's line, and the crew's with the refunds to make",
     SC.canceledLine(stop) === "WineXpress · Sat 10/17 — Rained out"
-    && /Refund 1 paid order in Square, in full — what each card was charged, the tip with it: ABC123 — \$20\./.test(SC.crewWords(stop, { cups: 2, paidCups: [{ ref: "ABC123", cents: 2000 }], packs: 0 }).body));
+    && / 1 paid by card — each has its own refund flag in the inbox\.$/.test(SC.crewWords(stop, { cups: 2, refunds: 1, packs: 0 }).body));
   const api = code(rd("app/api/crew/stops/cancel/route.ts")), co = code(rd("app/api/checkout/route.ts")), fu = code(rd("components/FindUs.tsx"));
   const le = code(rd("components/crew/LocationEditor.tsx")), lc = code(rd("components/crew/LiveControl.tsx"));
   ok("route: crew only; the cancel is the database's, as the caller; then the cups canceled and told, packs only when it counted them",
     api.indexOf("staffFromRequest(req)") < api.indexOf('sb.rpc("cancel_stop"') && /const sb = callerClient\(req\);/.test(api)
-    && api.indexOf('sb.rpc("cancel_stop"') < api.indexOf('from("orders")') && /\.update\(\{ status: "void" \}\)/.test(api)
-    && /if \(res\.packs > 0 && res\.day\) \{/.test(api) && /if \(res\.already\) return NextResponse\.json/.test(api) && /export const POST = route\("crew\/stops\/cancel", post\);/.test(api));
+    && api.indexOf('sb.rpc("cancel_stop"') < api.indexOf('sb.rpc("void_stop_orders", { p_stop: id })') && !/\.update\(\{ status: "void" \}\)/.test(api)
+    && /if \(!res\.already && res\.packs > 0 && res\.day\) \{/.test(api) && /if \(res\.already && !cups\.length && !stuck\.length\) return NextResponse\.json/.test(api) && /export const POST = route\("crew\/stops\/cancel", post\);/.test(api));
   ok("checkout: every cup order says which stop it is for", (co.match(/stop_id: ordering\.stop\?\.id \?\? null/g) || []).length === 2);
   ok("Find Us: canceled stops are read beside the road (an error is none), and the next one said above the stop",
     /\.from\("stops"\)\.select\("id, name, starts_at, ends_at, cancel_reason, market"\)\.not\("canceled_at", "is", null\)/.test(fu)
@@ -13994,12 +14030,16 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     SC.stopCanceledToast({ cups: 3, told: 2, paid: 1, packs: 0 }) === "Visit canceled. 3 cup orders canceled — 2 told, 1 guest sees it on their order's page. Refund 1 in Square (it's in your alerts)."
     && SC.stopCanceledToast({ cups: 1, told: 1, packs: 2 }) === "Visit canceled. 1 cup order canceled — 1 told; 2 packs told." && SC.stopCanceledToast({}) === "Visit canceled.");
   const stop = { name: "WineXpress", starts_at: "2026-10-17T11:00:00Z", cancel_reason: "Rained out" };
-  ok("stop called off: the crew's refunds name each order by its number and the Square reference to find it by",
-    /2 cup orders canceled — 1 told, 1 guest sees it on their order's page/.test(SC.crewWords(stop, { cups: 2, told: 1, paidCups: [{ no: "#4F2A", ref: "ABC123", cents: 2000 }], packs: 0 }).body)
-    && /#4F2A \(Square …ABC123\) — \$20(?! of drinks)/.test(SC.crewWords(stop, { cups: 2, told: 1, paidCups: [{ no: "#4F2A", ref: "ABC123", cents: 2000 }], packs: 0 }).body));
+  // R9: each paid cup has its own refund flag (0416), so the line counts them — a list was cut at 300 characters — and
+  // names the first few the database would not void.
+  const many = SC.crewWords(stop, { cups: 9, told: 7, refunds: 6, packs: 3, stuck: ["#4F2A", "#77B1", "#90C3", "#A1D4", "#B2E5", "#C3F6"] }).body;
+  ok("stop called off: the crew's line counts the cards to refund (each flagged on its own) and names the first stuck few — under 300 characters",
+    /2 cup orders canceled — 1 told, 1 guest sees it on their order's page/.test(SC.crewWords(stop, { cups: 2, told: 1, refunds: 1, packs: 0 }).body)
+    && / 6 paid by card — each has its own refund flag in the inbox\./.test(many) && /void them on the Pass: #4F2A, #77B1, #90C3, #A1D4 and 2 more\.$/.test(many)
+    && many.length <= 300);
   const sc = code(rd("app/api/crew/stops/cancel/route.ts")), lc = code(rd("components/crew/LiveControl.tsx")), px = code(rd("supabase/functions/push/index.ts"));
   ok("stop called off: the route counts members told and gives each refund its number; the toast says it; the push tells the member why",
-    /if \(c\.user_id\) told\+\+;/.test(sc) && /no: orderNo\(c\.id\), ref:/.test(sc) && /cups: cups\.length, told, paid: paidCups\.length/.test(sc)
+    /if \(c\.user_id\) told\+\+;/.test(sc) && /cups: cups\.length, told, paid: refunds/.test(sc) && /message: cupWords\(stop, \{ cups: c\.items\?\.length \|\| 1, how: cupHow\(c\) \}\)/.test(sc)
     && /toast\(d\.already \? "Already canceled\." : stopCanceledToast\(d\)\);/.test(lc)
     && /if \(!shown && record\.status === "void" && record\.stop_id\) \{/.test(px) && /if \(st\?\.canceled_at\) shown = stopCanceledShown\(record, st\.name \?\? null, st\.cancel_reason \?\? null\);/.test(px));
 }
@@ -14257,6 +14297,20 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     [null, undefined, "", "555-0100", "0864555010", "123-456-7890", "21864555010", "+0123456789", "+1234567", "call me", "10-864-555-0100"].every((x) => TX.e164(x) === null));
   ok("texts: a US number is shown back to its owner as (864) 555-0100; any other as it is",
     TX.phoneShown("+18645550100") === "(864) 555-0100" && TX.phoneShown("+442079460958") === "+442079460958" && TX.phoneShown(null) === "");
+  // R9 (the abuse audit's third): only a US number is texted, or recorded as a yes (0418) — a yes for any +country was a
+  // paid text to any carrier. The push function holds the same rule, line for line.
+  ok("texts: only a US phone is texted — not another country, not Canada or the Caribbean inside +1, not toll-free or 900 — and the push function asks the same (scripts/push.policy.test.mjs holds the two lists together)",
+    TX.usTextable("+18645550100") && TX.usTextable("+14045550100") && TX.usTextable("+17875550100") && !TX.usTextable("+442079460958")
+    && !TX.usTextable("+14165550100") && !TX.usTextable("+18765550100") && !TX.usTextable("+18095550100") && !TX.usTextable("+19005550100")
+    && !TX.usTextable("+18885550100") && !TX.usTextable("+14115550100") && !TX.usTextable("+18641550100") && !TX.usTextable("+11645550100")
+    && !TX.usTextable("+1864555010") && !TX.usTextable(null) && TX.TEXTS_PER_NUMBER_DAY === 8 && TX.NOT_US_AREA_CODES.size === 122
+    && /if \(!num \|\| !usTextable\(num\)\) return \{ result: "no-number" \};/.test(rd("supabase/functions/push/index.ts")));
+  const nf = rd("lib/notify.ts");
+  ok("texts: a send is to a US number and one of a day's few to it; a yes is confirmed once a day — counted by a digest, never the number",
+    /if \(!usTextable\(num\)\) return \{ ok: false, detail: "we text US numbers only" \};/.test(nf)
+    && /p_bucket: `sms:\$\{numberKey\(num\)\}`, p_window_ms: 86_400_000, p_max: TEXTS_PER_NUMBER_DAY/.test(nf)
+    && /p_bucket: `text-yes:\$\{numberKey\(num\)\}`, p_window_ms: 86_400_000, p_max: 1/.test(nf)
+    && nf.indexOf("p_bucket: `text-yes:") < nf.indexOf("const s = await sendSMS(num, TEXT_YES_CONFIRMATION);"));
   ok("texts: STOP and every word carriers treat as it — any case, spaces, a full stop — is a stop",
     ["STOP", "stop", "Stop.", " stop ", "STOP!", "Stop all", "STOPALL", "unsubscribe", "Cancel", "END", "quit", "revoke", "OPTOUT"].every((w) => TX.textKeyword(w) === "stop"));
   ok("texts: START / YES / UNSTOP say yes again; HELP / INFO ask for help",
@@ -14304,7 +14358,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /if \(!smsEnabled\(\) \|\| !textsOn\(\)\) return \["off"/.test(sms) && sms.indexOf("await textYes(num)") > 0 && sms.indexOf("quietHours()") > sms.indexOf("await textYes(num)")
     && sms.indexOf("await sendSMS(num") > sms.indexOf("quietHours()"));
   ok("notify: one way to read a number — lib/texts e164, for the yes, the lookup and the send",
-    /import \{ e164, phoneShown, quietHours, smsPlain, textsOn, TEXT_YES_CONFIRMATION \} from "\.\/texts";/.test(nt) && !/const e164 = /.test(nt));
+    /import \{ e164, phoneShown, quietHours, smsPlain, textsOn, usTextable, TEXTS_PER_NUMBER_DAY, TEXT_YES_CONFIRMATION \} from "\.\/texts";/.test(nt) && !/const e164 = /.test(nt));
   ok("a text sent to us: nothing is read or recorded before Twilio's signature is checked",
     ib.indexOf("twilioSignatureOk(") > 0 && ib.indexOf("twilioSignatureOk(") < ib.indexOf("sayTextConsent(") && ib.indexOf("twilioSignatureOk(") < ib.indexOf("raiseAlert("));
   ok("checkout: the yes is recorded only when ticked, only while texts are on, for the number on the order",
@@ -14825,12 +14879,79 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && dl.indexOf("await seenBefore(") < dl.indexOf("await cityHolds(") && dl.indexOf("await cityHolds(") < dl.indexOf("const held = await claimKey(")
     && ID.attemptVerdict(503, { charged: false }) === "refused" && ID.attemptVerdict(409, { error: "x" }) === "refused");
   const ap = rd("lib/apliiq.ts"), ff = rd("app/api/apliiq/fulfillment/route.ts");
-  ok("R8 printer: an event not done is not seen — an order not found, or a write refused, gives the event back for Apliiq's retry",
+  ok("R8 printer: an event not done is not seen — a write refused gives the event back for Apliiq's retry; an order not found is never marked seen (R9: the order is found first)",
     /export async function forgetSeen\(provider: "apliiq" \| "square", eventId: string\): Promise<void> \{/.test(ap)
     && /await supabaseAdmin\.from\("webhook_events"\)\.delete\(\)\.eq\("id", `\$\{provider\}:\$\{eventId\}`\);/.test(ap)
-    && /if \(!order\) \{ await forgetSeen\("apliiq", eventId\); return NextResponse\.json\(\{ ok: false, error: "order not found" \}, \{ status: 404 \}\); \}/.test(ff)
+    && /return NextResponse\.json\(\{ ok: false, error: "order not found" \}, \{ status: 404 \}\);/.test(ff) && ff.indexOf('error: "order not found"') < ff.indexOf('await firstSeen("apliiq", eventId)')
     && /if \(fulfilled\.error \|\| shipped\.error\) \{ await forgetSeen\("apliiq", eventId\); return NextResponse\.json\(\{ ok: false, error: "not recorded — send it again" \}, \{ status: 500 \}\); \}/.test(ff)
     && /\.eq\("order_id", orderId\)\.eq\("tracking_number", tracking\)\.limit\(1\)/.test(ff) && /\(had\.data \?\? \[\]\)\.length \? \{ error: null \} : await supabaseAdmin\.from\("merch_fulfillments"\)\.insert\(/.test(ff));
+  // R9 (the money audit's A10, 0417): the order by each id in its own query, checked for its shape; the inbox on the signed
+  // body, never a header outside the signature; a product update says only what it carries.
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const ffc = strip(ff), prc = strip(rd("app/api/apliiq/product/route.ts"));
+  ok("R9 printer: a shipping update finds its order by each id in its own query — no pasted filter — and keys its inbox on the order and tracking, not x-apliiq-delivery",
+    !/\.or\(/.test(ffc) && !/x-apliiq-delivery/.test(ffc) && !/x-apliiq-delivery/.test(prc)
+    && /const eventId = `fulfil:\$\{order\.id\}:\$\{tracking\}`;/.test(ffc) && /\.eq\("tenant_id", tenant\)\.eq\("id", ourId\)\.maybeSingle\(\)/.test(ffc)
+    && /\.eq\("tenant_id", tenant\)\.eq\("apliiq_order_id", theirId\)\.limit\(2\)/.test(ffc) && /const APLIIQ_ID = \/\^\[A-Za-z0-9\]\[A-Za-z0-9_\.-\]\{0,63\}\$\/;/.test(ff)
+    && /const eventId = `product:\$\{apliiqId\}:\$\{bodyKey\(raw\)\}`;/.test(prc) && /if \(price != null\) given\.price_cents = price;/.test(prc));
+  const rsb = strip(rd("app/api/shop/resubmit/route.ts")), ck = strip(rd("app/api/shop/checkout/route.ts"));
+  const mark = "apliiq_submit_unknown_at: new Date().toISOString() })";
+  ok("R9 printer: a send is marked 'no clear answer' after the claim and before it leaves — in Send to printer and at checkout — so one stopped half way waits for a look in Apliiq",
+    rsb.indexOf('rpc("claim_shop_order_for_submit"') > 0 && rsb.indexOf('rpc("claim_shop_order_for_submit"') < rsb.indexOf(mark) && rsb.indexOf(mark) < rsb.indexOf("await submitOrderToApliiq(")
+    && ck.indexOf('rpc("claim_shop_order_for_submit"') > 0 && ck.indexOf('rpc("claim_shop_order_for_submit"') < ck.indexOf(mark) && ck.indexOf(mark) < ck.indexOf("await submitOrderToApliiq(")
+    && /if \(!submit\.ok && submit\.unclear\) \{/.test(rsb) && /\} else if \(submit\.unclear\) \{/.test(ck) && (rsb + ck).split('kind: "printer_unclear"').length === 3
+    && /export const maxDuration = 60;/.test(rsb) && /export const maxDuration = 60;/.test(ck));
+  ok("R9 shop: an unpriced line is refused before any charge — a sync without a price is never a free cap",
+    /if \(unit <= 0\) return NextResponse\.json\(\{ error: `"\$\{p\.title\}" isn't priced yet — take it out to check out\.` \}, \{ status: 409 \}\);/.test(ck)
+    && ck.indexOf("if (unit <= 0) return") < ck.indexOf("const held = await claimKey("));
+
+  // ── R9 · THE PUBLIC DOORS, COUNTED (the abuse audit, 2026-10-16) ──
+  // Every door anyone can loop that rings the crew, emails the admins, texts or tries a card is counted in the shared
+  // store (rate_limit_hit, 0154) — after a seen key is answered, before anything is claimed or charged.
+  const cup = strip(rd("app/api/checkout/route.ts"));
+  ok("R9 doors: pay at pickup is counted — a member by their account and their orders still at the window, a guest by address, guests together",
+    /p_bucket: `checkout-later:u:\$\{caller\.id\}`, p_window_ms: 600_000, p_max: 4/.test(cup) && /p_bucket: `checkout-later:\$\{ip\}`, p_window_ms: 600_000, p_max: 20/.test(cup)
+    && /p_bucket: "checkout-later:guests", p_window_ms: 60_000, p_max: 30/.test(cup) && /const OPEN_AT_WINDOW_MAX = 3;/.test(cup)
+    && cup.indexOf("await seenBefore(") < cup.indexOf("checkout-later:") && cup.indexOf("checkout-later:") < cup.indexOf("readMenuRows(supabaseAdmin, uniq)")
+    && (cup.match(/await userFromRequest\(req\)/g) || []).length === 1);
+  const bookPage = strip(rd("app/book/page.tsx")), bookRoute = strip(rd("app/api/book/route.ts"));
+  ok("R9 doors: a booking goes through /api/book — counted, a field only a bot fills, the fields cut — never straight from the browser",
+    /authedFetch\("\/api\/book", \{/.test(bookPage) && !/from\("booking_requests"\)/.test(bookPage) && /<input id="b-hp-leave" name="hp_leave_empty" tabIndex=\{-1\}/.test(rd("app/book/page.tsx"))
+    && /if \(str\(b\.website, 200\)\) \{ console\.warn\("\[book\] a request with the hidden field filled was dropped"\); return NextResponse\.json\(\{ ok: true \}\); \}/.test(bookRoute)
+    && /p_bucket: `book:\$\{ip\}`, p_window_ms: 600_000, p_max: 3/.test(bookRoute) && /p_bucket: "book:global", p_window_ms: 3_600_000, p_max: 30/.test(bookRoute)
+    && /booking_requests_throttle/.test(rd("supabase/migrations/0418_every_public_door_that_rings_is_counted.sql")));
+  const packR = strip(rd("app/api/reserve/route.ts")), officeR = strip(rd("app/api/office/route.ts"));
+  ok("R9 doors: a pack to pay at pickup is counted, and three at most still to pay; an office booking is counted",
+    /p_bucket: `reserve-later:u:\$\{user\.id\}`, p_window_ms: 3_600_000, p_max: 4/.test(packR) && /const PACKS_AT_WINDOW_MAX = 3;/.test(packR)
+    && packR.indexOf("reserve-later:") < packR.indexOf("const held = await claimKey(") && /p_bucket: `office:u:\$\{caller\.id\}`, p_window_ms: 3_600_000, p_max: 5/.test(officeR));
+  const doors = ["app/api/reserve/route.ts", "app/api/delivery/checkout/route.ts", "app/api/reserves/pay/route.ts", "app/api/reserve/change/route.ts", "app/api/subscriptions/create/route.ts"];
+  const sq = strip(rd("lib/squareServer.ts"));
+  ok("R9 doors: a card try is counted at every card door (lib/cardGuard), and a decline is one sentence — never Square's reason",
+    doors.every((f) => /await cardTryFits\(/.test(strip(rd(f))) && /CARD_TRIES_WORDS/.test(strip(rd(f))))
+    && /return \{ ok: false, error: refusalWords\(res\.status, data\) \};/.test(sq) && /if \(category === "PAYMENT_METHOD_ERROR"\) return DECLINE_WORDS;/.test(sq) && !/errors\?\.\[0\]\?\.detail \|\| "Payment declined"/.test(sq)
+    && /if \(!cardRes\.ok\) throw new Error\(refusalWords\(cardRes\.status, cardData\)\);/.test(strip(rd("app/api/subscriptions/create/route.ts"))), doors.filter((f) => !/await cardTryFits\(/.test(strip(rd(f)))));
+  ok("R9 doors: a code is counted where a price would say it is real — the coupon page, and both quotes when a code is sent",
+    /p_bucket: `coupon:\$\{ip\}`, p_window_ms: 600_000, p_max: 60/.test(strip(rd("app/api/coupon/[code]/route.ts")))
+    && /return NextResponse\.json\(\{ ok: false, busy: true \}, \{ status: 429 \}\);/.test(strip(rd("app/api/coupon/[code]/route.ts")))
+    && /setCpn\(r\.status === 404 \? \{ ok: false \} : r\.ok && j \? j : \{ ok: false, busy: true \}\);/.test(rd("components/CouponLanding.tsx"))
+    && ["app/api/checkout/quote/route.ts", "app/api/reserve/quote/route.ts"].every((f) => /p_bucket: `quote-code:\$\{ip\}`, p_window_ms: 600_000, p_max: 120/.test(strip(rd(f)))
+      && /if \(fits\.data === false\) return NextResponse\.json\(\{ error: "Too many tries with a code — give it a minute\." \}, \{ status: 429 \}\);/.test(strip(rd(f)))));
+  ok("R9 doors: an answer says what didn't happen, never a database's or a provider's own words (office, concierge)",
+    !/NextResponse\.json\(\{ error: `[^`]*\$\{[a-z]*\.?error\.message\}/.test(officeR) && (officeR.match(/console\.warn\(`\[office\] /g) || []).length === 5
+    && /error: "The concierge couldn't answer just now — try again in a moment\."/.test(strip(rd("app/api/concierge/route.ts"))) && !/error: errorMessage\(e, 300\)/.test(strip(rd("app/api/concierge/route.ts"))));
+  const sp = strip(rd("app/api/agents/studio-photo/route.ts"));
+  ok("R9 doors: the studio's photo read fetches only our own storage, and follows no redirect off it",
+    /if \(!fromOurStorage\(url\)\) return NextResponse\.json/.test(sp) && /await fetch\(url, \{ redirect: "error" \}\)/.test(sp) && /u\.pathname\.startsWith\("\/storage\/v1\/object\/"\)/.test(sp)
+    && sp.indexOf("fromOurStorage(url)") < sp.indexOf("await fetch(url"));
+  {
+    const LS = require("../.smoke/linkSignin.js"), supa = rd("lib/supabase.ts"), ap = strip(rd("components/AuthProvider.tsx"));
+    ok("R9 doors: a session that arrives in an address on a device that asked for none is said — whose account, and a way out (lib/linkSignin)",
+      LS.carriesSession("#access_token=a&refresh_token=b&type=magiclink") && !LS.carriesSession("#access_token=a&type=recovery") && !LS.carriesSession("#code=1")
+      && supa.indexOf('import "./linkSignin";') > 0 && supa.indexOf('import "./linkSignin";') < supa.indexOf("createClient(url")
+      && (rd("components/AuthProvider.tsx").match(/markSigninAsked\(\);   \/\//g) || []).length === 3 && /onKeep=\{\(\) => \{ markSigninAsked\(\); setLinkNotice\(null\); \}\}/.test(ap)
+      && /if \(!signinAskedHere\(\)\) setLinkNotice\(u\.email \?\? "another account"\);/.test(ap)
+      && /if \(!signinAskedHere\(\)\) setLinkNotice\(data\.user\?\.email \?\? "another account"\);/.test(ap) && /onLeave=\{\(\) => \{ setLinkNotice\(null\); void signOut\(\); \}\}/.test(ap));
+  }
   const gw = rd("app/api/wallet/google/route.ts");
   ok("R8 wallet: the Google pass carries the card — the name and the code the window scans — and no stamp count it could never update",
     !/loyaltyPoints/.test(gw) && !/lib\/loyalty/.test(gw) && /select\("display_name, referral_code"\)/.test(gw) && /barcode: \{ type: "QR_CODE"/.test(gw));

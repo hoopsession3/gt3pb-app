@@ -6,9 +6,16 @@ import { route } from "@/lib/apiRoute";
 // COUPON LOOKUP (0268) — the public face of ONE code-scoped row in the member_benefits engine
 // (0176). The QR landing page reads this to render the offer; nothing here isn't already printed
 // on the card in someone's hand. Read-only, marketing-facing fields only, never throws.
-async function get(_req: Request, { params }: { params: Promise<{ code: string }> }) {
+async function get(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   if (!supabaseAdmin || !code || code.length > 40) return NextResponse.json({ ok: false }, { status: 404 });
+  // Counted (R9 — the abuse audit's eleventh): a code is printed on a card, and a script asking code after code found the
+  // ones that weren't. Sixty an address in ten minutes — a person scanning a card asks once, and a table of them on one
+  // venue's Wi-Fi stays under — in the store every instance shares. Past it: "couldn't check", never "ended" (the page
+  // says so and asks again on a tap). Fails open.
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+  const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `coupon:${ip}`, p_window_ms: 600_000, p_max: 60 });
+  if (fits.data === false) return NextResponse.json({ ok: false, busy: true }, { status: 429 });
   try {
     // scoped-by: member_benefits.code carries a UNIQUE index (verified in production), so this
     // lookup returns at most one row in the whole table — a stricter key than tenant_id. The

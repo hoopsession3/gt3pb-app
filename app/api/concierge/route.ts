@@ -216,7 +216,10 @@ To book the truck for a private event, send people to the booking page (/book). 
     void logConvo("concierge", lastQ, r.text, null, null);
     return NextResponse.json({ ok: true, reply: r.text });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
+    // The upstream's own words stay in the logs (R9 — the abuse audit's twelfth): this answer goes to anyone, and an AI
+    // provider's error text named the provider, the model and the account's limits.
+    console.warn(`[concierge] upstream failed: ${errorMessage(e, 300)}`);
+    return NextResponse.json({ ok: false, error: "The concierge couldn't answer just now — try again in a moment." }, { status: 502 });
   }
 }
 

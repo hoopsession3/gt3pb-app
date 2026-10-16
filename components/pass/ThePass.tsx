@@ -13,14 +13,14 @@ import Icon from "@/components/Icon";
 import PourFill from "@/components/PourFill";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { queueOrderStatus, queueCollectCup, isNetworkError } from "@/components/offline";
-import { canCollect, collectPayment, undoCollection, collectedPatch, undonePatch, paidHow, VIA_LABEL, type CollectVia } from "@/lib/collect";
-import { raiseAlertClient } from "@/lib/clientAlerts";
+import { canCollect, collectPayment, undoCollection, collectedPatch, undonePatch, paidHow, viaOf, VIA_LABEL, VIA_UNDO, type CollectVia } from "@/lib/collect";
 import { authedFetch } from "@/lib/authedFetch";
 import { clockTime } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
 import { unlockAudio } from "@/lib/chime";
 import { money } from "@/lib/money";
-import { setOrderStatus, movedTo, movedLine, ticketNo } from "@/lib/orderStatus";
+import { setOrderStatus, movedTo, movedLine } from "@/lib/orderStatus";
+import { notifyVoid } from "@/lib/voidNotice";
 import { setPassMuted } from "@/lib/passSound";
 import { canOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
@@ -175,14 +175,14 @@ function PassBoard() {
   }, [apply, me, toast, load]);
   const collect = useCallback(async (o: Order) => {
     const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents });
-    if (how === "cash" || how === "card_reader") await takeMoney(o, how);
+    if (how && how !== "unpaid") await takeMoney(o, how);
   }, [askCollect, takeMoney]);
   // A wrong tap is put right by the one who made it, inside the hour (or an admin) — the database's
   // rule (staff_undo_collection), mirrored by canUndo so the button is only where it will work.
   const undoTake = useCallback(async (o: Order) => {
     if (!supabase) return;
-    const how = o.collected_via === "cash" ? "cash" : "card-reader";
-    if (!(await confirm({ title: `Undo the ${money(o.total_cents)} ${how} payment from ${o.customer ?? "Guest"}?`, body: "Only if it wasn't paid that way. You can collect it again after.", confirmLabel: "Undo it" }))) return;
+    const via = viaOf(o) ?? "card_reader";
+    if (!(await confirm({ title: `Undo ${VIA_UNDO[via]} — ${money(o.total_cents)} from ${o.customer ?? "Guest"}?`, body: "Only if it wasn't settled that way. You can collect it again after.", confirmLabel: "Undo it" }))) return;
     apply({ ...o, ...undonePatch(o) } as Order, false);
     const res = await undoCollection(supabase, "cup", o.id);
     if (res.error) {
@@ -208,14 +208,17 @@ function PassBoard() {
   // ↩ takes a ticket back a stage; on a picked-up ticket it is Recall — done → ready, from the status it showed.
   const recall = useCallback((o: Order) => move(o, PREV[o.status]), [move]);
   // Voiding a paid order is a refund somebody has to make. It used to say only "This can't be
-  // undone" — about an order a card had paid for — and flag nobody; the pack board's cancel already
-  // flagged its refunds (and 0242 made those critical so they escalate). Now both say the same.
+  // undone" — about an order a card had paid for — and flag nobody. The flag is the database's now (0416,
+  // refund_flag_order): raised by the void itself, under the order's lock, from the row as it is — so a void made with no
+  // signal is flagged when it lands, and one made just after another phone took the money on the reader is flagged too.
+  // This says what the crew is about to do; it raises nothing.
   const voidOrder = useCallback(async (o: Order) => {
     const how = paidHow(o);
     // All of what was paid — the drinks and the tip (R7): the refund the crew makes is the amount said here.
     const amt = money(o.total_cents + (o.tip_cents ?? 0));
     const body = how === "cash" ? `They paid ${amt} cash — hand it back. This can't be undone.`
       : how === "card_reader" ? `They paid ${amt} on the card reader — refund it in Square; the inbox gets a flag. This can't be undone.`
+      : how === "covered" ? "It was covered by a free cup or credit — no money to give back. This can't be undone."
       : how ? `They paid ${amt} online — refund it in Square; the inbox gets a flag. This can't be undone.`
       : "Nothing was paid. This can't be undone.";
     if (!(await confirm({ title: `Void ${o.customer ?? "this order"}?`, body, confirmLabel: "Void order", danger: true }))) return;
@@ -224,31 +227,17 @@ function PassBoard() {
     apply(o, true);
     const { error } = await setOrderStatus(supabase, o.id, "void", o.status);
     if (error) {
-      if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void", o.status); toast("No signal — void saved, will sync", "info"); }
-      else {
-        // Moved on before the void landed (picked up meanwhile): nothing was voided, so there is no refund to flag.
-        const now = movedTo(error);
-        toast(now === null ? `Couldn't void — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
-        load(); return;
-      }
+      // No signal: the void waits in the queue, and the replay sends it — its refund flag with it (the database's), and
+      // the member's email once it has landed (components/offlineReplay).
+      if (isNetworkError(error.message)) { queueOrderStatus(o.id, "void", o.status); toast("No signal — void saved, will sync", "info"); return; }
+      // Moved on before the void landed (picked up meanwhile): nothing was voided, so there is no refund to flag.
+      const now = movedTo(error);
+      toast(now === null ? `Couldn't void — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
+      load(); return;
     }
     // The member is told (R7): the push says it (supabase/functions/push), and this sends the email /api/orders/cancel sends
     // when they cancel it themselves. Fire-and-forget, after the void has landed, as Ready's notice is.
-    if (o.user_id) {
-      void (async () => {
-        try {
-          await authedFetch("/api/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "order_void", id: o.id }) });
-        } catch { /* best-effort */ }
-      })();
-    }
-    if (how && how !== "cash") {
-      await raiseAlertClient({
-        severity: "critical", category: "money", kind: "refund_needed", subjectId: o.id,
-        title: "Voided a PAID order — refund needed",
-        body: `${o.customer ?? "Guest"} · ${ticketNo(o.id)} · ${amt} paid ${how === "card_reader" ? "on the card reader" : "online"}. Refund it in Square.`,
-        link: "/crew?s=money&a=pay",
-      });
-    }
+    if (o.user_id) notifyVoid(o.id);
   }, [confirm, apply, toast, load, land]);
   // Every ticket's buttons, made once: a ticket is drawn again when its order changes, not when the board does. Each
   // first notes whether focus is on the ticket, so it can follow the ticket wherever it goes (./focus).
