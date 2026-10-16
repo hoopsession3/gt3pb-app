@@ -52,6 +52,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
 
   // ── COMMIT: save selected opportunities into the Bookings pipeline as leads ──
   if (body.commit) {

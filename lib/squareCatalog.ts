@@ -1,5 +1,5 @@
 import { DRINKS, type DrinkId } from "./menu";
-import { SQUARE_BASE, SQUARE_VERSION } from "./squareServer";
+import { SQUARE_BASE, SQUARE_VERSION, squareDeadline } from "./squareServer";
 
 // Moved here from app/api/checkout (2026-10-12, C2): the cup checkout and its quote (/api/checkout/quote) price the
 // same cart, so the one fallback they share lives in one place.
@@ -26,6 +26,7 @@ export async function squarePriceMap(token: string): Promise<Record<string, numb
     const res = await fetch(`${SQUARE_BASE}/v2/catalog/list?types=ITEM`, {
       headers: { Authorization: `Bearer ${token}`, "Square-Version": SQUARE_VERSION },
       next: { revalidate: 60 },
+      signal: squareDeadline(),
     });
     const data = await res.json();
     const m: Record<string, number> = {};

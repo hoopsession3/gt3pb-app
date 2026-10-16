@@ -25,7 +25,7 @@ const ORIGIN = "https://app.gt3pb.com";
 // Any change to sw.js reaches installed clients as a new worker; only a changed CACHE makes the
 // activate step throw the old entries away. So an edit here must bump the name, and the pair below
 // must be re-recorded with it (both values are printed when they differ).
-const RECORDED = { sha: "95f128ebc8786004e5574c6e076ab76dbd864886", cache: "gt3pb-v27" };
+const RECORDED = { sha: "5407cf5bbf64efc97e6db5a467773e361213c245", cache: "gt3pb-v28" };
 const blobSha = createHash("sha1").update(`blob ${Buffer.byteLength(SRC)}\0`).update(SRC).digest("hex");
 const cacheName = (SRC.match(/const CACHE = "([^"]+)";/) || [])[1];
 ok("sw: CACHE is declared once, as a plain string", !!cacheName && (SRC.match(/const CACHE = /g) || []).length === 1, cacheName);
@@ -102,7 +102,13 @@ function boot() {
 {
   const w = boot();
   const nav = await w.dispatch("fetch", w.fetchEvent(w.req("/crew?s=prep", { mode: "navigate" })));
-  ok("navigate: online, the network answers and the page is cached under its own URL", nav.response?.body === `net:${ORIGIN}/crew?s=prep` && (await w.caches.match(w.req("/crew?s=prep", { mode: "navigate" })))?.body === `net:${ORIGIN}/crew?s=prep`);
+  // v28 (R10b): under its path alone — a query (an /order?t=… ticket that can cancel the order) is never a key on the device.
+  ok("navigate: online, the network answers and the page is cached under its path alone — no query in the key",
+    nav.response?.body === `net:${ORIGIN}/crew?s=prep` && (await w.caches.match(w.req("/crew", { mode: "navigate" })))?.body === `net:${ORIGIN}/crew?s=prep`
+      && [...w.stores.get(w.cacheName).keys()].every((k) => !k.includes("?")));
+  await w.dispatch("fetch", w.fetchEvent(w.req("/order?t=0b1e0000-0000-4000-8000-000000000001", { mode: "navigate" })));
+  ok("navigate: a ticket's page is kept as /order, its ticket nowhere on the device", [...w.stores.get(w.cacheName).keys()].some((k) => k === `${ORIGIN}/order`)
+    && ![...w.stores.get(w.cacheName).keys()].some((k) => k.includes("0b1e0000")));
   w.net.answer = () => ({ ok: false, status: 500, redirected: false, body: "broken", clone() { return this; } });
   await w.dispatch("fetch", w.fetchEvent(w.req("/menu", { mode: "navigate" })));
   ok("navigate: a 500 is handed back but never cached", (await w.caches.match(w.req("/menu", { mode: "navigate" }))) === undefined);

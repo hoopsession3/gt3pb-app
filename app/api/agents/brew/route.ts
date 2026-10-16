@@ -8,6 +8,7 @@ import { SERVE_OZ, OZ_PER_GAL, scaleIngredients } from "@/lib/brewMath";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
+import { etDayKey } from "@/lib/dates";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -52,6 +53,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const recipeId: string | undefined = body.recipe_id;
   if (!recipeId) return NextResponse.json({ ok: false, error: "recipe_id required" }, { status: 400 });
 
@@ -89,7 +91,9 @@ async function post(req: Request) {
   if (needBy) {
     const need = etEight(needBy);
     const start = new Date(need.getTime() - Math.ceil(extractionHours) * 3600 * 1000);
-    brewDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+    // The start's day in Eastern time (R10b, 2026-10-16 — the 10/10 audit; 0421's brew_start_date): the server's own
+    // calendar is UTC, so a brew to start at 8 pm Friday read "Saturday" and its ready time landed after it was needed.
+    brewDate = etDayKey(start);
     readyAt = new Date(etEight(brewDate).getTime() + extractionHours * 3600 * 1000).toISOString();
   }
 

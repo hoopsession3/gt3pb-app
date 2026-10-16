@@ -37,6 +37,7 @@ async function post(req: Request) {
   const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(15_000),
     body: form.toString(),
   });
   const session = (await res.json()) as { url?: string; error?: { message?: string } };

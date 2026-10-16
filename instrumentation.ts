@@ -39,6 +39,16 @@ export async function onRequestError(err: unknown, request: ReqInfo, context: Er
     }).then((r) => r.json()).catch(() => null);
     if (bumped === true) return;
 
+    // THE SERVER'S BUDGET (R10b, 2026-10-16 — the 10/10 audit). Every new fingerprint was a critical — a push to every
+    // phone, an email to every admin — with no ceiling: a page that threw with the path in its message made a new one per
+    // address. It spends lib/errorIntake's SERVER_ROWS and SERVER_ALERTS now (the same buckets; this file imports nothing,
+    // so the numbers are written twice and scripts/smoke.cjs holds them together): thirty new rows an hour, five alerts
+    // in ten minutes. Fails open when the limiter can't be asked, as the intake does.
+    const fits = (bucket: string, windowMs: number, max: number) =>
+      fetch(`${base}/rest/v1/rpc/rate_limit_hit`, { method: "POST", headers, body: JSON.stringify({ p_bucket: bucket, p_window_ms: windowMs, p_max: max }) })
+        .then((r) => r.json()).then((v) => v !== false).catch(() => true);
+    if (!(await fits("server-errors:new", 3_600_000, 30))) return;
+
     // First sighting → file it…
     const ins = await fetch(`${base}/rest/v1/client_errors`, {
       method: "POST", headers,
@@ -49,7 +59,9 @@ export async function onRequestError(err: unknown, request: ReqInfo, context: Er
       await fetch(`${base}/rest/v1/rpc/bump_client_error`, { method: "POST", headers, body: JSON.stringify({ p_fingerprint: fingerprint }) }).catch(() => null);
       return;
     }
-    // …and raise the ONE critical alert. The alerts webhook does the rest: push + admin email.
+    // …and raise the ONE critical alert, if the ten minutes' five have room. The alerts webhook does the rest: push + admin
+    // email. Past it the row is still filed (Settings › Errors), as the intake files a storm's.
+    if (!(await fits("server-errors:alert", 600_000, 5))) return;
     await fetch(`${base}/rest/v1/alerts`, {
       method: "POST", headers,
       body: JSON.stringify({ severity: "critical", category: "system", kind: "server_error", title: "Server error — an API call failed", body: `${message.slice(0, 200)}${path ? ` · ${path}` : ""}`, link: "/crew" }),

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { APP_BUILD, apiUrl } from "@/lib/native";
+import { shareableUrl } from "@/lib/reportUrl";
 
 // ERROR REPORTER — the sending end of /api/errors/report. Catches what the console used to eat
 // (window errors + unhandled promise rejections) and what the error boundary catches (fatal), and
@@ -26,7 +27,7 @@ export function reportClientError(input: { message?: string; stack?: string; fat
     const body = JSON.stringify({
       message,
       stack: (input.stack ?? "").slice(0, 1500),
-      url: window.location.href.slice(0, 300),
+      url: shareableUrl(window.location).slice(0, 300),
       ua: navigator.userAgent.slice(0, 200),
       fatal: input.fatal === true,
       skew: input.skew === true,

@@ -146,6 +146,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const eventId: string | undefined = body.event_id;
   const stopId: string | undefined = body.stop_id;
   const ownerCol = eventId ? "event_id" : stopId ? "stop_id" : null;
@@ -208,7 +209,8 @@ async function post(req: Request) {
   // Compliance: an event keys off its state (+ universal); a stop has no state column, so use the
   // universal (ANY) rules — the crew's notes can name the jurisdiction for the model to weigh.
   let rules: any[] = [];
-  if (state) {
+  // The state's letters only (R10b): it goes into a filter string, where a comma is syntax.
+  if (state && /^[A-Za-z]{2,4}$/.test(String(state))) {
     const { data: c } = await supabaseAdmin.from("compliance_rules").select("state, county, label, kind, critical").eq("active", true).or(`state.eq.${state},state.is.null`);
     rules = c ?? [];
   } else {

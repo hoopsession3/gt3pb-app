@@ -57,6 +57,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const tile = String(body.tile ?? "announce");
   const ctx = [
     `Slide: ${tile}`,

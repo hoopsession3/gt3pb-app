@@ -177,13 +177,21 @@ async function post(req: Request) {
       // by payment id (Square retries). Needs the "Payment" event subscribed in Square.
       const p = evt?.data?.object?.payment;
       if (p?.id && p?.status === "COMPLETED") {
+        // A SALE BELONGS TO THE EVENT IT WAS MADE AT (R10b, 2026-10-16 — the 10/10 audit). This was an upsert that set
+        // event_id every time — and Square tells a payment again later (a refund changes it, fees settle), so an old
+        // walk-up sale moved to whatever event was live at that moment, or to none, and each event's takings moved with
+        // it. The event is named once, when the sale is first written; a later word about it changes only its amount.
+        const amount = p?.amount_money?.amount ?? 0;
         const { data: liveEv } = await supabaseAdmin.from("events").select("id").eq("is_live", true).maybeSingle();
-        ({ error: err } = await supabaseAdmin.from("event_sales").upsert({
+        ({ error: err } = await supabaseAdmin.from("event_sales").insert({
           square_payment_id: p.id,
           event_id: liveEv?.id ?? null,
           source: "square",
-          amount_cents: p?.amount_money?.amount ?? 0,
-        }, { onConflict: "square_payment_id" }));
+          amount_cents: amount,
+        }));
+        // scoped-by: square_payment_id carries a UNIQUE index (the upsert's own conflict target) and is minted by Square,
+        // which signs this request — at most one row, the one written above on the payment's first word.
+        if ((err as { code?: string } | null)?.code === "23505") ({ error: err } = await supabaseAdmin.from("event_sales").update({ amount_cents: amount }).eq("square_payment_id", p.id));
         // An office payment link paid → auto-mark the business order + store the payment id (0221),
         // which also powers the walk-up dedupe. Best-effort: non-office payments match zero rows,
         // and a failure here must never make Square retry the whole event.

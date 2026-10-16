@@ -5880,7 +5880,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /sb\.rpc\("staff_set_order_status", \{ p_order: id, p_status: status, p_from: from \}\)/.test(read("lib/orderStatus.ts"))
     && !/flushQueue|staff_set_order_status/.test(code(read("components/offline.ts"))));
   ok("offline replay: each op is read from storage and only the one sent leaves (settleOp) — a tap made meanwhile is kept",
-    /const op = pruneStale\(readQueue\(\), Date\.now\(\)\)\[0\];/.test(offSrc) && /writeQueue\(settleOp\(pruneStale\(readQueue\(\), Date\.now\(\)\), op, !error\)\);/.test(offSrc)
+    /const op = nextOwnOp\(pruneStale\(readQueue\(\), Date\.now\(\)\), queueOwner\(\)\);/.test(offSrc) && /writeQueue\(settleOp\(pruneStale\(readQueue\(\), Date\.now\(\)\), op, !error\)\);/.test(offSrc)
     && !/queue\.slice\(1\)/.test(offSrc));
   ok("offline replay: a refusal is said — one event per replay, a toast on the console — and filed as an app error unless the order had just moved on",
     /refused\.push\(\{ kind: op\.kind, id: op\.id, value: op\.value, reason: error\.message, now \}\);/.test(offSrc)
@@ -7121,10 +7121,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("server: it refuses in the page's words, and a failed read refuses rather than charging",
     /if \(!ordering\.open\) return NextResponse\.json\(\{ error: refusalWords\(ordering, nowMs\) \}, \{ status: 409 \}\);/.test(api)
     && /if \(!read\.inputs\) \{\s*return NextResponse\.json\(\{ error: "We couldn't check the truck's schedule/.test(api));
-  ok("server: every order row goes through the skew-safe write, with ready_from only when placed ahead",
+  ok("server: every order row goes through one write, with ready_from only when placed ahead — whole, nothing forgiven (R10b)",
     !/\.from\("orders"\)\.insert\(orderRow\)/.test(api) && (api.match(/await insertOrder\(orderRow\)/g) || []).length === 3
-    // the tip (0390, H9) arrives the same way: forgiven by name, nothing else
-    && /writeAcrossSkew\(\(r\) => supabaseAdmin!\.from\("orders"\)\.insert\(r\), promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row, \["ready_from", "tip_cents"\]\)/.test(api));
+    && /supabaseAdmin!\.from\("orders"\)\.insert\(promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row\);/.test(api) && !/writeAcrossSkew/.test(api));
   ok("server: the email says the promise, and every success answers with it",
     (api.match(/message: orderInWords\(orderNo\(orderId\), promise, /g) || []).length === 2 && !/ready in ~8 min/.test(api)
     && /return `GT3: order \$\{no\} is in\. \$\{promise\.ready\} \$\{promise\.pickup\}\. \$\{money\$\}\.\$\{ticket \? ` Follow it, or tell the truck you're on your way: \$\{CONNECT_APP\}\/order\?t=\$\{ticket\}` : ""\}`;/.test(api)
@@ -13535,8 +13534,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const api = code(rd("app/api/checkout/route.ts"));
   ok("checkout: a paid cup is written with its tip, beside the goods it was always written with",
     /const orderRow = \{ id: orderId, items, total_cents: subtotal, tip_cents: tip, paid: true, payment_id: paymentId,/.test(api));
-  ok("checkout: before 0390 the order goes in without the tip, and nothing else is forgiven",
-    /writeAcrossSkew\(\(r\) => supabaseAdmin!\.from\("orders"\)\.insert\(r\), promise\.readyFrom \? \{ \.\.\.row, ready_from: promise\.readyFrom \} : row, \["ready_from", "tip_cents"\]\)/.test(api));
+  ok("checkout: the tip is never dropped to make a write fit — 0390 is applied, and the row goes in whole (R10b)",
+    !/writeAcrossSkew/.test(api) && !/"tip_cents"\]/.test(api));
 }
 
 // ── A STOP ENDS AT ITS END TIME · A CANCELED STOP SAYS SO (2026-10-12, H5 of the customer audit, approved) ──
@@ -15177,6 +15176,134 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R10 push: the go-live is stamped by the database alone, on every write — set on the flip, kept while live, cleared offline",
     /create trigger a_live_since before insert or update on public\.live_status/.test(m419) && /elsif new\.is_live then\s+new\.live_since := old\.live_since;/.test(m419)
     && /revoke all on public\.push_sent from public, anon, authenticated;/.test(m419) && /interval '90 days'/.test(m419));
+}
+
+// ── R10b · THE REST OF THE 10/10 AUDIT (2026-10-16) ──
+// Deadlines on every call out, the alert's answer read, the server's own error budget, links an owner types, cells that
+// stay text, a report's address without its secrets, a shop line the printer can make, and the smaller doors.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ROOTDIR = path.join(__dirname, "..");
+  const rd = (f) => fs.readFileSync(path.join(ROOTDIR, f), "utf8");
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const { safeLink } = require("../.smoke/safeLink.js");
+  const { shareableUrl } = require("../.smoke/reportUrl.js");
+  const { csvCell } = require("../.smoke/csv.js");
+  const { budgetsFor, NEW_ROWS, NEW_ALERTS, SERVER_ROWS, SERVER_ALERTS } = require("../.smoke/errorIntake.js");
+  const { cleanVariant, hasSkus, skuFor } = require("../.smoke/apliiqOrder.js");
+
+  // links an owner types
+  const paths = ["/delivery", "/", "/reserve?drop=1"], webs = ["https://gt3pb.com", "http://example.org/x?y=1"];
+  const nots = ["javascript:alert(1)", "JavaScript:alert(1)", "//evil.example/x", "/\\evil.example", "https://a:b@evil.example/", "data:text/html,hi", "vbscript:x", "/de livery", "", null, 7, "mailto:x@example.org"];
+  ok("R10b links: a page here or a web address is opened; javascript:, data:, //another-site, a name@host and the rest are not",
+    paths.every((p) => safeLink(p)?.kind === "path") && webs.every((w) => safeLink(w)?.kind === "web") && nots.every((x) => safeLink(x) === null),
+    nots.filter((x) => safeLink(x) !== null));
+  const splash = strip(rd("components/MarketingSplash.tsx")), banner = strip(rd("components/BroadcastBanner.tsx"));
+  ok("R10b links: the splash and the banner open only what safeLink returns; both editors refuse anything else before saving",
+    /const l = safeLink\(copy\.href\); setShow\(false\); if \(l\?\.kind === "path"\) router\.push\(l\.href\); else if \(l\) window\.open\(l\.href, "_blank", "noopener"\);/.test(splash)
+    && !/window\.open\(h,/.test(splash) && /const link = safeLink\(b\.cta_href\);/.test(banner) && /href=\{link\.href\}/.test(banner)
+    && ["components/PromoEditor.tsx", "components/BroadcastEditor.tsx"].every((f) => /if \(d\.cta_href\?\.trim\(\) && !safeLink\(d\.cta_href\)\) \{ toast\(LINK_WORDS, "error"\); return; \}/.test(strip(rd(f))))
+    && (rd("supabase/migrations/0421_files_are_their_owners_and_a_lost_answer_is_kept.sql").match(/_cta_href_safe\s+check \(cta_href is null or cta_href ~ /g) || []).length === 2);
+
+  // cells that stay text
+  ok("R10b CSV: a cell that would run as a formula is written as text; a number, a minus sign on money, and plain words are left alone",
+    csvCell("=HYPERLINK(\"https://x.example\")") === `"'=HYPERLINK(""https://x.example"")"` && csvCell("+1 call me") === "'+1 call me" && csvCell("@SUM(A1)") === "'@SUM(A1)"
+      && csvCell("\tx") === "'\tx" && csvCell(-500) === "-500" && csvCell("-12.50") === "-12.50" && csvCell("Sam Ito") === "Sam Ito" && csvCell(null) === "" && csvCell("a,b") === '"a,b"');
+
+  // a report's address without its secrets
+  const u = (search, pathname = "/order") => shareableUrl({ origin: "https://app.gt3pb.com", pathname, search });
+  ok("R10b reports: the path and short plain words go; a ticket, a code, a key or any long value goes as …, the fragment never",
+    u("?t=0b1e0000-0000-4000-8000-000000000001") === "https://app.gt3pb.com/order?t=…" && u("?s=money&a=pay", "/crew") === "https://app.gt3pb.com/crew?s=money&a=pay"
+      && u("?code=12345678", "/") === "https://app.gt3pb.com/?code=…" && u("?q=" + "x".repeat(40), "/menu") === "https://app.gt3pb.com/menu?q=…" && u("", "/menu") === "https://app.gt3pb.com/menu"
+      && /url: shareableUrl\(window\.location\)\.slice\(0, 300\),/.test(rd("components/ErrorReporter.tsx")) && !/window\.location\.href/.test(strip(rd("components/ErrorReporter.tsx"))));
+
+  // the server's own error budget
+  ok("R10b errors: a route's own throw spends the server's budget; anything a browser could send spends the browsers' — even one that says it is the server",
+    budgetsFor({ ua: "server" }).rows === SERVER_ROWS && budgetsFor({ ua: "server" }).alerts === SERVER_ALERTS
+      && budgetsFor({ ua: "server", browser: true }).rows === NEW_ROWS && budgetsFor({ ua: "Safari" }).alerts === NEW_ALERTS
+      && SERVER_ROWS.bucket !== NEW_ROWS.bucket && SERVER_ALERTS.bucket !== NEW_ALERTS.bucket);
+  const ins = rd("instrumentation.ts");
+  ok("R10b errors: the instrumentation hook spends the same server budget, in the same numbers (it imports nothing, so they are written twice)",
+    ins.includes(`fits("${SERVER_ROWS.bucket}", ${SERVER_ROWS.windowMs.toLocaleString("en-US").replace(/,/g, "_")}, ${SERVER_ROWS.max})`)
+      && ins.includes(`fits("${SERVER_ALERTS.bucket}", ${SERVER_ALERTS.windowMs.toLocaleString("en-US").replace(/,/g, "_")}, ${SERVER_ALERTS.max})`));
+  const route = strip(rd("lib/apiRoute.ts"));
+  ok("R10b errors: a route that throws says so in the platform's log first — the route, the message, the top of the stack, nothing of the request",
+    route.indexOf("console.error(`[route-threw]") > 0 && route.indexOf("console.error(`[route-threw]") < route.indexOf("await fileError(") && !/req\.(json|text|headers)/.test(route));
+
+  // the alert's answer read
+  const sa = strip(rd("lib/serverAlerts.ts")), ca = strip(rd("lib/clientAlerts.ts"));
+  ok("R10b alerts: the insert's answer is read — asked twice, then said in the log, and a critical emailed past the database when ALERT_FALLBACK_EMAIL is set",
+    /const \{ error \} = await supabaseAdmin\.from\("alerts"\)\.insert\(row\);\s+if \(!error\) return;/.test(sa) && /await alertNotWritten\(a, why\);/.test(sa) && /for \(let attempt = 0; attempt < 2; attempt\+\+\)/.test(sa)
+      && /console\.error\(`\[alert-not-written\]/.test(sa) && /process\.env\.ALERT_FALLBACK_EMAIL/.test(sa) && /if \(a\.severity !== "critical" \|\| !to \|\| !key \|\| !from\) return false;/.test(sa)
+      && /const \{ error \} = await supabase\.from\("alerts"\)\.insert\(\{/.test(ca) && /if \(error\) alertNotWritten\(a\.title, error\.message\);/.test(ca));
+
+  // deadlines on every call out
+  const files = [];
+  const walk = (d) => { for (const e of fs.readdirSync(path.join(ROOTDIR, d), { withFileTypes: true })) { const p = `${d}/${e.name}`; if (e.isDirectory()) walk(p); else if (/\.(ts|tsx)$/.test(e.name)) files.push(p); } };
+  walk("app"); walk("lib");
+  const calls = (src) => { const out = []; for (let i = src.indexOf("fetch(`${SQUARE_BASE}"); i >= 0; i = src.indexOf("fetch(`${SQUARE_BASE}", i + 1)) { let depth = 0, j = i + 5; for (; j < src.length; j++) { if (src[j] === "(") depth++; else if (src[j] === ")" && --depth === 0) break; } out.push(src.slice(i, j + 1)); } return out; };
+  const noDeadline = files.flatMap((f) => calls(strip(rd(f))).filter((c) => !/signal: squareDeadline\(\)/.test(c)).map(() => f));
+  ok("R10b deadlines: every call to Square carries squareDeadline() — twenty seconds, never the platform's five minutes", noDeadline.length === 0, noDeadline);
+  ok("R10b deadlines: email, texts, Microsoft and Stripe have their own",
+    (strip(rd("lib/notify.ts")).match(/signal: AbortSignal\.timeout\(10_000\)/g) || []).length === 2 && (strip(rd("lib/msgraph.ts")).match(/AbortSignal\.timeout\(15_000\)/g) || []).length === 2
+      && ["app/api/billing/checkout/route.ts", "app/api/billing/portal/route.ts"].every((f) => /signal: AbortSignal\.timeout\(15_000\)/.test(rd(f))));
+  ok("R10b deadlines: every route that claims a key lives a minute at most, inside chargeOnce's two",
+    ["app/api/checkout/route.ts", "app/api/delivery/checkout/route.ts", "app/api/reserve/route.ts", "app/api/reserve/change/route.ts", "app/api/reserves/pay/route.ts", "app/api/shop/checkout/route.ts"]
+      .every((f) => /^export const maxDuration = 60;$/m.test(rd(f))));
+
+  // a shop line the printer can make
+  const caps = [{ size: "Adjustable", color: "Natural/Red", sku: "APQ-5888205S87A1" }, { size: "Adjustable", color: "Black", sku: "APQ-5888216S87A1" }];
+  ok("R10b shop: a line's choice is a size and a colour, cut short, and nothing else it carried",
+    JSON.stringify(cleanVariant({ size: " L ", color: "Black", sku: "APQ-1S1A1", price: 0 })) === '{"size":"L","color":"Black"}' && cleanVariant("XL") === "XL"
+      && cleanVariant([1]) === null && cleanVariant({ size: "x".repeat(80) }).size.length === 40 && cleanVariant({}) === null);
+  ok("R10b shop: a product the printer knows by SKU must resolve to one before the card — the cap's colour picks its SKU, a made-up one picks none",
+    hasSkus(caps) && !hasSkus([{ size: "M" }]) && skuFor(caps, cleanVariant({ size: "adjustable", color: "black" })) === "APQ-5888216S87A1"
+      && skuFor(caps, cleanVariant({ size: "adjustable", color: "purple" })) === null);
+  const shop = strip(rd("app/api/shop/checkout/route.ts"));
+  ok("R10b shop: the refusal comes before the key is claimed; the address is cut and the email asked whether it can take mail",
+    shop.indexOf("if (!sku && hasSkus(p.variants)) return NextResponse.json(") > 0 && shop.indexOf("if (!sku && hasSkus(p.variants))") < shop.indexOf("const held = await claimKey(")
+      && /street: String\(ship\.street \?\? ""\)\.trim\(\)\.slice\(0, 120\), city: String\(ship\.city \?\? ""\)\.trim\(\)\.slice\(0, 60\)/.test(shop)
+      && /Check the email — we send your tracking there\./.test(shop));
+
+  // the smaller doors
+  const dl = strip(rd("app/api/delivery/checkout/route.ts"));
+  ok("R10b delivery: a premium bottle is charged only while its own row offers it; a failed read waits",
+    /p\.active !== false && !p\.sold_out && p\.bulk_orderable === true && p\.bulk_tier === "premium"/.test(dl) && /if \(availErr\) return NextResponse\.json\(\{ error: "We couldn't check the bottles just now/.test(dl)
+      && dl.indexOf("const offered = new Set(") < dl.indexOf("const held = await claimKey("));
+  const wh = strip(rd("app/api/square/webhook/route.ts"));
+  ok("R10b webhook: a sale is put on the event it was made at once — a later word about it changes only its amount",
+    !/from\("event_sales"\)\.upsert\(/.test(wh) && /if \(\(err as \{ code\?: string \} \| null\)\?\.code === "23505"\) \(\{ error: err \} = await supabaseAdmin\.from\("event_sales"\)\.update\(\{ amount_cents: amount \}\)\.eq\("square_payment_id", p\.id\)\);/.test(wh));
+  ok("R10b digest: an owner's or admin's button, a few an hour",
+    /if \(!\(await adminFromRequest\(req\)\)\) return NextResponse\.json\(\{ ok: false, error: "Owners and admins send the digest\." \}, \{ status: 403 \}\);/.test(strip(rd("app/api/cron/digest/route.ts")))
+      && !/staffFromRequest/.test(strip(rd("app/api/cron/digest/route.ts"))));
+  ok("R10b receipts: the order's own address is anyone's on the crew; another is an owner's or admin's to type",
+    /if \(!\(await adminFromRequest\(req\)\)\) return NextResponse\.json\(\{ ok: false, error: "Only an owner or admin sends a receipt to an address the order doesn't have\." \}, \{ status: 403 \}\);/.test(strip(rd("app/api/shop/receipt/route.ts"))));
+  ok("R10b filters: a county and a state go into a filter string as words only",
+    /\.replace\(\/\[\^A-Za-z \.'-\]\/g, ""\)/.test(rd("app/api/agents/inspection/route.ts")) && /county\.eq\."\$\{county\}"/.test(rd("app/api/agents/inspection/route.ts"))
+      && /if \(state && \/\^\[A-Za-z\]\{2,4\}\$\/\.test\(String\(state\)\)\)/.test(rd("app/api/agents/eventprep/route.ts")));
+  // what a signed-out phone keeps
+  const { accountKeysIn } = require("../.smoke/accountWipe.js");
+  const { nextOwnOp, orderStatusOp, collectCupOp } = require("../.smoke/offline.js");
+  const keys = ["gt3-kds-snap", "gt3-order-snap-u1", "gt3geo:1 Main St", "gt3-audit-draft:2026-W42", "gt3-paid-ref", "gt3-theme", "gt3-op-section", "gt3-tickets", "gt3-offline-queue", "sb-x-auth-token"];
+  ok("R10b sign-out: the person's data leaves with them — the board, their orders, typed addresses, drafts, a payment's ref; the phone's look, a guest's tickets and the queue stay",
+    JSON.stringify(accountKeysIn(keys)) === JSON.stringify(["gt3-kds-snap", "gt3-order-snap-u1", "gt3geo:1 Main St", "gt3-audit-draft:2026-W42", "gt3-paid-ref"]));
+  const ap = strip(rd("components/AuthProvider.tsx"));
+  ok("R10b sign-out: wiped on Sign out and on every SIGNED_OUT, and the queue told who is signed in",
+    /setProfile\(null\);\s+wipeAccountData\(\);/.test(ap) && /if \(event === "SIGNED_OUT"\) wipeAccountData\(\);/.test(ap) && /setQueueOwner\(u\?\.id \?\? null\);/.test(ap));
+  const qd = [orderStatusOp("o1", "ready", 1, "new", "kay"), collectCupOp("o2", "cash", 2, "lee"), orderStatusOp("o3", "done", 3)];
+  ok("R10b offline: a parked write is replayed only for the person who made it (a write from before stamping, for anyone)",
+    nextOwnOp(qd, "lee")?.id === "o2" && nextOwnOp(qd, "kay")?.id === "o1" && nextOwnOp(qd, "moe")?.id === "o3" && nextOwnOp(qd.slice(0, 2), "moe") === undefined
+      && /const op = nextOwnOp\(pruneStale\(readQueue\(\), Date\.now\(\)\), queueOwner\(\)\);/.test(strip(rd("components/offlineReplay.ts"))));
+  // the headers every page is sent with
+  const nc = rd("next.config.ts");
+  ok("R10b headers: HTTPS remembered, the device asked only for location, the microphone and the card form's payments, and another site's window gets no handle",
+    /\{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" \}/.test(nc) && /camera=\(\), microphone=\(self\), geolocation=\(self\)/.test(nc)
+      && /\{ key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" \}/.test(nc) && !/onesignal|api\.resend\.com/i.test(strip(nc)) && !/interest-cohort/.test(nc));
+  const sub = strip(rd("app/api/subscriptions/create/route.ts"));
+  ok("R10b subscriptions: Square is asked with the row stamped first; an answer that does not say keeps the row, tells the crew, and asks the member not to try again",
+    sub.indexOf('update({ square_asked_at: new Date().toISOString() })') > 0 && sub.indexOf('update({ square_asked_at: new Date().toISOString() })') < sub.indexOf("fetch(`${SQUARE_BASE}/v2/subscriptions`")
+      && /throw new SubscriptionUnknown\(/.test(sub) && /kind: "subscription_unknown", subjectId: rowId/.test(sub) && /status: 202/.test(sub)
+      && /\.is\("square_asked_at", null\)\s+\.lt\("created_at"/.test(sub));
 }
 
 Promise.all(PENDING).then(() => {

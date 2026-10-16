@@ -50,6 +50,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const url = String(body.url ?? "");
   const mime = String(body.mime ?? "");
   const channel = body.channel ? String(body.channel).slice(0, 40) : "";

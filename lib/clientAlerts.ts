@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 import type { AlertCategory, AlertSeverity } from "./alertKinds";
 import { isUuid } from "./uuid";
+import { apiUrl } from "./native";
+import { errorMessage } from "./errorMessage";
 
 // THE client-side alert producer. Components used to hand-build raw `alerts` inserts (six different
 // payload shapes across DropOps/DeliveryOps/DriverRun/Studio/StrategyCollab/crew) — and none of
@@ -21,7 +23,7 @@ export async function raiseAlertClient(a: {
 }): Promise<void> {
   if (!supabase) return;
   try {
-    await supabase.from("alerts").insert({
+    const { error } = await supabase.from("alerts").insert({
       severity: a.severity,
       category: a.category,
       title: a.title.slice(0, 180),
@@ -37,5 +39,18 @@ export async function raiseAlertClient(a: {
       subject_id: isUuid(a.subjectId) ? a.subjectId : null,
       created_by: a.createdBy ?? null,
     });
-  } catch { /* best-effort */ }
+    if (error) alertNotWritten(a.title, error.message);
+  } catch (e) { alertNotWritten(a.title, errorMessage(e, 400)); }
+}
+
+// AN ALERT THE DATABASE WOULD NOT TAKE IS SAID (R10b, 2026-10-16 — the 10/10 audit). The insert's answer was never read,
+// so a refused alert from a crew phone vanished. It goes to the app's own error report now (App health, deduped and
+// capped there), never in the way of the work that raised it.
+function alertNotWritten(title: string, why: string): void {
+  try {
+    if (typeof window === "undefined") return;
+    const body = JSON.stringify({ message: `An alert could not be written: ${title}`.slice(0, 400), stack: why.slice(0, 400),
+      url: window.location.pathname.slice(0, 300), ua: navigator.userAgent.slice(0, 200), fatal: false });
+    void fetch(apiUrl("/api/errors/report"), { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+  } catch { /* never throw from here */ }
 }

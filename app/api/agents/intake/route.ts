@@ -71,6 +71,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
 
   // ── COMMIT: file it where the user confirmed ──
   if (body.commit) {

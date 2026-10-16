@@ -10,6 +10,7 @@ import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { btn } from "./Button";
+import { LINK_WORDS, safeLink } from "@/lib/safeLink";
 
 // BROADCAST EDITOR (Settings) — compose an announcement/ad and put it live across the app to everyone.
 // The composer exposes every option: what it says, who sees it, how it looks, an optional call-to-
@@ -46,6 +47,7 @@ export default function BroadcastEditor() {
   const save = async (publish?: boolean) => {
     if (!supabase || saving) return;
     if (!d.title.trim()) { toast("Give it a headline first", "error"); return; }
+    if (d.cta_href?.trim() && !safeLink(d.cta_href)) { toast(LINK_WORDS, "error"); return; }
     setSaving(true);
     const payload = {
       title: d.title.trim().slice(0, 120), body: d.body?.trim().slice(0, 600) || null,

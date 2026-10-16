@@ -19,6 +19,7 @@ async function post(req: Request) {
   if (!user) return NextResponse.json({ error: "Sign in." }, { status: 401 });
   let body: { code?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
   if (!isAppleCode(body.code)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   if (!siwaConfigured() || !supabaseAdmin) return NextResponse.json({ kept: false, why: "not configured" });
 

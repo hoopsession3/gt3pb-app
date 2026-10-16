@@ -48,8 +48,9 @@ async function post(req: Request) {
 
   let body: { channel?: string; id?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request." }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request." }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
   const channel = body.channel as Channel;
-  const id = (body.id || "").trim();
+  const id = typeof body.id === "string" ? body.id.trim() : "";   // a number here threw (R10b): a 400, not a 500
   if (!CHANNELS.includes(channel) || !id) {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }

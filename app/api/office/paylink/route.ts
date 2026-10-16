@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { SQUARE_BASE, squareHeaders, safeIdemKey } from "@/lib/squareServer";
+import { SQUARE_BASE, squareHeaders, safeIdemKey, squareDeadline } from "@/lib/squareServer";
 import { switchOffPaylink } from "@/lib/officeLink";
 import { isUuid } from "@/lib/uuid";
 import { route } from "@/lib/apiRoute";
@@ -57,6 +57,7 @@ async function post(req: Request) {
   const res = await fetch(`${SQUARE_BASE}/v2/online-checkout/payment-links`, {
     method: "POST",
     headers: squareHeaders(token),
+    signal: squareDeadline(),
     body: JSON.stringify({
       idempotency_key: safeIdemKey(`paylink-${o.id}`),
       quick_pay: {

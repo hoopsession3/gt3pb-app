@@ -22,6 +22,7 @@ async function post(req: Request) {
   const res = await fetch("https://api.stripe.com/v1/billing_portal/sessions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(15_000),
     body: new URLSearchParams({ customer: t.stripe_customer_id, return_url: `${origin}/crew` }).toString(),
   });
   const session = (await res.json()) as { url?: string; error?: { message?: string } };

@@ -31,6 +31,10 @@ export function route<A extends unknown[]>(name: string, handler: Handler<A>): (
       return await handler(...args);
     } catch (e: unknown) {
       const err = e instanceof Error ? e : new Error(String(e));
+      // ONE LINE IN THE PLATFORM'S LOG, FIRST (R10b, 2026-10-16 — the 10/10 audit). The intake writes to the database —
+      // so when the database was what failed, the error went nowhere a person could find it. The route, the message and
+      // the top of the stack go to stderr before anything else is tried; no request body, no headers.
+      console.error(`[route-threw] ${JSON.stringify({ route: name, message: err.message.slice(0, 300), at: (err.stack ?? "").split("\n").slice(1, 3).join(" ").trim().slice(0, 300) })}`);
       // Best-effort, awaited so a serverless instance does not freeze the write mid-flight; the
       // intake itself never rejects.
       await fileError({ message: err.message.slice(0, 400), stack: (err.stack ?? "").slice(0, 1_500), url: `/api/${name}`, ua: "server" });

@@ -42,6 +42,10 @@ type Body = {
 };
 
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
+// A minute at most (R10b — the 10/10 audit; reserves/pay's rule): a claim still "started" two minutes on is taken for a
+// request that died (lib/chargeOnce IN_FLIGHT_MS), so no request may outlive it — Square is asked with a 20-second
+// deadline (lib/squareServer squareDeadline) and the platform stops this at sixty.
+export const maxDuration = 60;
 
 async function post(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
@@ -58,6 +62,7 @@ async function post(req: Request) {
 
   let b: Body;
   try { b = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!b || typeof b !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
 
   // A key the claims have seen (lib/chargeOnce, R5) is answered now, with what its first request said — before the zone,
   // the stock or the Sunday is asked again: a retry of a delivery that went through hears "booked", not "that Sunday
@@ -123,10 +128,17 @@ async function post(req: Request) {
   // refresh, so re-check availability here before charging, the same way the cup-order path
   // (api/checkout) already does for its items. A stale client shouldn't be able to charge for
   // something that went sold-out mid-funnel.
+  // FAILS CLOSED (R10b, 2026-10-16 — the 10/10 audit; the cup checkout's C3 rule): a bottle is charged at the premium
+  // tier only while its own row says the funnel offers it — active, not sold out, bulk-orderable, premium. A slug with no
+  // row, or one the owner unflagged while the funnel sat open, was charged and written into the order anyway; a read that
+  // failed blocked nothing. A failed read waits now (503), and charges nothing.
   if (Object.keys(perfMix).length > 0) {
-    const { data: avail } = await supabaseAdmin.from("products").select("slug, sold_out, active").in("slug", Object.keys(perfMix));
-    const blocked = (avail ?? []).filter((p) => (p as { sold_out: boolean | null }).sold_out || (p as { active: boolean | null }).active === false).map((p) => (p as { slug: string }).slug);
-    if (blocked.length) return NextResponse.json({ error: `${blocked.join(", ")} just sold out — remove it and try again.` }, { status: 409 });
+    const { data: avail, error: availErr } = await supabaseAdmin.from("products").select("slug, sold_out, active, bulk_orderable, bulk_tier").in("slug", Object.keys(perfMix));
+    if (availErr) return NextResponse.json({ error: "We couldn't check the bottles just now — try again in a moment. Nothing was charged.", charged: false }, { status: 503 });
+    type Bottle = { slug: string; sold_out: boolean | null; active: boolean | null; bulk_orderable: boolean | null; bulk_tier: string | null };
+    const offered = new Set(((avail ?? []) as Bottle[]).filter((p) => p.active !== false && !p.sold_out && p.bulk_orderable === true && p.bulk_tier === "premium").map((p) => p.slug));
+    const blocked = Object.keys(perfMix).filter((slug) => !offered.has(slug));
+    if (blocked.length) return NextResponse.json({ error: `${blocked.join(", ")} isn't available for delivery just now — remove it and try again.`, charged: false }, { status: 409 });
   }
 
   const refills = n(b.refillCount);

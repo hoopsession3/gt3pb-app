@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { limitsFit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { accountEmail, sendEmail, notifyCustomer, emailEnabled } from "@/lib/notify";
 import { moneyRound } from "@/lib/money";
@@ -11,8 +12,10 @@ export const maxDuration = 60;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // FOUNDER DIGEST (on-demand) — composes the same business roll-up as founder_digest_alert() (0208) and
-// EMAILS/TEXTS it to the founders (profiles with role owner/admin) via Resend/Twilio. Staff-gated: this
-// is the "Send digest now" button. The automated daily version runs in-DB via pg_cron → alerts. Returns
+// EMAILS/TEXTS it to the founders (profiles with role owner/admin) via Resend/Twilio. It is the "Send digest now" button,
+// which the console shows owners and admins — and since R10b (2026-10-16, the 10/10 audit) only they may press it: any
+// crew role could, and read the week's revenue in its answer and email and text every founder as often as it liked. A
+// few an hour each, and for everyone together. The automated daily version runs in-DB via pg_cron → alerts. Returns
 // the composed summary so the button can confirm what went out.
 
 const since7d = () => new Date(Date.now() - 7 * 864e5).toISOString();
@@ -33,8 +36,13 @@ async function count(table: string, filter: (q: any) => any): Promise<number> {
 }
 
 async function post(req: Request) {
-  if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  if (!(await adminFromRequest(req))) return NextResponse.json({ ok: false, error: "Owners and admins send the digest." }, { status: 403 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false, error: "not configured" }, { status: 503 });
+  const me = await userFromRequest(req);
+  if (!(await limitsFit(supabaseAdmin, [
+    { bucket: `digest:u:${me?.id ?? "?"}`, windowMs: 3_600_000, max: 3 },
+    { bucket: "digest:all", windowMs: 3_600_000, max: 10 },
+  ]))) return NextResponse.json({ ok: false, error: "The digest just went out — try again in an hour." }, { status: 429 });
   const week = since7d();
 
   // Reconciled revenue (last 7d) — THE basis (0216): every paid app order once + Square WALK-UPS

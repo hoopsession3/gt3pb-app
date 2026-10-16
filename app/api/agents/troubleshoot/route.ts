@@ -82,6 +82,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const eventId: string | undefined = body.event_id;
   const stopId: string | undefined = body.stop_id;
   const ownerCol = eventId ? "event_id" : stopId ? "stop_id" : null;

@@ -150,16 +150,19 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
 
-  const state = String(body.state ?? "").trim().toUpperCase().slice(0, 4);
-  const county = String(body.county ?? "").trim().slice(0, 60);
+  // Words only (R10b — the 10/10 audit): the county goes into a PostgREST filter string below, where a comma or a
+  // parenthesis is syntax — "x,state.neq.SC" rewrote the filter. A state is its letters; a county its name's letters.
+  const state = String(body.state ?? "").trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
+  const county = String(body.county ?? "").trim().replace(/[^A-Za-z .'-]/g, "").trim().slice(0, 60);
   const event_id = String(body.event_id ?? "").trim();
   if (!state) return NextResponse.json({ ok: false, error: "state required" }, { status: 400 });
   const place = `${county ? `${county} County, ` : ""}${state}`;
 
   // Already researched? If we have active jurisdiction-specific rows, brief from records — no web search.
   const { data: existing } = await supabaseAdmin.from("compliance_rules").select("id, label, kind, critical, link")
-    .eq("active", true).eq("state", state).or(county ? `county.eq.${county},county.is.null` : "county.is.null");
+    .eq("active", true).eq("state", state).or(county ? `county.eq."${county}",county.is.null` : "county.is.null");
   const haveJurisdiction = (existing ?? []).some((r: any) => r.label);
 
   if (haveJurisdiction) {

@@ -6,8 +6,9 @@ const isProd = process.env.NODE_ENV === "production";
 // requires HTTPS + a CSP from Oct 2025, even though in-app checkout is deferred.
 // Allowances cover what the app will load when commerce + push are switched on:
 //   - Square Web Payments SDK + Connect API
-//   - OneSignal web push
 //   - Supabase realtime (wss)
+// R10b (2026-10-16, the 10/10 audit): OneSignal (never wired — web push is the app's own, public/sw.js) and Resend (the
+// server's alone, lib/notify) are out of the list — an origin allowed and unused is an origin a script could reach.
 // In dev we relax script-src ('unsafe-eval') because Next's dev runtime needs it.
 // Square Web Payments SDK is finicky about CSP: it loads square.js, fetches config from
 // web.squarecdn.com, spawns a blob: worker for tokenization, renders the card as an iframe, and
@@ -16,12 +17,11 @@ const isProd = process.env.NODE_ENV === "production";
 const SQ = "https://web.squarecdn.com https://sandbox.web.squarecdn.com https://*.squarecdn.com https://js.squareup.com";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} ${SQ} https://cdn.onesignal.com https://onesignal.com https://*.onesignal.com`,
+  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} ${SQ}`,
   "style-src 'self' 'unsafe-inline' https://web.squarecdn.com https://*.squarecdn.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://*.squarecdn.com",
-  // OneSignal hits the apex onesignal.com too — a *.onesignal.com wildcard does NOT match the apex.
-  "connect-src 'self' https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com https://web.squarecdn.com https://*.squarecdn.com https://o160250.ingest.sentry.io https://*.supabase.co wss://*.supabase.co https://onesignal.com https://*.onesignal.com wss://*.onesignal.com https://api.resend.com https://nominatim.openstreetmap.org",
+  "connect-src 'self' https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com https://web.squarecdn.com https://*.squarecdn.com https://o160250.ingest.sentry.io https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org",
   `frame-src 'self' ${SQ} https://connect.squareup.com https://connect.squareupsandbox.com`,
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
@@ -36,6 +36,14 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Content-Security-Policy", value: csp },
+  // R10b (2026-10-16, the 10/10 audit). HTTPS remembered for two years (this host and anything under it; not preloaded —
+  // that is a list to join on purpose, not a header). What the pages may ask of the device: the crew's live location
+  // (components/crew/LiveControl) and dictation's microphone (components/useDictation), the card form's payments — no
+  // camera, nothing else. A window this app opens keeps talking to it (a payment or sign-in window may); a window of
+  // another site that opens this app does not get a handle on it.
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "Permissions-Policy", value: 'camera=(), microphone=(self), geolocation=(self), payment=(self "https://web.squarecdn.com" "https://sandbox.web.squarecdn.com"), usb=(), serial=(), hid=(), bluetooth=()' },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
 ];
 
 // THE IPHONE APP CALLS THE API FROM ANOTHER ORIGIN (2026-10-06, the iPhone round). The app's pages

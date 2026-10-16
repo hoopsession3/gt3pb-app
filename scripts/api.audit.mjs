@@ -135,8 +135,8 @@ export function boundOf(src, readFile = (p) => readFileSync(join(ROOT, p), "utf8
 //             itself inside its function.
 // Which relations carry tenant_id is production's answer (supabase/schema.columns.json) and which are
 // views is too (supabase/schema.security.json) — not a list kept here. The founder digest
-// (app/api/cron/digest) briefs as well, but has no caller by design and spans tenants on purpose; it is
-// service-role.audit's declared exemption and stays outside this door.
+// (app/api/cron/digest) briefs as well — an owner's or admin's button (R10b) that spans tenants on purpose while there is
+// one; it is service-role.audit's declared exemption and stays outside this door.
 //
 // THE DEBT IS A RATCHET. AGENT_DOOR_DEBT below counts, route by route, the reads that do not name the
 // business yet. A count may only go down: an unscoped read beyond it fails, and so does a count left

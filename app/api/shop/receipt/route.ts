@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { isUuid } from "@/lib/uuid";
 import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
 import { orderReceipt } from "@/lib/receipt";
@@ -31,8 +32,11 @@ async function post(req: Request) {
   if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
 
   let id = "", to = "";
-  try { ({ id = "", to = "" } = await req.json()); } catch { /* */ }
-  if (!id) return NextResponse.json({ ok: false, error: "order id required" }, { status: 400 });
+  try {
+    const b: unknown = await req.json();
+    if (b && typeof b === "object") { const r = b as { id?: unknown; to?: unknown }; id = typeof r.id === "string" ? r.id : ""; to = typeof r.to === "string" ? r.to : ""; }
+  } catch { /* */ }
+  if (!isUuid(id)) return NextResponse.json({ ok: false, error: "order id required" }, { status: 400 });
 
   const { data: order } = await supabaseAdmin
     .from("shop_orders")
@@ -58,9 +62,17 @@ async function post(req: Request) {
   // An operator may correct a bad address here — a typo in the email is one of the two ways a
   // receipt fails to arrive, and the other one is the provider. The corrected address is recorded
   // on the message, not written back over the order, because the order is what the customer typed.
-  const address = String(to || "").trim() ||
-    (order as { email?: string | null }).email ||
+  // AN OWNER'S CORRECTION (R10b, 2026-10-16 — the 10/10 audit): any crew role could send any order's name, items and
+  // tracking to an address of their choosing, from the business's own domain. The order's own address is anyone's on
+  // the crew to send to; another one is an owner's or an admin's to type.
+  const own = (order as { email?: string | null }).email ||
     (await accountEmail((order as { user_id?: string | null }).user_id ?? null)) || "";
+  const typed = String(to || "").trim().slice(0, 200);
+  if (typed && typed.toLowerCase() !== own.trim().toLowerCase()) {
+    if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(typed)) return NextResponse.json({ ok: false, error: "that isn't an email address" }, { status: 400 });
+    if (!(await adminFromRequest(req))) return NextResponse.json({ ok: false, error: "Only an owner or admin sends a receipt to an address the order doesn't have." }, { status: 403 });
+  }
+  const address = typed || own;
   if (!address.includes("@")) {
     return NextResponse.json({ ok: false, error: "no email address on this order — type one to send to" }, { status: 400 });
   }

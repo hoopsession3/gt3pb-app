@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
-import { SQUARE_BASE, squareHeaders } from "@/lib/squareServer";
+import { SQUARE_BASE, squareHeaders, squareDeadline } from "@/lib/squareServer";
 import { route } from "@/lib/apiRoute";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { revoke, siwaConfigured } from "@/lib/appleSignIn";
@@ -61,17 +61,17 @@ async function run(f: Followup): Promise<{ ok: boolean; error?: string }> {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   if (f.kind === "square_subscription") {
     if (!token) return { ok: false, error: "Square isn't configured" };
-    const res = await fetch(`${SQUARE_BASE}/v2/subscriptions/${encodeURIComponent(f.ref)}/cancel`, { method: "POST", headers: squareHeaders(token), body: "{}" });
+    const res = await fetch(`${SQUARE_BASE}/v2/subscriptions/${encodeURIComponent(f.ref)}/cancel`, { method: "POST", headers: squareHeaders(token), body: "{}", signal: squareDeadline() });
     if (res.ok) return { ok: true };
     // Already cancelled there (a second try, or cancelled from the card first)? Look before calling it failed.
-    const look = await fetch(`${SQUARE_BASE}/v2/subscriptions/${encodeURIComponent(f.ref)}`, { headers: squareHeaders(token) });
+    const look = await fetch(`${SQUARE_BASE}/v2/subscriptions/${encodeURIComponent(f.ref)}`, { headers: squareHeaders(token), signal: squareDeadline() });
     const sub = (await look.json().catch(() => ({})))?.subscription;
     const ended = look.ok && (sub?.status === "CANCELED" || sub?.status === "DEACTIVATED" || !!sub?.canceled_date);
     return ended ? { ok: true } : { ok: false, error: `Square answered ${res.status}` };
   }
   if (f.kind === "square_customer") {
     if (!token) return { ok: false, error: "Square isn't configured" };
-    const r = await fetch(`${SQUARE_BASE}/v2/customers/${encodeURIComponent(f.ref)}`, { method: "DELETE", headers: squareHeaders(token) });
+    const r = await fetch(`${SQUARE_BASE}/v2/customers/${encodeURIComponent(f.ref)}`, { method: "DELETE", headers: squareHeaders(token), signal: squareDeadline() });
     return r.ok || r.status === 404 ? { ok: true } : { ok: false, error: `Square answered ${r.status}` };
   }
   if (f.kind === "apple_token") {
@@ -94,6 +94,7 @@ async function post(req: Request) {
 
   let body: { confirm?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
   if (body.confirm !== true) return NextResponse.json({ error: "Confirm to delete your account." }, { status: 400 });
 
   const steps: EraseSteps = {

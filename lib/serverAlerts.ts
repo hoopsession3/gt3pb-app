@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "./supabaseAdmin";
 import type { AlertCategory, AlertSeverity } from "./alertKinds";
 import { alertSubject } from "./alertSubject";
+import { errorMessage } from "./errorMessage";
 
 // Raise an in-app alert from a server route. The INSERT is the whole contract: the
 // alerts_push_fanout database trigger (migration 0157) delivers web push + Teams for every alert
@@ -20,21 +21,58 @@ export async function raiseAlert(a: {
   subjectId?: string;   // the row the kind acts on (polymorphic by kind)
 }): Promise<void> {
   if (!supabaseAdmin) return;
+  const row = {
+    severity: a.severity,
+    category: a.category,
+    title: a.title.slice(0, 180),
+    // 600 (R10b): a paid order's alert lists its drinks, and 300 cut the list off. The lock screen never shows it.
+    body: a.body.slice(0, 600),
+    link: a.link ?? "/crew",
+    target_user_id: a.targetUserId ?? null,
+    kind: a.kind ?? null,
+    // The column is a uuid. A key that is not one (a Square dispute id, a business day) used to be
+    // written as-is, refused by the database, and swallowed by the catch below — the alert never
+    // existed. lib/alertSubject makes it a stable uuid instead; a uuid passes through untouched.
+    subject_id: alertSubject(a.kind, a.subjectId),
+  };
+  // THE ANSWER IS READ (R10b, 2026-10-16 — the 10/10 audit). supabase-js answers a refused insert; it does not throw.
+  // The answer was never read, so the alerts that matter most — the ones raised because the database was failing (a
+  // paid order that would not save) — vanished while the customer was told "we've alerted the crew". Asked twice; still
+  // refused, it is said in the platform's log and, for a critical, sent another way (alertNotWritten).
+  let why = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { error } = await supabaseAdmin.from("alerts").insert(row);
+      if (!error) return;
+      why = error.message || String(error.code ?? "refused");
+    } catch (e) {
+      why = errorMessage(e, 200);
+    }
+  }
+  await alertNotWritten(a, why);
+}
+
+/** An alert the database would not take: one line in the platform's log always, and a critical emailed straight to
+ *  ALERT_FALLBACK_EMAIL when it is set — not through the database that just refused it. True when it went out that way.
+ *  Never throws. */
+async function alertNotWritten(a: { severity: AlertSeverity; category: AlertCategory; title: string; body: string; kind?: string }, why: string): Promise<boolean> {
+  console.error(`[alert-not-written] ${JSON.stringify({ severity: a.severity, category: a.category, kind: a.kind ?? null, title: a.title.slice(0, 180), why: why.slice(0, 200) })}`);
+  const to = process.env.ALERT_FALLBACK_EMAIL, key = process.env.RESEND_API_KEY, from = process.env.NOTIFY_FROM_EMAIL;
+  if (a.severity !== "critical" || !to || !key || !from) return false;
   try {
-    await supabaseAdmin.from("alerts").insert({
-      severity: a.severity,
-      category: a.category,
-      title: a.title.slice(0, 180),
-      body: a.body.slice(0, 300),
-      link: a.link ?? "/crew",
-      target_user_id: a.targetUserId ?? null,
-      kind: a.kind ?? null,
-      // The column is a uuid. A key that is not one (a Square dispute id, a business day) used to be
-      // written as-is, refused by the database, and swallowed by the catch below — the alert never
-      // existed. lib/alertSubject makes it a stable uuid instead; a uuid passes through untouched.
-      subject_id: alertSubject(a.kind, a.subjectId),
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from, to: [to], subject: `Critical — ${a.title}`.slice(0, 200),
+        text: `${a.body}\n\nThis alert could not be written to the app (the database refused it: ${why.slice(0, 160)}). Open the crew app once it is back, and check Square.`,
+      }),
+      signal: AbortSignal.timeout(10_000),
     });
-  } catch { /* best effort — alerting must never break a money/order write */ }
+    return r.ok;
+  } catch {
+    return false;   // the log line above stands
+  }
 }
 
 // RAISE IT ONCE, WHILE IT IS STILL OPEN.

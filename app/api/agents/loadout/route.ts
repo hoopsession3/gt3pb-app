@@ -67,6 +67,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const bottleOz = [10, 16].includes(Number(body.bottle_oz)) ? Number(body.bottle_oz) : 10;
   const kegSizeGal = Number(body.keg_size_gal) > 0 ? Number(body.keg_size_gal) : 5; // corny keg default
 

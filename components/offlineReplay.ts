@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { pruneStale, settleOp } from "@/lib/offline";
+import { nextOwnOp, pruneStale, settleOp } from "@/lib/offline";
 import { setOrderStatus, movedTo, type Refused } from "@/lib/orderStatus";
-import { readQueue, writeQueue, isNetworkError } from "./offline";
+import { readQueue, writeQueue, isNetworkError, queueOwner } from "./offline";
 import { reportClientError } from "./ErrorReporter";
 import { notifyVoid } from "@/lib/voidNotice";
 
@@ -32,7 +32,8 @@ export async function flushQueue(supabase: SupabaseClient | null): Promise<numbe
   const sent = new Set<string>();
   try {
     for (;;) {
-      const op = pruneStale(readQueue(), Date.now())[0];
+      // Only this person's own writes (R10b): another's wait for them to sign back in (lib/offline nextOwnOp).
+      const op = nextOwnOp(pruneStale(readQueue(), Date.now()), queueOwner());
       // Storage that will not take the write would hand back the op just sent: stop, rather than send it again.
       if (!op || sent.has(`${op.key}@${op.at}`)) break;
       sent.add(`${op.key}@${op.at}`);

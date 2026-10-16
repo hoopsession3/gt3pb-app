@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SQUARE_BASE, squareHeaders } from "@/lib/squareServer";
+import { SQUARE_BASE, squareHeaders, squareDeadline } from "@/lib/squareServer";
 import { ownerFromRequest } from "@/lib/apiAuth";
 import { route } from "@/lib/apiRoute";
 
@@ -25,7 +25,7 @@ async function get(req: Request) {
 
   if (token) {
     try {
-      const res = await fetch(`${SQUARE_BASE}/v2/locations`, { headers: squareHeaders(token), cache: "no-store" });
+      const res = await fetch(`${SQUARE_BASE}/v2/locations`, { headers: squareHeaders(token), cache: "no-store", signal: squareDeadline() });
       const data = await res.json();
       if (!res.ok) {
         checks.push({ name: "Square account", ok: false, note: data?.errors?.[0]?.detail || `Square answered ${res.status} — the token may be for the other environment (${SQUARE_BASE.includes("sandbox") ? "sandbox" : "production"} API)` });

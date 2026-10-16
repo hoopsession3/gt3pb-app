@@ -7,7 +7,7 @@ import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
 import { orderReceipt, shopReceipt } from "@/lib/receipt";
 import { submitOrderToApliiq } from "@/lib/apliiq";
-import { skuFor } from "@/lib/apliiqOrder";
+import { cleanVariant, hasSkus, skuFor } from "@/lib/apliiqOrder";
 import { variantLabel, type Variant } from "@/lib/shopCart";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
 import { stateCode, usZip } from "@/lib/usAddress";
@@ -41,6 +41,8 @@ async function post(req: Request) {
 
   let body: { sourceId?: string; idempotencyKey?: string; items?: InItem[]; ship?: Ship; expectedCents?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  // A literal null is valid JSON — refused as the bad request it is, not read into a 500 (R10b).
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });
 
   if (!token || !locationId) return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
   if (!body.sourceId) return NextResponse.json({ error: "A card is required to check out." }, { status: 400 });
@@ -51,7 +53,8 @@ async function post(req: Request) {
   const ship: Ship = body.ship ?? {};
   const shipName = String(ship.name ?? "").trim().slice(0, 90);
   const email = (user ? await accountEmail(user.id) : String(ship.email ?? "").trim().slice(0, 120)) || "";
-  const addr = { street: String(ship.street ?? "").trim(), city: String(ship.city ?? "").trim(), state: String(ship.state ?? "").trim(), zip: String(ship.zip ?? "").trim() };
+  // Cut to what a label holds (R10b): the street and city went to the order and to Apliiq at any length.
+  const addr = { street: String(ship.street ?? "").trim().slice(0, 120), city: String(ship.city ?? "").trim().slice(0, 60), state: String(ship.state ?? "").trim().slice(0, 40), zip: String(ship.zip ?? "").trim().slice(0, 12) };
   if (!shipName || !addr.street || !addr.city || !addr.state || !addr.zip) {
     return NextResponse.json({ error: "A full shipping name and address are required." }, { status: 400 });
   }
@@ -63,6 +66,8 @@ async function post(req: Request) {
   if (!zip) return NextResponse.json({ error: "Check the ZIP — five digits." }, { status: 400 });
   addr.state = state; addr.zip = zip;
   if (!email) return NextResponse.json({ error: "An email is required for your order + tracking." }, { status: 400 });
+  // An address that can take mail (R10b): a guest's went to Square as the receipt's address with only "not empty" asked.
+  if (!/^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/.test(email)) return NextResponse.json({ error: "Check the email — we send your tracking there." }, { status: 400 });
 
   // ONE KEY, ONE CHARGE (R5, 2026-10-13 — lib/chargeOnce, 0371, as the cup checkout). The page keeps one key per
   // checkout (components/ShopCheckout, useIdemKey); this route claims it before Square is asked, so a second tap while the
@@ -131,8 +136,15 @@ async function post(req: Request) {
     // An unpriced line is not free (R9): a product sync without a price once wrote $0 over a live one, and a cart with it
     // charged for the rest and shipped it too. Refused before any charge, naming it.
     if (unit <= 0) return NextResponse.json({ error: `"${p.title}" isn't priced yet — take it out to check out.` }, { status: 409 });
+    // THE PRINTER CAN MAKE IT, BEFORE THE CARD IS CHARGED (R10b, 2026-10-16 — the 10/10 audit). A line whose size and
+    // colour match no single SKU — a cart that sat while the sizes were re-pasted, or a choice made up — was charged and
+    // then refused at Apliiq, into the crew's queue with the money taken: a paid order nobody can make. Refused here, by
+    // name. A product with no SKU yet goes to the crew as before (lib/apliiq says why).
+    const variant = cleanVariant(it.variant);
+    const sku = skuFor(p.variants, variant);
+    if (!sku && hasSkus(p.variants)) return NextResponse.json({ error: `"${p.title}" — that size or colour isn't one we make. Pick it again, then check out.` }, { status: 409 });
     subtotal += unit * qty;
-    lineItems.push({ product_id: p.id, title: p.title, variant: it.variant ?? null, qty, unit_cents: unit, cost_cents: p.cost_cents ?? null, apliiq_product_id: p.apliiq_product_id ?? null, apliiq_sku: skuFor(p.variants, it.variant ?? null) });
+    lineItems.push({ product_id: p.id, title: p.title, variant, qty, unit_cents: unit, cost_cents: p.cost_cents ?? null, apliiq_product_id: p.apliiq_product_id ?? null, apliiq_sku: sku });
   }
   if (lineItems.length === 0) return NextResponse.json({ error: "Nothing in your cart is available." }, { status: 409 });
   const total = subtotal; // shipping/tax can layer here later; POD ships flat via Apliiq for now

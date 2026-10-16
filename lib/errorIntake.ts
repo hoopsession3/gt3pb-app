@@ -58,6 +58,16 @@ export function reportWords(message: string): string {
 
 export const NEW_ROWS = { bucket: "client-errors:new", windowMs: 3_600_000, max: 30 } as const;
 export const NEW_ALERTS = { bucket: "client-errors:alert", windowMs: 600_000, max: 5 } as const;
+// THE SERVER'S OWN BUDGET (R10b, 2026-10-16 — the 10/10 audit). A route that threw shared the hour's thirty with every
+// browser report — and anyone can post one: thirty made-up messages from one address in ten minutes, and a real crash
+// in the checkout was neither filed nor alerted for the rest of the hour. A route's own throw (ua "server", never sent
+// by a browser) counts against these; a browser's report never does.
+export const SERVER_ROWS = { bucket: "server-errors:new", windowMs: 3_600_000, max: 30 } as const;
+export const SERVER_ALERTS = { bucket: "server-errors:alert", windowMs: 600_000, max: 5 } as const;
+/** Whose budget a report spends: a route's own throw the server's, anything a browser could have sent the browsers'. Pure. */
+export function budgetsFor(r: Pick<ErrorReport, "ua" | "browser">): { rows: typeof NEW_ROWS | typeof SERVER_ROWS; alerts: typeof NEW_ALERTS | typeof SERVER_ALERTS } {
+  return r.browser !== true && r.ua === "server" ? { rows: SERVER_ROWS, alerts: SERVER_ALERTS } : { rows: NEW_ROWS, alerts: NEW_ALERTS };
+}
 /** Where the crew reads what was filed: Settings › Advanced › Errors (components/ErrorLog.tsx). */
 export const ERRORS_LINK = "/crew?s=settings&a=set-errors";
 
@@ -103,7 +113,8 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
 
     // Never seen — does a new row fit in this hour's budget? `false` is the limiter's answer;
     // anything else (null, an error) is the limiter not answering, and the intake fails open.
-    const { data: rowFits } = await admin.rpc("rate_limit_hit", { p_bucket: NEW_ROWS.bucket, p_window_ms: NEW_ROWS.windowMs, p_max: NEW_ROWS.max });
+    const budget = budgetsFor(r);
+    const { data: rowFits } = await admin.rpc("rate_limit_hit", { p_bucket: budget.rows.bucket, p_window_ms: budget.rows.windowMs, p_max: budget.rows.max });
     if (rowFits === false) return false;
 
     // The id comes back so the alert can NAME this row (kind client_error, subject = the row). Until
@@ -121,7 +132,7 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
     // New, never-seen error → one alert into the existing inbox/push ladder, if the inbox has
     // room for it. raiseAlert is best-effort by contract, so a failure here can't break the
     // report path.
-    const { data: alertFits } = await admin.rpc("rate_limit_hit", { p_bucket: NEW_ALERTS.bucket, p_window_ms: NEW_ALERTS.windowMs, p_max: NEW_ALERTS.max });
+    const { data: alertFits } = await admin.rpc("rate_limit_hit", { p_bucket: budget.alerts.bucket, p_window_ms: budget.alerts.windowMs, p_max: budget.alerts.max });
     if (alertFits === false) {
       // The row is filed; the push is not. One storm line a day stands for all of them: the
       // subject is the business day (etToday — the house rule: nobody asks UTC what day it is),

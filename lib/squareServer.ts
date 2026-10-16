@@ -10,6 +10,14 @@ export const SQUARE_BASE =
 
 export const SQUARE_VERSION = "2025-01-23";
 
+// EVERY CALL TO SQUARE HAS A DEADLINE (R10b, 2026-10-16 — the 10/10 audit). Nothing waited on Square but the platform's
+// own limit (300 seconds), and lib/chargeOnce takes a claim untouched for 120 as a request that died — so a slow Square
+// could make a live checkout look dead to its own retry. An answer that has not come in 20 seconds is not waited for: a
+// charge asked that long is "unknown" (lib/chargeOnce: never asked again under its key, the crew told), anything else is
+// the caller's failure, as a network error always was. Square answers in about a second.
+export const SQUARE_TIMEOUT_MS = 20_000;
+export const squareDeadline = (): AbortSignal => AbortSignal.timeout(SQUARE_TIMEOUT_MS);
+
 export function squareHeaders(token: string) {
   return {
     Authorization: `Bearer ${token}`,
@@ -100,6 +108,7 @@ export async function chargeCard(opts: {
   const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
     method: "POST",
     headers: squareHeaders(opts.token),
+    signal: squareDeadline(),
     body: JSON.stringify({
       source_id: opts.sourceId,
       idempotency_key: opts.idempotencyKey,
@@ -173,6 +182,7 @@ export async function refundPayment(opts: {
   const res = await fetch(`${SQUARE_BASE}/v2/refunds`, {
     method: "POST",
     headers: squareHeaders(opts.token),
+    signal: squareDeadline(),
     body: JSON.stringify({
       idempotency_key: opts.idempotencyKey,
       payment_id: opts.paymentId,
@@ -201,7 +211,7 @@ export async function refundPayment(opts: {
 export async function getPayment(opts: { token: string; paymentId: string }): Promise<
   { ok: true; status: string; referenceId: string | null; amountCents: number; refundedCents: number } | { ok: false; notFound: boolean; error: string }
 > {
-  const res = await fetch(`${SQUARE_BASE}/v2/payments/${encodeURIComponent(opts.paymentId)}`, { headers: squareHeaders(opts.token) });
+  const res = await fetch(`${SQUARE_BASE}/v2/payments/${encodeURIComponent(opts.paymentId)}`, { headers: squareHeaders(opts.token), signal: squareDeadline() });
   const data = await res.json().catch(() => null);
   const p = data?.payment;
   if (res.status >= 200 && res.status < 300 && p) {
@@ -226,7 +236,7 @@ export async function findPaymentByReference(opts: {
   for (let page = 0; page < 5; page++) {
     const q = new URLSearchParams({ begin_time: opts.fromIso, end_time: opts.toIso, location_id: opts.locationId, sort_order: "ASC", limit: "100" });
     if (cursor) q.set("cursor", cursor);
-    const res = await fetch(`${SQUARE_BASE}/v2/payments?${q.toString()}`, { headers: squareHeaders(opts.token) });
+    const res = await fetch(`${SQUARE_BASE}/v2/payments?${q.toString()}`, { headers: squareHeaders(opts.token), signal: squareDeadline() });
     const data = await res.json().catch(() => null);
     if (!(res.status >= 200 && res.status < 300)) return { ok: false, error: String(data?.errors?.[0]?.detail || data?.errors?.[0]?.code || `Square answered ${res.status}`) };
     if (!data || typeof data !== "object" || ("payments" in data && !Array.isArray(data.payments))) return { ok: false, error: "an answer that could not be read" };

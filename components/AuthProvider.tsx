@@ -3,6 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, supabaseEnabled } from "@/lib/supabase";
+import { wipeAccountData } from "@/lib/accountWipe";
+import { setQueueOwner } from "@/components/offline";
 import { writeViewerHint } from "@/lib/viewerHint";
 import type { Role } from "@/lib/roles";
 import { publicOrigin } from "@/lib/native";
@@ -232,8 +234,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const u = session?.user ?? null;
       setUser(u);
       writeViewerHint(!!u);
+      setQueueOwner(u?.id ?? null);   // the offline queue replays only its own person's writes (R10b, components/offline)
       if (u) loadProfile(u.id);
       else { profileAsk.current++; shown.current = null; setProfile(null); setProfileStatus("ready"); }   // signed out: known, not unknown — a read still out lands nowhere, and the next one is not quiet
+      if (event === "SIGNED_OUT") wipeAccountData();   // a sign-out from anywhere — another tab, the phone's own — wipes too
       // Utilization (0267): a real sign-in bumps the login counter; INITIAL_SESSION (cold-start
       // session restore) counts as presence, not a login — so "logins" answers "how many times
       // did they actually sign in," not "how many times did the PWA wake up."
@@ -397,6 +401,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     shown.current = null;
     setUser(null);
     setProfile(null);
+    wipeAccountData();   // what was theirs leaves the phone with them (R10b, lib/accountWipe)
   }, []);
 
   // SIGN IN WITH APPLE lives in the iPhone app's own code, not here (2026-10-11): the button and its flow in

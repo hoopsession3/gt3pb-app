@@ -15,7 +15,7 @@ import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { readyWords, refusalWords, pickupWords, type Ordering } from "@/lib/ordering";
 import { orderingFrom, readOrdering, readStopMenu } from "@/lib/orderingRead";
 import { cartRefusal, MENU_UNCHECKED, offStopMenu, stopMenuRefusal } from "@/lib/catalog";
-import { isMissingFunction, writeAcrossSkew } from "@/lib/schemaSkew";
+import { isMissingFunction } from "@/lib/schemaSkew";
 import { FOUNDING_MARKET, toMarket } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
@@ -26,6 +26,10 @@ import { CONNECT_APP } from "@/lib/connect";
 import { callerIp, limitsFit } from "@/lib/rateLimit";
 
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
+// A minute at most (R10b — the 10/10 audit; reserves/pay's rule): a claim still "started" two minutes on is taken for a
+// request that died (lib/chargeOnce IN_FLIGHT_MS), so no request may outlive it — Square is asked with a 20-second
+// deadline (lib/squareServer squareDeadline) and the platform stops this at sixty.
+export const maxDuration = 60;
 
 /** Orders one member may have waiting to be paid at the window at once (R9): a fourth is paid by card. */
 const OPEN_AT_WINDOW_MAX = 3;
@@ -223,12 +227,12 @@ async function post(req: Request) {
   // What the customer was promised, said once for the screen, the email and the crew's pass: placed
   // ahead of a stop, it is made from the stop's start (orders.ready_from, 0343); otherwise now.
   const promise = { readyFrom: ordering.readyFrom, ready: readyWords(ordering), pickup: pickupWords(ordering) };
-  // 0343 may not be pasted yet when this ships: the order goes in without ready_from rather than not
-  // at all (lib/schemaSkew.writeAcrossSkew — the one column named, nothing else forgiven). The same for the tip (0390,
-  // H9 of the customer audit): kept with the order once 0390 is pasted, and the order goes in without it before.
-  // arrives-with: 0343, 0390
+  // EVERY COLUMN, ALWAYS (R10b, 2026-10-16 — the 10/10 audit). Before 0343 and 0390 were pasted, a write that named
+  // ready_from or tip_cents went in without them (lib/schemaSkew.writeAcrossSkew) — both have long been in production, so
+  // the only thing left that could trip that path was a stale schema cache, and then a paid order lost its tip with
+  // nothing said. The row goes in whole or not at all; a refusal is the checkout's own (it alerts and answers).
   const insertOrder = (row: Record<string, unknown>) =>
-    writeAcrossSkew((r) => supabaseAdmin!.from("orders").insert(r), promise.readyFrom ? { ...row, ready_from: promise.readyFrom } : row, ["ready_from", "tip_cents"]);
+    supabaseAdmin!.from("orders").insert(promise.readyFrom ? { ...row, ready_from: promise.readyFrom } : row);
 
   // Pay-at-pickup is the owner's dial (live_status.pay_at_pickup, 0147) — server-authoritative now
   // that this path runs through the API at all, matching the subscriptions_enabled pattern (0150).

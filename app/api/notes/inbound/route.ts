@@ -52,6 +52,7 @@ async function post(req: Request) {
       for (const [k, v] of form.entries()) if (typeof v === "string") f[k] = v;
     }
   } catch { return NextResponse.json({ ok: false }, { status: 400 }); }
+  if (!f || typeof f !== "object" || Array.isArray(f)) return NextResponse.json({ ok: false }, { status: 400 });   // a literal null (R10b)
 
   const from = emailOf(pick(f, "from", "From", "sender", "Sender"));
   const allow = (process.env.NOTES_INBOUND_FROM || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);

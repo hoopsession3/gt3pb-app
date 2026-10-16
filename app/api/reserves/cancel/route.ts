@@ -22,6 +22,7 @@ async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Canceling isn't switched on yet." }, { status: 503 });
   let body: { id?: unknown; crew?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
   const id = isUuid(body.id) ? body.id : "";
   if (!id) return NextResponse.json({ error: "Bad request" }, { status: 400 });
 

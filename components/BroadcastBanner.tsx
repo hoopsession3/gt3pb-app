@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useLiveBroadcasts, type Broadcast } from "@/lib/broadcasts";
 import Icon from "@/components/Icon";
 import { btn } from "./Button";
+import { safeLink } from "@/lib/safeLink";
 
 // BROADCAST BANNER — the live announcement bar every user sees. Reads the broadcasts RLS lets this
 // viewer see (active + in-window + their audience), shows the newest one they haven't dismissed, and
@@ -19,6 +20,8 @@ export default function BroadcastBanner() {
 
   const b: Broadcast | undefined = live.find((x) => !dismissed.includes(x.id));
   if (!b) return null;
+  // A page here or an https address, or no button (lib/safeLink, R10b).
+  const link = safeLink(b.cta_href);
 
   const dismiss = () => {
     const next = [...new Set([...dismissed, b.id])].slice(-50);
@@ -32,8 +35,8 @@ export default function BroadcastBanner() {
         <b className="bcast-t">{b.title}</b>
         {b.body && <span className="bcast-b">{b.body}</span>}
       </div>
-      {b.cta_label && b.cta_href && (
-        <a className={btn("quiet", { className: "bcast-cta" })} href={b.cta_href} target={b.cta_href.startsWith("http") ? "_blank" : undefined} rel="noreferrer">{b.cta_label}</a>
+      {b.cta_label && link && (
+        <a className={btn("quiet", { className: "bcast-cta" })} href={link.href} target={link.kind === "web" ? "_blank" : undefined} rel="noreferrer">{b.cta_label}</a>
       )}
       <button type="button" className="bcast-close hit-44" onClick={dismiss} aria-label="Dismiss"><Icon name="close" /></button>
     </div>

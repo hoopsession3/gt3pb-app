@@ -42,6 +42,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const vehicle = String(body.vehicle ?? "").trim().slice(0, 120);
   if (!vehicle) return NextResponse.json({ ok: false, error: "vehicle (year make model) required" }, { status: 400 });
   const passengers = Math.max(1, Math.min(9, Number(body.passengers) || 1));

@@ -39,6 +39,7 @@ async function post(req: Request) {
   if (!anthropicEnabled()) return NextResponse.json({ error: "AI isn't switched on yet." }, { status: 503 });
   let body: { text?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
   const raw = (body.text || "").trim().slice(0, 1200);
   if (raw.length < 8) return NextResponse.json({ error: "Nothing to simplify." }, { status: 400 });
   try {

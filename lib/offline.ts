@@ -11,19 +11,26 @@ export type OfflineOp = {
   value: string;    // order_status: the status to set · collect_cup: how it was paid (lib/collect)
   at: number;       // when the human did it (ms) — display + staleness
   from?: string;    // order_status: what the operator's screen showed when they tapped — sent as p_from (lib/orderStatus)
+  by?: string | null;   // who made it (R10b): replayed only while they are the one signed in — never under someone else
 };
 
-export const orderStatusOp = (orderId: string, status: string, at: number, from?: string): OfflineOp => ({
-  key: `order_status:${orderId}`, kind: "order_status", id: orderId, value: status, at, from,
+export const orderStatusOp = (orderId: string, status: string, at: number, from?: string, by?: string | null): OfflineOp => ({
+  key: `order_status:${orderId}`, kind: "order_status", id: orderId, value: status, at, from, ...(by ? { by } : {}),
 });
 
 // Money taken at the window with no signal (0341). The till does not wait for bars, so the tap is
 // kept and replayed like a status change. Its own key, so it never coalesces with the ticket's
 // status — "paid cash" and "picked up" are two facts, and both have to arrive. Replaying it is safe:
 // the database answers "already settled" to a second one and refuses a voided order outright.
-export const collectCupOp = (orderId: string, via: string, at: number): OfflineOp => ({
-  key: `collect_cup:${orderId}`, kind: "collect_cup", id: orderId, value: via, at,
+export const collectCupOp = (orderId: string, via: string, at: number, by?: string | null): OfflineOp => ({
+  key: `collect_cup:${orderId}`, kind: "collect_cup", id: orderId, value: via, at, ...(by ? { by } : {}),
 });
+
+/** The next write this person may replay (R10b): their own, or one from before writes were stamped. Another person's
+ *  waits for them — cash taken by one crew member is never replayed, and so recorded, as another's. Pure. */
+export function nextOwnOp(queue: OfflineOp[], owner: string | null): OfflineOp | undefined {
+  return queue.find((q) => !q.by || q.by === owner);
+}
 
 // Enqueue with coalescing: a later write to the same target REPLACES the earlier one (the pass
 // only cares about the final state of an order — replaying new→making→done as one "done" is

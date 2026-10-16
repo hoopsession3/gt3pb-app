@@ -49,6 +49,23 @@ const norm = (v: unknown): string => String(v ?? "").trim().toLowerCase().replac
  * Returns null rather than a wrong SKU: shipping somebody an XXL because the match was fuzzy is
  * worse than landing the order in the crew queue with a reason.
  */
+/** Does the printer know this product by at least one SKU? (R10b) A line of one that does must resolve to exactly one before
+ *  the card is charged — app/api/shop/checkout refuses it otherwise. Pure. */
+export function hasSkus(variants: ApliiqVariant[] | null | undefined): boolean {
+  return (Array.isArray(variants) ? variants : []).some((v) => v && typeof v === "object" && typeof v.sku === "string" && SKU_RE.test(v.sku.trim()));
+}
+
+/** What a cart line may say about its choice (R10b): a size and a colour, each a short label — or a bare label — and
+ *  nothing else. The line's variant was any JSON the request carried, kept on the order and shown to the crew. Pure. */
+export function cleanVariant(v: unknown): { size?: string; color?: string } | string | null {
+  const label = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim().slice(0, 40) : undefined);
+  if (typeof v === "string") return label(v) ?? null;
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  const size = label(o.size), color = label(o.color);
+  return size || color ? { ...(size ? { size } : {}), ...(color ? { color } : {}) } : null;
+}
+
 export function skuFor(variants: ApliiqVariant[] | null | undefined, chosen: unknown): string | null {
   const list = (Array.isArray(variants) ? variants : []).filter((v) => v && typeof v === "object");
   const withSku = list.filter((v) => typeof v.sku === "string" && SKU_RE.test(v.sku.trim()));

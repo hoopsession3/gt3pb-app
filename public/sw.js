@@ -36,7 +36,10 @@
 // notification each, so a second order or an escalation rings instead of silently replacing the
 // first) and a critical, an escalation or a person's own test is shown with the app open too. The
 // name is bumped because the rule above says every edit bumps it.
-const CACHE = "gt3pb-v27";
+//
+// v28 (2026-10-16, R10b · the 10/10 audit): a page is kept under its path alone — an /order?t=… ticket, which can cancel
+// the order, was a cache key on the device. Nothing else changed.
+const CACHE = "gt3pb-v28";
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/crew", "/driver", "/manifest.webmanifest"];
 
 // Page DATA, not a page: Next's router fetches a route's flight payload with these marks whenever
@@ -84,9 +87,11 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((res) => {
           // Only cache good responses — caching a 404/500 shell would serve a broken page offline.
+          // Kept under its path alone (v28, R10b — the 10/10 audit): /order?t=… is a ticket that can cancel an order, and a
+          // query in a cache key is kept on the device. Offline asks with ignoreSearch below, so the shell is found as before.
           if (res.ok) {
             const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(request, copy));
+            caches.open(CACHE).then((c) => c.put(url.origin + url.pathname, copy));
           }
           return res;
         })

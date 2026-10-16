@@ -41,6 +41,7 @@ async function post(req: Request) {
     gallons?: number; standing?: boolean; billing?: string;
   };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
 
   // Trim + bound every field server-side (the client maxLengths are a convenience, not a guarantee).
   const company = String(body.company ?? "").trim().slice(0, 80);
@@ -63,6 +64,9 @@ async function post(req: Request) {
   const minGallons = lsRow?.office_min_gallons ?? OFFICE.minGallons;
 
   // Recompute the quote server-side from the requested gallons (officeQuote clamps to the min).
+  // A ceiling too (R10b, 2026-10-16 — the 10/10 audit): the floor was the only bound, so a booking could ask for a billion
+  // gallons a week (Infinity went into the row as null). A hundred, the client's own change door's ceiling (0360).
+  if (Number(body.gallons) > 100) return NextResponse.json({ error: "More than 100 gallons a week? Text us and we'll set it up with you." }, { status: 400 });
   const q = officeQuote(Number(body.gallons) || 0, { priceCents, minGallons });
 
   // Validate — this is the real enforcement point, mirroring the client's pre-check.

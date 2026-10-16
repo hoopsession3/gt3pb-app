@@ -26,6 +26,10 @@ import { etToday } from "@/lib/dates";
 // /api/checkout. Member-only: a reservation always belongs to an account (guests browse; the walk-up
 // window stays open to everyone).
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
+// A minute at most (R10b — the 10/10 audit; reserves/pay's rule): a claim still "started" two minutes on is taken for a
+// request that died (lib/chargeOnce IN_FLIGHT_MS), so no request may outlive it — Square is asked with a 20-second
+// deadline (lib/squareServer squareDeadline) and the platform stops this at sixty.
+export const maxDuration = 60;
 
 /** Packs one member may have waiting to be paid at pickup at once (R9): a fourth is paid by card. */
 const PACKS_AT_WINDOW_MAX = 3;
@@ -39,6 +43,7 @@ async function post(req: Request) {
 
   let body: { sourceId?: string; idempotencyKey?: string; name?: string; phone?: string; size?: number; glass?: string; mix?: Partial<Mix>; dropDate?: string; stopId?: string; expectedCents?: number; textOptIn?: boolean };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
 
   // Order-ahead is member-only: the reservation needs an owner (drop_orders.user_id) so it lives
   // in the member's account. Checked FIRST — before validation and long before any charge.

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
-import { SQUARE_BASE, squareHeaders, mapSubStatus } from "@/lib/squareServer";
+import { SQUARE_BASE, squareHeaders, mapSubStatus, squareDeadline } from "@/lib/squareServer";
 import { route } from "@/lib/apiRoute";
 
 // Pause / resume / cancel the caller's own subscription via Square. The webhook
@@ -14,6 +14,7 @@ async function post(req: Request) {
 
   let body: { action?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
   const action = body.action || "";
   if (!["pause", "resume", "cancel"].includes(action)) return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 
@@ -27,7 +28,7 @@ async function post(req: Request) {
       action === "pause" ? `${SQUARE_BASE}/v2/subscriptions/${id}/pause`
       : action === "resume" ? `${SQUARE_BASE}/v2/subscriptions/${id}/resume`
       : `${SQUARE_BASE}/v2/subscriptions/${id}/cancel`;
-    const res = await fetch(url, { method: "POST", headers: squareHeaders(token), body: JSON.stringify({}) });
+    const res = await fetch(url, { method: "POST", headers: squareHeaders(token), body: JSON.stringify({}), signal: squareDeadline() });
     const data = await res.json();
     if (!res.ok) return NextResponse.json({ error: data?.errors?.[0]?.detail || "Action failed" }, { status: 400 });
 

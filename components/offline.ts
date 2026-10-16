@@ -10,6 +10,13 @@ import { enqueueOp, pruneStale, orderStatusOp, collectCupOp, type OfflineOp } fr
 const KEY = "gt3-offline-queue";
 export const OFFLINE_EVENT = "gt3-offline";
 
+// WHOSE WRITES THESE ARE (R10b, 2026-10-16 — the 10/10 audit). The queue carried no person: a cash collection parked by one
+// crew member with no signal was replayed — and recorded — under whoever was signed in when the signal came back.
+// components/AuthProvider says who is signed in; each parked write is stamped with them; the replay sends only theirs.
+let owner: string | null = null;
+export function setQueueOwner(id: string | null): void { owner = id; }
+export function queueOwner(): string | null { return owner; }
+
 export function readQueue(): OfflineOp[] {
   if (typeof window === "undefined") return [];
   try {
@@ -26,12 +33,12 @@ export function writeQueue(q: OfflineOp[]): void {
 // Park an order-status write for replay. Coalesces per order (final state wins). `from`: what the
 // ticket showed when it was tapped, sent with the replay as p_from (lib/orderStatus).
 export function queueOrderStatus(orderId: string, status: string, from?: string): void {
-  writeQueue(enqueueOp(pruneStale(readQueue(), Date.now()), orderStatusOp(orderId, status, Date.now(), from)));
+  writeQueue(enqueueOp(pruneStale(readQueue(), Date.now()), orderStatusOp(orderId, status, Date.now(), from, owner)));
 }
 
 // Park money taken at the window for replay (0341). One per order; a second tap replaces the first.
 export function queueCollectCup(orderId: string, via: string): void {
-  writeQueue(enqueueOp(pruneStale(readQueue(), Date.now()), collectCupOp(orderId, via, Date.now())));
+  writeQueue(enqueueOp(pruneStale(readQueue(), Date.now()), collectCupOp(orderId, via, Date.now(), owner)));
 }
 
 // Heuristic: was this a connectivity failure (park + retry) vs. a real server rejection (don't)?

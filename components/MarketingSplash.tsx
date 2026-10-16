@@ -9,6 +9,7 @@ import { useSiteCopy } from "@/lib/copy";
 import { cameThroughFrontDoor, clearFrontDoor } from "@/lib/viewerHint";
 import { isNativeApp } from "@/lib/native";
 import Button from "./Button";
+import { safeLink } from "@/lib/safeLink";
 
 // MARKETING SPLASH — the sales word-art the app opens to for guests. Fixed premium copy ("Own your
 // week."), so it ships with NO database dependency and shows the moment we deploy. Always closeable
@@ -150,7 +151,8 @@ export default function MarketingSplash() {
     setFast(true); setDissolving(true);
     setTimeout(() => setShow(false), FAST_MS);
   };
-  const go = () => { const h = copy.href; setShow(false); if (h) { if (h.startsWith("/")) router.push(h); else window.open(h, "_blank", "noopener"); } };
+  // A path or an https address, and nothing else (lib/safeLink, R10b): javascript: handed to window.open ran on this origin.
+  const go = () => { const l = safeLink(copy.href); setShow(false); if (l?.kind === "path") router.push(l.href); else if (l) window.open(l.href, "_blank", "noopener"); };
 
   if (!show) return null;
   return (

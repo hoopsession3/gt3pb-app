@@ -15,6 +15,11 @@ import { route } from "@/lib/apiRoute";
 import { isMissingColumn } from "@/lib/schemaSkew";
 import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
 
+// A minute at most (R10b — the 10/10 audit; reserves/pay's rule): a claim still "started" two minutes on is taken for a
+// request that died (lib/packChange IN_FLIGHT_MS), so no request may outlive it — Square is asked with a 20-second
+// deadline (lib/squareServer squareDeadline) and the platform stops this at sixty.
+export const maxDuration = 60;
+
 // CHANGE A RESERVED PACK IN PLACE (0388, 2026-10-12 — C5 of the customer audit, approved). The pack itself changes —
 // size, flavors, glass, day, name, phone — and only the difference moves: more is charged to a card, less is refunded
 // to the card that paid, the same price moves nothing (lib/packChange). Same authority as /api/reserve: the pack is

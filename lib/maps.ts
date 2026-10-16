@@ -79,7 +79,7 @@ export async function geocode(address: string): Promise<{ lat: number; lng: numb
     if (cached !== null) { const p = JSON.parse(cached); return p && typeof p.lat === "number" ? p : null; }
   } catch { /* ignore */ }
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(address)}`, { headers: { Accept: "application/json" } });
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(address)}`, { headers: { Accept: "application/json" }, ...(typeof AbortSignal.timeout === "function" ? { signal: AbortSignal.timeout(8000) } : {}) });   // iOS 15 has no AbortSignal.timeout
     const j = await r.json();
     const hit = Array.isArray(j) && j[0] ? { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) } : null;
     try { localStorage.setItem(key, JSON.stringify(hit)); } catch { /* quota */ }

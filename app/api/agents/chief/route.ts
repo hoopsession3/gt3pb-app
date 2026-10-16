@@ -72,6 +72,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const period: "week" | "month" | "quarter" = ["week", "month", "quarter"].includes(body.period) ? body.period : "week";
   const days = period === "week" ? 7 : period === "month" ? 31 : 92;
   const now = new Date();

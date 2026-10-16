@@ -1,4 +1,4 @@
-import { SQUARE_BASE, squareHeaders } from "./squareServer";
+import { SQUARE_BASE, squareDeadline, squareHeaders } from "./squareServer";
 
 // AN OFFICE PAYMENT LINK, SWITCHED OFF (R9, 2026-10-16 — 0417). A canceled office order's link stayed live at Square: the
 // client paid it, the webhook marked the canceled order paid, and nothing said a refund was owed. A link is switched off
@@ -24,7 +24,7 @@ export async function switchOffPaylink(token: string, link: { paylink_id?: strin
     id = found;
   }
   try {
-    const r = await fetch(`${SQUARE_BASE}/v2/online-checkout/payment-links/${encodeURIComponent(id)}`, { method: "DELETE", headers: squareHeaders(token) });
+    const r = await fetch(`${SQUARE_BASE}/v2/online-checkout/payment-links/${encodeURIComponent(id)}`, { method: "DELETE", headers: squareHeaders(token), signal: squareDeadline() });
     if (r.ok || r.status === 404) return "off";
     return "unknown";
   } catch {
@@ -39,7 +39,7 @@ async function findLink(token: string, squareOrderId: string): Promise<string | 
     for (let page = 0; page < PAGES; page++) {
       const q = new URLSearchParams({ limit: "100" });
       if (cursor) q.set("cursor", cursor);
-      const r = await fetch(`${SQUARE_BASE}/v2/online-checkout/payment-links?${q}`, { headers: squareHeaders(token) });
+      const r = await fetch(`${SQUARE_BASE}/v2/online-checkout/payment-links?${q}`, { headers: squareHeaders(token), signal: squareDeadline() });
       if (!r.ok) return undefined;
       const j = (await r.json().catch(() => null)) as { payment_links?: { id?: string; order_id?: string }[]; cursor?: string } | null;
       const hit = (j?.payment_links ?? []).find((l) => l.order_id === squareOrderId);

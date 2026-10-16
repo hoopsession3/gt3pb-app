@@ -45,6 +45,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* empty */ }
+  if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const shootId: string | undefined = body.shoot_id;
   const notes: string = String(body.notes ?? "").slice(0, 2000);
   if (!shootId) return NextResponse.json({ ok: false, error: "shoot_id required" }, { status: 400 });

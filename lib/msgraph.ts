@@ -36,6 +36,7 @@ async function tokenRequest(body: Record<string, string>): Promise<TokenSet> {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: process.env.MS_CLIENT_ID!, client_secret: process.env.MS_CLIENT_SECRET!, ...body }),
+    signal: AbortSignal.timeout(15_000),   // a deadline (R10b): Microsoft not answering is a failed sync, not a hung one
   });
   if (!res.ok) throw new Error(`MS token ${res.status}: ${(await res.text()).slice(0, 300)}`);
   return res.json();
@@ -53,6 +54,7 @@ export async function graph(token: string, path: string, init?: RequestInit): Pr
   const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init?.headers || {}) },
+    signal: init?.signal ?? AbortSignal.timeout(15_000),
   });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => null);

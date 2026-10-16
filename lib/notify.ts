@@ -67,6 +67,8 @@ export async function sendEmail(to: string, subject: string, text: string): Prom
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: process.env.NOTIFY_FROM_EMAIL, to: [to], subject: subject.slice(0, 200), text }),
+      // A deadline (R10b): a send that has not been answered in ten seconds is reported failed, not waited on.
+      signal: AbortSignal.timeout(10_000),
     });
     if (r.ok) {
       // Their id, kept. A body that will not parse is not a failed send — the mail is already gone —
@@ -108,6 +110,7 @@ export async function sendSMS(to: string, body: string): Promise<Sent> {
       },
       // Plain characters (lib/texts smsPlain, R6): one ✓ or long dash made the whole text Unicode, billed at 70 a segment.
       body: new URLSearchParams({ To: num, From: process.env.TWILIO_FROM_NUMBER!, Body: smsPlain(body).slice(0, 640) }),
+      signal: AbortSignal.timeout(10_000),
     });
     if (r.ok) {
       // Their id, kept — Twilio calls it `sid` (R6: this read `id`, Resend's word, so no text's id was ever kept). A body
