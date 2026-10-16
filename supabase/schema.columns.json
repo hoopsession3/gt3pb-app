@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-16T00:24:17.652Z",
+    "pulled_at": "2026-10-16T11:06:42.933Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 226,
-    "columns": 2884
+    "relations": 227,
+    "columns": 2891
   },
   "academy_acknowledgements": [
     "user_id",
@@ -1579,7 +1579,8 @@
     "preorder_lead_h",
     "pay_at_pickup",
     "opens_on",
-    "pre_launch"
+    "pre_launch",
+    "held_closed"
   ],
   "markets": [
     "slug",
@@ -1889,7 +1890,8 @@
     "ticket",
     "lines",
     "card_brand",
-    "card_last4"
+    "card_last4",
+    "share"
   ],
   "os_workstreams": [
     "id",
@@ -2196,7 +2198,14 @@
     "referee_credit_cents",
     "created_at",
     "tenant_id",
-    "converting_channel"
+    "converting_channel",
+    "reversed_at"
+  ],
+  "referral_stakes": [
+    "event_id",
+    "referee_cents",
+    "referrer_cents",
+    "updated_at"
   ],
   "reserve_claims": [
     "id",

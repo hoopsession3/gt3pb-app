@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { lacksHeld } from "./orderingRead";
 import { FOUNDING_MARKET } from "./markets";
 import { etDayKey } from "./dates";
 
@@ -45,13 +44,12 @@ export const PACK_ROAD_WORDS = {
 // THE CITIES HELD (R7b re-audit, 0412): held closed (the city's switch at false), or their opening day not come — and which
 // day that is, so a stop on or after it can be reserved. One read for every city asked about; a failed read is no answer.
 // Here, not in lib/orderingRead, which every page loads for a question it never asks.
-// arrives-with: 0412 — held_closed is its column; until it is pasted only a city whose opening day has not come is held.
+// held_closed is 0412's column (applied 2026-10-16).
 export type CityHold = { closed: boolean; opensOn: string | null };
 export async function cityHolds(sb: SupabaseClient, markets: readonly string[]): Promise<{ holds: Map<string, CityHold>; error: null } | { holds: null; error: string }> {
   const asked = [...new Set(markets)];
   if (!asked.length) return { holds: new Map(), error: null };
-  const first = await sb.from("market_live").select("market, pre_launch, opens_on, held_closed").in("market", asked);
-  const r = lacksHeld(first.error) ? await sb.from("market_live").select("market, pre_launch, opens_on").in("market", asked) : first;
+  const r = await sb.from("market_live").select("market, pre_launch, opens_on, held_closed").in("market", asked);
   if (r.error) return { holds: null, error: r.error.message };
   const rows = (r.data ?? []) as { market: string; pre_launch?: boolean | null; opens_on?: string | null; held_closed?: boolean | null }[];
   // pre_launch is "opens_on after today" (0285): its day, or — said without one — closed until it says.

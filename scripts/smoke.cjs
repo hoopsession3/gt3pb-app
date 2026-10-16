@@ -14599,7 +14599,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && O.closedWords({ state: "none", open: false, stop: null, opensAt: null, readyFrom: null, held: true }) === "We're not taking online orders here right now.");
   const or = rd("lib/orderingRead.ts"), th = rd("components/today/TodayHome.tsx"), fu = rd("components/FindUs.tsx");
   ok("R7b held: the read closes a held or not-yet-open city (0412's held_closed, 0285's pre_launch); Today says paused, not \"no stop\"",
-    /const lacksHeld = \(e: \{ code\?: string; message\?: string \} \| null\): boolean => !!e && \(e\.code === "42703"/.test(or)
+    /const CITY_COLS = "is_live, preorder_lead_h, pre_launch, held_closed";/.test(or) && !/CITY_COLS_BEFORE_0412|lacksHeld/.test(or)
     && /default: return ordering\.held \? \{ kind: "none", held: true \} : \{ kind: "none" \};/.test(rd("lib/today.ts"))
     && /if \(lead\.held\) \{/.test(th) && /Online orders are paused/.test(th));
   ok("R7b pins: a stop's own pin is where directions go, from Today, the order's page and Find Us's rows",
@@ -14674,11 +14674,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const rows = [{ market: "atlanta", pre_launch: true, opens_on: "2026-11-01", held_closed: false }, { market: "greenville", pre_launch: false, opens_on: null, held_closed: false }, { market: "charlotte", pre_launch: false, opens_on: null, held_closed: true }];
     const sbFor = (rs) => fakeSb((q) => ({ data: rs.filter((r) => q.ins.includes(r.market)), error: null }));
     const holds = await PR.cityHolds(sbFor(rows), ["atlanta", "greenville", "charlotte"]);
-    const before0412 = await PR.cityHolds(fakeSb((q) => /held_closed/.test(q.cols) ? { data: null, error: { code: "42703", message: "column market_live.held_closed does not exist" } } : { data: rows.map((r) => ({ market: r.market, pre_launch: r.pre_launch, opens_on: r.opens_on })), error: null }), ["atlanta", "greenville", "charlotte"]);
-    ok("R7b re-audit: the cities held read in one go — closed by the switch, or not open until a day; before 0412, the opening day only",
+    // 0412 is applied (2026-10-16): a read that cannot name held_closed is no answer — never the opening day alone.
+    const noColumn = await PR.cityHolds(fakeSb((q) => /held_closed/.test(q.cols) ? { data: null, error: { code: "42703", message: "column market_live.held_closed does not exist" } } : { data: rows, error: null }), ["atlanta", "greenville", "charlotte"]);
+    ok("R7b re-audit: the cities held read in one go — closed by the switch, or not open until a day; 0412 applied, a read without the switch is no answer",
       holds.error === null && holds.holds.get("charlotte").closed === true && holds.holds.get("atlanta").closed === false && holds.holds.get("atlanta").opensOn === "2026-11-01"
       && holds.holds.get("greenville").closed === false && holds.holds.get("greenville").opensOn === null
-      && before0412.error === null && before0412.holds.get("charlotte").closed === false && before0412.holds.get("atlanta").opensOn === "2026-11-01");
+      && noColumn.holds === null && /held_closed/.test(noColumn.error));
     const road = [{ id: "a1", starts_at: "2026-10-17T15:00:00Z", market: "atlanta" }, { id: "a2", starts_at: "2026-11-07T15:00:00Z", market: "atlanta" },
       { id: "c1", starts_at: "2026-10-18T15:00:00Z", market: "charlotte" }, { id: "g1", starts_at: "2026-10-18T15:00:00Z", market: "greenville" }, { id: "o1", starts_at: "2026-10-19T15:00:00Z", market: null }];
     const pr = await PR.packRoad(sbFor(rows), road);
@@ -14709,7 +14710,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     (co.match(/\{payNoteRegion\}/g) || []).length === 2 && /const payNoteRegion = <p className=\{payNote \? "text-footnote text-cream-dim" : "sr-only"\} role="status">\{payNote\}<\/p>;/.test(co)
     && (co.match(/<button ref=\{sendBtn\}/g) || []).length === 2 && /useEffect\(\(\) => \{ if \(!held && focusSend\.current\) \{ focusSend\.current = false; sendBtn\.current\?\.focus\(\); \} \}, \[held\]\);/.test(co));
   ok("R7b loyalty: the referral card counts standing referrals; history shows what the card was charged; the scanner re-reads a stale balance",
-    /\.eq\("referrer", user\.id\)\.is\("reversed_at", null\)/.test(rd("app/3mpire/page.tsx")) && /money\(o\.total_cents \+ \(o\.tip_cents \?\? 0\)\)/.test(rd("app/3mpire/page.tsx"))
+    /const r = await sb\.from\("referral_events"\)\.select\("referrer_credit_cents"\)\.eq\("referrer", user\.id\)\.is\("reversed_at", null\);/.test(rd("app/3mpire/page.tsx")) && !/42703/.test(rd("app/3mpire/page.tsx")) && /money\(o\.total_cents \+ \(o\.tip_cents \?\? 0\)\)/.test(rd("app/3mpire/page.tsx"))
     && /else if \(\/not that much\/i\.test\(error\?\.message \?\? ""\)\) \{/.test(rd("app/scan/page.tsx")));
 }
 

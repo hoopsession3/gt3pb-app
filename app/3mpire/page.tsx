@@ -99,15 +99,13 @@ function ReferralCard({ code }: { code: string }) {
   const [stats, setStats] = useState<{ n: number; earned: number } | null>(null);
 
   // Real earned-credit stats from the referral ledger (referrer = me): the friends whose first order stands (0411 — one
-  // canceled or refunded took its $5 back, until their next order). arrives-with: 0411 — reversed_at is its column;
-  // before it is pasted nothing has been undone, and every referral counts, as before.
+  // canceled or refunded took its $5 back, until their next order). reversed_at is 0411's column (applied 2026-10-16).
   useEffect(() => {
     if (!supabase || !user) return;
     const sb = supabase;
     let alive = true;
     void (async () => {
-      let r = await sb.from("referral_events").select("referrer_credit_cents").eq("referrer", user.id).is("reversed_at", null);
-      if (r.error && (r.error.code === "42703" || /reversed_at/.test(r.error.message))) r = await sb.from("referral_events").select("referrer_credit_cents").eq("referrer", user.id);
+      const r = await sb.from("referral_events").select("referrer_credit_cents").eq("referrer", user.id).is("reversed_at", null);
       if (alive && r.data) setStats({ n: r.data.length, earned: r.data.reduce((s, x) => s + (x.referrer_credit_cents ?? 0), 0) });
     })();
     return () => { alive = false; };

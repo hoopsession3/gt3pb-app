@@ -72,12 +72,16 @@ export const CEILING = {
   // 2026-10-16, snapshot at ledger 0408: definerExec 116 → 118 — save_workstream_audit (0405: the Monday audit and its
   // stream saved as one, an owner's or an admin's) and set_eighty_six (0408: the Pass's 86 for one city, the crew's), each
   // granted to authenticated by name and each refusing anyone else inside. Nothing new is callable signed out (anon 14).
+  // 2026-10-16, snapshot at ledger 0415: definerExec 118 → 119, anonExec 14 → 15 — order_shared (0413: what an order's
+  // shared link opens — its number, where it is, its drinks, what is due — by a key made for sharing, nothing that changes
+  // the order and nothing of the card, the tip or refunds; granted to anon and authenticated by name). 0409–0412, 0414 and
+  // 0415 redefined functions already counted, and refund_words (0409) is granted to no one.
   publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
-  definerExec: 118,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
+  definerExec: 119,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.
-  anonExec: 14,
+  anonExec: 15,
   definerView: 1,      // owner-run views the API roles may read: market_live
 };
 

@@ -39,11 +39,9 @@ export const orderingFrom = (i: OrderingInputs, nowMs: number): Ordering => orde
 const LOOK_BACK_MS = 24 * 60 * 60 * 1000;
 type Flags = { is_live?: boolean | null; preorder_lead_h?: number | null; current_stop_id?: string | null; held_closed?: boolean | null; pre_launch?: boolean | null };
 // HELD CLOSED (R7b, 0412): the city's switch at false, and the opening day not come, close every order here — a stop under
-// way and a pre-order window included. arrives-with: 0412 — held_closed is its column; until it is pasted the city is
-// read without it (pre_launch is 0285's), and a held city reads as one whose truck is off, as before.
+// way and a pre-order window included. held_closed is 0412's column, pre_launch 0285's (0412 applied 2026-10-16: the read
+// before it, without the column, is gone with it).
 const CITY_COLS = "is_live, preorder_lead_h, pre_launch, held_closed";
-const CITY_COLS_BEFORE_0412 = "is_live, preorder_lead_h, pre_launch";
-export const lacksHeld = (e: { code?: string; message?: string } | null): boolean => !!e && (e.code === "42703" || /held_closed/.test(e.message ?? ""));
 
 export async function readOrdering(sb: SupabaseClient, market: Market, nowMs: number = Date.now()): Promise<OrderingRead> {
   const [cityRead, single, road] = await Promise.all([
@@ -56,7 +54,7 @@ export async function readOrdering(sb: SupabaseClient, market: Market, nowMs: nu
       .gte("starts_at", new Date(nowMs - LOOK_BACK_MS).toISOString())
       .order("starts_at", { ascending: true }).limit(12),
   ]);
-  const city = lacksHeld(cityRead.error) ? await sb.from("market_live").select(CITY_COLS_BEFORE_0412).eq("market", market).maybeSingle() : cityRead;
+  const city = cityRead;
   if (road.error) return { inputs: null, error: road.error.message };
   const truck = single.data as Flags | null;
   // The truck's own switch is part of every answer now (below): unread, there is no answer.
@@ -74,7 +72,7 @@ export async function readOrdering(sb: SupabaseClient, market: Market, nowMs: nu
   const stops = ((road.data ?? []) as StopRow[]).map((r) => orderingStop(r, lead)).filter((s): s is OrderingStop => s !== null);
   // GO OFFLINE STOPS EVERY ORDER (2026-10-15, R7 — 0412). A city's switch holds it closed and never keeps it open: once a
   // city had been switched on, Go offline cleared the truck and the city's switch kept taking cards, with no stop to pour
-  // at. 0412 says so in market_live; this says so here too, so the rule holds before 0412 is pasted (arrives-with: 0412).
+  // at. 0412 says so in market_live; this says so here too — one rule, wherever the answer is read.
   const isLive = !!flags?.is_live && !!truck?.is_live;
   const liveStopId = isLive ? (truck?.current_stop_id ?? null) : null;
   if (!liveStopId || stops.some((s) => s.id === liveStopId)) return { inputs: { isLive, liveStopId, stops }, error: null };
