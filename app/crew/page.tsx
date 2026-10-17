@@ -237,6 +237,7 @@ import { orderNo } from "@/lib/activeOrder";
 import { STATUS_WORD } from "@/lib/orderStatus";
 import { scrollMotion } from "@/lib/motion";
 import { rovingKeys, rovingTab } from "@/components/roving";
+import { eventTotals, type EventTotals } from "@/lib/eventTotals";
 
 // The sections' names have one home now (lib/routeTitles): this heading, the guide, and the title bar's
 // title and its ‹ read the same words (2026-10-08, the navigation round).
@@ -3977,7 +3978,9 @@ function EventHUD() {
   // undefined = still looking; "error" = could not read it (never shown as "nothing on the calendar")
   const [next, setNext] = useState<NextEvent | null | "error" | undefined>(undefined);
   const [arming, setArming] = useState(false);
-  const [stats, setStats] = useState<{ cents: number; orders: number; firstAt: string | null }>({ cents: 0, orders: 0, firstAt: null });
+  // The takings as last read, and whose (the R20 review): null until a read of them answers — never $0 for "no answer" —
+  // and another event's never drawn under this one's title.
+  const [stats, setStats] = useState<{ eid: string; totals: EventTotals } | null>(null);
   const [econ, setEcon] = useState<EventEcon | null>(null);
   const [catalog, setCatalog] = useState<ProductEcon[]>([]);
   // Read, then set — the newest read's answer only (R17, lib/useLatestRead): the live event and what goes with it land
@@ -3996,33 +3999,26 @@ function EventHUD() {
       return { live: null, next: nxErr ? ("error" as const) : ((nx as NextEvent | null) ?? null) };
     }
     const eid = (e as EventRow).id;
-    const [{ data: ords }, { data: sales }, { data: cat }, { data: ec }] = await Promise.all([
-      supabase.from("orders").select("total_cents, paid, payment_id, created_at").eq("event_id", eid),
-      supabase.from("event_sales").select("amount_cents, square_payment_id, created_at").eq("event_id", eid),
+    // The takings, added up by the database (R20 — performance F6, 0426 event_totals; lib/eventTotals keeps the rule):
+    // three numbers, not every order and sale of the event on every change. A card paid online is a Square payment too,
+    // mirrored into event_sales, and is counted once — as report_sales does (0216/0220). Unread, the numbers on the
+    // screen stay (null): never $0 for "no answer".
+    const [totals, { data: cat }, { data: ec }] = await Promise.all([
+      eventTotals(supabase, eid),
       supabase.from("product_economics_live").select("*").eq("active", true).order("sort"),
       supabase.from("event_economics").select("*").eq("event_id", eid).maybeSingle(),
     ]);
-    const o = (ords as { total_cents: number; paid: boolean; payment_id: string | null; created_at: string }[]) ?? [];
-    // A card paid online is a Square payment too, and the webhook mirrors every completed Square
-    // payment into event_sales — so this HUD added the same money twice for every app order paid
-    // during the event. report_sales has never done that (it drops event_sales rows whose payment
-    // is an order's, 0216/0220); now the live number agrees with it.
-    const linked = new Set(o.map((x) => x.payment_id).filter(Boolean));
-    const s = ((sales as { amount_cents: number; square_payment_id: string | null; created_at: string }[]) ?? [])
-      .filter((x) => !x.square_payment_id || !linked.has(x.square_payment_id));
-    const cents = o.filter((x) => x.paid).reduce((a, x) => a + x.total_cents, 0) + s.reduce((a, x) => a + x.amount_cents, 0);
-    const times = [...o.map((x) => x.created_at), ...s.map((x) => x.created_at)].filter(Boolean).sort();
-    return { live: { ev: e as EventRow, stats: { cents, orders: o.length + s.length, firstAt: times[0] ?? null }, catalog: (cat as ProductEcon[]) ?? [], econ: (ec as EventEcon) ?? null } };
+    return { live: { ev: e as EventRow, stats: totals, catalog: (cat as ProductEcon[]) ?? [], econ: (ec as EventEcon) ?? null } };
   }, (r) => {
     if (!r) return;
     if (!r.live) {
       setEv(null);
-      setStats({ cents: 0, orders: 0, firstAt: null });
+      setStats(null);
       setNext(r.next);
       return;
     }
     setEv(r.live.ev);
-    setStats(r.live.stats);
+    if (r.live.stats) setStats({ eid: r.live.ev.id, totals: r.live.stats });
     setCatalog(r.live.catalog);
     setEcon(r.live.econ);
   }), [read]);
@@ -4074,13 +4070,14 @@ function EventHUD() {
       </FoldCard>
     );
   }
-  const hrs = stats.firstAt ? Math.max(0.25, (now - new Date(stats.firstAt).getTime()) / 3600000) : 0;
-  const perHr = hrs ? stats.cents / hrs : 0;
+  const took = stats && stats.eid === ev.id ? stats.totals : null;   // this event's, read — or not yet
+  const hrs = took?.firstAt ? Math.max(0.25, (now - new Date(took.firstAt).getTime()) / 3600000) : 0;
+  const perHr = took && hrs ? took.cents / hrs : 0;
   // plan vs actual — feed the real gross into the projection's cost structure
   const proj = projectEvent(ev, econ ?? DEFAULT_ECON, catalog);
-  const recon = reconcile(proj, stats.cents, econ ?? DEFAULT_ECON);
+  const recon = reconcile(proj, took?.cents ?? 0, econ ?? DEFAULT_ECON);
   const hasPlan = proj.revenueCents > 0;
-  const pctOfPlan = hasPlan ? Math.round((stats.cents / proj.revenueCents) * 100) : 0;
+  const pctOfPlan = hasPlan && took ? Math.round((took.cents / proj.revenueCents) * 100) : 0;
   const netUp = recon.actualNetCents >= 0;
   // THE NET IS AN ESTIMATE, AND SAYS WHAT IT ASSUMED (2026-10-12). It is sales less ingredients at the plan's cost ratio,
   // the crew at its rate for the hours planned and the fixed costs saved — and for an event with no saved economics, the
@@ -4091,8 +4088,10 @@ function EventHUD() {
     // plan totals) lives in Money → Per-event P&L, not on the Now screen.
     <FoldCard id="hud" title={ev.title} sub="Live now" today label="The live event">
       <div className="adm-sec adm-hud">
-        <div className="adm-hud-hero"><b>{moneyRound(stats.cents)}</b><span>in sales</span></div>
-        <p className="adm-hud-line">{stats.orders} order{stats.orders === 1 ? "" : "s"} · {moneyRound(perHr)}/hr{hasPlan && <> · {pctOfPlan}% of plan · est. net <b className={netUp ? "ok" : "red"}>{moneyRound(recon.actualNetCents)}</b></>}</p>
+        <div className="adm-hud-hero"><b>{took ? moneyRound(took.cents) : "—"}</b><span>in sales</span></div>
+        {took
+          ? <p className="adm-hud-line">{took.orders} order{took.orders === 1 ? "" : "s"} · {moneyRound(perHr)}/hr{hasPlan && <> · {pctOfPlan}% of plan · est. net <b className={netUp ? "ok" : "red"}>{moneyRound(recon.actualNetCents)}</b></>}</p>
+          : <p className="adm-hud-line" role="status">Couldn&apos;t read the sales yet — trying again.</p>}
         {hasPlan && !econ && <p className="cp-line dim">Estimated on the default plan: {planWords()}. Save this event&apos;s economics to use its own.</p>}
       </div>
     </FoldCard>

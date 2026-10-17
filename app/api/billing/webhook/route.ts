@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { raiseAlert } from "@/lib/serverAlerts";
+import { raiseAlertOnce } from "@/lib/serverAlerts";
 import { stripeSignatureOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
 
@@ -71,7 +71,8 @@ async function post(req: Request) {
       if (error || !rows || rows.length === 0) {
         return NextResponse.json({ ok: false, error: "provision failed or matched no tenant — will retry" }, { status: 500 });
       }
-      await raiseAlert({ severity: "important", category: "money", title: "New software subscription", body: `Tenant ${o.client_reference_id} subscribed.`, link: "/crew" });
+      // Keyed by the tenant (R20 — API F16): a redelivery while the first is in flight is one line.
+      await raiseAlertOnce({ severity: "important", category: "money", kind: "software_subscribed", subjectId: String(o.client_reference_id), title: "New software subscription", body: `Tenant ${o.client_reference_id} subscribed.`, link: "/crew" });
     }
 
     if ((evt.type === "customer.subscription.updated" || evt.type === "customer.subscription.deleted") && o.id) {
@@ -89,7 +90,7 @@ async function post(req: Request) {
         return NextResponse.json({ ok: false, error: "update failed or matched no tenant — will retry" }, { status: 500 });
       }
       if (status === "past_due" || status === "canceled") {
-        await raiseAlert({ severity: "important", category: "money", title: `Software subscription ${status}`, body: `Stripe subscription ${o.id} is ${status}.`, link: "/crew" });
+        await raiseAlertOnce({ severity: "important", category: "money", kind: `software_subscription_${status}`, subjectId: String(o.id), title: `Software subscription ${status}`, body: `Stripe subscription ${o.id} is ${status}.`, link: "/crew" });
       }
     }
 

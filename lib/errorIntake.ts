@@ -4,6 +4,7 @@ import { raiseAlert, raiseAlertOnce } from "./serverAlerts";
 import { alertPath, errorKey, reportWords, SERVER_ALERTS, SERVER_ROWS, ERRORS_LINK } from "./errorKey";
 import { etToday } from "./dates";
 import { limitAddress } from "./rateLimit";
+import { errorMessage } from "./errorMessage";
 
 // ERROR INTAKE — the one place "the app broke" is written down.
 //
@@ -136,7 +137,9 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
     if (error) {
       // Unique-violation race (two instances, same new error): bump instead.
       const bumped = await admin.rpc("bump_client_error", { p_fingerprint: fingerprint });
-      if (bumped.error) console.warn(`errors: couldn't file or count a client error — ${error.message}; ${bumped.error.message}`);   // R12b
+      // Said unless the bump found the other instance's row (R20 — the 10/10 audit, OPS F2): an insert refused for any
+      // other reason, with nothing there to count, was a report lost without a word.
+      if (bumped.error || bumped.data !== true) console.warn(`errors: couldn't file or count a client error — ${error.message}${bumped.error ? `; ${bumped.error.message}` : ""}`);   // R12b
       return false;
     }
 
@@ -179,5 +182,9 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
       link: ERRORS_LINK,
     });
     return true;
-  } catch { return false; /* telemetry never throws */ }
+  } catch (e) {
+    // Telemetry never throws — and never goes quiet either (R20, OPS F2): the report that threw is said in the log.
+    console.warn(`errors: the intake threw filing a report — ${errorMessage(e)}`.slice(0, 400));
+    return false;
+  }
 }

@@ -10,7 +10,7 @@ import { devicePref, useDevicePref } from "@/lib/devicePref";
 import { isNetworkError, saveSnapshot, readSnapshot, readQueue, OFFLINE_EVENT } from "@/components/offline";
 import { snapshotUsable } from "@/lib/offline";
 import {
-  readBoard, keepSame, snapDue, mergeRow, feedState, readHere, hereAfter, scopeFrom, newOrderWords, newOrdersWords, outsideWords,
+  readBoard, keepSame, snapDue, forTheSnapshot, mergeRow, feedState, readHere, hereAfter, scopeFrom, newOrderWords, newOrdersWords, outsideWords,
   holdMove, underHeld, heldFromQueue, heldKey,
   OPEN_CAP, NOWHERE, PASS_FEED_EVENT, type BoardDown, type Here, type Scope, type Held, type HeldKind,
 } from "@/lib/passBoard";
@@ -134,7 +134,7 @@ export function usePassBoard() {
     seeded.current = true;
     setOrders((prev) => keepSame(prev, rows)); setBoardAt(Date.now()); setDown(""); setMore(res.more);
     const at = Date.now();
-    if (snapDue(lastSnap.current, rows, at)) { saveSnapshot("gt3-kds-snap", rows); lastSnap.current = { rows, at }; }
+    if (snapDue(lastSnap.current, rows, at)) { saveSnapshot("gt3-kds-snap", forTheSnapshot(rows)); lastSnap.current = { rows, at }; }
     fresh.forEach(announceNew);
     if (fresh.length > 1) say(newOrdersWords(fresh.length));
   }), [readNewest, announceNew, say, drawn]);

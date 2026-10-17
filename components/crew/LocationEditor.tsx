@@ -8,7 +8,7 @@ import Icon from "@/components/Icon";
 import FieldOpSheet from "@/components/FieldOpSheet";
 import InputSheet from "@/components/InputSheet";
 import type { Stop, Vendor } from "@/lib/db";
-import { geocode } from "@/lib/geocode";
+import { lookUpAddress } from "@/lib/geocode";
 import VenueContact from "@/components/VenueContact";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useAuth } from "@/components/AuthProvider";
@@ -112,8 +112,14 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
   const saveLocation = async (): Promise<boolean> => {
     const q = address.trim(); if (!q) return false;
     setBusy(true);
-    const geo = await geocode(q);
-    if (!geo) { setBusy(false); toast("Couldn't find that address — add city & state, then retry.", "error"); return false; }
+    const found = await lookUpAddress(q);
+    if (!("hit" in found)) {
+      setBusy(false);
+      // A lookup that didn't answer is not a bad address (the R20 review): said apart, so nobody retypes a right one.
+      toast(found.miss === "unreachable" ? "Couldn't reach the map lookup — check the connection, then retry." : "Couldn't find that address — add city & state, then retry.", "error");
+      return false;
+    }
+    const geo = found.hit;
     const { error } = await supabase!.from(table).update({ address: q, location_text: q, lat: geo.lat, lng: geo.lng }).eq("id", row.id);
     // A vendor's location is the source of truth — push it to the linked stops and events so
     // directions stay accurate everywhere the venue is used (audit P1·7: the "edit once, updates

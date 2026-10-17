@@ -277,6 +277,15 @@ await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: SQ_KEY, SQUARE_WEBHOOK_URL: SQ_URL
   const flag = gone.w.alerts.find((a) => a.kind === "refund_needed");
   ok("square route: a link paid on a canceled order raises its own refund flag, keyed by the payment — never folded into the cancel's",
     gone.status === 200 && !!flag && flag.subjectId === "office-pay:sq-link-pay-77" && flag.severity === "critical", flag);
+
+  // R20 (API F16): a subscription's alerts are keyed by it — Square sending the event twice at once is one line.
+  const subRun = async (b) => { const w = world(); const r = await post(loader(w.shims)("app/api/square/webhook/route.ts"), SQ_URL, { "x-square-hmacsha256-signature": sqSign(b) }, b); return { ...r, w }; };
+  const canceled = await subRun(JSON.stringify({ type: "subscription.updated", event_id: "evt-sub-cx", data: { object: { subscription: { id: "sq-sub-77", status: "CANCELED" } } } }));
+  const cx = canceled.w.alerts.find((a) => a.title === "Subscription canceled");
+  ok("square route: a subscription canceled is said keyed by the subscription (kind subscription_canceled)", canceled.status === 200 && cx?.kind === "subscription_canceled" && cx?.subjectId === "sq-sub-77", cx);
+  const declined = await subRun(JSON.stringify({ type: "invoice.payment_failed", event_id: "evt-inv-fail", data: { object: { invoice: { subscription_id: "sq-sub-78" } } } }));
+  const df = declined.w.alerts.find((a) => a.title === "Subscription payment failed");
+  ok("square route: a subscription's payment failed is said keyed by it (critical, kind subscription_payment_failed)", declined.status === 200 && df?.kind === "subscription_payment_failed" && df?.subjectId === "sq-sub-78" && df?.severity === "critical", df);
 });
 await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: undefined, SQUARE_WEBHOOK_URL: undefined }, async () => {
   const w = world();
@@ -366,6 +375,64 @@ await withEnv({ NOTES_INBOUND_SECRET: "made-up-notes-token", NOTES_INBOUND_FROM:
   ok("notes inbound: the right header beside a wrong ?token= → written", goodHeaderWrongQuery.status === 200 && goodHeaderWrongQuery.w.wrote(), goodHeaderWrongQuery.status);
   const bothWrong = await byHeader("Bearer made-up-notes-tokeN", "made-up-notes-tokeN");
   ok("notes inbound: wrong in the header and wrong in the address → 401, nothing written", bothWrong.status === 401 && !bothWrong.w.wrote(), bothWrong.status);
+
+  // R20 (API F16): once a message — the mail's own id kept, hashed, in the webhook inbox — and a note's length kept.
+  const inbox = new Map();   // id → { processed_at, received_at }, shared by the deliveries below as the database would be
+  const mailWorld = () => world({ table: (table, steps) => {
+    if (table !== "webhook_events") return { data: null, error: null, count: 0 };
+    const [m, arg] = steps[0] ?? [];
+    const id = steps.find(([k]) => k === "eq")?.[2];
+    if (m === "insert") { if (inbox.has(arg.id)) return { data: null, error: { code: "23505", message: "duplicate key" } }; inbox.set(arg.id, { processed_at: null, received_at: new Date().toISOString() }); return { data: null, error: null }; }
+    if (m === "select") return { data: inbox.has(id) ? { processed_at: inbox.get(id).processed_at } : null, error: null };
+    if (m === "update" && "processed_at" in arg) { inbox.get(id).processed_at = arg.processed_at; return { data: null, error: null }; }
+    if (m === "update" && "received_at" in arg) {   // the take-over: only an unmarked row, older than the stamp asked
+      const row = inbox.get(id), before = steps.find(([k, col]) => k === "lt" && col === "received_at")?.[2];
+      const unmarked = steps.some(([k, col, v]) => k === "is" && col === "processed_at" && v === null);
+      if (!row || !unmarked || row.processed_at || !(row.received_at < before)) return { data: [], error: null };
+      row.received_at = arg.received_at; return { data: [{ id }], error: null };
+    }
+    return { data: null, error: null };
+  } });
+  const mail = async (fields, token = "made-up-notes-token") => {
+    const w = mailWorld();
+    const r = await post(loader(w.shims)("app/api/notes/inbound/route.ts"), "https://app.example.test/api/notes/inbound",
+      { "content-type": "application/json", authorization: `Bearer ${token}` }, JSON.stringify({ from: "someone@example.test", subject: "A note", ...fields }));
+    const notes = w.calls.filter((c) => c.table === "meeting_notes" && c.steps.some(([m]) => m === "insert"));
+    return { ...r, w, notes };
+  };
+  const first = await mail({ text: "Made-up text.", MessageID: "made-up-0001@mail.example.test" });
+  const again = await mail({ text: "Made-up text.", MessageID: "made-up-0001@mail.example.test" });
+  ok("notes inbound: a mail delivered twice is one note — the second is thanked and not written",
+    first.status === 200 && first.notes.length === 1 && again.status === 200 && again.json?.replay === true && again.notes.length === 0, [first.json, again.json, again.notes.length]);
+  ok("notes inbound: the inbox keeps the mail's id hashed — never the id itself, nor the mail",
+    [...inbox.keys()].every((k) => /^notes:[0-9a-f]{40}$/.test(k)) && first.w.calls.filter((c) => c.table === "webhook_events").every((c) => c.steps.every(([m, a]) => m !== "insert" || a.payload === null)));
+  const row1 = inbox.get([...inbox.keys()][0]);
+  row1.processed_at = null; row1.received_at = new Date().toISOString();   // its twin, still being written
+  const twin = await mail({ text: "Made-up text.", MessageID: "made-up-0001@mail.example.test" });
+  ok("notes inbound (review): a copy whose twin is still being written is told to come back (409) — not written twice",
+    twin.status === 409 && twin.json?.retry === true && twin.notes.length === 0, [twin.status, twin.json]);
+  row1.received_at = new Date(Date.now() - 5 * 60_000).toISOString();     // as if that delivery died before it marked the mail
+  const died = await mail({ text: "Made-up text.", MessageID: "made-up-0001@mail.example.test" });
+  ok("notes inbound: …a mail whose earlier delivery died before it was marked is written — by the one copy that takes it over",
+    died.status === 200 && died.notes.length === 1 && !!row1.processed_at, died.json);
+  row1.processed_at = null; row1.received_at = new Date(Date.now() - 5 * 60_000).toISOString();
+  const [r1, r2] = await Promise.all([mail({ text: "Made-up text.", MessageID: "made-up-0001@mail.example.test" }), mail({ text: "Made-up text.", MessageID: "made-up-0001@mail.example.test" })]);
+  ok("notes inbound (review): two retries after a death, together: one writes, the other comes back",
+    [r1, r2].filter((r) => r.status === 200 && r.notes.length === 1).length === 1 && [r1, r2].filter((r) => r.status === 409 && r.notes.length === 0).length === 1, [r1.status, r2.status]);
+  const pm1 = await mail({ text: "Sent twice.", MessageID: "pm-delivery-aaa", Headers: [{ Name: "Message-ID", Value: "<made-up-0004@mail.example.test>" }] });
+  const pm2 = await mail({ text: "Sent twice.", MessageID: "pm-delivery-bbb", Headers: [{ Name: "message-id", Value: "<made-up-0004@mail.example.test>" }] });
+  ok("notes inbound (review): the mail's own Message-ID header comes before Postmark's id for the delivery — one mail sent on twice is one note",
+    pm1.notes.length === 1 && pm2.json?.replay === true && pm2.notes.length === 0, [pm1.json, pm2.json]);
+  const sg = await mail({ text: "From SendGrid.", headers: "Received: by mx.example.test\nMessage-ID: <made-up-0002@mail.example.test>\nSubject: A note" });
+  const sg2 = await mail({ text: "From SendGrid.", headers: "Received: by mx.example.test\nmessage-id: <made-up-0002@mail.example.test>" });
+  ok("notes inbound: SendGrid's raw headers give the id too (any case)", sg.notes.length === 1 && sg2.json?.replay === true && sg2.notes.length === 0, [sg.json, sg2.json]);
+  const noId = await mail({ text: "No id at all." }), noId2 = await mail({ text: "No id at all." });
+  ok("notes inbound: a mail with no id is written each time, as before", noId.notes.length === 1 && noId2.notes.length === 1);
+  const long = await mail({ text: "x".repeat(80_000) });
+  const kept = long.notes[0]?.steps.find(([m]) => m === "insert")?.[1];
+  ok("notes inbound: a note is kept to 50,000 characters", long.status === 200 && kept?.body?.length === 50_000, kept?.body?.length);
+  const wrongToken = await mail({ text: "x", MessageID: "made-up-0003@mail.example.test" }, "made-up-notes-tokeN");
+  ok("notes inbound: a wrong token touches no inbox", wrongToken.status === 401 && wrongToken.w.calls.length === 0);
 });
 
 // Apliiq (lib/apliiq reads its secret when it loads, so each world loads it with the env it needs)

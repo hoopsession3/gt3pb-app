@@ -18,6 +18,8 @@ async function wf(path: string, init?: RequestInit): Promise<any> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "accept-version": "2.0.0", ...(init?.headers || {}) },
+    // A deadline (R20 — the 10/10 audit, API F3's last three): Webflow not answering is a failed publish, never a hung route.
+    signal: init?.signal ?? AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`Webflow ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const txt = await res.text(); // DELETE /live returns 204 with no body

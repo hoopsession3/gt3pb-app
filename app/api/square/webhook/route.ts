@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL, mapSubStatus } from "@/lib/squareServer";
-import { raiseAlert, raiseAlertOnce } from "@/lib/serverAlerts";
+import { raiseAlertOnce } from "@/lib/serverAlerts";
 import { moneyPlain } from "@/lib/money";
 import { squareSignatureOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
@@ -85,7 +85,9 @@ async function post(req: Request) {
         ({ error: err } = await q);
         // Leadership visibility on churn — a cancel shouldn't be invisible. Gated on success so a
         // failed mirror + Square retry can't double the alert (the retry re-runs this body).
-        if (next === "canceled" && !err) await raiseAlert({ severity: "important", category: "money", title: "Subscription canceled", body: "A member canceled their coffee subscription. See Subscribers." });
+        // Keyed by the subscription (R20 — the 10/10 audit, API F16): Square delivering the same event twice at once — a
+        // retry before the first answer — is one line, not two.
+        if (next === "canceled" && !err) await raiseAlertOnce({ severity: "important", category: "money", kind: "subscription_canceled", subjectId: String(sub.id), title: "Subscription canceled", body: "A member canceled their coffee subscription. See Subscribers." });
       }
     } else if (type === "invoice.payment_made") {
       const subId = evt?.data?.object?.invoice?.subscription_id;
@@ -97,7 +99,7 @@ async function post(req: Request) {
       if (subId) ({ error: err } = await supabaseAdmin.from("subscriptions").update({ status: "past_due", updated_at: new Date().toISOString() }).eq("square_subscription_id", subId));
       // Producer: a failed payment is a money problem leadership should see fast — but only once:
       // gated on success so the 500-retry path can't stack duplicate criticals.
-      if (!err) await raiseAlert({ severity: "critical", category: "money", title: "Subscription payment failed", body: "A subscriber's card was declined — they'll lose access. Check Subscribers." });
+      if (!err) await raiseAlertOnce({ severity: "critical", category: "money", kind: "subscription_payment_failed", subjectId: String(subId ?? eventId ?? "square"), title: "Subscription payment failed", body: "A subscriber's card was declined — they'll lose access. Check Subscribers." });
     } else if (type.startsWith("refund.")) {
       // MONEY LEAVING (0330). Before this branch a refund issued in the Square dashboard — which is
       // where this app's own money panel sends the owner to issue one — never reached the database.

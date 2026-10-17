@@ -54,6 +54,9 @@ export async function apliiqGet(path: string): Promise<unknown> {
   const r = await fetch(url, {
     method: "GET",
     headers: { Accept: "application/json", Authorization: outboundAuthHeader("") },
+    // A deadline (R20 — the 10/10 audit, API F3's last three), as the order's submit has one: a catalog that doesn't come
+    // is a failed import, never a hung route.
+    signal: AbortSignal.timeout(20_000),
   });
   if (!r.ok) throw new Error(`Apliiq GET ${path} → ${r.status}`);
   return r.json();

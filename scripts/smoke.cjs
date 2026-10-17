@@ -5985,7 +5985,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\{boardAt > 0 && !down && active\.length === 0 && done\.length === 0 && <EmptyState title="The pass is clear"/.test(kit) && !/Backend error|setErr\(/.test(kit));
   ok("pass: a read is made only with a session — a signed-out read is not an empty pass, and leaves the board saved for offline alone",
     /const auth = await supabase\.auth\.getSession\(\);\s*const res = auth\.data\.session \? await readBoard\(supabase, Date\.now\(\), cap\.current\) : null;/.test(kit)
-    && /setDown\(net \? "net" : res \? "read" : "auth"\);\s*return;/.test(kit) && kit.indexOf('saveSnapshot("gt3-kds-snap", rows)') > kit.indexOf('setDown(net ? "net"'));
+    && /setDown\(net \? "net" : res \? "read" : "auth"\);\s*return;/.test(kit) && kit.indexOf('saveSnapshot("gt3-kds-snap", forTheSnapshot(rows))') > kit.indexOf('setDown(net ? "net"'));
   ok("pass: a failed read says so in words, with the time of the board it is showing",
     /<b>\{down === "auth" \? "Signed out" : "Can't reach the pass"\}<\/b>/.test(kit) && /showing the board from \$\{clockTime\(new Date\(boardAt\)\.toISOString\(\)\)\}/.test(kit));
   ok("pass: overlapping reads land in order — only the newest asked for is applied", /const readNewest = useLatestRead\(\);/.test(kit) && /const load = useCallback\(\(\) => readNewest\(async \(\) => \{/.test(kit));
@@ -6030,9 +6030,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/haptic\("success"\); notifyDelivered\(o\);/.test(read("components/DriverRun.tsx")));
   ok("orders export: the paid column is lib/collect's ledger word — it called every unpaid order 'at pickup', picked up or not",
     /paid: ledgerWord\(o\),/.test(crewSrc) && !/paid: o\.paid \? "paid online" : "at pickup"/.test(crewSrc));
-  ok("event HUD: a card paid online is not counted twice — once as the order, again as its own Square payment",
-    /const linked = new Set\(o\.map\(\(x\) => x\.payment_id\)\.filter\(Boolean\)\);/.test(crewSrc)
-    && /\.filter\(\(x\) => !x\.square_payment_id \|\| !linked\.has\(x\.square_payment_id\)\)/.test(crewSrc));
+  // R20: the rule is lib/eventTotals' (the screen's until 0426 is pasted) and 0426's event_totals (the database's).
+  const etSrc = code(read("lib/eventTotals.ts")), m25src = read("supabase/migrations/0426_an_events_takings_are_counted_where_they_are.sql");
+  ok("event HUD: a card paid online is not counted twice — once as the order, again as its own Square payment — nor any other app payment Square files against the event (the R20 review: report_sales' rule)",
+    /const linked = new Set\(orders\.map\(\(o\) => o\.payment_id\)\.filter\(\(p\): p is string => !!p\)\);/.test(etSrc)
+    && /const own = sales\.filter\(\(s\) => !s\.square_payment_id \|\| \(!linked\.has\(s\.square_payment_id\) && !opts\.notOwn\?\.has\(s\.square_payment_id\)\)\);/.test(etSrc)
+    && /and \(e\.square_payment_id is null or \(\s+not exists \(select 1 from public\.orders x where x\.payment_id = e\.square_payment_id\)/.test(m25src)
+    && ["drop_orders", "delivery_orders", "business_orders", "shop_orders", "reserve_claims"].every((t) => m25src.includes(`and not exists (select 1 from public.${t} x where x.payment_id = e.square_payment_id)`))
+    && m25src.includes("and not exists (select 1 from public.drop_order_changes x where x.charge_payment_id = e.square_payment_id and x.state = 'done')")
+    && /eventTotals\(supabase, eid\)/.test(crewSrc));
 
   // ── the pickup board ──
   const dops = code(read("components/DropOps.tsx"));
@@ -15007,7 +15013,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /error: "The concierge couldn't answer just now — try again in a moment\."/.test(strip(rd("app/api/concierge/route.ts"))) && !/error: errorMessage\(e, 300\)/.test(strip(rd("app/api/concierge/route.ts"))));
   const sp = strip(rd("app/api/agents/studio-photo/route.ts"));
   ok("R9 doors: the studio's photo read fetches only our own storage, and follows no redirect off it",
-    /if \(!fromOurStorage\(url\)\) return NextResponse\.json/.test(sp) && /await fetch\(url, \{ redirect: "error" \}\)/.test(sp) && /u\.pathname\.startsWith\("\/storage\/v1\/object\/"\)/.test(sp)
+    /if \(!fromOurStorage\(url\)\) return NextResponse\.json/.test(sp) && /await fetch\(url, \{ redirect: "error"(, signal: AbortSignal\.timeout\(\d+_?\d*\))? \}\)/.test(sp) && /u\.pathname\.startsWith\("\/storage\/v1\/object\/"\)/.test(sp)
     && sp.indexOf("fromOurStorage(url)") < sp.indexOf("await fetch(url"));
   {
     const LS = require("../.smoke/linkSignin.js"), supa = rd("lib/supabase.ts"), ap = strip(rd("components/AuthProvider.tsx"));
@@ -15723,7 +15729,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const pb = rd("lib/passBoard.ts"), upb = rd("components/pass/usePassBoard.ts"), bc = rd("lib/broadcasts.ts");
   ok("R13 races: the Pass reads the newest open tickets and keeps its board when it changed; a banner comes down at its end; the inbox counts only its alerts' comments",
     /\.neq\("status", "done"\)\.order\("created_at", \{ ascending: false \}\)\.limit\(cap\),/.test(pb)
-      && /if \(snapDue\(lastSnap\.current, rows, at\)\) \{ saveSnapshot\("gt3-kds-snap", rows\); lastSnap\.current = \{ rows, at \}; \}/.test(upb)
+      && /if \(snapDue\(lastSnap\.current, rows, at\)\) \{ saveSnapshot\("gt3-kds-snap", forTheSnapshot\(rows\)\); lastSnap\.current = \{ rows, at \}; \}/.test(upb)
       && /const at = nextEdge\(rows, now\);/.test(bc) && /return useMemo\(\(\) => rows\.filter\(\(b\) => inWindow\(b, now\)\), \[rows, now\]\);/.test(bc)
       && /useRealtimeTable\(\{ table: "comments", filter: `alert_id=in\.\(\$\{ids\}\)` \}, loadCounts, \{ enabled: !!ids \}\);/.test(crew));
   // operations: the heartbeat and the failures
@@ -16096,6 +16102,49 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && au19.includes("hard.push(`account-trigger: ${name} on ${table} is switched off — it holds nothing back`);") && au19.includes("String.raw`\\bdrop\\s+constraint\\b`"));
   ok("R19 review: 0425 leaves a rule whole when a helper's name sits inside a quoted literal, and names it",
     m.includes("regexp_count(whole, helper) <> regexp_count(regexp_replace(whole, $re$'(?:[^']|'')*'$re$, '', 'g'), helper)") && m.includes("names a helper inside a quoted literal — left as it is"));
+}
+
+// ── R20 · DEADLINES EVERYWHERE, A WEBHOOK SAID ONCE, A MAIL WRITTEN ONCE, THE TAKINGS ADDED UP WHERE THEY ARE (2026-10-17) ──
+// Run in scripts/r20.test.mjs, scripts/db.r20.test.mjs and scripts/webhooks.test.mjs; these hold the shape each took.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ROOTDIR = path.join(__dirname, "..");
+  const rd = (f) => fs.readFileSync(path.join(ROOTDIR, f), "utf8");
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const pkg = JSON.parse(rd("package.json"));
+  ok("R20: its tests run — r20.test in npm test, db.r20.test in db:test", pkg.scripts.test.includes("node scripts/r20.test.mjs") && pkg.scripts["db:test"].includes("node scripts/db.r20.test.mjs"));
+  // API F3's last three, and two more found looking: no call out of the app waits for ever.
+  ok("R20 deadlines: Canva, Webflow and Apliiq's catalog read give up — and the geocoder and the studio's photo read",
+    strip(rd("lib/canva.ts")).includes("signal: init?.signal ?? AbortSignal.timeout(15_000),") && strip(rd("lib/webflow.ts")).includes("signal: init?.signal ?? AbortSignal.timeout(15_000),")
+      && /export async function apliiqGet[\s\S]{0,700}?signal: AbortSignal\.timeout\(20_000\),/.test(strip(rd("lib/apliiq.ts")))
+      && strip(rd("lib/geocode.ts")).includes("const lookup = withDeadline(10_000);") && strip(rd("lib/geocode.ts")).includes("await lookup(url,")
+      && strip(rd("lib/geocode.ts")).includes('if (!res.ok) return { miss: "unreachable" };') && strip(rd("components/crew/LocationEditor.tsx")).includes('found.miss === "unreachable" ? "Couldn\'t reach the map lookup')
+      && strip(rd("app/api/agents/studio-photo/route.ts")).includes('fetch(url, { redirect: "error", signal: AbortSignal.timeout(15_000) })'));
+  // API F16: a delivery twice at once is one line; a mail twice is one note.
+  const sq = strip(rd("app/api/square/webhook/route.ts")), bw = strip(rd("app/api/billing/webhook/route.ts")), ni = strip(rd("app/api/notes/inbound/route.ts"));
+  ok("R20 webhooks: every alert Square's and Stripe's webhooks raise is keyed — a delivery twice at once is one line",
+    !/\braiseAlert\(/.test(sq) && !/\braiseAlert\(/.test(bw) && sq.includes('kind: "subscription_canceled", subjectId: String(sub.id)') && sq.includes('kind: "subscription_payment_failed"'));
+  ok("R20 notes: a mail is written once — its own id, hashed, in the webhook inbox, marked when the note is in — and a note keeps to 50,000 characters",
+    ni.includes("const NOTE_MAX_CHARS = 50_000;") && ni.includes("text = text.slice(0, NOTE_MAX_CHARS);")
+      && ni.includes('`notes:${createHash("sha256").update(messageId).digest("hex").slice(0, 40)}`') && ni.includes('provider: "notes", type: "inbound", payload: null')
+      && ni.indexOf('.from("meeting_notes").insert(') < ni.indexOf("processed_at: new Date().toISOString()") && !/^export function messageIdOf/m.test(ni));
+  // operations F2: the intake's own failures.
+  const ei = strip(rd("lib/errorIntake.ts"));
+  ok("R20 intake: a report it lost is said — an insert refused with nothing to count, and a throw",
+    ei.includes("if (bumped.error || bumped.data !== true) console.warn(") && ei.includes("errors: the intake threw filing a report —"));
+  // security F5's last part.
+  const pb = strip(rd("lib/passBoard.ts")), upb = strip(rd("components/pass/usePassBoard.ts"));
+  ok("R20 snapshot: the phone keeps the board's own fields of a ticket — never the card, Square's payment id, the share key or the code",
+    pb.includes('export const SNAP_OMITS = ["payment_id", "card_brand", "card_last4", "share", "benefit_code"] as const;') && upb.includes('saveSnapshot("gt3-kds-snap", forTheSnapshot(rows))'));
+  // performance F6: the live event's takings.
+  const cp = strip(rd("app/crew/page.tsx")), et = strip(rd("lib/eventTotals.ts")), m25 = rd("supabase/migrations/0426_an_events_takings_are_counted_where_they_are.sql");
+  ok("R20 takings: the live-event card asks the database for its three numbers (0426) — not every order and sale of the event on every change; unread, its numbers stay — and none read is a dash, never $0, never another event's (the review)",
+    cp.includes("eventTotals(supabase, eid),") && !cp.includes('supabase.from("orders").select("total_cents, paid, payment_id, created_at").eq("event_id", eid)')
+      && cp.includes("if (r.live.stats) setStats({ eid: r.live.ev.id, totals: r.live.stats });") && cp.includes("const took = stats && stats.eid === ev.id ? stats.totals : null;")
+      && cp.includes('<b>{took ? moneyRound(took.cents) : "—"}</b>') && !/useState<\{ cents: number; orders: number; firstAt: string \| null \}>\(\{ cents: 0/.test(cp)
+      && et.includes('sb.rpc("event_totals", { p_event: eventId })') && /\/\/ arrives-with: 0426/.test(rd("lib/eventTotals.ts"))
+      && /language plpgsql stable security definer set search_path = public as \$\$/.test(m25) && /if not public\.is_staff\(\) then/.test(m25)
+      && /grant execute on function public\.event_totals\(uuid\) to authenticated;/.test(m25));
 }
 
 // ── R17 · NO STATE SET BY AN EFFECT AS IT STARTS: THE LINT CEILING'S LAST RULE AT ZERO (2026-10-17) ─────────────────────

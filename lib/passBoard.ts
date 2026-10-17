@@ -269,6 +269,20 @@ export async function readBoard(sb: SupabaseClient, nowMs: number, cap: number =
   };
 }
 
+/** WHAT THE PHONE KEEPS OF A TICKET (R20 — the 10/10 audit, security F5's last part). The board kept on the phone for a
+ *  cold start with no signal was every column of every order: the card's brand and last four, Square's payment id, the
+ *  order's share key (a link that shows the order to whoever holds it) and the code it was paid with — none of them on the
+ *  board, all of them in the phone's storage while someone was signed in. The phone keeps the board's own fields; the
+ *  rest is read again with the signal. */
+export const SNAP_OMITS = ["payment_id", "card_brand", "card_last4", "share", "benefit_code"] as const;
+export function forTheSnapshot<T extends object>(rows: readonly T[]): T[] {
+  return rows.map((o) => {
+    const kept = { ...o } as Record<string, unknown>;
+    for (const k of SNAP_OMITS) delete kept[k];
+    return kept as T;
+  });
+}
+
 /** THE BOARD KEPT ON THE PHONE IS WRITTEN WHEN IT CHANGED (R13 — the 10/10 audit's performance pass, F15): it was written
  *  on every reconcile, up to 400 orders into the phone's storage every 15 seconds, changed or not. Unchanged, it is written
  *  again every SNAP_EVERY_MS, so the time it says stays near enough to now for a cold start with no signal (lib/offline

@@ -64,7 +64,7 @@ async function post(req: Request) {
 
   let b64 = "";
   try {
-    const res = await fetch(url, { redirect: "error" });
+    const res = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(15_000) });   // a deadline (R20, API F3)
     if (!res.ok) return NextResponse.json({ ok: false, error: "couldn't read the uploaded photo" }, { status: 502 });
     const buf = await res.arrayBuffer();
     if (buf.byteLength > MAX_BYTES) return NextResponse.json({ ok: false, error: "photo too large to classify" }, { status: 413 });

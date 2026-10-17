@@ -17,6 +17,8 @@ async function cv(path: string, init?: RequestInit): Promise<any> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init?.headers || {}) },
+    // A deadline (R20 — the 10/10 audit, API F3's last three): Canva not answering is a failed design, never a hung route.
+    signal: init?.signal ?? AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`Canva ${res.status}: ${(await res.text()).slice(0, 300)}`);
   return res.json();
