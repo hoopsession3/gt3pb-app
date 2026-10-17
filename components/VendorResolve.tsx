@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import type { VendorMatch } from "@/lib/vendorLink";
 import Button from "./Button";
+import { useHydrated } from "@/lib/clientState";
 
 // THE look-alike confirm sheet (0226) — one component, every create path. When a typed vendor name
 // is ≥40% similar to one already in the book, the DB refuses to mint it silently; this sheet is
@@ -29,8 +30,7 @@ export default function VendorResolve({
   onSkip?: () => void;                        // quick-add paths: proceed with no vendor at all
   onClose: () => void;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useHydrated();   // a store since R17 (lib/clientState): false on the server and while hydrating
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
     window.addEventListener("keydown", onKey, true);

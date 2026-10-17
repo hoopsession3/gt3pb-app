@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { MENU_SLUG_FLAGS } from "@/lib/packlist";
 import Icon from "@/components/Icon";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // MENU & RIG CHIPS — the ONE editor for the menu/rig/site flags that events and stops share
 // (menu_*, rig, power_available, water_available). The July 2026 redundancy audit found two
@@ -86,14 +87,16 @@ export default function MenuRigChips({ value, onPatch, variant, ownerType, owner
 
   // Relation state (0173): which product slugs this event/stop pours.
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const loadPicked = useCallback(async () => {
-    if (!supabase || !ownerCol || !ownerId) return;
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead). Another event opened mid-read never lands the last one's menu.
+  const readPicked = useLatestRead();
+  const loadPicked = useCallback(() => readPicked(async () => (supabase && ownerCol && ownerId
+    ? await supabase.from("event_menu_items").select("product_slug").eq(ownerCol, ownerId)
+    : null), (r) => {
     // An empty set here means "nothing is on this event's menu". On a failed read that is a lie
     // the crew would pack against, so the previous selection stands rather than being cleared.
-    const { data, error } = await supabase.from("event_menu_items").select("product_slug").eq(ownerCol, ownerId);
-    if (error) return;
-    setPicked(new Set((((data as { product_slug: string }[] | null) ?? [])).map((r) => r.product_slug)));
-  }, [ownerCol, ownerId]);
+    if (!r || r.error) return;
+    setPicked(new Set((((r.data as { product_slug: string }[] | null) ?? [])).map((x) => x.product_slug)));
+  }), [readPicked, ownerCol, ownerId]);
   useEffect(() => { loadPicked(); }, [loadPicked]);
 
   const toggleProduct = async (slug: string) => {

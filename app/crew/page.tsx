@@ -43,6 +43,8 @@ import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
 import { refreshLive, useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
+import { useChanged } from "@/lib/useChanged";
+import { useLatestRead } from "@/lib/useLatestRead";
 import AsyncSection from "@/components/AsyncSection";
 import Owed from "@/components/Owed";  // daily path: the overdue list is on the default screen
 import HomeNumbers from "@/components/HomeNumbers";  // daily path: the home's three numbers
@@ -587,7 +589,8 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
   // The counts are read for the alerts listed: again when that list changes — not on every read of the alerts — and when
   // a comment on one of them changes — not on every comment anywhere in the business (R13 — the 10/10 audit, F15).
   const ids = useMemo(() => mine.map((r) => r.id).sort().join(","), [mine]);
-  const loadCounts = useCallback(async () => { setCounts(await commentCounts("alert_id", ids ? ids.split(",") : [])); }, [ids]);
+  const readCounts = useLatestRead();   // read, then set — the newest read's answer only (R17, lib/useLatestRead)
+  const loadCounts = useCallback(() => readCounts(() => commentCounts("alert_id", ids ? ids.split(",") : []), setCounts), [readCounts, ids]);
   useEffect(() => { loadCounts(); }, [loadCounts]);
   useRealtimeTable({ table: "comments", filter: `alert_id=in.(${ids})` }, loadCounts, { enabled: !!ids });
   // Respond immediately: reservation alerts pop the drop sheet right here; everything else jumps
@@ -814,14 +817,16 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
   const [picked, setPicked] = useState<Record<string, string>>({});
   const replyRef = useRef<HTMLInputElement | null>(null);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const read = useLatestRead();   // read, then set — the newest read's answer only (R17, lib/useLatestRead)
+  const load = useCallback(() => read(async () => (supabase
     // "No notes on this stop" is a claim about the record, not about the network. Say which.
-    const { data, error } = await supabase.from("comments").select("*").eq(subject.col, subject.id).order("created_at");
-    if (error) { setCmtFailed(true); return; }
+    ? await supabase.from("comments").select("*").eq(subject.col, subject.id).order("created_at")
+    : null), (r) => {
+    if (!r) return;
+    if (r.error) { setCmtFailed(true); return; }
     setCmtFailed(false);
-    setComments((data as Comment[]) ?? []);
-  }, [subject.col, subject.id]);
+    setComments((r.data as Comment[]) ?? []);
+  }), [read, subject.col, subject.id]);
   useEffect(() => {
     load();
     if (!supabase) return;
@@ -934,13 +939,15 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
   type Inc = { id: string; problem: string; severity: string; resolved: boolean; created_at: string; symptom: string | null };
   const [rows, setRows] = useState<Inc[]>([]);
   const [incFailed, setIncFailed] = useState(false);
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const { data, error } = await supabase.from("incident_log").select("id, problem, severity, resolved, created_at, symptom").eq(ownerCol, ownerId).order("created_at", { ascending: false });
-    if (error) { setIncFailed(true); return; }
+  const read = useLatestRead();   // read, then set — the newest read's answer only (R17, lib/useLatestRead)
+  const load = useCallback(() => read(async () => (supabase
+    ? await supabase.from("incident_log").select("id, problem, severity, resolved, created_at, symptom").eq(ownerCol, ownerId).order("created_at", { ascending: false })
+    : null), (r) => {
+    if (!r) return;
+    if (r.error) { setIncFailed(true); return; }
     setIncFailed(false);
-    setRows((data as Inc[]) ?? []);
-  }, [ownerCol, ownerId]);
+    setRows((r.data as Inc[]) ?? []);
+  }), [read, ownerCol, ownerId]);
   useEffect(() => { load(); }, [load]);
   useRealtimeTable({ table: "incident_log", filter: `${ownerCol}=eq.${ownerId}` }, load);
   const toggle = async (r: Inc) => {
@@ -991,14 +998,14 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
   const [f, setF] = useState<MenuRigValue | null>(null);
   const [open, setOpen] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  const read = useLatestRead();   // read, then set — the newest read's answer only (R17, lib/useLatestRead)
+  const load = useCallback(() => read(async () => (supabase ? await supabase.from(table).select(MENU_RIG_COLUMNS).eq("id", ownerId).maybeSingle() : null), (r) => {
+    if (!r) return;
     // `?? {}` made f truthy on a failed read, so the guard below passed and every rig field
     // rendered blank — a menu that looks unset rather than unread. Null keeps the panel closed.
-    const { data, error } = await supabase.from(table).select(MENU_RIG_COLUMNS).eq("id", ownerId).maybeSingle();
-    if (error) { setF(null); return; }
-    setF((data as MenuRigValue | null) ?? {});
-  }, [table, ownerId]);
+    if (r.error) { setF(null); return; }
+    setF((r.data as MenuRigValue | null) ?? {});
+  }), [read, table, ownerId]);
   useEffect(() => { load(); }, [load]);
 
   // A chip that did not save goes back to what is saved, and says so (2026-10-04). The write's
@@ -1051,11 +1058,8 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
     };
   }, [opsTable, ownerCol, ownerId]);
   // Seed the editable copy from the fetch/reload — Cancel and realtime both flow back through here.
-  useEffect(() => {
-    if (!briefState.data) return;
-    setDress(briefState.data.dress);
-    setBrief(briefState.data.brief);
-  }, [briefState.data]);
+  // During render, not by an effect (R17, lib/useChanged): a fresh load seeds the copy before anything is drawn.
+  if (useChanged(briefState.data) && briefState.data) { setDress(briefState.data.dress); setBrief(briefState.data.brief); }
 
   const save = async () => {
     if (!supabase) return;
@@ -1237,16 +1241,16 @@ function MyTasks({ userId, anchor = true }: { userId: string | null; anchor?: bo
   // reassuring sentence on the screen, said about a list it never saw.
   const [err, setErr] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    // ONE task read: the all_tasks spine view (0210, enriched by 0225), in lib/myTasks — the same
-    // plate the WorkloadBoard and the home's Today list read, so task surfaces can't drift apart
-    // again. Op context rides the field_ops spine, which is why a STOP-owned task shows its stop's name.
-    const { rows, error } = await loadMyTasks(userId);
+  const read = useLatestRead();   // read, then set — the newest read's answer only (R17, lib/useLatestRead)
+  // ONE task read: the all_tasks spine view (0210, enriched by 0225), in lib/myTasks — the same
+  // plate the WorkloadBoard and the home's Today list read, so task surfaces can't drift apart
+  // again. Op context rides the field_ops spine, which is why a STOP-owned task shows its stop's name.
+  const load = useCallback(() => read(() => loadMyTasks(userId), ({ rows, error }) => {
     if (error) { setErr(error); setLoaded(true); return; }
     setErr(null);
     setTasks(rows);
     setLoaded(true);
-  }, [userId]);
+  }), [read, userId]);
 
   useEffect(() => { load(); }, [load]);
   useRealtimeTable({ table: "event_tasks", filter: `assignee=eq.${userId}` }, load, { enabled: !!userId });
@@ -1695,19 +1699,20 @@ function GarageSection() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [liveStopId, setLiveStopId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const [e, s, l] = await Promise.all([
-      supabase.from("events").select("*").is("archived_at", null),
-      supabase.from("stops").select("*").is("archived_at", null).neq("status", "done"),
-      supabase.from("live_status").select("current_stop_id, is_live").maybeSingle(),
-    ]);
+  const read = useLatestRead();   // read, then set — the newest read's answer only (R17, lib/useLatestRead)
+  const load = useCallback(() => read(async () => (supabase ? await Promise.all([
+    supabase.from("events").select("*").is("archived_at", null),
+    supabase.from("stops").select("*").is("archived_at", null).neq("status", "done"),
+    supabase.from("live_status").select("current_stop_id, is_live").maybeSingle(),
+  ]) : null), (r) => {
+    if (!r) return;
+    const [e, s, l] = r;
     setEvents((e.data as EventRow[]) ?? []);
     setStops((s.data as Stop[]) ?? []);
     const ls = l.data as { current_stop_id: string | null; is_live: boolean | null } | null;
     setLiveStopId(ls?.is_live ? ls.current_stop_id : null);
     setLoaded(true);
-  }, []);
+  }), [read]);
   useEffect(() => { load(); }, [load]);
   useRealtimeTable(["events", "stops", "live_status"], load);
   return <Garage events={events} stops={stops} liveStopId={liveStopId} loaded={loaded} />;
@@ -1809,8 +1814,9 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const [onHand, setOnHand] = useState<{ item: string; bal: number }[]>([]); // carried-in stock (ledger balance)
   const [onHandFailed, setOnHandFailed] = useState(false); // read failed ≠ nothing carried in
 
-  const loadOnHand = useCallback(async () => {
-    if (!supabase) return;
+  const readOnHand = useLatestRead();   // read, then set — the newest read's answer only (R17, lib/useLatestRead)
+  const loadOnHand = useCallback(() => readOnHand(async () => (supabase ? await supabase.from("inventory_on_hand").select("item, on_hand").eq("market", market) : null), (r) => {
+    if (!r) return;
     // The balance has a canonical home — public.inventory_on_hand, which 0288 fixed to group by
     // (item, MARKET). This screen used to fetch every ledger row and re-add them up here, grouped by
     // item alone, which is the exact defect 0288 exists to prevent, still running in the browser.
@@ -1820,14 +1826,13 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     // non-empty, so a blip did not show an error, it showed a truck with nothing carried in, to the
     // person deciding what to load. Empty and broken must not look the same when somebody is about
     // to pack against the answer.
-    const { data, error } = await supabase.from("inventory_on_hand").select("item, on_hand").eq("market", market);
-    if (error) { setOnHandFailed(true); return; } // keep whatever is on screen and say so instead
+    if (r.error) { setOnHandFailed(true); return; } // keep whatever is on screen and say so instead
     setOnHandFailed(false);
-    setOnHand(((data as { item: string; on_hand: number | string }[]) ?? [])
-      .map((r) => ({ item: r.item, bal: Number(r.on_hand) }))
+    setOnHand(((r.data as { item: string; on_hand: number | string }[]) ?? [])
+      .map((x) => ({ item: x.item, bal: Number(x.on_hand) }))
       .filter((x) => Number.isFinite(x.bal) && Math.abs(x.bal) > 0.0001)
       .sort((a, b) => a.item.localeCompare(b.item)));
-  }, [market]);
+  }), [readOnHand, market]);
   useEffect(() => { loadOnHand(); }, [loadOnHand]);
 
   const prepState = useAsyncData<true>(async () => {
@@ -2519,11 +2524,12 @@ function SupplyPicker({ ev, title, have, onAdd, onClose }: {
   useEffect(() => { fetchInventory().then(setInv); fetchAssets().then(setAssets); }, []);
   // Pre-check the consumables this event actually draws on (from its menu/rig answers).
   // A stop has no menu/rig, so nothing is pre-selected — the operator picks what to bring.
-  useEffect(() => {
-    if (!inv || !ev) return;
+  // Seeded as the inventory or the event arrives, during render (R17, lib/useChanged) — not by an effect a render later.
+  const invNew = useChanged(inv), evNew = useChanged(ev);
+  if ((invNew || evNew) && inv && ev) {
     const relevant = inventoryForEvent(inv.items, ev).relevant;
     setSel(new Set(relevant.filter((it) => !have.has(it.name.trim().toLowerCase())).map((it) => it.name)));
-  }, [inv, ev]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   // Merge both catalogs into one list (inventory wins on a name clash so qty/critical stick).
   const invItems: SupplyItem[] = (inv?.items ?? []).map((it) => ({ name: it.name, category: it.category || "Supplies", qty: it.qty, unit: it.unit, critical: it.critical }));
@@ -2679,7 +2685,7 @@ function MeetingNotes() {
   const load = notesState.reload;
   // `notes` stays the editable/optimistic local copy (onVisibility below patches it directly on a
   // successful save, no round trip) — reseed it from the fetch on every load/reload.
-  useEffect(() => { if (notesState.data) setNotes(notesState.data); }, [notesState.data]);
+  if (useChanged(notesState.data) && notesState.data) setNotes(notesState.data);   // during render (R17, lib/useChanged)
   useEffect(() => {
     if (!supabase) return;
     // These five feed the "what is this note about?" pickers. Swallowed, a failure offered nothing
@@ -2951,20 +2957,27 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   const [addSaving, setAddSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const [{ data }, { data: adds }, { data: fls }] = await Promise.all([
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead). The note's own comment count rides with the
+  // first reads; the tasks' counts need the tasks; all of it is set together, so no count is drawn as 0 and then fills in.
+  const read = useLatestRead();
+  const load = useCallback(() => read(async () => {
+    if (!supabase) return null;
+    const [{ data }, { data: adds }, { data: fls }, noteCounts] = await Promise.all([
       supabase.from("event_tasks").select("*").or(`meeting_note_id.eq.${note.id},origin_note_id.eq.${note.id}`).order("sort"),
       supabase.from("note_addenda").select("*").eq("note_id", note.id).order("created_at"),
       supabase.from("note_files").select("*").eq("note_id", note.id).order("created_at"),
+      commentCounts("meeting_note_id", [note.id]),
     ]);
     const rows = (data as EventTask[]) ?? [];
-    setItems(rows);
-    setAddenda((adds as NoteAddendum[]) ?? []);
-    setFiles((fls as NoteFile[]) ?? []);
-    setCounts(await commentCounts("event_task_id", rows.map((r) => r.id)));
-    setNoteCmts((await commentCounts("meeting_note_id", [note.id]))[note.id] ?? 0);
-  }, [note.id]);
+    return { rows, adds: (adds as NoteAddendum[]) ?? [], fls: (fls as NoteFile[]) ?? [], taskCounts: await commentCounts("event_task_id", rows.map((r) => r.id)), noteCount: noteCounts[note.id] ?? 0 };
+  }, (r) => {
+    if (!r) return;
+    setItems(r.rows);
+    setAddenda(r.adds);
+    setFiles(r.fls);
+    setCounts(r.taskCounts);
+    setNoteCmts(r.noteCount);
+  }), [read, note.id]);
   useEffect(() => {
     if (!open) return;
     load();
@@ -3360,7 +3373,7 @@ function Bookings() {
   const load = bookingsState.reload;
   // reqs stays the editable/optimistic local copy — del() below removes a row instantly, before
   // the round-trip — reseeded from the fetch on every load/reload.
-  useEffect(() => { if (bookingsState.data) setReqs(bookingsState.data.reqs); }, [bookingsState.data]);
+  if (useChanged(bookingsState.data) && bookingsState.data) setReqs(bookingsState.data.reqs);   // during render (R17, lib/useChanged)
   useRealtimeTable(["booking_requests"], load);
 
   const setStatus = async (id: string, status: BookingRequest["status"]) => {
@@ -3783,7 +3796,9 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState(false);
   // Keep the loyalty inputs honest if a realtime reload changes them underneath us.
-  useEffect(() => { setPts(m.points); setCredit(moneyPlain(m.credit_cents)); setFounding(m.founding_member); }, [m.points, m.credit_cents, m.founding_member]);
+  // During render (R17, lib/useChanged): the inputs follow the record the moment it changes, not a render later.
+  const ptsNew = useChanged(m.points), creditNew = useChanged(m.credit_cents), foundingNew = useChanged(m.founding_member);
+  if (ptsNew || creditNew || foundingNew) { setPts(m.points); setCredit(moneyPlain(m.credit_cents)); setFounding(m.founding_member); }
   const dirty = name !== (m.display_name ?? "") || pts !== m.points || credit !== moneyPlain(m.credit_cents) || founding !== m.founding_member;
 
   const save = async () => {
@@ -3877,7 +3892,7 @@ function Members() {
     return (data as Profile[]) ?? [];
   }, []);
   const [members, setMembers] = useState<Profile[]>([]);
-  useEffect(() => { if (membersState.data) setMembers(membersState.data); }, [membersState.data]);
+  if (useChanged(membersState.data) && membersState.data) setMembers(membersState.data);   // during render (R17, lib/useChanged)
   // Optimistic local patch so a role pick reflects instantly, before the round-trip.
   const patch = useCallback((id: string, role: string) =>
     setMembers((ms) => ms.map((x) => (x.id === id ? { ...x, role: role as Profile["role"] } : x))), []);
@@ -3965,20 +3980,20 @@ function EventHUD() {
   const [stats, setStats] = useState<{ cents: number; orders: number; firstAt: string | null }>({ cents: 0, orders: 0, firstAt: null });
   const [econ, setEcon] = useState<EventEcon | null>(null);
   const [catalog, setCatalog] = useState<ProductEcon[]>([]);
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead): the live event and what goes with it land
+  // together, so the HUD never draws a live event with the last one's numbers.
+  const read = useLatestRead();
+  const load = useCallback(() => read(async () => {
+    if (!supabase) return null;
     const { data: e } = await supabase.from("events").select("*").eq("is_live", true).maybeSingle();
-    setEv((e as EventRow) ?? null);
     if (!e) {
-      setStats({ cents: 0, orders: 0, firstAt: null });
       // Nothing live: say what IS coming, instead of an empty box. Not archived, not done, today
       // or later on the operator's calendar, soonest first.
       const { data: nx, error: nxErr } = await supabase.from("v_event_record")
         .select("id, title, day, stage, phase, tasks, tasks_open, tasks_critical_open, staff, sales_count, recap")
         .is("archived_at", null).neq("stage", "done").gte("day", localToday())
         .order("day", { ascending: true }).limit(1).maybeSingle();
-      setNext(nxErr ? "error" : ((nx as NextEvent | null) ?? null));
-      return;
+      return { live: null, next: nxErr ? ("error" as const) : ((nx as NextEvent | null) ?? null) };
     }
     const eid = (e as EventRow).id;
     const [{ data: ords }, { data: sales }, { data: cat }, { data: ec }] = await Promise.all([
@@ -3997,10 +4012,20 @@ function EventHUD() {
       .filter((x) => !x.square_payment_id || !linked.has(x.square_payment_id));
     const cents = o.filter((x) => x.paid).reduce((a, x) => a + x.total_cents, 0) + s.reduce((a, x) => a + x.amount_cents, 0);
     const times = [...o.map((x) => x.created_at), ...s.map((x) => x.created_at)].filter(Boolean).sort();
-    setStats({ cents, orders: o.length + s.length, firstAt: times[0] ?? null });
-    setCatalog((cat as ProductEcon[]) ?? []);
-    setEcon((ec as EventEcon) ?? null);
-  }, []);
+    return { live: { ev: e as EventRow, stats: { cents, orders: o.length + s.length, firstAt: times[0] ?? null }, catalog: (cat as ProductEcon[]) ?? [], econ: (ec as EventEcon) ?? null } };
+  }, (r) => {
+    if (!r) return;
+    if (!r.live) {
+      setEv(null);
+      setStats({ cents: 0, orders: 0, firstAt: null });
+      setNext(r.next);
+      return;
+    }
+    setEv(r.live.ev);
+    setStats(r.live.stats);
+    setCatalog(r.live.catalog);
+    setEcon(r.live.econ);
+  }), [read]);
   useEffect(() => { load(); }, [load]);
   // Reconcile every 15s while an event is live, so Square POS walk-ups + the $/hr clock advance even if
   // a realtime event is missed (matches the KDS's reconcile). Nothing live, nothing to poll.
@@ -4082,7 +4107,7 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
   onSave: (econ: EventEcon) => void;
 }) {
   const [econ, setEcon] = useState<EventEcon>(econRow ?? DEFAULT_ECON);
-  useEffect(() => { if (econRow) setEcon(econRow); }, [econRow]);
+  if (useChanged(econRow) && econRow) setEcon(econRow);   // a fresh row from the parent, during render (R17, lib/useChanged)
   const proj = useMemo(() => projectEvent(e, econ, catalog), [e, econ, catalog]);
   const live = (patch: Partial<EventEcon>) => setEcon((p) => ({ ...p, ...patch }));   // live gauge
   const commit = () => onSave(econ);                                                    // persist
@@ -4554,12 +4579,11 @@ function EventsAdmin() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [catalog, setCatalog] = useState<ProductEcon[]>([]);
   const [econMap, setEconMap] = useState<Record<string, EventEcon>>({});
-  useEffect(() => {
-    if (!eventsState.data) return;
+  if (useChanged(eventsState.data) && eventsState.data) {   // during render (R17, lib/useChanged)
     setEvents(eventsState.data.events);
     setCatalog(eventsState.data.catalog);
     setEconMap(eventsState.data.econMap);
-  }, [eventsState.data]);
+  }
 
   // upsert the full econ row (keeps DB authoritative copy in sync with the panel)
   const saveEcon = async (id: string, econ: EventEcon) => {
@@ -4904,13 +4928,12 @@ function VendorsAdmin() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [dupes, setDupes] = useState<DupePair[]>([]);
-  useEffect(() => {
-    if (!vendorsState.data) return;
+  if (useChanged(vendorsState.data) && vendorsState.data) {   // during render (R17, lib/useChanged)
     setVendors(vendorsState.data.vendors);
     setStops(vendorsState.data.stops);
     setEvents(vendorsState.data.events);
     setDupes(vendorsState.data.dupes);
-  }, [vendorsState.data]);
+  }
   // ONE resolver (0226): exact → open the existing record · look-alike → the confirm sheet ·
   // clean miss → create approved (this is the deliberate vendor book, not an on-the-fly add).
   const add = async (name: string, decision?: ResolveDecision) => {
@@ -5194,11 +5217,12 @@ function Panel({ title, sub, value, id, defaultOpen = false, remember = true, ch
   title: string; sub?: string; value?: ReactNode; id: string; defaultOpen?: boolean; remember?: boolean; children: ReactNode;
 }) {
   const storeKey = `gt3-mpanel-${id}`;
-  const [open, setOpen] = useState(defaultOpen);
-  useEffect(() => {
-    if (!remember) return;
-    try { const v = localStorage.getItem(storeKey); if (v !== null) setOpen(v === "1"); } catch { /* ignore */ }
-  }, [storeKey, remember]);
+  // Whether it was left open, read once as it is made (R17): the console draws nothing until the session is known (see
+  // guideAsked below), so this first draw is the phone's own — no effect setting it a render later.
+  const [open, setOpen] = useState(() => {
+    if (!remember) return defaultOpen;
+    try { const v = localStorage.getItem(storeKey); return v === null ? defaultOpen : v === "1"; } catch { return defaultOpen; }
+  });
   const keep = useCallback((n: boolean) => {
     if (!remember) return;
     try { localStorage.setItem(storeKey, n ? "1" : "0"); } catch { /* ignore */ }
@@ -5501,7 +5525,9 @@ export default function AdminPage() {
   // known, so the first paint cannot disagree with the server's), and taken off the address.
   const [guideAsked] = useState<string | null>(() => readParam("guide"));
   useEffect(() => { if (guideAsked) dropParam("guide"); }, [guideAsked]);
-  const [guide, setGuide] = useState<null | "start" | "sections">(() => (guideAsked ? (guideAsked === "sections" ? "sections" : "start") : null));
+  // First run (the phone has never opened it): it opens on Start here, read in the initializer like ?guide= (R17).
+  const [firstRun] = useState(() => { try { return !localStorage.getItem("gt3-guide-seen"); } catch { return false; } });
+  const [guide, setGuide] = useState<null | "start" | "sections">(() => (guideAsked ? (guideAsked === "sections" ? "sections" : "start") : firstRun ? "start" : null));
   const [inboxOpen, setInboxOpen] = useState(false);
   const [laneMenu, setLaneMenu] = useState(false);
   // The header 🔔 badge, for EVERY role (2026-10-04). It was gated on canManage — the leader-only rule
@@ -5518,10 +5544,9 @@ export default function AdminPage() {
   // (2026-10-08): someone on the crew side for the first time on a phone needs the first day before
   // the vocabulary — and a phone that came by the letter's link has already opened it there.
   useEffect(() => {
-    try {
-      if (!localStorage.getItem("gt3-guide-seen")) { localStorage.setItem("gt3-guide-seen", "1"); setGuide((g) => g ?? "start"); }
-    } catch { /* ignore */ }
-  }, []);
+    if (!firstRun) return;
+    try { localStorage.setItem("gt3-guide-seen", "1"); } catch { /* ignore */ }
+  }, [firstRun]);
   // Cross-route deep link: /crew?s=settings&a=set-copy (or a specific copy group, e.g. sc-craft-page
   // from the owner-only Edit pill on a live page) lands on the right SECTION via
   // OperatorSectionProvider's own ?s= hydration; this consumes the matching ?a= once that section has
@@ -5563,7 +5588,7 @@ export default function AdminPage() {
     window.addEventListener("gt3-customer-view", leave);
     return () => { window.removeEventListener("gt3-open-guide", open); window.removeEventListener("gt3-customer-view", leave); };
   }, [router]);
-  useEffect(() => { setInboxOpen(false); }, [sec]);
+  if (useChanged(sec)) setInboxOpen(false);   // a new section closes the inbox, during render (R17, lib/useChanged)
   // Utilization (0267): each section visit is an action ping — "last action" reads like
   // "crew:command" in the report. Throttled inside lib/track (1/15s), fire-and-forget.
   useEffect(() => { import("@/lib/track").then((m) => m.trackUser(`crew:${sec}`), () => {}); }, [sec]);
@@ -5603,10 +5628,12 @@ export default function AdminPage() {
   // Leaving Live Ops closes it — and a section left after the Pass was on it forgets it; the page's first section, before
   // the address's ?s=now lands, is not a leaving.
   const sectionWas = useRef(section);
+  // The Pass's open state follows the section during render (R17, lib/useChanged); the phone's memory of it, which is
+  // outside React, in the effect.
+  if (useChanged(section) && section !== "now") setSvc((v) => (v ? false : v));
   useEffect(() => {
     if (sectionWas.current === "now" && section !== "now") keepPassOpen(false);
     sectionWas.current = section;
-    if (section !== "now") setSvc((v) => (v ? false : v));
   }, [section]);
   useEffect(() => {
     if (!svc) return;

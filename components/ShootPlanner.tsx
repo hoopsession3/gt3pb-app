@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useApp } from "./AppProvider";
@@ -14,6 +14,7 @@ import { useCrew, crewLabel } from "./useCrew";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { errorMessage } from "@/lib/errorMessage";
 import { wrote } from "@/lib/wrote";
+import { useChanged } from "@/lib/useChanged";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -58,9 +59,8 @@ export default function ShootPlanner() {
 
   // Mirror the fetched board into local state so the per-row edit handlers below (none of which
   // ever reloaded) keep working exactly as they did — the mirror resyncs on every successful load.
-  useEffect(() => {
-    if (board.data) { setShoots(board.data.shoots); setShots(board.data.shots); }
-  }, [board.data]);
+  // (During render since R17 — lib/useChanged — so a load is drawn once, not first with the old mirror.)
+  if (useChanged(board.data) && board.data) { setShoots(board.data.shoots); setShots(board.data.shots); }
 
   const createShoot = async (title: string) => {
     if (!supabase) return;

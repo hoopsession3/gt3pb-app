@@ -13,54 +13,85 @@ import { useLatest } from "./useLatest";
 export type AsyncStatus = "loading" | "error" | "ready";
 export type AsyncData<T> = { status: AsyncStatus; data: T | null; error: Error | null; reload: () => Promise<void>; refreshing: boolean };
 
+/** The same deps, as React compares an effect's: the same length, each Object.is the last. Pure. */
+export function sameDeps(a: React.DependencyList, b: React.DependencyList): boolean {
+  return a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
+}
+
+type Settled<T> = { depsGen: number; reloadGen: number; ok: boolean; data: T | null; error: Error | null };
+
+/** What the screen shows, read off what was asked for and what has answered (R17). Pure (scripts/r17.test.mjs). */
+export function shownFrom<T>(settled: Settled<T> | null, depsGen: number, reloadGen: number): { status: AsyncStatus; data: T | null; error: Error | null; refreshing: boolean } {
+  const data = settled?.data ?? null;
+  if (settled !== null && settled.depsGen === depsGen && settled.reloadGen === reloadGen) {
+    return { status: settled.ok || data !== null ? "ready" : "error", data, error: settled.error, refreshing: false };
+  }
+  // A load is out. Stale-while-revalidate: only a genuine first load (nothing to show yet) is "loading" — a reload with
+  // data on screen keeps showing it and says `refreshing`. Unconditionally blanking on every reload flashed the whole
+  // section to a bare "Loading…" on every save (losing scroll position and any in-progress edit in a sibling row).
+  return { status: data !== null ? "ready" : "loading", data, error: null, refreshing: data !== null };
+}
+
 export function useAsyncData<T>(loader: () => Promise<T>, deps: React.DependencyList = []): AsyncData<T> {
-  const [status, setStatus] = useState<AsyncStatus>("loading");
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  // Race guard: a slow, superseded load (deps changed mid-flight, or reload() fired twice) must
-  // never overwrite a newer one with stale data — this is the exact bug the ad-hoc safe() wrappers
-  // never covered, since they only checked truthiness, not which request was still current.
-  const gen = useRef(0);
   const loaderRef = useLatest(loader);
-  // Mirrors `data` for run()'s closure without needing `data` in its deps (run must stay a stable
-  // identity — it's exposed as `reload` and plenty of callers pass it to useRealtimeTable/effects).
-  const dataRef = useRef<T | null>(null);
 
-  const run = useCallback(() => {
-    const myGen = ++gen.current;
-    // Stale-while-revalidate: only blank the UI to the full "loading" state on a genuine first load
-    // (no data yet). A reload() with existing data — after a save, a realtime nudge, a dep change —
-    // keeps rendering what's there and just flags `refreshing`. Unconditionally re-loading on every
-    // mutation was flashing the whole section to a bare "Loading…" on every save (losing scroll
-    // position and any in-progress edit in a sibling row) — worse than briefly showing stale data.
-    if (dataRef.current === null) setStatus("loading"); else setRefreshing(true);
-    setError(null);
-    return loaderRef
-      .current()
-      .then((result) => {
-        if (gen.current !== myGen) return; // superseded — drop it
-        dataRef.current = result;
-        setData(result);
-        setStatus("ready");
-        setRefreshing(false);
-      })
-      .catch((err) => {
-        if (gen.current !== myGen) return;
-        // A read the database refused for a reason that is ours — a column, a grant, a view — is reported, not only drawn
-        // as "couldn't load" (R13 — the 10/10 audit, F17, lib/failureReport). A lost signal and a person's refusal are not.
-        reportFailure("load", err as { code?: string; message?: string });
-        setRefreshing(false);
-        setError(err instanceof Error ? err : new Error(String(err)));
-        // Same principle for failures: a transient refetch error with data already on screen
-        // shouldn't nuke it to a hard error card — only surface "error" when there's nothing to
-        // fall back to. `error` is still set either way, for a caller that wants to show a toast.
-        if (dataRef.current === null) setStatus("error");
-      });
-  }, [loaderRef]);   // the same object every render (lib/useLatest): run keeps one identity, as before
+  // WHAT IS ASKED FOR, KEPT AS STATE (R17, 2026-10-17 — the lint ceiling's set-state-in-effect). A load starts when the
+  // deps change or reload() is called, and the effect that starts it set "loading" or "refreshing" first — a second
+  // render for every load, right after the first. Now each ask is a number: the deps' (moved while rendering, the way
+  // React adjusts state when a prop changes) and reload()'s (moved by the call). The answer is kept with the numbers it
+  // answers, and loading, refreshing and the error are read off the two while rendering (shownFrom). The effect only
+  // starts the load; its answer is set when it comes.
+  const [seenDeps, setSeenDeps] = useState<React.DependencyList>(deps);
+  const [depsGen, setDepsGen] = useState(0);
+  if (!sameDeps(seenDeps, deps)) { setSeenDeps(deps); setDepsGen((g) => g + 1); }
+  const [reloadGen, setReloadGen] = useState(0);
+  const [settled, setSettled] = useState<Settled<T> | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { run(); }, deps);
+  // reload() answers when its load has: the callers that await it (a save, then the toast) wait for the read it asked
+  // for. The numbers handed out, and who is waiting on which — refs, written only by reload() and by an answer.
+  const asked = useRef(0);
+  const waiting = useRef<{ gen: number; done: () => void }[]>([]);
 
-  return { status, data, error, reload: run, refreshing };
+  useEffect(() => {
+    // Race guard: a slow, superseded load (deps changed mid-flight, or reload() fired twice) must never overwrite a
+    // newer one with stale data — the effect's cleanup marks it dead before the next one starts.
+    let live = true;
+    const answered = () => {
+      waiting.current = waiting.current.filter((w) => { if (w.gen > reloadGen) return true; w.done(); return false; });
+    };
+    // A load overtaken by a newer one draws nothing, but whoever awaits it is still let go when it answers — as the load's
+    // own promise was, before R17: under a stream of reloads the newest is always still out, and a save waiting for it
+    // would never say "saved" (the R17 review).
+    loaderRef.current().then(
+      (data) => {
+        if (live) setSettled({ depsGen, reloadGen, ok: true, data, error: null });
+        answered();
+      },
+      (err) => {
+        if (live) {
+          // A read the database refused for a reason that is ours — a column, a grant, a view — is reported, not only drawn
+          // as "couldn't load" (R13 — the 10/10 audit, F17, lib/failureReport). A lost signal and a person's refusal are not.
+          reportFailure("load", err as { code?: string; message?: string });
+          const error = err instanceof Error ? err : new Error(String(err));
+          // A transient refetch error with data already on screen keeps it — "error" only when there is nothing to fall
+          // back to (shownFrom). `error` is still set either way, for a caller that wants to show a toast.
+          setSettled((was) => ({ depsGen, reloadGen, ok: false, data: was?.data ?? null, error }));
+        }
+        answered();
+      },
+    );
+    return () => { live = false; };
+  }, [depsGen, reloadGen, loaderRef]);
+
+  // Gone before an answer came: whoever awaits a reload is let go, as the load's own promise always settled.
+  useEffect(() => () => { for (const w of waiting.current) w.done(); waiting.current = []; }, []);
+
+  // A stable identity: it is exposed as `reload` and plenty of callers pass it to useRealtimeTable or to effects.
+  const reload = useCallback(() => new Promise<void>((done) => {
+    const gen = ++asked.current;
+    waiting.current.push({ gen, done });
+    setReloadGen(gen);
+  }), []);
+
+  return { ...shownFrom(settled, depsGen, reloadGen), reload };
 }

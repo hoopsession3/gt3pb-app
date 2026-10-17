@@ -9,6 +9,7 @@ import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { haptic } from "@/lib/haptics";
 import { SectionHeader } from "@/components/kit";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // THE 86 BOARD — sell out of an item from where the rush actually happens (the Now screen, right
 // under the pass), not three taps deep in Money. One chip per active product: tap to 86, tap to
@@ -26,16 +27,18 @@ export default function EightySix() {
   const market = homeMarket(profile) ?? FOUNDING_MARKET;
   const [rows, setRows] = useState<Prod[]>([]);
   const [here, setHere] = useState<ReadonlyMap<string, string>>(new Map());   // product id → when it was 86'd in this city
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const [p, c] = await Promise.all([
-      supabase.from("products").select("id, slug, name, sold_out, sold_out_at").eq("active", true).order("sort"),
-      supabase.from("product_86").select("product_id, sold_out_at").eq("market", market),
-    ]);
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead). A switch of city mid-read never lands the last city's 86s.
+  const read = useLatestRead();
+  const load = useCallback(() => read(async () => (supabase ? await Promise.all([
+    supabase.from("products").select("id, slug, name, sold_out, sold_out_at").eq("active", true).order("sort"),
+    supabase.from("product_86").select("product_id, sold_out_at").eq("market", market),
+  ]) : null), (r) => {
+    if (!r) return;
+    const [p, c] = r;
     if (p.data) setRows(p.data as Prod[]);
     // A city's 86s that did not answer keep what the board last knew — never "none out here".
-    if (!c.error) setHere(new Map(((c.data as { product_id: string; sold_out_at: string }[] | null) ?? []).map((r) => [r.product_id, r.sold_out_at])));
-  }, [market]);
+    if (!c.error) setHere(new Map(((c.data as { product_id: string; sold_out_at: string }[] | null) ?? []).map((x) => [x.product_id, x.sold_out_at])));
+  }), [read, market]);
   useEffect(() => { load(); }, [load]);
   useRealtimeTable(["products", "product_86"], load);
 

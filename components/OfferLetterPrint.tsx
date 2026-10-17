@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { MARKET_LABEL, toMarket } from "@/lib/markets";
 import { ROLE_ACCESS, toRoleKey, money, STATUTORY_FIELDS } from "@/lib/offerLetter";
@@ -8,6 +8,7 @@ import { roleLabel } from "@/lib/roles";
 import { payAtVolumes, DEFAULT_VOLUMES } from "@/lib/dealExplainer";
 import { etToday } from "@/lib/dates";
 import { printPage } from "@/lib/deviceActions";
+import { useHydrated } from "@/lib/clientState";
 
 // THE LETTER, AS A LETTER (0286).
 //
@@ -41,8 +42,7 @@ const longDate = (iso?: string | null) =>
     { year: "numeric", month: "long", day: "numeric" }) : null;
 
 export default function OfferLetterPrint({ row, onClose }: { row: LetterRow; onClose: () => void }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useHydrated();   // a store since R17 (lib/clientState): false on the server and while hydrating
 
   // The print rule keys off a class on <body>, because the sheet is portalled and everything else
   // that must disappear is a sibling of it, not a descendant.

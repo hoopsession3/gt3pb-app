@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useLatest } from "@/lib/useLatest";
+import { devicePref, useDevicePref } from "@/lib/devicePref";
 
 // FLOAT RAIL — the one home for every floating tab (Ask us · Connect · Display). Three promises:
 //   MOVABLE    — drag the ≡ grip to slide the rail anywhere along the right edge (persisted).
@@ -11,15 +12,19 @@ import { useLatest } from "@/lib/useLatest";
 const POS_KEY = "gt3-rail-pos";
 const MIN_KEY = "gt3-rail-min";
 
+// Where the rail was left and whether it is folded: kept on the phone, read as stores (lib/devicePref, R17) — the
+// defaults on the server and while hydrating, the phone's own after, with no effect setting state as it mounts.
+const POS = devicePref(POS_KEY), MIN = devicePref(MIN_KEY);
+
 export default function FloatRail({ children }: { children: React.ReactNode }) {
-  const [bottom, setBottom] = useState(170);
+  const keptPos = useDevicePref(POS), keptMin = useDevicePref(MIN);
+  const [dragged, setBottom] = useState<number | null>(null);   // where a drag in this tab put it
   // Folded by default — a first-time visitor gets one compact "‹" tab, not three stacked panels
   // sitting over whatever's on the page below (on /3mpire the expanded rail used to land right on
   // top of the "Become a member" button). A tap reveals the full insightful labels same as always;
-  // an explicit prior choice (open or folded) is still honored below once localStorage has one.
-  const [min, setMin] = useState(true);
+  // an explicit prior choice (open or folded) is still honored once the phone has one.
+  const min = keptMin === null ? true : keptMin === "1";
   const [dragging, setDragging] = useState(false);
-  const bottomRef = useLatest(bottom);
   const drag = useRef<{ startY: number; startBottom: number } | null>(null);
 
   // The floor clears the floating tier: the crew nav (87px, measured — it was written down as 68)
@@ -29,16 +34,9 @@ export default function FloatRail({ children }: { children: React.ReactNode }) {
   const clamp = (b: number) =>
     Math.min(Math.max(b, 170), Math.round((typeof window !== "undefined" ? window.innerHeight : 800) * 0.7));
 
-  useEffect(() => {
-    try {
-      const p = Number(localStorage.getItem(POS_KEY));
-      if (Number.isFinite(p) && p > 0) setBottom(clamp(p));
-      // No stored preference yet → leave the folded default alone; only override once someone has
-      // actually toggled it (open or folded), so a first visit never flashes open then snaps shut.
-      const storedMin = localStorage.getItem(MIN_KEY);
-      if (storedMin !== null) setMin(storedMin === "1");
-    } catch { /* ignore */ }
-  }, []);
+  const keptAt = Number(keptPos);
+  const bottom = dragged ?? (keptPos !== null && Number.isFinite(keptAt) && keptAt > 0 ? clamp(keptAt) : 170);
+  const bottomRef = useLatest(bottom);
 
   const onPointerDown = (e: React.PointerEvent) => {
     drag.current = { startY: e.clientY, startBottom: bottomRef.current };
@@ -53,13 +51,9 @@ export default function FloatRail({ children }: { children: React.ReactNode }) {
     if (!drag.current) return;
     drag.current = null;
     setDragging(false);
-    try { localStorage.setItem(POS_KEY, String(bottomRef.current)); } catch { /* ignore */ }
+    POS.write(String(bottomRef.current));
   };
-  const toggle = () => setMin((m) => {
-    const v = !m;
-    try { localStorage.setItem(MIN_KEY, v ? "1" : "0"); } catch { /* ignore */ }
-    return v;
-  });
+  const toggle = () => MIN.write(min ? "0" : "1");
 
   return (
     // NOT ON A PHONE (2026-10-08, the iPhone chrome round, approved): on a phone the rail's handle sat on

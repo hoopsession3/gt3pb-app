@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
@@ -14,6 +14,8 @@ import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 import { money } from "@/lib/money";
 import { isNetworkError } from "@/components/offline";
 import Said from "@/components/Said";
+import { useLatestRead } from "@/lib/useLatestRead";
+import { useChanged } from "@/lib/useChanged";
 // The sign-in is for a visitor who is signed out — staff signed in never download it (2026-10-09).
 const SignIn = dynamic(() => import("@/components/SignIn"));
 
@@ -64,7 +66,8 @@ function ScanInner() {
   const isStaff = access === "allow";
   const profileUnknown = access === "wait" || access === "failed";
   const [member, setMember] = useState<Member | null>(null);
-  const [state, setState] = useState<"idle" | "loading" | "notfound" | "added" | "error" | "limit">("idle");
+  // Looking a card up from the start when there is one to look up (R17): it was "idle" until an effect set "loading".
+  const [state, setState] = useState<"idle" | "loading" | "notfound" | "added" | "error" | "limit">(() => (isStaff && code ? "loading" : "idle"));
   // Never your own card (0392, A1 of the account audit): the database refuses it, so the screen doesn't offer it.
   const ownCard = !!code && (code === profile?.referral_code || code === user?.id);
   const [busy, setBusy] = useState(false);
@@ -83,22 +86,29 @@ function ScanInner() {
   const [creditRetry, setCreditRetry] = useState(0);   // the amount a credit tap with no answer was for, shown to retry
   const [refusal, setRefusal] = useState("");
 
+  // The card read, then set — the newest read's answer only (R17, lib/useLatestRead). A new card to look up says
+  // "loading" while rendering; a read again after a tap (load, below) says it as the tap's own answer waits.
+  const readCard = useLatestRead();
+  const fetchCard = useCallback(() => readCard(async () => {
+    if (!supabase || !code) return null;
+    const card = await supabase.rpc("member_card", { p_code: code });
+    if (!card.error) return { m: (card.data as Member | null) ?? null, found: true };
+    const { data, error } = await supabase.rpc("member_by_code", { p_code: code });   // before 0389
+    const m = (data as Member[] | null)?.[0] ?? null;
+    return { m, found: !error && !!m };
+  }, (r) => {
+    if (!r) return;
+    setMember(r.m);
+    setState(r.m && r.found ? "idle" : "notfound");
+  }), [readCard, code]);
   const load = async () => {
     if (!supabase || !code) return;
     setState("loading");
-    const card = await supabase.rpc("member_card", { p_code: code });
-    if (!card.error) {
-      const m = (card.data as Member | null) ?? null;
-      setMember(m);
-      setState(m ? "idle" : "notfound");
-      return;
-    }
-    const { data, error } = await supabase.rpc("member_by_code", { p_code: code });   // before 0389
-    const m = (data as Member[] | null)?.[0] ?? null;
-    setMember(m);
-    setState(error || !m ? "notfound" : "idle");
+    await fetchCard();
   };
-  useEffect(() => { if (isStaff) load(); }, [isStaff, code]);
+  const lookup = isStaff && code ? code : null;
+  if (useChanged(lookup) && lookup) setState("loading");
+  useEffect(() => { if (isStaff) fetchCard(); }, [isStaff, fetchCard]);
   // The card as it stands, read again after an answer that never came (R9 review): a read that fails keeps the card on
   // screen. load() would say "No member found" with no signal — and take away the panel that offers the same tap again.
   const reread = async () => {

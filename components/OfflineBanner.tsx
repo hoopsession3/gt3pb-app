@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { announce } from "./Announcer";
+import { useOnline } from "@/lib/clientState";
 
 // OFFLINE BANNER (blind-spot round, 2026-08-01): the truck's whole register is this app, and truck
 // days happen in dead zones. The service worker already keeps the shell + visited pages usable
@@ -15,17 +16,17 @@ import { announce } from "./Announcer";
 const OFFLINE_WORDS = "You're offline — showing the last saved view. Ordering needs a connection.";
 
 export default function OfflineBanner() {
-  const [off, setOff] = useState(false);
+  // The network read as a store (lib/clientState, R17): online on the server and while hydrating, the browser's answer
+  // after. Saying it is outside React, so the effect only speaks — once when the page finds itself offline, and on each
+  // change after that.
+  const online = useOnline();
+  const said = useRef<boolean | null>(null);
   useEffect(() => {
-    let was = typeof navigator !== "undefined" && !navigator.onLine;
-    setOff(was);
-    if (was) announce(OFFLINE_WORDS);
-    const goOn = () => { if (!was) return; was = false; setOff(false); announce("Back online."); };
-    const goOff = () => { if (was) return; was = true; setOff(true); announce(OFFLINE_WORDS); };
-    window.addEventListener("online", goOn);
-    window.addEventListener("offline", goOff);
-    return () => { window.removeEventListener("online", goOn); window.removeEventListener("offline", goOff); };
-  }, []);
-  if (!off) return null;
+    if (said.current === null) { said.current = online; if (!online) announce(OFFLINE_WORDS); return; }
+    if (said.current === online) return;
+    said.current = online;
+    announce(online ? "Back online." : OFFLINE_WORDS);
+  }, [online]);
+  if (online) return null;
   return <div className="offline-bar">You&rsquo;re offline — showing the last saved view. Ordering needs a connection.</div>;
 }

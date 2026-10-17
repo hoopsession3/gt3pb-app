@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { canOf, roleOf } from "@/lib/roles";
@@ -13,6 +13,7 @@ import Icon from "@/components/Icon";
 import { rovingKeys, rovingTab } from "./roving";
 import { downloadCsv } from "@/lib/csv";
 import { money, moneyPlain } from "@/lib/money";
+import { useChanged } from "@/lib/useChanged";
 
 // The customer book — first reader of the identity spine. Rows are `customers` (canonical,
 // resolve_customer-backed): every human who's ever ordered, cup, pickup or delivery, whether or
@@ -110,15 +111,15 @@ export function CrmDetail({ c }: { c: Customer }) {
 
   // Seed the editable loyalty fields once the detail loads (each customer row mounts a fresh
   // CrmDetail instance, so there's no "in-flight edit" to protect across a reload here).
-  useEffect(() => {
-    const p = board.data?.loyalty;
-    if (p) {
-      setPts(String(p.points ?? 0));
-      setCredit(moneyPlain(p.credit_cents));
-      setFounding(Boolean(p.founding_member));
-      setHasLoyalty(true);
-    }
-  }, [board.data]);
+  // Seeded from each fresh load during render (R17, lib/useChanged) — not by an effect a render later.
+  const boardNew = useChanged(board.data);
+  const seed = boardNew ? board.data?.loyalty : null;
+  if (seed) {
+    setPts(String(seed.points ?? 0));
+    setCredit(moneyPlain(seed.credit_cents));
+    setFounding(Boolean(seed.founding_member));
+    setHasLoyalty(true);
+  }
 
   const saveLoyalty = async () => {
     if (!supabase || !c.user_id) return;

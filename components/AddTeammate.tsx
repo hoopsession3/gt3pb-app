@@ -11,6 +11,8 @@ import { FOUNDING_MARKET } from "@/lib/markets";
 import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
 import Button from "./Button";
+import { useLatestRead } from "@/lib/useLatestRead";
+import { useChanged } from "@/lib/useChanged";
 
 // ADD A TEAMMATE — ONE DOOR (2026-10-07, Ryan: "Invite and bring team member on seems redundant").
 //
@@ -87,7 +89,9 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
   const [people, setPeople] = useState<Person[]>([]);
   const [markets, setMarkets] = useState<{ slug: string; name: string }[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Opened by a link (?promote=), the box starts reading: "loading" from its first frame, never "everyone is on the crew"
+  // about a list not yet read (the R17 review, F3). Opened by a tap, useChanged(open) below says it.
+  const [loading, setLoading] = useState(() => !!promoteFor);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [pick, setPickRaw] = useState<string | null>(null);   // a person, by profile id
@@ -109,14 +113,17 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
     ?? markets[0]?.slug ?? "";
   const cityName = (slug: string) => markets.find((m) => m.slug === slug)?.name || slug;
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    setLoading(true);
-    const [pp, mk, inv] = await Promise.all([
-      supabase.from("v_promotable").select("id, display_name, email, customer_name, market"),
-      supabase.from("markets").select("slug, name").order("slug"),
-      supabase.from("team_invites").select("id, email, role, created_at, claimed_at").order("created_at", { ascending: false }).limit(20),
-    ]);
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead). Opening says "loading" while rendering;
+  // a read again after an add keeps the list on screen until the answer comes, and Try again says it (retry, below).
+  if (useChanged(open) && open) setLoading(true);
+  const read = useLatestRead();
+  const load = useCallback(() => read(async () => (supabase ? await Promise.all([
+    supabase.from("v_promotable").select("id, display_name, email, customer_name, market"),
+    supabase.from("markets").select("slug, name").order("slug"),
+    supabase.from("team_invites").select("id, email, role, created_at, claimed_at").order("created_at", { ascending: false }).limit(20),
+  ]) : null), (r) => {
+    if (!r) return;
+    const [pp, mk, inv] = r;
     setLoading(false);
     // A failed read is said, never shown as "nobody to add" or "no invites".
     setLoadErr(pp.error?.message ?? mk.error?.message ?? inv.error?.message ?? null);
@@ -131,7 +138,8 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
       if (list.some((p) => p.id === w)) { setPickRaw(w); setInviting(null); setMarketChosen(null); keepInView(boxRef); }
       else toast("They are already on the crew — change their role from the roster below.");
     }
-  }, [toast]);
+  }), [read, toast]);
+  const retry = () => { setLoading(true); load(); };
   useEffect(() => { if (open) load(); }, [open, load]);
   useRealtimeTable("team_invites", load, { enabled: open });
 
@@ -232,7 +240,7 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
             </div>
           )}
           {loadErr && (
-            <p className="load-failed" role="status">Couldn&apos;t load who can be added — this is not &ldquo;nobody&rdquo;. <button type="button" className="btn-ter" onClick={() => load()}>Try again</button></p>
+            <p className="load-failed" role="status">Couldn&apos;t load who can be added — this is not &ldquo;nobody&rdquo;. <button type="button" className="btn-ter" onClick={retry}>Try again</button></p>
           )}
           {!done && (picked || inviting ? (
             <>

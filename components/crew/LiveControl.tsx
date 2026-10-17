@@ -32,6 +32,7 @@ import { StatusRow } from "@/components/crew/StatusRow";
 import { authedFetch } from "@/lib/authedFetch";
 import { stopCanceledToast } from "@/lib/stopCancel";
 import { wrote } from "@/lib/wrote";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // Go live's checks, loaded with the first tap on Go live (it opens on a tap, as the console's other sheets do).
 const GoLiveSheet = dynamic(() => import("@/components/crew/GoLiveSheet"), { ssr: false });
@@ -87,15 +88,17 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
   // failure. The venue book is Route's grouping only (and may not exist before 0034), so its failure is not the truck's.
   const [read, setRead] = useState<TruckRead>("loading");
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const [s, l, vs, tp] = await Promise.all([
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead).
+  const readBoard = useLatestRead();
+  const load = useCallback(() => readBoard(async () => (supabase ? await Promise.all([
       supabase.from("stops").select("*").order("sort"),
       supabase.from("live_status").select("*").maybeSingle(),
       supabase.from("vendors").select("*").order("sort"), // may not exist pre-0034
       // the crew's own row since 0402 (applied 2026-10-15): live_status, which everyone may read, holds no position
       supabase.from("truck_position").select("pos_updated_at").maybeSingle(),
-    ]);
+    ]) : null), (r) => {
+    if (!r) return;
+    const [s, l, vs, tp] = r;
     const failed = s.error ?? l.error;
     if (failed) { setErr(failed.message); setRead("failed"); return; }
     setErr("");
@@ -104,7 +107,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     setLive((l.data as LiveStatus | null) ?? null);
     setPinnedAt(((tp.data as { pos_updated_at?: string | null } | null)?.pos_updated_at) ?? null);
     if (vs.data) setVendors((vs.data as Vendor[]).filter((v) => !v.archived_at));
-  }, []);
+  }), [readBoard]);
   // A stop's venue is picked in its sheet (FieldOpSheet → components/VenuePick), not on this card:
   // the card's own vendor <select> was a second editor for it. Route still reads the book, to group
   // the visits by venue and to say each one's venue and liaison.

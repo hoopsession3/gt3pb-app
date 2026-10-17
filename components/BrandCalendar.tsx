@@ -16,6 +16,9 @@ import Icon from "@/components/Icon";
 import { goPlanTab } from "@/lib/planNav";
 import { Segmented, tabPanel } from "@/components/controls";
 import { wrote } from "@/lib/wrote";
+import { devicePref, useDevicePref } from "@/lib/devicePref";
+
+const CAL_VIEW = devicePref("gt3-cal-view");
 
 // BRAND CALENDAR — the planning brain of Studio. Posts (scheduled content) + events roll onto one
 // month view so Ryan + Kayla see the whole picture and build FROM it.
@@ -55,9 +58,10 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   // Week is the default — a spacious, readable agenda of the next seven days; Month is the zoomed-out
   // grid. The choice is remembered. (First render is deterministic "week" for SSR; the stored pref,
   // if any, is applied right after mount.)
-  const [view, setView] = useState<"week" | "month">("week");
-  useEffect(() => { try { const v = localStorage.getItem("gt3-cal-view"); if (v === "week" || v === "month") setView(v); } catch { /* */ } }, []);
-  const setCalView = (v: "week" | "month") => { setView(v); try { localStorage.setItem("gt3-cal-view", v); } catch { /* */ } };
+  // Kept on the phone and read as a store (lib/devicePref, R17): "week" on the server and while hydrating.
+  const kept = useDevicePref(CAL_VIEW);
+  const view: "week" | "month" = kept === "month" ? "month" : "week";
+  const setCalView = (v: "week" | "month") => CAL_VIEW.write(v);
   const addDays = (base: Date, n: number) => { const d = new Date(base); d.setDate(d.getDate() + n); return d; };
 
   const days = useMemo(() => {

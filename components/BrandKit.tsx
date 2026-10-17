@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { uploadToBucket } from "@/lib/uploads";
@@ -10,6 +10,7 @@ import { wrote } from "@/lib/wrote";
 import { useApp } from "./AppProvider";
 import { brandMaster, brandThumb } from "@/lib/brandThumbs";
 import { APP_BUILD, publicOrigin } from "@/lib/native";
+import { useChanged } from "@/lib/useChanged";
 
 // BRAND KIT — GT3's logos, palette, fonts & voice, in the Studio. Seeded with the real brand;
 // leadership can edit voice/tagline, the wordmark, and the palette. The reference both of you
@@ -48,7 +49,8 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
     return { kit: k as Kit, assets: (ar.data as Asset[]) ?? [] };
   }, []);
   const state = useAsyncData(loader, []);
-  useEffect(() => { if (state.data) { setKit(state.data.kit); setDraft(state.data.kit); setAssets(state.data.assets); } }, [state.data]);
+  // A fresh load seeds the editable copy during render (R17, lib/useChanged) — not by an effect a render later.
+  if (useChanged(state.data) && state.data) { setKit(state.data.kit); setDraft(state.data.kit); setAssets(state.data.assets); }
   const loadAssets = state.reload;
 
   const uploadLogo = async (file: File) => {

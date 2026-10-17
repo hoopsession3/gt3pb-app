@@ -21,6 +21,7 @@ import { OPEN_PANEL_EVENT } from "@/lib/anchors";
 import { useMinute } from "@/lib/useMinute";
 import { DUE_CARD, dueAnchor, notHome, porchLate, type PorchFeed } from "@/lib/dueNext";
 import { markOut, moveToRun, nextRunDay, nextRunFor, outPlan, outWords, runDayWords, undoMove, undoOutWords, unmarkOut, type MissedPorch, type PorchStep } from "@/lib/porchRun";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -78,13 +79,15 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
   const [assign, setAssign] = useState(false);
   const [packout, setPackout] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead).
+  const read = useLatestRead();
+  const load = useCallback(() => read(async () => {
+    if (!supabase) return null;
     // the next delivery day with anything on it (today counts — Sunday IS the run);
     // delivery_date is an ET business-day key (lib/delivery.ts), so "today" must be ET too
     const today = etToday();
     const since = new Date(`${today}T12:00:00Z`); since.setUTCDate(since.getUTCDate() - 14);
-    const [{ data, error }, back] = await Promise.all([
+    const [run, back] = await Promise.all([
       supabase.from("delivery_orders").select("*")
         .gte("delivery_date", today).is("canceled_at", null)
         .order("delivery_date").order("address_zip").limit(200),
@@ -93,6 +96,10 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
         .in("status", ["held_for_pickup", "issue"]).is("canceled_at", null)
         .order("delivery_date", { ascending: false }).limit(50),
     ]);
+    return { today, run, back };
+  }, (r) => {
+    if (!r) return;
+    const { today, run: { data, error }, back } = r;
     if (error) { setLoadFailed(true); return; }
     setLoadFailed(false);
     const all = (data ?? []) as DOrder[];
@@ -105,7 +112,7 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
     setRows(all.filter((o) => o.delivery_date === d));
     setEarlier(back.error ? [] : ((back.data ?? []) as DOrder[]));   // the upcoming run is the card; this is its margin
     setLoaded(true);
-  }, []);
+  }), [read]);
 
   useEffect(() => { load(); }, [load]);
   useRealtimeTable("delivery_orders", load);

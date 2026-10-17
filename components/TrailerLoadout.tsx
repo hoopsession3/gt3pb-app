@@ -15,6 +15,7 @@ import Icon from "@/components/Icon";
 import { errorMessage } from "@/lib/errorMessage";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
+import { useChanged } from "@/lib/useChanged";
 
 // What the load-out agent and the vehicle lookup answer (R16: typed, not any) — read as the screens below read them.
 type LoadPlan = { summary?: string; zones?: { zone: string; items?: string[]; note?: string }[]; at_risk?: { item: string; issue?: string; fix: string }[]; stacking?: string[]; load_order?: string[] };
@@ -75,17 +76,20 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   // Embedded in a hub → scope to that one owner, no picker. Otherwise resolve a default target
   // once the board loads: keep the current pick if it's still valid, else live event, else next
   // upcoming, else the first thing on the books.
-  useEffect(() => {
-    if (lockTo) { setSel(`${lockTo.kind === "stop" ? "s" : "e"}:${lockTo.id}`); return; }
-    if (!board.data) return;
+  // During render (R17, lib/useChanged): the hub's owner, or — as each load lands — the pick kept if still on the books,
+  // else the default. It was an effect, a render after the board, with the old pick drawn first.
+  const lockKey = lockTo ? `${lockTo.kind === "stop" ? "s" : "e"}:${lockTo.id}` : null;
+  const boardNew = useChanged(board.data);
+  if (lockKey !== null) {
+    if (sel !== lockKey) setSel(lockKey);
+  } else if (boardNew && board.data) {
     const today = localToday(); // crew-facing "upcoming" — the operator's wall-clock day
-    setSel((cur) => {
-      if (cur && (events.some((e) => `e:${e.id}` === cur) || stops.some((s) => `s:${s.id}` === cur))) return cur; // keep pick
-      const live = events.find((e) => e.is_live);
-      const up = events.find((e) => e.day && e.day >= today);
-      return live ? `e:${live.id}` : up ? `e:${up.id}` : events[0] ? `e:${events[0].id}` : stops[0] ? `s:${stops[0].id}` : null;
-    });
-  }, [board.data, lockTo, events, stops]);
+    const kept = sel && (events.some((e) => `e:${e.id}` === sel) || stops.some((s) => `s:${s.id}` === sel)); // keep pick
+    const live = events.find((e) => e.is_live);
+    const up = events.find((e) => e.day && e.day >= today);
+    const next = kept ? sel : live ? `e:${live.id}` : up ? `e:${up.id}` : events[0] ? `e:${events[0].id}` : stops[0] ? `s:${stops[0].id}` : null;
+    if (next !== sel) setSel(next);
+  }
 
   const targets = useMemo(() => lockTo ? [] : [
     ...events.map((e) => ({ key: `e:${e.id}`, label: `🎪 ${e.title}` })),
@@ -95,20 +99,24 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   // Pack labels + rig for the SELECTED event/stop drive the loadout weight + space. Separate,
   // sel-scoped fetch — left as its own concern (a miss here degrades to an empty pack list, not a
   // vanished page), same as the original.
+  // A new target: its plan is cleared and, with no target, its pack list — during render (R17, lib/useChanged); the
+  // reads are the effect's, and an answer for a target since left is dropped (`live`).
+  if (useChanged(sel)) { setPlan(null); if (!sel) setLabels([]); }
   useEffect(() => {
-    if (!supabase || !sel) { setLabels([]); return; }
-    setPlan(null);
+    if (!supabase || !sel) return;
+    let live = true;
     const [t, id] = sel.split(":");
     const col = t === "s" ? "stop_id" : "event_id";
     // Same rule as the on-hand ledger: an empty pack list on a failed read is read as "nothing to
     // pack" by the person loading the trailer.
     supabase.from("event_tasks").select("label,kind").eq(col, id).then(({ data, error }) => {
-      if (error) return;
+      if (error || !live) return;
       setLabels(((data as { label: string; kind: string }[]) ?? []).filter((x) => x.kind === "pack").map((x) => x.label));
     });
     supabase.from(t === "s" ? "stops" : "events").select("rig").eq("id", id).maybeSingle().then(({ data }) => {
-      setRig(rigToBox((data as { rig: string | null } | null)?.rig));
+      if (live) setRig(rigToBox((data as { rig: string | null } | null)?.rig));
     });
+    return () => { live = false; };
   }, [sel]);
 
   useRealtimeTable(["trailer_profile", "event_tasks", "stops"], reload);

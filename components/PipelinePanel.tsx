@@ -289,12 +289,18 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const { toast } = useApp();
   const { user } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);   // expanded opportunity
-  const [oppNotes, setOppNotes] = useState<{ id: string; title: string; met_on: string; visibility?: string }[]>([]);
+  // Kept with the opportunity they are for (R17): none open — or another one's notes — is no notes, said while
+  // rendering; the read sets its answer when it comes, and an answer for one since closed is dropped.
+  type OppNote = { id: string; title: string; met_on: string; visibility?: string };
+  const [notesFor, setNotesFor] = useState<{ id: string; notes: OppNote[] } | null>(null);
+  const oppNotes = openId && notesFor?.id === openId ? notesFor.notes : [];
   useEffect(() => {
-    if (!openId || !supabase) { setOppNotes([]); return; }
+    if (!openId || !supabase) return;
+    let live = true;
     supabase.from("meeting_notes").select("id, title, met_on, visibility").eq("opportunity_id", openId)
       .order("met_on", { ascending: false }).limit(8)
-      .then(({ data }) => setOppNotes((data as typeof oppNotes) ?? []));
+      .then(({ data }) => { if (live) setNotesFor({ id: openId, notes: (data as OppNote[]) ?? [] }); });
+    return () => { live = false; };
   }, [openId]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);

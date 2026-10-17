@@ -142,7 +142,11 @@ export default function Sheet({
   const [gone, setGone] = useState(false);
   // A door inside the sheet started the exit (finish): when the prop follows, the exit has played.
   const selfClosing = useRef(false);
+  // THE ONE EFFECT THAT SETS STATE AS IT STARTS, KEPT (R17). The lint's set-state-in-effect is held at zero everywhere
+  // else; here the effect is the fix for the close that was lost (above), and scripts/smoke.ui.mjs walks that path.
+  // scripts/r17.test.mjs holds this the only file allowed to say so.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the open prop, followed in an effect on purpose: see THE SHEET THAT NEVER LEFT and IN AN EFFECT, ON PURPOSE above
     if (open) { selfClosing.current = false; setPhase("open"); setGone(false); return; }
     setPhase((p) => (p === "closed" ? p : "closing"));
   }, [open]);

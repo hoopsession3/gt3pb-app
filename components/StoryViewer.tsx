@@ -6,6 +6,9 @@ import Icon from "@/components/Icon";
 import { follow, settle, useGesture } from "@/components/useGesture";
 import { viewerCloses } from "@/lib/gesture";
 import { STORY_IMAGE_MS, step, tapZone, type MediaItem } from "@/lib/shopMedia";
+import { useHydrated } from "@/lib/clientState";
+import { useReducedMotion } from "@/lib/reducedMotion";
+import { useChanged } from "@/lib/useChanged";
 
 // STORY VIEWER (0278) — a product's photos and clips, full screen, the way people already know how
 // to look at things on a phone: tap the right side to go on, the left third to go back, watch the
@@ -41,17 +44,10 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
   // disagree with the server's (which has no document and no matchMedia) and React throws out the
   // whole tree to re-render — caught in test as a hydration mismatch. So: render nothing until
   // mounted, then portal. The overlay is user-opened anyway; one frame costs nothing.
-  const [mounted, setMounted] = useState(false);
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-    if (typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => setReduced(mq.matches);
-    sync();
-    mq.addEventListener?.("change", sync);
-    return () => mq.removeEventListener?.("change", sync);
-  }, []);
+  // Read as stores since R17 (lib/clientState, lib/reducedMotion): false on the server and while hydrating, the browser's answer after —
+  // the same first frame as before, with no effect setting them.
+  const mounted = useHydrated();
+  const reduced = useReducedMotion();
 
   const go = useCallback((dir: 1 | -1) => {
     const next = step(i, count, dir);
@@ -60,14 +56,20 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
   }, [i, count, onClose]);
 
   // Reset the clock whenever the item changes — including when the caller swaps the whole list.
-  useEffect(() => { elapsedRef.current = 0; setProgress(0); setVideoFailed(false); }, [i, items]);
+  // During render (R17, lib/useChanged); the clock's own measure starts over in its effect, below.
+  const iNew = useChanged(i), itemsNew = useChanged(items);
+  if (iNew || itemsNew) { setProgress(0); setVideoFailed(false); }
+  const clockFor = useRef<{ i: number; items: MediaItem[] } | null>(null);
 
   // ── the clock ──────────────────────────────────────────────────────────────────────────────────
   // Images run on rAF (so the bar is smooth and pauses cleanly). Video reports its own time, since
   // its duration is the truth and a parallel timer would drift against it.
   useEffect(() => {
+    // A new item starts its clock from zero; the same one, resumed from a pause, carries on. Noted for a clip too, so a
+    // photo come back to after one starts over instead of resuming its old time (the R17 review, F5).
+    if (clockFor.current?.i !== i || clockFor.current?.items !== items) { clockFor.current = { i, items }; elapsedRef.current = 0; }
     if (!item || item.kind === "video") return;
-    if (reduced) { setProgress(1); return; }        // no auto-advance; the bar just reads "here"
+    if (reduced) return;                              // no auto-advance; the bar just reads "here" (shown, below)
     if (paused) return;
     startedRef.current = performance.now() - elapsedRef.current;
     const tick = () => {
@@ -80,7 +82,7 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
-  }, [item, paused, reduced, go]);
+  }, [item, paused, reduced, go, i, items]);
 
   // Video playback follows the same pause state as the bar.
   useEffect(() => {
@@ -175,7 +177,7 @@ export default function StoryViewer({ items, start = 0, title, onClose }: Props)
       <div className="sv-bars" aria-hidden>
         {items.map((m, n) => (
           <span key={m.id} className="sv-bar">
-            <i style={{ transform: `scaleX(${n < i ? 1 : n === i ? progress : 0})` }} />
+            <i style={{ transform: `scaleX(${n < i ? 1 : n === i ? (reduced && item.kind !== "video" ? 1 : progress) : 0})` }} />
           </span>
         ))}
       </div>

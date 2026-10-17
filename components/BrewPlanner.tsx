@@ -208,15 +208,16 @@ export default function BrewPlanner() {
 
   // Pick up a jump-in target left by PrepDetail, once recipes are loaded (need one to open the
   // sheet — mirrors the manual "+ Plan a batch" button's own default of recipes[0]).
+  // A brew asked for from an event or a stop: the crew page leaves its target on the phone, then opens Brew. Read as Brew
+  // is made (the console draws nothing until the session is known), taken once the recipes are here — while rendering
+  // (R17: it was an effect that set the plan as the recipes landed) — and the note let go in an effect: it is outside React.
+  const [handoff] = useState<string | null>(() => { try { return localStorage.getItem("gt3-brew-target"); } catch { return null; } });
+  const [handedOff, setHandedOff] = useState(false);
+  if (handoff && !handedOff && recipes.length) { setHandedOff(true); setPlan(recipes[0]); setPendingTarget(handoff); }
   useEffect(() => {
-    if (!recipes.length) return;
-    let pending: string | null = null;
-    try { pending = localStorage.getItem("gt3-brew-target"); } catch { /* ignore */ }
-    if (!pending) return;
+    if (!handedOff) return;
     try { localStorage.removeItem("gt3-brew-target"); } catch { /* ignore */ }
-    setPlan(recipes[0]);
-    setPendingTarget(pending);
-  }, [recipes]);
+  }, [handedOff]);
 
   // Live clock — ticks while a brew countdown or serve-by window is on screen, so both stay current.
   const ticking = batches.some((b) => b.status === "brewing" || b.status === "ready" || b.status === "kegged");

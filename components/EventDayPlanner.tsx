@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -16,6 +16,7 @@ import { edited } from "@/lib/formGuard";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
 import { useApp } from "./AppProvider";
+import { useChanged } from "@/lib/useChanged";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -169,7 +170,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
 
   // "When to leave" — the AI scheduler reads THIS day's slots and says when to leave, anchored on
   // the first fixed commitment. Cleared whenever you switch days or the blocks change.
-  useEffect(() => { setDeparture(null); }, [active]);
+  if (useChanged(active)) setDeparture(null);   // a new day clears it, during render (R17, lib/useChanged)
   const genDeparture = async () => {
     if (!supabase || depBusy || dayItems.length === 0) return;
     setDepBusy(true);

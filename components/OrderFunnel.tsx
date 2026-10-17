@@ -41,6 +41,8 @@ import { apiUrl } from "@/lib/native";
 import AddressField from "./AddressField";
 import Said from "./Said";
 import { rovingKeys } from "./roving";
+import { useHydrated } from "@/lib/clientState";
+import { useMinute } from "@/lib/useMinute";
 
 // ORDER FUNNEL — one screen, two fulfillment modes. Pickup (Saturday truck-stop reserve →
 // /api/reserve) and Delivery (Sunday prepaid → /api/delivery/checkout) were separate screens with
@@ -87,6 +89,15 @@ const OfficeOrder = dynamic(() => import("./OfficeOrder"));
 const SignIn = dynamic(() => import("@/components/SignIn"));
 // The held-payment notice loads when something is held (components/HeldNotice) — a moment few customers see.
 const HeldNotice = dynamic(() => import("./HeldNotice"), { ssr: false });
+
+/** ?code= from the scan's link (0268: /c/CODE sends people to /reserve?code=CODE), cleaned — "" when there is none.
+ *  Plain location.search, read once (OrderFunnel): a malformed query string never breaks the funnel. */
+function askedCode(): string {
+  try {
+    const c = new URLSearchParams(window.location.search).get("code");
+    return c && c.trim() ? c.trim().toUpperCase().slice(0, 40) : "";
+  } catch { return ""; }
+}
 
 export default function OrderFunnel({ initialMode, syncUrl = true, initialAudience = "home" }: { initialMode: Mode; syncUrl?: boolean; initialAudience?: "home" | "office" }) {
   const { toast } = useApp();
@@ -170,9 +181,15 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   // held closed. Said where the pickup is, before the size — not after Pay is tapped.
   const [packsPaused, setPacksPaused] = useState(false);
   const [stopIdx, setStopIdx] = useState(0);
-  const [now, setNow] = useState(0);
+  // The clock, minute by minute (lib/useMinute) — 0 on the server and while hydrating (lib/clientState), so the
+  // prerendered page draws no countdown to disagree with the phone's. A store since R17, not an effect's interval.
+  const hydrated = useHydrated();
+  const minute = useMinute();
+  const now = hydrated ? minute : 0;
   const [replacing, setReplacing] = useState<MyPack | null>(null);
-  const [usual, setUsual] = useState<MyPack | null>(null);
+  // Kept with whose it is (R17): no member is no usual, said while rendering; the read sets its answer when it comes.
+  const [usualFor, setUsual] = useState<{ user: string; pack: MyPack | null } | null>(null);
+  const usual = user && usualFor?.user === user.id ? usualFor.pack : null;
   const [packsKey, setPacksKey] = useState("");
 
   // ── shared checkout ──
@@ -192,21 +209,24 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   // codes discount the pack order; slug-targeted / set-price codes belong to the cups channel, so we
   // accept them as valid but don't move the pack total (a gentle note explains).
   type CodeBenefit = { kind: "percent_off" | "price_override" | "free_refill" | "amount_off"; target: string | null; percent: number | null; value_cents: number | null; label: string };
+  // ?code= from the scan's link, taken into the box ONCE — the first render after hydration, during render, with no
+  // effect setting it as the page mounts (R17). Once: Pickup ⇄ Delivery rewrites the address without its query
+  // (switchMode), and a code read from the address on every render went empty under a chip still saying "applied" —
+  // the quote and Pay went out with no code, at the full price (the R17 review, F1).
   const [code, setCode] = useState("");
   const [codeOpen, setCodeOpen] = useState(false);
+  const [codeAdopted, setCodeAdopted] = useState(false);
+  if (hydrated && !codeAdopted) {
+    setCodeAdopted(true);
+    const asked = askedCode();
+    if (asked) { setCode(asked); setCodeOpen(true); }
+  }
   const [codeState, setCodeState] = useState<"idle" | "checking" | "ok" | "bad">("idle");
   const [codeBenefit, setCodeBenefit] = useState<CodeBenefit | null>(null);
   const codeClean = code.trim().toUpperCase().replace(/\s+/g, "");
   // QR hand-off (0268): /c/CODE sends people here as /reserve?code=CODE — the box opens itself with
   // the code in it, so "scan → order → it applies" is zero typing. Plain location.search (not the
   // useSearchParams hook) keeps this client component out of a Suspense boundary requirement.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const c = new URLSearchParams(window.location.search).get("code");
-      if (c && c.trim()) { setCode(c.trim().toUpperCase().slice(0, 40)); setCodeOpen(true); }
-    } catch { /* a malformed query string never breaks the funnel */ }
-  }, []);
 
   const checkCode = useCallback(async () => {
     if (!supabase || !codeClean) { setCodeState("idle"); setCodeBenefit(null); return; }
@@ -288,7 +308,6 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
   }, [mode, drop, now]);
 
   // ── effects ──
-  useEffect(() => { setNow(Date.now()); const iv = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(iv); }, []);
 
   // delivery: dynamic premium adds (Money → Menu bulk-orderable). Falls back to Salted Latte.
   useEffect(() => {
@@ -329,10 +348,12 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
 
   // pickup: "Your usual" — the member's most recent pack, one-tap reload.
   useEffect(() => {
-    if (!supabase || !user) { setUsual(null); return; }
+    if (!supabase || !user) return;
+    let live = true;
     supabase.from("drop_orders").select("*").eq("user_id", user.id).is("canceled_at", null)
       .order("created_at", { ascending: false }).limit(1)
-      .then(({ data }) => setUsual((data?.[0] as MyPack) ?? null));
+      .then(({ data }) => { if (live) setUsual({ user: user.id, pack: (data?.[0] as MyPack) ?? null }); });
+    return () => { live = false; };
   }, [user, packsKey]);
 
   // Square card — mounted by the shared <PaymentCard> only while step==="pay" is in the tree; React's

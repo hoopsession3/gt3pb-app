@@ -8,6 +8,11 @@ import { useAuth } from "./AuthProvider";
 import Icon from "@/components/Icon";
 import { saveFile } from "@/lib/deviceActions";
 import { APP_BUILD } from "@/lib/native";
+import { devicePref, useDevicePref } from "@/lib/devicePref";
+
+const LETTER_TPL = devicePref("gt3-letter-tpl"), LETTER_FMT = devicePref("gt3-letter-fmt");
+/** A kept index, if it names one of `n`; else the first. Pure. */
+const keptIndex = (raw: string | null, n: number): number => { const i = Number(raw); return raw !== null && Number.isInteger(i) && i >= 0 && i < n ? i : 0; };
 
 // LETTER FLYER — 10 generic, fully-editable announcement templates, drawn on canvas so they're
 // pixel-identical every time. Unlike the poster Road Flyer, these carry NO preset GT3 saying — you
@@ -282,21 +287,17 @@ export default function LetterFlyer() {
   const { toast } = useApp();
   const { user } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [tpl, setTpl] = useState(0);
-  const [fmt, setFmt] = useState(0);
+  // The style and the size, kept on the phone and read as stores (lib/devicePref, R17): the first of each on the server
+  // and while hydrating, the phone's own after — no effect setting them as it mounts.
+  const tpl = keptIndex(useDevicePref(LETTER_TPL), STYLES.length);
+  const fmt = keptIndex(useDevicePref(LETTER_FMT), FORMATS.length);
   const [busy, setBusy] = useState(false);
   const [f, setF] = useState<Fields>(DEFAULTS);
   const logoRef = useRef<HTMLImageElement | null>(null);
   const [logoReady, setLogoReady] = useState(0);
 
-  useEffect(() => {
-    const st = typeof window !== "undefined" ? Number(localStorage.getItem("gt3-letter-tpl")) : 0;
-    if (st >= 0 && st < STYLES.length) setTpl(st);
-    const fm = typeof window !== "undefined" ? Number(localStorage.getItem("gt3-letter-fmt")) : 0;
-    if (fm >= 0 && fm < FORMATS.length) setFmt(fm);
-  }, []);
-  const pickTpl = (i: number) => { setTpl(i); if (typeof window !== "undefined") localStorage.setItem("gt3-letter-tpl", String(i)); };
-  const pickFmt = (i: number) => { setFmt(i); if (typeof window !== "undefined") localStorage.setItem("gt3-letter-fmt", String(i)); };
+  const pickTpl = (i: number) => LETTER_TPL.write(String(i));
+  const pickFmt = (i: number) => LETTER_FMT.write(String(i));
 
   useEffect(() => {
     let alive = true;

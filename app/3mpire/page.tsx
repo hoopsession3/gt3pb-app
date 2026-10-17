@@ -42,14 +42,18 @@ function OrderHistory() {
   const { reorder, nameOf } = useApp();
   const { user } = useAuth();
   const t = useSiteCopy();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  // Kept with whose they are (R17): no member is nothing to load, said while rendering; the read sets its answer.
+  const [fetched, setFetched] = useState<{ user: string; orders: Order[] } | null>(null);
+  const orders = user && fetched?.user === user.id ? fetched.orders : [];
+  const loaded = !supabase || !user || fetched?.user === user.id;
   const [showAll, setShowAll] = useState(false); // quiet by default: 4 rows, the rest fold
 
   useEffect(() => {
-    if (!supabase || !user) { setLoaded(true); return; }
+    if (!supabase || !user) return;
+    let live = true;
     supabase.from("orders").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(8)
-      .then(({ data }) => { if (data) setOrders(data as Order[]); setLoaded(true); });
+      .then(({ data }) => { if (live) setFetched((was) => ({ user: user.id, orders: data ? (data as Order[]) : was?.user === user.id ? was.orders : [] })); });
+    return () => { live = false; };
   }, [user]);
 
   if (loaded && orders.length === 0) return null; // stay quiet for brand-new members

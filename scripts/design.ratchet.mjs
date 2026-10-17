@@ -731,8 +731,8 @@ export const WEIGHT = {
   "/events":                   { js: 286, css: 90, chunks: 16 },
   "/menu":                     { js: 273, css: 90, chunks: 15 },
   "/reserve":                  { js: 297, css: 90, chunks: 17 },
-  "/delivery":                 { js: 294, css: 90, chunks: 17 },
-  "/3mpire":                   { js: 286, css: 90, chunks: 15 },
+  "/delivery":                 { js: 295, css: 90, chunks: 17 },
+  "/3mpire":                   { js: 287, css: 90, chunks: 15 },
   "/craft":                    { js: 272, css: 90, chunks: 15 },
   "/book":                     { js: 273, css: 90, chunks: 15 },
   "/academy":                  { js: 325, css: 90, chunks: 16 },
@@ -742,14 +742,14 @@ export const WEIGHT = {
   "/playbook":                 { js: 280, css: 90, chunks: 15 },
   "/driver":                   { js: 279, css: 90, chunks: 15 },
   "/agreement":                { js: 274, css: 90, chunks: 15 },
-  "/offer":                    { js: 283, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 269, css: 90, chunks: 15 },
+  "/offer":                    { js: 284, css: 90, chunks: 15 },
+  "/built/gt3-built-k7m9x4q2": { js: 270, css: 90, chunks: 15 },
   "/display":                  { js: 271, css: 90, chunks: 15 },
   "/shop":                     { js: 303, css: 90, chunks: 17 },
-  "/primal":                   { js: 272, css: 90, chunks: 15 },
-  "/privacy":                  { js: 268, css: 90, chunks: 14 },
-  "/terms":                    { js: 268, css: 90, chunks: 14 },
-  "/":                         { js: 278, css: 90, chunks: 15 },
+  "/primal":                   { js: 273, css: 90, chunks: 15 },
+  "/privacy":                  { js: 269, css: 90, chunks: 14 },
+  "/terms":                    { js: 269, css: 90, chunks: 14 },
+  "/":                         { js: 279, css: 90, chunks: 15 },
   "/order":                    { js: 277, css: 90, chunks: 15 },
 };
 
@@ -830,6 +830,19 @@ export const WEIGHT = {
 // the clock a minute at a time instead of Date.now() in its render, so the live tag and the ordering window turn on their
 // own (lib/useMinute, the purity rule). Crossed the rounding line upward on /agreement (273.49 → 273.56 KB), /truck and
 // /events (285.46 → 285.70), recorded.
+// 2026-10-17 (R17 of the 10/10 audit, no state set by an effect as it starts): every route's script +343 to +348 bytes
+// (gzip); the ordering pages more — /reserve +699, /delivery +687, /shop +862 — and /, /office, /academy and /scan +449 to
+// +585. Built R16 (1125c0d) and this commit and gzipped what each route's HTML references (/privacy 274 729 → 275 075,
+// /menu 279 485 → 279 828, /reserve 303 692 → 304 391). In the shell, +566 bytes raw net: useAsyncData counts what was
+// asked and what answered instead of setting "loading" in an effect (+435), the console's section is read on arrival
+// while rendering and its ref kept in step in the layout pass (+299), lib/clientState's two stores where effects set
+// state (useHydrated, useOnline: +439) and the cart restored the render after hydration (+129) — less what the effects
+// took with them across the chrome (−736). Trimmed before it was written down: the address and history reads went to a
+// module of their own (lib/clientPage, −276 bytes gzipped on every route), the edit switch into the store the shell
+// already carries (lib/devicePref, −141), and Reduce Motion to its own (lib/reducedMotion, −220 more on the ordering
+// pages, whose total's roll reads it). The ordering pages add the funnel's clock, read a minute at a time (lib/useMinute).
+// Crossed the rounding line upward on /, /3mpire, /delivery, /offer, /primal, /privacy and /terms, recorded — and on the
+// share page (/built, 269 → 270), which renders per request: smoke:ui weighs it from the server, not from disk.
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];

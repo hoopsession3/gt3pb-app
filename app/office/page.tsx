@@ -25,6 +25,7 @@ import {
   type LegacyAccount, type LegacyInvoice, type LegacyOrder, type OfficeAccount, type OfficeDelivery, type OfficeHome,
 } from "@/lib/officeStatus";
 import type { RequestKind } from "@/lib/officeChange";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // The sheets load with the first tap that opens one (a client reads this page far more than they change it).
 const OfficeChangeSheet = dynamic(() => import("@/components/OfficeChangeSheet"), { ssr: false });
@@ -86,16 +87,21 @@ export default function OfficeScreen() {
     return legacyHome(ac, (up.data as LegacyOrder[]) ?? [], (past.data as LegacyOrder[]) ?? [], (i.data as LegacyInvoice[]) ?? [], today, settings.priceCents, settings.minGallons);
   }, [user, toast, settings.priceCents, settings.minGallons]);
 
-  const load = useCallback(async () => {
-    if (!supabase || !user) return;
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead). A sign-out mid-read never lands the last account's home.
+  const read = useLatestRead();
+  const load = useCallback(() => read(async (): Promise<OfficeHome | null | "error" | undefined> => {
+    if (!supabase || !user) return undefined;
     const { data, error } = await supabase.rpc("office_home");
     let next: OfficeHome | null | "error" = (data as OfficeHome | null) ?? null;
     if (error) next = (await import("@/lib/schemaSkew")).isMissingFunction(error) ? await loadLegacy() : "error";
     // No company yet: an account booked before the company spine (0355) still reads the old way.
     else if (!next) next = await loadLegacy();
+    return next;
+  }, (next) => {
+    if (next === undefined) return;
     if (next === "error") { setLoadError(true); setLoaded(true); return; }
     setLoadError(false); setHome(next); setLoaded(true);
-  }, [user, loadLegacy]);
+  }), [read, user, loadLegacy]);
   useEffect(() => { if (ready && user) load(); }, [ready, user, load]);
 
   // Live: the company's deliveries (the crew brewing, the driver leaving, a colleague's skip), every

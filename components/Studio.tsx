@@ -35,6 +35,7 @@ import Button from "./Button";
 import Said from "./Said";
 import { rovingKeys, rovingTab } from "./roving";
 import { segTabId, tabPanel } from "./controls";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -341,13 +342,15 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   // "No versions yet" on a failed read reads as "this piece has never been edited", on the one
   // panel whose entire job is to prove otherwise.
   const [versFailed, setVersFailed] = useState(false);
-  const loadVersions = useCallback(async () => {
-    if (!supabase) return;
-    const { data, error } = await supabase.from("content_versions").select("*").eq("content_id", id).order("created_at", { ascending: false }).limit(40);
-    if (error) { setVersFailed(true); return; }
+  const readVersions = useLatestRead();   // read, then set — the newest read's answer only (R17, lib/useLatestRead)
+  const loadVersions = useCallback(() => readVersions(async () => (supabase
+    ? await supabase.from("content_versions").select("*").eq("content_id", id).order("created_at", { ascending: false }).limit(40)
+    : null), (r) => {
+    if (!r) return;
+    if (r.error) { setVersFailed(true); return; }
     setVersFailed(false);
-    setVersions((data as Version[]) ?? []);
-  }, [id]);
+    setVersions((r.data as Version[]) ?? []);
+  }), [readVersions, id]);
 
   // Load the piece + its versions when the editor opens (or the piece changes).
   useEffect(() => {

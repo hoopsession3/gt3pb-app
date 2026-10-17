@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useApp } from "./AppProvider";
 import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +11,7 @@ import { money } from "@/lib/money";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { usePrompt } from "@/components/PromptSheet";
 import { haptic } from "@/lib/haptics";
+import { useChanged } from "@/lib/useChanged";
 
 // MEMBERSHIP PLAN editor — manage subscription tiers in-app (was SQL-only). CRUD on subscription_plans.
 // Fetch state via useAsyncData — a failed load is a real error now, not a silent "No plans yet".
@@ -63,7 +64,7 @@ export default function PlanEditor() {
 function PlanRow({ p, onSaved, toast }: { p: Plan; onSaved: () => void; toast: (m: string, t?: any) => void }) {
   const confirm = useConfirm();
   const [d, setD] = useState(p);
-  useEffect(() => { setD(p); }, [p]);
+  if (useChanged(p)) setD(p);   // a fresh plan row, during render (R17, lib/useChanged)
   const dirty = d.label !== p.label || d.price_cents !== p.price_cents || d.period_days !== p.period_days || d.active !== p.active;
 
   const save = async () => {

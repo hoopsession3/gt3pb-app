@@ -12,6 +12,7 @@ import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "@/components/useCrew";
 import { useConfirm } from "@/components/ConfirmSheet";
+import { useChanged } from "@/lib/useChanged";
 
 // TASKSHEET (the sheet itself; the provider that opens it is components/TaskSheet.tsx and loads
 // this file on first open — a task sheet is staff/member UI and rides in no guest's bundle).
@@ -73,9 +74,8 @@ export default function TaskSheetBody({ id, source, onClose }: { id: string; sou
 
   // Mirror the fetched row into local state — write() below applies optimistic patches to it and
   // reverts on failure, which needs a real settable copy, not just the board's read-only snapshot.
-  useEffect(() => {
-    if (board.data) { setT(board.data.t); setPrep(board.data.prep); }
-  }, [board.data]);
+  // (During render since R17 — lib/useChanged — so a load is drawn once, not first with the old copy.)
+  if (useChanged(board.data) && board.data) { setT(board.data.t); setPrep(board.data.prep); }
 
   // the open initiatives a task can roll up to (0201/0237) — the picker's options
   useEffect(() => {

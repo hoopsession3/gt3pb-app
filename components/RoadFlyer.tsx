@@ -12,6 +12,12 @@ import { saveFile } from "@/lib/deviceActions";
 import { APP_BUILD } from "@/lib/native";
 import Button from "./Button";
 import { Segmented, tabPanel } from "@/components/controls";
+import { devicePref, useDevicePref } from "@/lib/devicePref";
+import { useChanged } from "@/lib/useChanged";
+
+const FLYER_TPL = devicePref("gt3-flyer-tpl");
+/** The kept theme, if it names one; else the first. Pure. */
+const keptTheme = (raw: string | null): number => { const i = Number(raw); return raw !== null && Number.isInteger(i) && i >= 0 && i < THEMES.length ? i : 0; };
 
 // ROAD FLYER — the locked GT3 house graphics, drawn on a canvas so they're pixel-identical every
 // time. A five-slide set (Announce · Menu · Sub-menu · Details · Photo) that reads as ONE luxury
@@ -85,23 +91,23 @@ export default function RoadFlyer() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [opts, setOpts] = useState<{ key: string; label: string; date: string; time: string; place: string; address: string }[]>([]);
   const [tile, setTile] = useState<Tile>("announce");
-  const [tpl, setTpl] = useState(0);
+  // The theme, kept on the phone and read as a store (lib/devicePref, R17): the first on the server and while hydrating.
+  const tpl = keptTheme(useDevicePref(FLYER_TPL));
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
-  const [f, setF] = useState({ headline1: THEMES[0].l1, headline2: THEMES[0].l2, date: "", time: "", place: "", address: "", photo: "", menu: DEFAULT_MENU, submenu: DEFAULT_SUB, details: DEFAULT_DETAILS });
+  // The saying starts as the kept theme's: the flyer mounts inside Studio, after hydration, so the theme the phone kept is
+  // already here on the first render — and useChanged (below) sees only a later change (the R17 review, F2).
+  const [f, setF] = useState(() => ({ headline1: THEMES[tpl].l1, headline2: THEMES[tpl].l2, date: "", time: "", place: "", address: "", photo: "", menu: DEFAULT_MENU, submenu: DEFAULT_SUB, details: DEFAULT_DETAILS }));
   const logoRef = useRef<HTMLImageElement | null>(null); // the real GT3 logo image (gt3pb-handle.png)
   const [logoReady, setLogoReady] = useState(0);
-  const headEditedRef = useRef(false); // once the user types their own headline, stop auto-seeding the saying
+  const [headEdited, setHeadEdited] = useState(false); // once the user types their own headline, stop auto-seeding the saying
 
   // Each template carries its own GT3 saying; picking one shows that saying (a different angle),
   // unless the user has already written their own headline.
-  const seedSaying = (i: number) => { if (!headEditedRef.current) setF((p) => ({ ...p, headline1: THEMES[i].l1, headline2: THEMES[i].l2 })); };
-  // After seedSaying, which it calls (R16: a function read before its declaration is the stale one).
-  useEffect(() => {
-    const saved = typeof window !== "undefined" ? Number(localStorage.getItem("gt3-flyer-tpl")) : 0;
-    if (saved >= 0 && saved < THEMES.length) { setTpl(saved); seedSaying(saved); }
-  }, []);
-  const pickTpl = (i: number) => { setTpl(i); if (typeof window !== "undefined") localStorage.setItem("gt3-flyer-tpl", String(i)); seedSaying(i); };
+  const seedSaying = (i: number) => { if (!headEdited) setF((p) => ({ ...p, headline1: THEMES[i].l1, headline2: THEMES[i].l2 })); };
+  // The theme the phone kept, arriving after hydration, brings its saying — during render (R17, lib/useChanged).
+  if (useChanged(tpl)) seedSaying(tpl);
+  const pickTpl = (i: number) => { FLYER_TPL.write(String(i)); seedSaying(i); };
   const applyTemplate = (id: string) => { const i = THEMES.findIndex((x) => x.id === id); if (i >= 0) pickTpl(i); return i >= 0 ? THEMES[i].name : ""; };
 
   // Deterministic fallback pick when the AI isn't switched on — reads the slide + copy for a mood.
@@ -473,7 +479,7 @@ export default function RoadFlyer() {
   };
 
   const field = (k: keyof typeof f, label: string, ph: string) => (
-    <label className="rf-f"><span>{label}</span><input value={f[k]} onChange={(e) => { if (k === "headline1" || k === "headline2") headEditedRef.current = true; setF((p) => ({ ...p, [k]: e.target.value })); }} placeholder={ph} /></label>
+    <label className="rf-f"><span>{label}</span><input value={f[k]} onChange={(e) => { if (k === "headline1" || k === "headline2") setHeadEdited(true); setF((p) => ({ ...p, [k]: e.target.value })); }} placeholder={ph} /></label>
   );
   const usesPhoto = tile === "announce" || tile === "photo";
 

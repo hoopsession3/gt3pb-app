@@ -26,6 +26,7 @@ import SwipePager from "@/components/SwipePager";
 import { haptic } from "@/lib/haptics";
 import { Segmented, tabPanel } from "@/components/controls";
 import { useStuck } from "@/components/useStuck";
+import { useSearchParam } from "@/lib/clientPage";
 
 /** The most of one line the shop ships (app/api/shop/checkout clamps each to it). */
 const MAX_LINE = 20;
@@ -84,10 +85,11 @@ export default function Shop() {
   // Two aisles under one roof (2026-08): Bottles = the Saturday-drop pack reserve (the old /reserve
   // flow, embedded) · Merch = the capsule below. Default Bottles — the everyday take-home, and it
   // keeps continuity with the Reserve tab this replaced. ?tab=merch|bottles deep-links either aisle.
-  const [section, setSection] = useState<Aisle>("bottles");
-  useEffect(() => {
-    try { const q = new URLSearchParams(window.location.search).get("tab"); if (q === "merch" || q === "bottles") setSection(q); } catch { /* ignore */ }
-  }, []);
+  // The link's aisle read as a store (lib/clientPage, R17) until one is picked here: Bottles on the server and while
+  // hydrating, ?tab= after — no effect setting it as the page mounts.
+  const [picked, setSection] = useState<Aisle | null>(null);
+  const asked = useSearchParam("tab");
+  const section: Aisle = picked ?? (asked === "merch" || asked === "bottles" ? asked : "bottles");
 
   const loader = useCallback(async (): Promise<Product[]> => {
     if (!supabase) return [];

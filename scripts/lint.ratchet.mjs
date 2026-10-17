@@ -36,14 +36,25 @@ import { execFileSync } from "node:child_process";
 //   kept for an effect is lib/useLatest's, written after render, never during it); immutability 3 (a function used before
 //   its line, a reset moved above the effect that calls it, a navigation said as window.location.assign); unescaped
 //   entities 3 (the console's apostrophes); preserve-manual-memoization 2 (the academy's two callbacks name setView).
-export const CEILING = { errors: 89, warnings: 51 };
+//   R17 (2026-10-17): 89 → 0 errors, 51 → 47 warnings. The 89 were react-hooks/set-state-in-effect — an effect that set
+//   state as it started, so every screen drew twice and the first time stale. A copy seeded from each fresh load is set
+//   while rendering when the load changes (lib/useChanged); a screen's read sets its state in the read's own answer, and
+//   only the newest one's (lib/useLatestRead); what the browser says — online, a ?tab=, Reduce Motion, the history — is
+//   read as a store (lib/clientState); a value that can be worked out is worked out (useAsyncData's status, a count's
+//   snap). One effect keeps it on purpose, named where it stands (components/Sheet: the open prop followed into the
+//   sheet's own stage). The four warnings were react-hooks/exhaustive-deps on effects this rewrote (the scanner's
+//   lookup, the brew planner's handoff, two of the trailer's reads).
+export const CEILING = { errors: 0, warnings: 47 };
 /** @deprecated the single total; kept so a reader of the old name still gets the sum. */
 export const LINT_CEILING = CEILING.errors + CEILING.warnings;
 
 // RULES HELD AT ZERO (R14). Every hit of these is a bug, never debt: a ceiling would let one in.
 // R16: the six R16 brought to zero join it — each was a real wrong answer (a render that reads the clock draws a time
 // that is already stale; a ref written in render is a value React may throw away), not a style.
+// R17: set-state-in-effect joins them — at zero, its next hit is a screen that draws twice, the first time wrong. The one
+// effect kept (components/Sheet) says so on its line, and scripts/r17.test.mjs holds it the only file allowed to.
 export const ZERO = [
+  "react-hooks/set-state-in-effect",
   "react-hooks/rules-of-hooks",
   "react-hooks/purity",
   "react-hooks/refs",

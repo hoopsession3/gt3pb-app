@@ -8,6 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { etToday, nearDay } from "@/lib/dates";
 import Icon, { type IconName } from "@/components/Icon";
 import { isSettled } from "@/lib/settled";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // MEMBER INBOX — "what's happening with my stuff," on the customer Today. A read-only aggregation
 // over the member's OWN orders (cup), packs (drop_orders) and deliveries (delivery_orders) — every
@@ -42,8 +43,11 @@ export default function MemberInbox() {
   const [items, setItems] = useState<Item[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase || !user) { setItems([]); setLoadFailed(false); return; }
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead): a sign-out mid-read never lands the last
+  // member's orders.
+  const read = useLatestRead();
+  const load = useCallback(() => read(async (): Promise<{ out: Item[]; failed: boolean }> => {
+    if (!supabase || !user) return { out: [], failed: false };
     const dayFloor = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
     // Each read is own-rows (RLS) + fail-soft — a missing table/column can never break Today — but a
     // real fetch error must still be logged (not silently swallowed) and must never render identically
@@ -77,9 +81,8 @@ export default function MemberInbox() {
     }
     // Live/soonest first: anything actionable (live/warn) rises above passive "received/done" rows.
     out.sort((a, b) => (a.tone === "live" || a.tone === "warn" ? 0 : 1) - (b.tone === "live" || b.tone === "warn" ? 0 : 1));
-    setItems(out);
-    setLoadFailed((packs.failed || dels.failed) && out.length === 0);
-  }, [user]);
+    return { out, failed: (packs.failed || dels.failed) && out.length === 0 };
+  }, ({ out, failed }) => { setItems(out); setLoadFailed(failed); }), [read, user]);
 
   useEffect(() => { load(); }, [load]);
   useRealtimeTable({ table: "drop_orders", filter: `user_id=eq.${user?.id}` }, load, { enabled: !!user });
@@ -120,9 +123,12 @@ export function useHasActiveOrder(): boolean {
   // direction — including on a fetch error — is "assume they might," never "confidently say they
   // don't." A confident-false-on-error was the actual bug: a transient error read as "definitely no
   // active order" and showed the upsell it exists to suppress.
-  const [has, setHas] = useState(true);
+  // The answer is kept with whose it is (R17): no member, no order — said while rendering, not set by the effect; a
+  // member not yet answered for is the safe default, true.
+  const [answer, setAnswer] = useState<{ user: string; has: boolean } | null>(null);
+  const has = !supabase || !user ? false : answer?.user === user.id ? answer.has : true;
   useEffect(() => {
-    if (!supabase || !user) { setHas(false); return; }
+    if (!supabase || !user) return;
     let live = true;
     const today = etToday();
     (async () => {
@@ -133,7 +139,7 @@ export function useHasActiveOrder(): boolean {
         ]);
         if (!live) return;
         if (e1 || e2) { console.error("[MemberInbox] active-order check failed:", e1 || e2); return; } // leave `has` at its safe default
-        setHas((p ?? 0) > 0 || (d ?? 0) > 0);
+        setAnswer({ user: user.id, has: (p ?? 0) > 0 || (d ?? 0) > 0 });
       } catch (err) { if (live) console.error("[MemberInbox] active-order check failed:", err); }
     })();
     return () => { live = false; };

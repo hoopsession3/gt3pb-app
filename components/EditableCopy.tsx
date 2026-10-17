@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ElementType, type ChangeEvent, type K
 import { useAuth, roleOf } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { saveCopy } from "@/lib/copy";
-import { EDIT_MODE_KEY, readEditMode } from "@/lib/editModeToggle";
+import { useEditMode } from "@/lib/editModeToggle";
 import { useLatest } from "@/lib/useLatest";
 
 // INLINE, ON-SCREEN COPY EDITING — Ryan's ask, 2026-07-17: owners should be able to edit copy
@@ -47,15 +47,10 @@ export default function EditableCopy({
   const { toast } = useApp();
   const isOwner = roleOf(profile) === "owner";
 
-  const [editMode, setEditMode] = useState(false);
-  useEffect(() => {
-    if (!isOwner) return;
-    const apply = () => setEditMode(readEditMode());
-    apply();
-    window.addEventListener(EDIT_MODE_KEY, apply);
-    window.addEventListener("storage", apply); // cross-tab, matches DisplayToggle
-    return () => { window.removeEventListener(EDIT_MODE_KEY, apply); window.removeEventListener("storage", apply); };
-  }, [isOwner]);
+  // The owner's switch, read as a store (lib/editModeToggle, R17): it follows the toggle here and in other tabs, off on
+  // the server and while hydrating — no effect copying it into state as each field mounts.
+  const switchOn = useEditMode();
+  const editMode = isOwner && switchOn;
 
   const [active, setActive] = useState(false); // this one field is mid-edit right now
   const [draft, setDraft] = useState(value);

@@ -23,6 +23,7 @@ import { useBackStep } from "@/components/useBackStep";
 import Button from "@/components/Button";
 import Said from "@/components/Said";
 import { useMinute } from "@/lib/useMinute";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
 // what the role owns, the non-negotiables, the rhythm it keeps, and how it is actually judged.
@@ -83,14 +84,16 @@ export default function AcademyPage() {
   const [loaded, setLoaded] = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!supabase || !user) return;
-    const [pr, ce, asg, ak] = await Promise.all([
-      supabase.from("academy_progress").select("module_slug,status,best_score,completed_at").eq("user_id", user.id),
-      supabase.from("academy_certifications").select("cert_key,expires_at").eq("user_id", user.id),
-      supabase.from("academy_assignments").select("target_type,target_key,due_at").eq("user_id", user.id),
-      supabase.from("academy_acknowledgements").select("doc_key").eq("user_id", user.id),
-    ]);
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead).
+  const read = useLatestRead();
+  const load = useCallback(() => read(async () => (supabase && user ? await Promise.all([
+    supabase.from("academy_progress").select("module_slug,status,best_score,completed_at").eq("user_id", user.id),
+    supabase.from("academy_certifications").select("cert_key,expires_at").eq("user_id", user.id),
+    supabase.from("academy_assignments").select("target_type,target_key,due_at").eq("user_id", user.id),
+    supabase.from("academy_acknowledgements").select("doc_key").eq("user_id", user.id),
+  ]) : null), (answer) => {
+    if (!answer) return;
+    const [pr, ce, asg, ak] = answer;
     // A FAILED READ IS NOT AN EMPTY LIST (2026-10-04). All four used to "fail soft to []" — a note
     // from before 0031, when two of these tables might not exist yet. They do now, so a refused read
     // is a dropped connection or a policy, and reading it as nothing-done told a trained person they
@@ -106,7 +109,7 @@ export default function AcademyPage() {
     setAssignments((asg.data ?? []) as Assignment[]);
     setAcks(new Set((ak.data ?? []).map((r: { doc_key: string }) => r.doc_key)));
     setLoaded(true);
-  }, [user]);
+  }), [read, user]);
   useEffect(() => { load(); }, [load]);
 
   const completed = useMemo(() => new Set(Object.entries(progress).filter(([, v]) => v.status === "complete").map(([k]) => k)), [progress]);
@@ -588,14 +591,16 @@ function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor
   const [target, setTarget] = useState("path");
   const [due, setDue] = useState("");
 
-  const load = useCallback(async () => {
-    if (!supabase) { setLoaded(true); return; }
-    const [profs, prog, cs, asg] = await Promise.all([
-      supabase.from("profiles").select("id,display_name,role").neq("role", "member"),
-      supabase.from("academy_progress").select("user_id,module_slug,status"),
-      supabase.from("academy_certifications").select("user_id,cert_key,expires_at"),
-      supabase.from("academy_assignments").select("user_id,target_type,target_key,due_at"),
-    ]);
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead).
+  const readTeam = useLatestRead();
+  const load = useCallback(() => readTeam(async () => (supabase ? await Promise.all([
+    supabase.from("profiles").select("id,display_name,role").neq("role", "member"),
+    supabase.from("academy_progress").select("user_id,module_slug,status"),
+    supabase.from("academy_certifications").select("user_id,cert_key,expires_at"),
+    supabase.from("academy_assignments").select("user_id,target_type,target_key,due_at"),
+  ]) : null), (answer) => {
+    if (!answer) { setLoaded(true); return; }
+    const [profs, prog, cs, asg] = answer;
     // A FAILED READ IS NOT AN EMPTY TEAM (2026-10-04): any one of these four not answering used to
     // read as "No team members yet", or as everybody at 0%.
     const failed = [profs, prog, cs, asg].find((r) => r.error)?.error;
@@ -617,7 +622,7 @@ function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor
     }).sort((a, b) => b.overdue - a.overdue || a.done - b.done);
     setRows(out);
     setLoaded(true);
-  }, []);
+  }), [readTeam]);
   useEffect(() => { load(); }, [load]);
 
   // Only someone on the board can be chosen: an id from a link that is not on it (not on the crew)

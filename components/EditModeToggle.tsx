@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {  } from "react";
 import { useAuth, roleOf } from "./AuthProvider";
-import { readEditMode, writeEditMode } from "@/lib/editModeToggle";
+import { useEditMode, writeEditMode } from "@/lib/editModeToggle";
 import Icon from "@/components/Icon";
 
 // The switch for EditableCopy's inline, on-page editing (see that file for the full picture) —
@@ -12,11 +12,10 @@ import Icon from "@/components/Icon";
 // behaves, so it stays out of the rail entirely for anyone who isn't the owner.
 export default function EditModeToggle() {
   const { profile } = useAuth();
-  const [on, setOn] = useState(false);
-  useEffect(() => { setOn(readEditMode()); }, []);
+  const on = useEditMode();   // a store since R17 (lib/editModeToggle): every reader follows the switch, here and in other tabs
   if (roleOf(profile) !== "owner") return null;
 
-  const toggle = () => { const next = !on; setOn(next); writeEditMode(next); };
+  const toggle = () => writeEditMode(!on);
 
   return (
     <button type="button" className={`rdg-fab ec-toggle${on ? " on" : ""}`} onClick={toggle} aria-pressed={on} aria-label={on ? "Turn off on-page copy editing" : "Turn on on-page copy editing"}>

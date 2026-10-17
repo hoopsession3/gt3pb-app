@@ -7,6 +7,7 @@ import { squareClientReady } from "@/lib/square";
 import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
 import { haptic } from "@/lib/haptics";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // PAYMENTS — the owner's checkout controls, in Settings › Ordering & payments (Money › Get paid until
 // 2026-10-06, the settings round; Money keeps the refunds door and a line here). Two facts, one switch:
@@ -23,15 +24,16 @@ export default function PaymentSettings() {
   const [subsOn, setSubsOn] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    // select("*") is resilient to the subscriptions_enabled column not being applied yet — a missing
-    // column just reads as undefined (off) instead of erroring out the whole settings load.
-    const { data } = await supabase.from("live_status").select("*").maybeSingle();
-    setPayAtPickup((data as { pay_at_pickup?: boolean } | null)?.pay_at_pickup !== false);
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead).
+  const read = useLatestRead();
+  // select("*") is resilient to the subscriptions_enabled column not being applied yet — a missing
+  // column just reads as undefined (off) instead of erroring out the whole settings load.
+  const load = useCallback(() => read(async () => (supabase ? { data: (await supabase.from("live_status").select("*").maybeSingle()).data as unknown } : null), (r) => {
+    if (!r) return;
+    setPayAtPickup((r.data as { pay_at_pickup?: boolean } | null)?.pay_at_pickup !== false);
     // Default OFF — subscriptions are dark until the owner switches them on (0150).
-    setSubsOn((data as { subscriptions_enabled?: boolean } | null)?.subscriptions_enabled === true);
-  }, []);
+    setSubsOn((r.data as { subscriptions_enabled?: boolean } | null)?.subscriptions_enabled === true);
+  }), [read]);
   useEffect(() => { load(); }, [load]);
 
   // Asks Square directly (server token, owner-gated route) and names the exact mismatch —

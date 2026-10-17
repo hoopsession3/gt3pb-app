@@ -9,7 +9,7 @@ import Icon from "@/components/Icon";
 import Gt3Mark from "@/components/Gt3Mark";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
-import { readEditMode, writeEditMode } from "@/lib/editModeToggle";
+import { useEditMode, writeEditMode } from "@/lib/editModeToggle";
 import { showsCommerce, surfaceOf } from "@/lib/surfaces";
 import { staffAccess, type Access } from "@/lib/access";
 import { canOf } from "@/lib/roles";
@@ -82,14 +82,15 @@ function Tile({ title, sub, icon, onClick, disabled }: { title: string; sub: str
 
 /** The owner's on-page copy editing (components/EditableCopy), in a group of its own. */
 function OwnerRows() {
-  // Read when the menu opens (it is drawn in the browser only, after a tap), so no effect is needed.
-  const [editing, setEditing] = useState(readEditMode);
+  // The switch the phone keeps, read as a store (lib/editModeToggle): the same answer the rail's toggle and every field
+  // read, so flipping either moves both.
+  const editing = useEditMode();
   return (
     <>
       <div className="acs-group">Owner</div>
       <div className="acs-rows">
         <Row title="Edit copy on pages" sub={editing ? "On — tap any text to change it" : "Off — turn on to change words on a page"}
-          end={editing ? "On" : "Off"} pressed={editing} onClick={() => { const next = !editing; setEditing(next); writeEditMode(next); }} />
+          end={editing ? "On" : "Off"} pressed={editing} onClick={() => writeEditMode(!editing)} />
       </div>
     </>
   );

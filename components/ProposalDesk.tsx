@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useApp } from "./AppProvider";
@@ -9,6 +9,7 @@ import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
+import { useChanged } from "@/lib/useChanged";
 
 // PROPOSAL DESK (0180) — the reach-out strategy as a working, co-authored document that moves through
 // a real lifecycle. Any staffer edits the strategy; anyone advances it draft -> in_review -> sent ->
@@ -73,10 +74,9 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
 
   // Don't clobber an in-flight edit — sync the textarea from the fetched value only when nothing's
   // unsaved. Runs whenever a (re)load lands a new `prop` (mount, reload(), or realtime-triggered reload).
-  useEffect(() => {
-    if (dirty) return;
-    setStrategy(prop?.strategy ?? "");
-  }, [prop, dirty]);
+  // (During render since R17 — lib/useChanged — so the box is drawn once with the loaded words.)
+  const propNew = useChanged(prop), dirtyNew = useChanged(dirty);
+  if ((propNew || dirtyNew) && !dirty) setStrategy(prop?.strategy ?? "");
 
   const nameOf = (uid: string | null) => (uid === user?.id ? "You" : (staff.find((s) => s.id === uid)?.display_name?.trim().split(" ")[0] || "Crew"));
   const status = prop?.status ?? null;

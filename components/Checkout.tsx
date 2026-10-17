@@ -32,6 +32,7 @@ import { haptic } from "@/lib/haptics";
 import { Segmented } from "@/components/controls";
 import { holdTicket, isTicket, ticketPath } from "@/lib/tickets";
 import { holdRef } from "@/lib/paidRef";
+import { useChanged } from "@/lib/useChanged";
 
 // THE TIP SIGNS THE KEY (2026-10-12, C7 of the customer audit, approved). What is bought and what it costs — the items
 // and the tip — are the checkout key's whole signature (lib/idempotency attemptFor), and the key is kept beside the cart
@@ -65,7 +66,10 @@ export default function Checkout() {
   // readyFrom/pickup are the SERVER's promise (/api/checkout answers with what it recorded), so the
   // screen says what the order says — not what this sheet last read, which can be a minute old.
   const [done, setDone] = useState<{ paid: boolean; total: number; lines: [string, number][]; name: string; warn?: string; ref?: string; readyFrom: string | null; pickup: string; no?: string; ticket?: string | null } | null>(null);
-  useEffect(() => { if (!open) setDone(null); else trackFunnel("order", "open"); }, [open]);
+  // Closed: the confirmation is let go, during render (R17, lib/useChanged); opened: the funnel hears it (an effect — it
+  // is outside React).
+  if (useChanged(open) && !open) setDone(null);
+  useEffect(() => { if (open) trackFunnel("order", "open"); }, [open]);
   const { profile } = useAuth();
   const paymentRef = useRef<PaymentCardHandle>(null);
   // ONE KEY PER CHECKOUT (2026-10-11, lib/chargeOnce). The key used to be minted per card token, and

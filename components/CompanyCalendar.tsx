@@ -35,6 +35,8 @@ import GoLine from "./GoLine";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
 import { useApp } from "./AppProvider";
+import { useClientValue } from "@/lib/clientPage";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, click-through to source.
@@ -255,7 +257,9 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   const opps = board.data?.opps ?? [];
   const meets = board.data?.meets ?? [];
 
-  const loadStale = useCallback(async () => { if (!supabase) return; const { data } = await supabase.rpc("stale_content_count"); setStale(typeof data === "number" ? data : 0); }, []);
+  const readStale = useLatestRead();   // read, then set — the newest read's answer only (R17, lib/useLatestRead)
+  const loadStale = useCallback(() => readStale(async () => (supabase ? { data: (await supabase.rpc("stale_content_count")).data as unknown } : null),
+    (r) => { if (r) setStale(typeof r.data === "number" ? r.data : 0); }), [readStale]);
   useEffect(() => { loadStale(); }, [loadStale]);
   const tidy = async () => {
     if (!supabase || tidying) return;
@@ -721,8 +725,8 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
 // in a field. Rendered INSIDE the editor's sheet (its `walker`), so every move goes through the sheet's
 // door: typed changes unsaved ask before the walk throws them away. The swipe is the sheet's own now.
 function SwipeNav({ i, n, label, onMove }: { i: number; n: number; label: string; onMove: (d: number) => void }) {
-  const [host, setHost] = useState<HTMLElement | null>(null);
-  useEffect(() => { setHost(document.querySelector<HTMLElement>(".app") ?? document.body); }, []);
+  // The portal's host, read once this is the browser (R17, lib/clientPage) — null on the server and while hydrating.
+  const host = useClientValue(() => document.querySelector<HTMLElement>(".app") ?? document.body, null);
   const door = useSheetDoor();
   const move = useEffectEvent((d: number) => (door ? door(() => onMove(d)) : onMove(d)));
   useEffect(() => {

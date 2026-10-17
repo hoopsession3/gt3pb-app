@@ -1,22 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { useLiveBroadcasts, type Broadcast } from "@/lib/broadcasts";
 import Icon from "@/components/Icon";
 import { btn } from "./Button";
 import { safeLink } from "@/lib/safeLink";
+import { devicePref, useDevicePref } from "@/lib/devicePref";
 
 // BROADCAST BANNER — the live announcement bar every user sees. Reads the broadcasts RLS lets this
 // viewer see (active + in-window + their audience), shows the newest one they haven't dismissed, and
 // updates in real time when staff publish or toggle. Dismissal is per-broadcast (localStorage), so a
 // message doesn't nag after it's been read; a brand-new broadcast still shows.
 const KEY = "gt3-bcast-dismissed";
-const readDismissed = (): string[] => { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; } };
+// Kept on the phone and read as a store (lib/devicePref, R17): every mounted banner hears a dismissal.
+const DISMISSED = devicePref(KEY);
+const parseDismissed = (raw: string | null): string[] => { try { const v = JSON.parse(raw || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
 
 export default function BroadcastBanner() {
   const live = useLiveBroadcasts();
-  const [dismissed, setDismissed] = useState<string[]>([]);
-  useEffect(() => { setDismissed(readDismissed()); }, []);
+  const raw = useDevicePref(DISMISSED);
+  const dismissed = useMemo(() => parseDismissed(raw), [raw]);
 
   const b: Broadcast | undefined = live.find((x) => !dismissed.includes(x.id));
   if (!b) return null;
@@ -24,9 +27,7 @@ export default function BroadcastBanner() {
   const link = safeLink(b.cta_href);
 
   const dismiss = () => {
-    const next = [...new Set([...dismissed, b.id])].slice(-50);
-    setDismissed(next);
-    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    DISMISSED.write(JSON.stringify([...new Set([...dismissed, b.id])].slice(-50)));
   };
 
   return (

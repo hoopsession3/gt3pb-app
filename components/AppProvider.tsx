@@ -8,6 +8,7 @@ import { haptic } from "@/lib/haptics";
 import { apiUrl } from "@/lib/native";
 import { announce } from "@/components/Announcer";
 import { TOAST_AFTER_HOLD_MS, toastHoldMs } from "@/lib/toastTiming";
+import { useHydrated } from "@/lib/clientState";
 
 type ToastVariant = "success" | "error" | "info";
 /** One thing the toast can do — "Undo" after a swipe cleared a flag (2026-10-05, the gesture round). */
@@ -73,6 +74,24 @@ type ToastState = { toastMsg: string; toastShown: boolean; toastVariant: ToastVa
 const ToastCtx = createContext<ToastState>({ toastMsg: "", toastShown: false, toastVariant: "success", toastAction: null });
 export function useToastState(): ToastState {
   return useContext(ToastCtx);
+}
+
+/** The cart this phone kept, cleaned (R7: whole drinks, up to what one order holds), or null. Any drink is kept for
+ *  now: which are still on the menu is the Catalog's to say, once it has been read (AppProvider). Reads storage. */
+function savedCart(): Record<string, number> | null {
+  try {
+    const raw = localStorage.getItem("gt3-cart");
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as Record<string, unknown>;
+    const clean: Record<string, number> = {};
+    // Whole, up to what one order holds (R7): it came back as 9 of a drink, which is a different cart — and a different
+    // checkout key, so a payment whose answer was lost was paid again under a new one.
+    let room = MAX_CUPS;
+    for (const [id, q] of Object.entries(saved)) {
+      if (id && typeof q === "number" && Number.isFinite(q) && q >= 1 && room > 0) { clean[id] = Math.min(room, Math.floor(q)); room -= clean[id]; }
+    }
+    return Object.keys(clean).length ? clean : null;
+  } catch { return null; }
 }
 
 export default function AppProvider({ children }: { children: React.ReactNode }) {
@@ -177,23 +196,17 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   // never clobbering a cart already being built this session), validate ids against the live
   // menu so a retired drink can't resurrect into an order, then persist every change. A cleared
   // cart (checkout success) writes the empty object through the same mirror.
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("gt3-cart");
-      if (!raw) return;
-      const saved = JSON.parse(raw) as Record<string, unknown>;
-      const clean: Record<string, number> = {};
-      // Any drink is kept for now: which are still on the menu is the Catalog's to say, once it has been read (below).
-      // Whole, up to what one order holds (R7): it came back as 9 of a drink, which is a different cart — and a different
-      // checkout key, so a payment whose answer was lost was paid again under a new one.
-      let room = MAX_CUPS;
-      for (const [id, q] of Object.entries(saved)) {
-        if (id && typeof q === "number" && Number.isFinite(q) && q >= 1 && room > 0) { clean[id] = Math.min(room, Math.floor(q)); room -= clean[id]; }
-      }
-      if (Object.keys(clean).length) setCart((c) => (Object.keys(c).length ? c : clean));
-    } catch { /* ignore */ }
-  }, []);
-  useEffect(() => { try { localStorage.setItem("gt3-cart", JSON.stringify(cart)); } catch { /* ignore */ } }, [cart]);
+  // THE CART COMES BACK AS THE PAGE BECOMES THE BROWSER'S (R17). Still not the useState initializer — the server and the
+  // hydrating render draw an empty cart, as before — but read the render after (lib/clientState useHydrated), not by an
+  // effect that set state as it mounted. Written back only once read: an empty cart written first would erase it.
+  const hydrated = useHydrated();
+  const [restored, setRestored] = useState(false);
+  if (hydrated && !restored) {
+    setRestored(true);
+    const saved = savedCart();
+    if (saved) setCart((c) => (Object.keys(c).length ? c : saved));
+  }
+  useEffect(() => { if (restored) { try { localStorage.setItem("gt3-cart", JSON.stringify(cart)); } catch { /* ignore */ } } }, [cart, restored]);
   const isInCart = useCallback((id: string) => (cart[id] ?? 0) > 0, [cart]);
   const qtyOf = useCallback((id: string) => cart[id] ?? 0, [cart]);
 

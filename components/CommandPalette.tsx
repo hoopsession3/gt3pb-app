@@ -9,6 +9,7 @@ import { readTopRecents } from "./recents";
 import type { Recent } from "@/lib/recents";
 import { APP_BUILD } from "@/lib/native";
 import Said from "./Said";
+import { useChanged } from "@/lib/useChanged";
 
 // COMMAND PALETTE — ⌘K / Ctrl-K quick-jump for the crew console. Type to jump to any role-allowed
 // section or run a quick action, keyboard-first (↑↓ ⏎ esc). The "this is a real product" flourish.
@@ -22,8 +23,9 @@ export default function CommandPalette() {
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const [recents, setRecents] = useState<Recent[]>([]);
-  // Recents are read fresh each time the palette opens (localStorage isn't reactive).
-  useEffect(() => { if (open) setRecents(readTopRecents(5)); }, [open]);
+  // Recents are read fresh each time the palette opens (localStorage isn't reactive) — as it opens, during render (R17,
+  // lib/useChanged), so its first frame has them.
+  if (useChanged(open) && open) setRecents(readTopRecents(5));
   // Focus return: remember what was focused when the palette opened, restore it on close so keyboard
   // users aren't dumped at the top of the document.
   const restoreRef = useRef<HTMLElement | null>(null);
@@ -93,7 +95,7 @@ export default function CommandPalette() {
     window.addEventListener("gt3-open-cmdk", onOpenEvt);
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("gt3-open-cmdk", onOpenEvt); };
   }, []);
-  useEffect(() => { setSel(0); }, [q]);
+  if (useChanged(q)) setSel(0);   // a new query starts at its first match, during render (R17)
 
   if (!open) return null;
   const activate = (i: Item) => { suppressRestore.current = true; i.run(); setOpen(false); };

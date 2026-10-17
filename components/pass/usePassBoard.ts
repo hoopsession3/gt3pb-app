@@ -16,6 +16,7 @@ import {
 } from "@/lib/passBoard";
 import type { Order } from "@/lib/db";
 import { useApp } from "@/components/AppProvider";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // THE PASS'S BOARD — what it holds and how it stays true (2026-10-11, the KDS program, wave 2: out of app/crew/page.tsx,
 // where it was the top half of the Kitchen function). The read, the realtime feed, the 15-second reconcile, the set of
@@ -82,8 +83,8 @@ export function usePassBoard() {
   // first read, and never twice when the feed and a read both bring it.
   const known = useRef<Set<string>>(new Set());
   // OVERLAPPING READS LAND IN ORDER (2026-10-11): the reconcile, a return to the screen, a reconnect and a drained queue
-  // can all ask at once. Only the newest read asked for is applied — a slow old answer never puts an older board back.
-  const loadSeq = useRef(0);
+  // can all ask at once. Only the newest read asked for is applied — a slow old answer never puts an older board back
+  // (lib/useLatestRead since R17; it was a counter here).
   // The board as the phone last kept it, and when (lib/passBoard snapDue).
   const lastSnap = useRef<{ rows: readonly Order[]; at: number } | null>(null);
   // WHAT THIS PHONE HAS MOVED AND NOT YET HEARD BACK (R11, lib/passBoard holdMove/underHeld): every read and every feed row
@@ -98,13 +99,19 @@ export function usePassBoard() {
 
   // Active board + recently-completed (last 30 min) so picked-up orders linger for
   // review / recall instead of vanishing instantly. Bounded (lib/passBoard readBoard).
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const ask = ++loadSeq.current;
+  // READ, THEN SET — THE NEWEST READ'S ANSWER ONLY (R17, lib/useLatestRead; it was this board's own counter): the read
+  // asks the session and the board, and what is drawn from the answer happens as the answer comes, never as the effect
+  // that starts the read runs.
+  const readNewest = useLatestRead();
+  const load = useCallback(() => readNewest(async () => {
+    if (!supabase) return null;
     // The session first: with none, nothing this read could say is about the pass (`down` above).
     const auth = await supabase.auth.getSession();
     const res = auth.data.session ? await readBoard(supabase, Date.now(), cap.current) : null;
-    if (ask !== loadSeq.current) return;
+    return { auth, res };
+  }, (answer) => {
+    if (!answer) return;
+    const { auth, res } = answer;
     const error = res ? res.error : auth.error;
     if (!res || error) {
       const net = isNetworkError(error?.message);
@@ -130,14 +137,13 @@ export function usePassBoard() {
     if (snapDue(lastSnap.current, rows, at)) { saveSnapshot("gt3-kds-snap", rows); lastSnap.current = { rows, at }; }
     fresh.forEach(announceNew);
     if (fresh.length > 1) say(newOrdersWords(fresh.length));
-  }, [announceNew, say, drawn]);
+  }), [readNewest, announceNew, say, drawn]);
   // Where the truck is selling now — read when the Pass opens and when the feed comes back; between those, the feed's own
   // changes say it (lib/passBoard hereAfter). A failed read keeps what the board had.
-  const loadHere = useCallback(async () => {
-    if (!supabase) return;
-    const r = await readHere(supabase);
-    if (!r.error) setHere((h) => (h.eventId === r.here.eventId && h.stopId === r.here.stopId ? h : r.here));
-  }, []);
+  const readHereNewest = useLatestRead();   // read, then set (R17), as the board's
+  const loadHere = useCallback(() => readHereNewest(async () => (supabase ? readHere(supabase) : null), (r) => {
+    if (r && !r.error) setHere((h) => (h.eventId === r.here.eventId && h.stopId === r.here.stopId ? h : r.here));
+  }), [readHereNewest]);
   // Merge a single row into state (no refetch). Keeps recently-done; drops voids and
   // stale dones (those fall off on the next reconcile).
   const apply = useCallback((row: Order | null, removed = false) => {

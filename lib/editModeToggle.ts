@@ -1,16 +1,22 @@
-// Global "Edit copy" mode — owner-only, on-page toggle for EditableCopy (components/EditableCopy.tsx).
-// Same localStorage + custom-event pattern as DisplayToggle's gt3-display (components/DisplayToggle.tsx):
-// no Context/provider needed, every mounted EditableCopy instance and the EditModeToggle button itself
-// just listen for the event and re-read. Off by default and NOT synced anywhere but this browser — an
-// owner turns it on when they're about to make a pass on copy, off when they're done browsing normally.
-export const EDIT_MODE_KEY = "gt3-copy-edit";
+"use client";
 
-export function readEditMode(): boolean {
-  if (typeof window === "undefined") return false;
-  try { return localStorage.getItem(EDIT_MODE_KEY) === "1"; } catch { return false; }
+import { devicePref, useDevicePref } from "./devicePref";
+
+// Global "Edit copy" mode — owner-only, on-page toggle for EditableCopy (components/EditableCopy.tsx). Off by default and
+// NOT synced anywhere but this browser — an owner turns it on when they're about to make a pass on copy, off when
+// they're done browsing normally.
+//
+// A setting this phone keeps, so it is lib/devicePref's (R17): every reader — each EditableCopy, the rail's toggle, the
+// account menu's row — follows the switch the moment it is flipped, here or in another tab, with no effect setting state
+// as it mounts and no second store of its own beside the one the shell already carries. Off on the server and while
+// hydrating.
+export const EDIT_MODE_KEY = "gt3-copy-edit";
+const EDIT_MODE = devicePref(EDIT_MODE_KEY);
+
+export function writeEditMode(on: boolean): void {
+  EDIT_MODE.write(on ? "1" : "0");
 }
 
-export function writeEditMode(on: boolean) {
-  try { localStorage.setItem(EDIT_MODE_KEY, on ? "1" : "0"); } catch { /* ignore */ }
-  window.dispatchEvent(new Event(EDIT_MODE_KEY)); // live-apply in every mounted EditableCopy
+export function useEditMode(): boolean {
+  return useDevicePref(EDIT_MODE) === "1";
 }

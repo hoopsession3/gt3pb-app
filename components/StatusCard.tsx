@@ -13,6 +13,10 @@ import { uploadToBucket } from "@/lib/uploads";
 import { useSiteCopy } from "@/lib/copy";
 import { haptic } from "@/lib/haptics";
 import Button from "./Button";
+import { devicePref, useDevicePref } from "@/lib/devicePref";
+import { useChanged } from "@/lib/useChanged";
+
+const CARD_FINISH = devicePref("gt3-card-finish");
 
 // SHOW OFF YOUR STATUS — the member's card, made into an object they own. It's DUAL-SIDED: the front
 // is their portrait held in the frame, the back is their GT3 member card (tier, name, code). Tap it
@@ -87,7 +91,9 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   const [turns, setTurns] = useState(0);        // each tap +3 → a 540° whirl that lands on the other face
   const [spinning, setSpinning] = useState(false);
   const [pointer, setPointer] = useState(false);
-  const [finish, setFinish] = useState<Finish>("gold");
+  // A per-device choice, kept on the phone and read as a store (lib/devicePref, R17): gold on the server and while hydrating.
+  const keptFinish = useDevicePref(CARD_FINISH);
+  const finish: Finish = keptFinish && FINISHES.some((x) => x.key === keptFinish) ? (keptFinish as Finish) : "gold";
   const [motto, setMotto] = useState(profile?.card_motto?.trim() || MOTTO_DEFAULT);
   const [editMotto, setEditMotto] = useState(false);
   // The hero line is theirs to own — a one-line 5-year goal. Canonical (profiles.card_vision, 0183);
@@ -102,14 +108,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   const sinceYear = user?.created_at ? new Date(user.created_at).getFullYear() : new Date().getFullYear();
   const showingBack = turns % 2 === 1;
 
-  // Restore their custom finish + motto (a per-device choice — no migration for a cosmetic pref).
-  useEffect(() => {
-    try {
-      const f = localStorage.getItem("gt3-card-finish") as Finish | null;
-      if (f && FINISHES.some((x) => x.key === f)) setFinish(f);
-    } catch { /* private mode / SSR */ }
-  }, []);
-  const pickFinish = (f: Finish) => { setFinish(f); haptic("selection"); try { localStorage.setItem("gt3-card-finish", f); } catch { /* ignore */ } };
+  const pickFinish = (f: Finish) => { CARD_FINISH.write(f); haptic("selection"); };
   const saveMotto = async (v: string) => {
     const m = v.trim().slice(0, 30) || MOTTO_DEFAULT;
     setMotto(m); setEditMotto(false);
@@ -132,9 +131,10 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
   };
 
   // ── the shareable PNG = the MEMBER-CARD side, in their chosen finish (matches the card they hold) ──
-  const draw = useCallback(async () => {
-    const cv = canvasRef.current; if (!cv) return;
-    const ctx = cv.getContext("2d"); if (!ctx) return;
+  // The card painted (true), or no canvas to paint on (false). Ready is set by draw, below, as the painting answers.
+  const paint = useCallback(async (): Promise<boolean> => {
+    const cv = canvasRef.current; if (!cv) return false;
+    const ctx = cv.getContext("2d"); if (!ctx) return false;
     try { await (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts?.ready; } catch { /* fonts optional */ }
     const p = FINISH_PAINT[finish];
 
@@ -186,8 +186,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
         ctx.fillText(motto, W / 2, H - 118, W - 200);
         sp("1px"); ctx.fillStyle = p.accent; ctx.font = "600 27px 'DM Mono', ui-monospace, monospace";
         ctx.fillText(code ? `JOIN WITH ${code}  ·  app.gt3pb.com` : "app.gt3pb.com", W / 2, H - 60); sp("0px");
-        setReady(true);
-        return;
+        return true;
       }
     }
 
@@ -248,17 +247,24 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
     ctx.fillStyle = p.accent; ctx.font = "600 30px 'DM Mono', ui-monospace, monospace";
     ctx.fillText(code ? `JOIN WITH ${code}   ·   app.gt3pb.com` : "app.gt3pb.com", W / 2, 1254);
 
-    setReady(true);
+    return true;
   }, [founding, name, code, sinceYear, tierLine, motto, finish, vision, photoUrl]);
+  const draw = useCallback(() => paint().then((ok) => { if (ok) setReady(true); }), [paint]);
 
-  useEffect(() => { if (open) { setReady(false); draw(); } }, [open, draw]);
+  // Opened, or anything on the card changed: not ready until painted again — said during render (R17, lib/useChanged),
+  // and the painting started by the effect.
+  const openNew = useChanged(open), drawNew = useChanged(draw);
+  if ((openNew || drawNew) && open && ready) setReady(false);
+  useEffect(() => { if (open) draw(); }, [open, draw]);
   useEffect(() => () => { if (spinTimer.current) clearTimeout(spinTimer.current); }, []);
   // Adopt the saved photo when the profile loads (async) — unless the member just picked a new one.
   const dirtyPhoto = useRef(false);
   useEffect(() => { if (!dirtyPhoto.current && profile?.avatar_url) { setPhotoUrl(profile.avatar_url); setHasPhoto(true); } }, [profile?.avatar_url]);
   // Adopt the saved vision when the profile loads (async), unless they're mid-edit.
-  useEffect(() => { if (!editVision) setVision(profile?.card_vision?.trim() || VISION_DEFAULT); }, [profile?.card_vision]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!editMotto) setMotto(profile?.card_motto?.trim() || MOTTO_DEFAULT); }, [profile?.card_motto]); // eslint-disable-line react-hooks/exhaustive-deps
+  // During render (R17, lib/useChanged): the profile's words arrive and are drawn at once — unless they're mid-edit.
+  const visionNew = useChanged(profile?.card_vision), mottoNew = useChanged(profile?.card_motto);
+  if (visionNew && !editVision) setVision(profile?.card_vision?.trim() || VISION_DEFAULT);
+  if (mottoNew && !editMotto) setMotto(profile?.card_motto?.trim() || MOTTO_DEFAULT);
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;

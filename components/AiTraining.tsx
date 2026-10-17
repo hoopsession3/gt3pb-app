@@ -11,6 +11,7 @@ import Prose from "@/components/Prose";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { scrollMotion } from "@/lib/motion";
 import { wrote } from "@/lib/wrote";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // TRAIN THE AI (Settings › AI › Train the AI, owner — it was on Team until 2026-10-06, the settings
 // round; Team keeps a line to it) — the correction loop for the freeform agents.
@@ -46,15 +47,17 @@ export default function AiTraining() {
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    const [k, c] = await Promise.all([
-      supabase.from("agent_knowledge").select("*").order("created_at", { ascending: false }).limit(200),
-      supabase.from("agent_convos").select("id, agent, question, answer, created_at").order("created_at", { ascending: false }).limit(40),
-    ]);
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead).
+  const read = useLatestRead();
+  const load = useCallback(() => read(async () => (supabase ? await Promise.all([
+    supabase.from("agent_knowledge").select("*").order("created_at", { ascending: false }).limit(200),
+    supabase.from("agent_convos").select("id, agent, question, answer, created_at").order("created_at", { ascending: false }).limit(40),
+  ]) : null), (r) => {
+    if (!r) return;
+    const [k, c] = r;
     setRows((k.data as Know[]) ?? []);
     setConvos((c.data as Convo[]) ?? []);
-  }, []);
+  }), [read]);
   useEffect(() => { load(); }, [load]);
 
   const uploadMedia = async (file: File) => {

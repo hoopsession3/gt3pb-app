@@ -94,7 +94,14 @@ import { readFileSync, existsSync } from "node:fs";
 // alerts loaded from an effect each, in every screen that showed them (lib/streams, components/useMyOrders,
 // lib/useMyAlerts) — they read through one shared store now (lib/shared, useSyncExternalStore), with no effect of their
 // own; and the banners load through lib/realtime's loadOnMount, not an effect beside it (lib/broadcasts).
-export const BASELINE = 89;
+//
+// 2026-10-17: 89 → 0 (R17, the lint ceiling's last rule). Every one went: a copy seeded from a load is set while
+// rendering when the load changes (lib/useChanged); a screen's read sets its state in the read's own answer, the newest
+// only (lib/useLatestRead); the browser's answers are stores (lib/clientState); and a value that can be worked out is
+// worked out. The rule is held at zero by the lint ratchet now (scripts/lint.ratchet.mjs ZERO), with one effect kept on
+// purpose and named on its line (components/Sheet): a line the lint and this count both skip, which scripts/r17.test.mjs
+// holds to that one file.
+export const BASELINE = 0;
 
 const RULE = "react-hooks/set-state-in-effect";
 

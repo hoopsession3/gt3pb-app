@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useApp } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
@@ -9,6 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { haptic } from "@/lib/haptics";
 import { LINK_WORDS, safeLink } from "@/lib/safeLink";
+import { useChanged } from "@/lib/useChanged";
 
 // SPLASH EDITOR (Studio) — the owner controls the marketing card the app opens to (promos, 0144).
 // Edit the copy + CTA, flip it live/off. The guest app shows the most recent active one, once a
@@ -31,7 +32,7 @@ export default function PromoEditor() {
   const board = useAsyncData(loader, []);
   const { reload } = board;
   const row = board.data;
-  useEffect(() => { if (row) setD(row); }, [row]);
+  if (useChanged(row) && row) setD(row);   // a fresh row, during render (R17, lib/useChanged)
 
   const save = async () => {
     if (!supabase || busy) return;

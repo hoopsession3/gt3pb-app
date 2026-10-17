@@ -8,6 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import InlineCreate from "./InlineCreate";
 import { SectionHeader } from "@/components/kit";
 import { wrote } from "@/lib/wrote";
+import { useLatestRead } from "@/lib/useLatestRead";
 
 // LAUNCH READINESS — the go/no-go board. Distinct from milestone progress ("are the deliverables
 // done?"): this is the gating checklist ("is it actually safe to launch?"). Each critical check is
@@ -40,16 +41,20 @@ export function useLaunchReadiness(): Launch {
   const [checks, setChecks] = useState<Check[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!supabase) { setLoaded(true); return; }
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead).
+  const read = useLatestRead();
+  const load = useCallback(() => read(async () => {
+    if (!supabase) return null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const safe = async (p: PromiseLike<{ data: any[] | null }>): Promise<any[]> => { try { return (await p).data ?? []; } catch { return []; } };
-    const [ini, chk] = await Promise.all([
+    return Promise.all([
       safe(supabase.from("initiatives").select("id, title, target_date, emoji").neq("status", "done")),
       safe(supabase.from("readiness_checks").select("id, initiative_id, label, category, status, critical, note, sort").order("sort")),
     ]);
-    setInits(ini as Init[]); setChecks(chk as Check[]); setLoaded(true);
-  }, []);
+  }, (r) => {
+    if (r) { const [ini, chk] = r; setInits(ini as Init[]); setChecks(chk as Check[]); }
+    setLoaded(true);
+  }), [read]);
   useEffect(() => { load(); }, [load]);
   useRealtimeTable(["readiness_checks", "initiatives"], load);
 

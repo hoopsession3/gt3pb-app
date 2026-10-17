@@ -23,19 +23,28 @@ import { notifyVoid } from "@/lib/voidNotice";
 // 'order_moved' is expected — somebody moved the order while this phone had no signal — so it is told, not filed.
 export const OFFLINE_REFUSED_EVENT = "gt3-offline-refused";
 
+// WHETHER A REPLAY IS SENDING, SAID AS IT CHANGES (R17): components/OfflineChip reads it as a store ("Syncing"), so the
+// chip sets nothing of its own as it mounts or as a replay runs.
+export const OFFLINE_SYNCING_EVENT = "gt3-offline-syncing";
 let flushing = false;
+const setFlushing = (v: boolean) => {
+  flushing = v;
+  try { window.dispatchEvent(new Event(OFFLINE_SYNCING_EVENT)); } catch { /* no window: nobody to tell */ }
+};
+/** True while a replay is sending (or checking the session it sends with). */
+export const isFlushing = (): boolean => flushing;
 /** Replay the queue. Returns how many ops remain. */
 export async function flushQueue(supabase: SupabaseClient | null): Promise<number> {
   if (!supabase || flushing) return readQueue().length;
-  flushing = true;
+  setFlushing(true);
   // NOTHING IS SENT WITHOUT A REAL SESSION (R11, 2026-10-16 — the 10/10 audit). Back from a long stretch with no signal,
   // the session's hour can be up and its renewal not yet through; supabase-js then sends a request as nobody (the public
   // key), the database refuses a crew write from nobody, and a refusal takes the op out of the queue — a cash collection
   // made with no bars, gone. With no session the queue waits for the next pass, as it does for no signal.
   try {
     const { data } = await supabase.auth.getSession();
-    if (!data.session) { flushing = false; return readQueue().length; }
-  } catch { flushing = false; return readQueue().length; }
+    if (!data.session) { setFlushing(false); return readQueue().length; }
+  } catch { setFlushing(false); return readQueue().length; }
   const refused: Refused[] = [];
   const sent = new Set<string>();
   try {
@@ -61,5 +70,5 @@ export async function flushQueue(supabase: SupabaseClient | null): Promise<numbe
     writeQueue(pruneStale(readQueue(), Date.now()));
     if (refused.length > 0) window.dispatchEvent(new CustomEvent<Refused[]>(OFFLINE_REFUSED_EVENT, { detail: refused }));
     return readQueue().length;
-  } finally { flushing = false; }
+  } finally { setFlushing(false); }
 }

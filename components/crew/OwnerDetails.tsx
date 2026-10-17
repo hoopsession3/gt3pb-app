@@ -20,6 +20,7 @@ import { haptic } from "@/lib/haptics";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
 import Said from "@/components/Said";
+import { useChanged } from "@/lib/useChanged";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -62,7 +63,6 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   const [saving, setSaving] = useState(false);
   const [wrapping, setWrapping] = useState(false); // capturing the after-action to complete an event
   const [recap, setRecap] = useState("");
-  const [dupWarn, setDupWarn] = useState<string | null>(null);
   // The pin the venue pick decided (lib/venues.venueFill): undefined leaves it to the geocode on
   // save; null means the old pin went with the old address.
   const [pin, setPin] = useState<{ lat: number; lng: number } | null | undefined>(undefined);
@@ -72,7 +72,6 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   const [lead, setLead] = useState("");
   // What starts_at was when loaded — if a save CHANGES the schedule, the stale hand-set
   // when/time labels are cleared so guests see the new time (same rule as FieldOpSheet).
-  const origStartsAt = useRef<string | null>(null);
   // stage/status as of when edit mode opened — only written back if the USER changed it from
   // there, so lifecycle automation (or the date-derived default seeded on open, for stops) can't
   // be clobbered by an unrelated quick-edit (same rule as FieldOpSheet; was previously unguarded
@@ -177,13 +176,17 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   }, [table, opsTable, opsKey, ownerId, isEvent]);
   // Seed the local edit-draft from the fetch, and re-seed on every reload (Cancel, or the row
   // changing underneath an open card) — f/oa/pk/lead stay the editable copy throughout.
-  useEffect(() => {
-    if (!ownerState.data) return;
+  // During render (R17, lib/useChanged): each load is drawn once, with its own copy — not first with the last one's.
+  const ownerNew = useChanged(ownerState.data), kindNew = useChanged(isEvent);
+  if ((ownerNew || kindNew) && ownerState.data) {
     const { d, recap } = ownerState.data;
     setF({ ...(d as Record<string, string | null>), recap });
     setPin(undefined);
-    if (!isEvent) { origStartsAt.current = (d.starts_at as string | null) ?? null; setOa(!!d.order_ahead_enabled); setPk(!!d.pickup_enabled); setLead(d.order_ahead_lead_min != null ? String(d.order_ahead_lead_min) : ""); }
-  }, [ownerState.data, isEvent]);
+    if (!isEvent) { setOa(!!d.order_ahead_enabled); setPk(!!d.pickup_enabled); setLead(d.order_ahead_lead_min != null ? String(d.order_ahead_lead_min) : ""); }
+  }
+  // The stop's start as it was read, to tell a moved stop from an unmoved one at save — the loaded row itself, not a
+  // ref written as it loaded (a ref is not written during render).
+  const origStartsAt = isEvent ? null : (((ownerState.data?.d as { starts_at?: string | null } | undefined)?.starts_at) ?? null);
 
   const set = (k: string, v: string | null) => setF((p) => ({ ...(p ?? {}), [k]: v }));
   // A venue picked (components/VenuePick): its words into the draft, its pin aside until save.
@@ -215,8 +218,13 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
   // this location on this date. Events and stops live in two tables, so it checks both; this is the
   // common "did I already make this?" duplicate the two-table split makes easy to miss.
   const locKey = (f?.location_text ?? "").trim();
+  // The answer is kept with the place and day it is about (R17): nothing to check — or an answer for another place or
+  // day — is no warning, said while rendering; only the read's answer is set, when it comes.
+  const dupKey = supabase && edit && locKey && dateVal ? `${dateVal}|${locKey}|${ownerId}` : null;
+  const [dupFound, setDupFound] = useState<{ key: string; warn: string | null } | null>(null);
+  const dupWarn = dupKey !== null && dupFound?.key === dupKey ? dupFound.warn : null;
   useEffect(() => {
-    if (!supabase || !edit || !locKey || !dateVal) { setDupWarn(null); return; }
+    if (!supabase || !dupKey) return;
     let cancelled = false;
     (async () => {
       try {
@@ -229,11 +237,11 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
           ...((evs as { id: string; title: string }[]) ?? []).filter((e) => e.id !== ownerId).map((e) => e.title || "an event"),
           ...((sts as { id: string; name: string }[]) ?? []).filter((s) => s.id !== ownerId).map((s) => s.name || "a stop"),
         ][0];
-        setDupWarn(other ? `“${other}” is already at ${locKey} that day — same place, same date. Duplicate?` : null);
-      } catch { setDupWarn(null); }
+        setDupFound({ key: dupKey, warn: other ? `“${other}” is already at ${locKey} that day — same place, same date. Duplicate?` : null });
+      } catch { if (!cancelled) setDupFound({ key: dupKey, warn: null }); }
     })();
     return () => { cancelled = true; };
-  }, [edit, locKey, dateVal, ownerId]);
+  }, [dupKey, locKey, dateVal, ownerId]);
   const onTime = (v: string) => {
     if (isEvent || !v) return;
     const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
@@ -268,7 +276,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     // a geocode of what the stop says.
     if (!isEvent) {
       // schedule changed → derived values must beat stale hand-set labels on the guest page
-      if ((f.starts_at || null) !== origStartsAt.current) { patch.when_label = null; patch.time_label = null; }
+      if ((f.starts_at || null) !== origStartsAt) { patch.when_label = null; patch.time_label = null; }
       if (pin) { patch.lat = pin.lat; patch.lng = pin.lng; }
       else {
         if (pin === null) { patch.lat = null; patch.lng = null; }

@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import CookNeedList from "@/components/CookNeedList";
+import { useLatestRead } from "@/lib/useLatestRead";
+import { useChanged } from "@/lib/useChanged";
 
 // BREW STEPS — the sheet you actually brew from.
 //
@@ -46,14 +48,16 @@ export default function BrewSteps({ batch, onClose, onChanged }: { batch: Batch;
     return () => clearInterval(t);
   }, []);
 
-  const load = useCallback(async () => {
-    if (!supabase) return;
-    setLoading(true);
-    const { data, error } = await supabase.rpc("ensure_batch_steps", { p_batch_id: batch.id });
+  // Read, then set — the newest read's answer only (R17, lib/useLatestRead); a new batch says "loading" while rendering
+  // (it starts that way), not by the effect that reads it.
+  if (useChanged(batch.id)) setLoading(true);
+  const read = useLatestRead();
+  const load = useCallback(() => read(async () => (supabase ? await supabase.rpc("ensure_batch_steps", { p_batch_id: batch.id }) : null), (r) => {
+    if (!r) return;
     setLoading(false);
-    if (error) { setErr(error.message); return; }
-    setSteps(((data as Step[]) ?? []).slice().sort((a, b) => a.step_no - b.step_no));
-  }, [batch.id]);
+    if (r.error) { setErr(r.error.message); return; }
+    setSteps(((r.data as Step[]) ?? []).slice().sort((a, b) => a.step_no - b.step_no));
+  }), [read, batch.id]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -5323,7 +5323,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const idle = (hud.match(/if \(!ev\) \{[\s\S]*?\n  \}\n/) || [""])[0];
     ok("heads-up: with nothing live it reads the next event — not archived, not done, today or later, soonest first",
       /from\("v_event_record"\)/.test(hud) && /\.is\("archived_at", null\)\.neq\("stage", "done"\)\.gte\("day", localToday\(\)\)/.test(hud) && /\.order\("day", \{ ascending: true \}\)\.limit\(1\)/.test(hud));
-    ok("heads-up: a failed read is said as a failure, never as an empty calendar", /setNext\(nxErr \? "error"/.test(hud) && /sub="Couldn't check the calendar just now"/.test(idle));
+    ok("heads-up: a failed read is said as a failure, never as an empty calendar", /next: nxErr \? \("error" as const\)/.test(hud) && /setNext\(r\.next\);/.test(hud) && /sub="Couldn't check the calendar just now"/.test(idle));
     // 2026-10-11 (the KDS audit): it leads Command now, not Live Ops, and its "Next event" row went with the move —
     // the next event is Readiness' and Plan's. Its states: still reading (nothing drawn), couldn't read (said),
     // today and not live (make it live), live (the numbers); anything else draws nothing.
@@ -5968,7 +5968,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /setDown\(net \? "net" : res \? "read" : "auth"\);\s*return;/.test(kit) && kit.indexOf('saveSnapshot("gt3-kds-snap", rows)') > kit.indexOf('setDown(net ? "net"'));
   ok("pass: a failed read says so in words, with the time of the board it is showing",
     /<b>\{down === "auth" \? "Signed out" : "Can't reach the pass"\}<\/b>/.test(kit) && /showing the board from \$\{clockTime\(new Date\(boardAt\)\.toISOString\(\)\)\}/.test(kit));
-  ok("pass: overlapping reads land in order — only the newest asked for is applied", /const ask = \+\+loadSeq\.current;/.test(kit) && /if \(ask !== loadSeq\.current\) return;/.test(kit));
+  ok("pass: overlapping reads land in order — only the newest asked for is applied", /const readNewest = useLatestRead\(\);/.test(kit) && /const load = useCallback\(\(\) => readNewest\(async \(\) => \{/.test(kit));
   ok("pass: the feed says when it drops, reads the board again the moment it is back, and the screen coming back reads it too",
     /\.subscribe\(\(status\) => \{\s*if \(!alive\) return;\s*if \(status === "SUBSCRIBED"\) \{ setLive\(true\); if \(broke\) \{ broke = false; load\(\); void loadHere\(\); \} return; \}\s*broke = true; setLive\(false\);\s*if \(status === "CLOSED"\) retry = window\.setTimeout\(join, 5000\);/.test(kit)
     && /\{!live && !down && <Said as="span" className="k-count soon">Reconnecting…<\/Said>\}/.test(kit)
@@ -6344,7 +6344,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const whoOf = \(w: Work\) => \(!w\.who \? "Nobody's yet" : data\.names\[w\.who\] \?\? "Someone on the crew"\);/.test(board));
   ok("my tasks: a failed read says so — it said 'Nothing on your plate — you're clear for today' about a list it never saw",
     /const \{ data, error \} = await supabase\s*\.from\("all_tasks"\)/.test(code(read("lib/myTasks.ts"))) && /if \(error\) return \{ rows: \[\], error: error\.message \};/.test(code(read("lib/myTasks.ts")))
-    && /const \{ rows, error \} = await loadMyTasks\(userId\);/.test(mine) && /if \(error\) \{ setErr\(error\); setLoaded\(true\); return; \}/.test(mine)
+    && /read\(\(\) => loadMyTasks\(userId\), \(\{ rows, error \}\) => \{/.test(mine) && /if \(error\) \{ setErr\(error\); setLoaded\(true\); return; \}/.test(mine)
     && /const empty = loaded && !err && tasks\.length === 0;/.test(mine) && /Couldn&apos;t load your tasks — this is not &ldquo;nothing on your plate&rdquo;\./.test(mine));
   ok("my tasks: a tick that did not save puts the task back and says so — it vanished either way",
     /const ok = await completeTask\(/.test(mine) && /if \(!ok\) \{ toast\(/.test(mine));
@@ -9543,7 +9543,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{sub\s*\? <span className="mpanel-tt"><span className="mpanel-t">\{title\}<\/span><span className="mpanel-s">\{sub\}<\/span><\/span>\s*: <span className="mpanel-t">\{title\}<\/span>\}/.test(pg)
     && /\{value != null && <span className="mpanel-v">\{value\}<\/span>\}/.test(pg)
     && /const toggle = \(\) => \{ const n = !open; setOpen\(n\); keep\(n\); \};/.test(pg)
-    && /const keep = useCallback\(\(n: boolean\) => \{\s*if \(!remember\) return;/.test(pg) && /useEffect\(\(\) => \{\s*if \(!remember\) return;\s*try \{ const v = localStorage\.getItem\(storeKey\)/.test(pg)
+    && /const keep = useCallback\(\(n: boolean\) => \{\s*if \(!remember\) return;/.test(pg) && /const \[open, setOpen\] = useState\(\(\) => \{\s*if \(!remember\) return defaultOpen;\s*try \{ const v = localStorage\.getItem\(storeKey\)/.test(pg)
     && !/setOpen\(\(o\) => \{/.test(pg));
   {
     const css0 = read("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -10603,7 +10603,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const cp = code(read("app/crew/page.tsx")), cst = code(read("components/CrewStart.tsx"));
   ok("the guide: ?guide=start (the letter's link) opens it on Start here — read once and taken off the address; a first visit opens there too; More's Guide row opens the sections (2026-10-09: the ⓘ left the header)",
     /const \[guideAsked\] = useState<string \| null>\(\(\) => readParam\("guide"\)\);/.test(cp) && /if \(guideAsked\) dropParam\("guide"\);/.test(cp)
-    && /setGuide\(\(g\) => g \?\? "start"\)/.test(cp) && /const open = \(\) => setGuide\("sections"\);/.test(cp)
+    && /const \[firstRun\] = useState\(\(\) => \{ try \{ return !localStorage\.getItem\("gt3-guide-seen"\); \} catch \{ return false; \} \}\);/.test(cp)
+    && /useState<null \| "start" \| "sections">\(\(\) => \(guideAsked \? \(guideAsked === "sections" \? "sections" : "start"\) : firstRun \? "start" : null\)\)/.test(cp) && /const open = \(\) => setGuide\("sections"\);/.test(cp)
     && /\{guide && <SectionGuide allowed=\{allowed\} current=\{sec\} start=\{guide === "start"\}/.test(cp));
   ok("the guide: two pages of one guide — Start here and Every section — and Start here loads with the Guide, not with the console",
     /options=\{\[\{ key: "start", label: "Start here" \}, \{ key: "sections", label: "Every section" \}\]\}/.test(cp)
@@ -11610,7 +11611,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{somewhereLive\(here\) && \(\s*<Segmented kind="choice"/.test(tp) && /const narrowed = scope === "here" && somewhereLive\(here\);/.test(tp)
     && /narrowed \? all\.filter\(\(o\) => isHere\(o, here\)\) : all/.test(tp) && /\{elsewhere > 0 && \(/.test(tp) && /onClick=\{\(\) => setPassScope\("all"\)\}>Show all<\/button>/.test(tp));
   ok("pass here: where the truck sells is read when the Pass opens and when the feed returns, and the feed's own changes move it — never a read per GPS ping",
-    /setHere\(\(h\) => hereAfter\(h, "live_status", p\)\)/.test(hk) && /setHere\(\(h\) => hereAfter\(h, "events", p\)\)/.test(hk) && /const r = await readHere\(supabase\);/.test(hk));
+    /setHere\(\(h\) => hereAfter\(h, "live_status", p\)\)/.test(hk) && /setHere\(\(h\) => hereAfter\(h, "events", p\)\)/.test(hk) && /readHereNewest\(async \(\) => \(supabase \? readHere\(supabase\) : null\), \(r\) => \{/.test(hk));
 
   // ── at arm's length: the board's layout is the Pass's own width ──
   const tw = read("app/tailwind.css"), gl = read("app/globals.css");
@@ -15422,7 +15423,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /if \(data\) keepProfile\(uid, data\);/.test(ap));
   ok("R11 offline: the queue sends nothing without a real session — a crew write sent as nobody is refused, and a refusal takes it out",
     rp.indexOf("const { data } = await supabase.auth.getSession();") > 0 && rp.indexOf("const { data } = await supabase.auth.getSession();") < rp.indexOf("for (;;) {")
-      && /if \(!data\.session\) \{ flushing = false; return readQueue\(\)\.length; \}/.test(rp));
+      && /if \(!data\.session\) \{ setFlushing\(false\); return readQueue\(\)\.length; \}/.test(rp));
   // the Pass
   const pb = strip(rd("components/pass/usePassBoard.ts")), tps = strip(tp);
   ok("R11 pass: every read and every feed row is drawn under this phone's held moves; a reload starts from the moves still queued",
@@ -15842,6 +15843,53 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     .filter((f) => !/import \{ useLatest \} from "(@\/lib|\.)\/useLatest";/.test(rd(f)));
   ok("R16 refs: lib/useLatest writes its ref in useInsertionEffect, never during render, and the six that kept a latest value use it",
     /useInsertionEffect\(\(\) => \{ ref\.current = value; \}\);/.test(lt) && users.length === 0, users);
+}
+
+// ── R17 · NO STATE SET BY AN EFFECT AS IT STARTS: THE LINT CEILING'S LAST RULE AT ZERO (2026-10-17) ─────────────────────
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const pkg = JSON.parse(rd("package.json"));
+  ok("R17: the hooks it wrote run in npm test, on just enough of React (scripts/r17.test.mjs, scripts/fixtures/hookHost)",
+    pkg.scripts.test.includes("node scripts/r17.test.mjs") && fs.existsSync(path.join(__dirname, "fixtures", "hookHost.mjs")));
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const uc = strip(rd("lib/useChanged.ts")), lr = strip(rd("lib/useLatestRead.ts")), cs = strip(rd("lib/clientState.ts")), cp = strip(rd("lib/clientPage.ts")), rm = strip(rd("lib/reducedMotion.ts"));
+  ok("R17 useChanged: a fresh value — a callback too, kept as itself, never called — is noticed while rendering: Object.is against the last one, set right there, no effect",
+    /const \[seen, setSeen\] = useState<T>\(\(\) => value\);\s*if \(Object\.is\(seen, value\)\) return false;\s*setSeen\(\(\) => value\);\s*return true;/.test(uc) && !/useEffect/.test(uc));
+  ok("R17 useLatestRead: an answer is drawn only when newer than the one on the screen — never an older over a newer, and never stuck waiting for the newest asked — in the read's own continuation",
+    /const mine = \+\+asked\.current;/.test(lr) && /if \(mine > drawn\.current\) \{ drawn\.current = mine; apply\(answer\); \}/.test(lr) && !/useEffect|useState/.test(lr));
+  ok("R17 weight: lib/clientState holds only what the shell reads (useHydrated, useOnline); the address, the history and a page's value are lib/clientPage's and Reduce Motion lib/reducedMotion's, off the routes whose screens never ask",
+    (cs.match(/^export function /gm) || []).length === 2 && /export function useHydrated\(\)/.test(cs) && /export function useOnline\(\)/.test(cs) && !/urlParam/.test(cs)
+      && ["useSearchParam", "useCanGoBack", "useClientValue"].every((f) => new RegExp(`export function ${f}\\b`).test(cp)) && !/useReducedMotion/.test(cp)
+      && /export function useReducedMotion\(\)/.test(rm) && !/^import .*urlParam/m.test(rm));
+  ok("R17 clientState: the browser's answers are stores — nothing set, nothing to forget to unsubscribe",
+    !/useEffect|useState/.test(cs + cp + rm) && ((cs + cp + rm).match(/useSyncExternalStore\(/g) || []).length >= 6);
+  const from = (m) => new RegExp(`from "(@/lib|(\\.\\./)+lib|\\.)/${m}"`);
+  const want = {
+    useLatestRead: ["app/crew/page.tsx", "components/MemberInbox.tsx", "components/pass/usePassBoard.ts", "components/crew/LiveControl.tsx", "components/CompanyCalendar.tsx"],
+    useChanged: ["app/crew/page.tsx", "components/crew/OwnerDetails.tsx", "components/TaskSheetBody.tsx", "app/scan/page.tsx"],
+    clientState: ["components/OfflineBanner.tsx", "components/OrderFunnel.tsx", "components/StoryViewer.tsx"],
+    clientPage: ["components/Shop.tsx", "components/BuiltBack.tsx"],
+    reducedMotion: ["components/CountUp.tsx", "components/StoryViewer.tsx"],
+  };
+  const missing = Object.entries(want).flatMap(([m, files]) => files.filter((f) => !from(m).test(rd(f))).map((f) => `${f} ✗ ${m}`));
+  ok("R17 users: the screens that loaded in an effect read through useLatestRead, copies seeded from a load use useChanged, the browser's answers come from lib/clientState and lib/clientPage",
+    missing.length === 0, missing);
+  // The review of R17 before it shipped: five places where the new shape changed what a person sees, each put back.
+  const of = strip(rd("components/OrderFunnel.tsx")), rf = strip(rd("components/RoadFlyer.tsx")), at = strip(rd("components/AddTeammate.tsx"));
+  const os = strip(rd("components/OperatorSection.tsx")), sv = strip(rd("components/StoryViewer.tsx"));
+  ok("R17 review F1: a scanned code is taken into the box once — Pickup ⇄ Delivery drops the address's query and the code stays, with the chip that says it applied",
+    /const \[codeAdopted, setCodeAdopted\] = useState\(false\);\s*if \(hydrated && !codeAdopted\) \{\s*setCodeAdopted\(true\);\s*const asked = askedCode\(\);\s*if \(asked\) \{ setCode\(asked\); setCodeOpen\(true\); \}\s*\}/.test(of)
+      && /const \[code, setCode\] = useState\(""\);/.test(of) && !/useSearchParam\("code"\)/.test(of));
+  ok("R17 review F2: the road flyer's saying starts as the kept theme's, not the first theme's",
+    /useState\(\(\) => \(\{ headline1: THEMES\[tpl\]\.l1, headline2: THEMES\[tpl\]\.l2,/.test(rf) && !/headline1: THEMES\[0\]\.l1/.test(rf));
+  ok("R17 review F3: a teammate box opened by a link says Loading… from its first frame, never 'everyone is on the crew' about a list not yet read",
+    /const \[loading, setLoading\] = useState\(\(\) => !!promoteFor\);/.test(at));
+  ok("R17 review F4: the section's ref follows it in the layout pass, before any screen's effect — a cold Pass link pushes no second entry",
+    /useLayoutEffect\(\(\) => \{ sectionRef\.current = section; \}, \[section\]\);/.test(os) && os.indexOf("useLayoutEffect(() => { sectionRef.current = section; }") < os.indexOf("const stamped = useRef(false);"));
+  const reset = sv.indexOf("clockFor.current = { i, items }; elapsedRef.current = 0;"), videoOut = sv.indexOf('if (!item || item.kind === "video") return;\n    if (reduced) return;');
+  ok("R17 review F5: a story's photo come back to after a clip starts its clock over — the item is noted before the clip's early return",
+    reset > 0 && videoOut > reset);
 }
 
 Promise.all(PENDING).then(() => {

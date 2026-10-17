@@ -175,14 +175,16 @@ console.error = realError;
   const file = (rules) => ({ filePath: "x.tsx", errorCount: rules.length, warningCount: 0, messages: rules.map((ruleId) => ({ ruleId, severity: 2 })) });
   const held = ["react-hooks/rules-of-hooks", "react-hooks/purity", "react-hooks/refs", "react-hooks/immutability", "react-hooks/preserve-manual-memoization",
     "@typescript-eslint/no-explicit-any", "react/no-unescaped-entities"];
-  ok("lint: the seven rules R14 and R16 hold at zero are the ratchet's", held.every((r) => ZERO.includes(r)) && ZERO.length === held.length, ZERO);
+  // R17 added an eighth (set-state-in-effect) and took the ceilings down; scripts/r17.test.mjs holds those. What R16 set
+  // still stands: its seven at zero, and ceilings no higher than it left them.
+  ok("lint: the seven rules R14 and R16 hold at zero are still the ratchet's", held.every((r) => ZERO.includes(r)), ZERO);
   for (const rule of held) {
     const c = countFrom(JSON.stringify([file([rule])]));
     ok(`lint: one ${rule} fails the gate under any ceiling`, !verdict(c, { errors: 100, warnings: 100 }, ZERO).ok);
   }
-  ok("lint: the ceilings are R16's — 89 errors (each one set-state-in-effect), 51 warnings", CEILING.errors === 89 && CEILING.warnings === 51, CEILING);
-  const debt = countFrom(JSON.stringify([file(["react-hooks/set-state-in-effect"])]));
-  ok("lint: the debt still under its ceiling passes only at the ceiling's count", !verdict(debt, CEILING, ZERO).ok && verdict(debt, { errors: 1, warnings: 0 }, ZERO).ok);
+  ok("lint: the ceilings are no higher than R16 left them — 89 errors, 51 warnings", CEILING.errors <= 89 && CEILING.warnings <= 51, CEILING);
+  const debt = countFrom(JSON.stringify([file(["@next/next/no-img-element"])]));
+  ok("lint: a rule not held at zero passes under a ceiling only at the ceiling's count", !verdict(debt, { errors: 2, warnings: 0 }, ZERO).ok && verdict(debt, { errors: 1, warnings: 0 }, ZERO).ok);
 }
 
 console.log(`\nR16 — A SIGN-IN THAT COULDN'T BE CHECKED, AT EVERY DOOR; THE LINT RULES HELD AT ZERO: ${pass} passed, ${fail} failed`);

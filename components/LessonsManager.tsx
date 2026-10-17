@@ -9,6 +9,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { wrote } from "@/lib/wrote";
+import { useChanged } from "@/lib/useChanged";
 
 // RETURN TO PRIMAL · lessons manager (0273) — author the customer nutrition academy the same way the
 // menu is managed: create a draft (born hidden, 0270 publish gate), fill it in, link the menu products
@@ -121,7 +122,7 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
   const [keysText, setKeysText] = useState((l.key_points || []).join("\n"));
   const [links, setLinks] = useState<{ id: string; product_slug: string; rationale: string | null; sort: number }[]>([]);
   const [addSlug, setAddSlug] = useState(""); const [addWhy, setAddWhy] = useState("");
-  useEffect(() => { setD(l); setKeysText((l.key_points || []).join("\n")); }, [l]);
+  if (useChanged(l)) { setD(l); setKeysText((l.key_points || []).join("\n")); }   // a fresh lesson, during render (R17, lib/useChanged)
   useEffect(() => {
     if (!open || !supabase) return;
     // A failed read showing "no linked products" invites re-adding links that already exist.
