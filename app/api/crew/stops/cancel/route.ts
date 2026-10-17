@@ -6,7 +6,7 @@ import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { isUuid } from "@/lib/uuid";
 import { cupWords, packWords, crewWords, type CanceledStop, type CupHow } from "@/lib/stopCancel";
 import { orderNo } from "@/lib/activeOrder";
-import { route } from "@/lib/apiRoute";
+import { route, isJsonObject } from "@/lib/apiRoute";
 
 // CALL A STOP OFF, AND TELL THE PEOPLE WHO ORDERED FOR IT (0391, 2026-10-12 — H5 of the customer audit, release C1,
 // approved; texting customers is decision 7). The cancel is the database's, as the caller: cancel_stop checks they are
@@ -26,6 +26,7 @@ async function post(req: Request) {
 
   let body: { id?: unknown; reason?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!isJsonObject(body)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const id = isUuid(body.id) ? body.id : "";
   const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 140) : "";
   if (!id) return NextResponse.json({ error: "Bad request" }, { status: 400 });

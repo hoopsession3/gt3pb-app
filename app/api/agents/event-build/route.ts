@@ -3,7 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { etToday } from "@/lib/dates";
-import { route } from "@/lib/apiRoute";
+import { route, isJsonObject } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -42,6 +42,7 @@ async function post(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch { /* */ }
+  if (!isJsonObject(body)) body = {};
   const text = typeof body.text === "string" ? body.text.slice(0, 2000) : "";
   if (!text.trim()) return NextResponse.json({ ok: false, error: "Tell me about the event first." }, { status: 400 });
 

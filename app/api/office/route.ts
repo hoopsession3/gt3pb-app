@@ -7,7 +7,6 @@ import { zipMarket } from "@/lib/delivery";
 import { marketServes } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
-import { isMissingColumn } from "@/lib/schemaSkew";
 
 export const runtime = "nodejs";
 
@@ -158,10 +157,9 @@ async function post(req: Request) {
     // ONE BOOKING PER KEY (R15, 0422 — the 10/10 audit, API F25). An answer lost on the way back and tapped again made a
     // second office order: two alerts, two pay links or invoices. The form's key goes in with the booking; the same
     // person and key again is refused by the database (23505), and this answers with the first booking — no second
-    // alert. arrives-with: 0422 — until the column is there, the booking is made without its key, as before.
-    const insertOrder = (r: Record<string, unknown>) => supabaseAdmin!.from("business_orders").insert(r).select("id").single();
-    let made = await insertOrder(key ? { ...row, idempotency_key: key } : row);
-    if (made.error && key && isMissingColumn(made.error)) made = await insertOrder(row);
+    // alert. 0422 is applied (2026-10-17), so a booking without its column is gone: a refusal here is said, never retried
+    // without the key that makes it one booking.
+    const made = await supabaseAdmin.from("business_orders").insert(key ? { ...row, idempotency_key: key } : row).select("id").single();
     if (made.error && key && made.error.code === "23505") {
       const { data: first, error: firstErr } = await supabaseAdmin.from("business_orders")
         .select("id, gallons, delivery_date, total_cents").eq("user_id", userId).eq("idempotency_key", key).maybeSingle();

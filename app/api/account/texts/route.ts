@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { sayTextConsent, sayTextYes } from "@/lib/notify";
 import { e164, textsOn, usTextable } from "@/lib/texts";
-import { route } from "@/lib/apiRoute";
+import { route, isJsonObject } from "@/lib/apiRoute";
 
 // TEXTS ON OR OFF, FROM THE ACCOUNT (2026-10-14, R5 — 0398 text_consents). The member's own switch (components/
 // TextsSetting): a yes or a stop for a number their own orders or record carry, recorded with "account" as its place.
@@ -17,6 +17,7 @@ async function post(req: Request) {
 
   let body: { phone?: unknown; on?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!isJsonObject(body)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const num = e164(typeof body.phone === "string" ? body.phone : "");
   if (!num || typeof body.on !== "boolean") return NextResponse.json({ error: "Bad request" }, { status: 400 });
   // R9 (the abuse audit's third): a yes is for a US number (lib/texts usTextable — a stop is kept for any), and the

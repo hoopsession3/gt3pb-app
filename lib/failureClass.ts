@@ -10,10 +10,14 @@
 //                  that is not a number). The screen says it; nothing is wrong with the app.
 //   · schema     — the app asked for a column, table, view or function the database does not have.
 //   · permission — a grant or a row rule refused it.
+//   · session    — the sign-in's token had run out when the request went (a phone woken from sleep asks before the
+//                  client has refreshed it): the next ask carries a fresh one. Not a bug (R18).
 //   · other      — anything else the server answered with: a bug until shown otherwise.
+// The database that can't be reached at all (PostgREST's PGRST000–PGRST002: no connection, its schema cache still loading)
+// is the network's, as no signal is — the outage is said by the uptime check, not by every phone that noticed (R18).
 // Pure.
 
-export type FailureClass = "network" | "refusal" | "schema" | "permission" | "other";
+export type FailureClass = "network" | "refusal" | "session" | "schema" | "permission" | "other";
 
 type Answer = { code?: string | null; message?: string | null; status?: number | null } | string | null | undefined;
 
@@ -28,6 +32,8 @@ export function failureClass(e: Answer): FailureClass {
   // The database's words for a person first — a raise (P0001), the integrity rules (23…), bad input (22…), a lock it gave
   // up on — whatever they say ("That stop doesn't exist" is a refusal, not a missing table).
   if (code === "P0001" || /^2[23]/.test(code) || code === "55P03" || code === "40001") return "refusal";
+  if (code === "PGRST303" || /\bJWT expired\b/i.test(message)) return "session";
+  if (code === "PGRST000" || code === "PGRST001" || code === "PGRST002") return "network";
   if (SCHEMA_CODES.has(code)) return "schema";
   if (PERMISSION_CODES.has(code)) return "permission";
   if (!code && NETWORK.test(message)) return "network";

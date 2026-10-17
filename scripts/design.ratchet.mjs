@@ -729,17 +729,17 @@ export const PROD_ROUTE = {
 export const WEIGHT = {
   "/truck":                    { js: 286, css: 90, chunks: 16 },
   "/events":                   { js: 286, css: 90, chunks: 16 },
-  "/menu":                     { js: 273, css: 90, chunks: 15 },
+  "/menu":                     { js: 274, css: 90, chunks: 15 },
   "/reserve":                  { js: 297, css: 90, chunks: 17 },
   "/delivery":                 { js: 295, css: 90, chunks: 17 },
   "/3mpire":                   { js: 287, css: 90, chunks: 15 },
   "/craft":                    { js: 272, css: 90, chunks: 15 },
   "/book":                     { js: 273, css: 90, chunks: 15 },
-  "/academy":                  { js: 325, css: 90, chunks: 16 },
-  "/office":                   { js: 281, css: 90, chunks: 15 },
-  "/scan":                     { js: 273, css: 90, chunks: 15 },
+  "/academy":                  { js: 326, css: 90, chunks: 16 },
+  "/office":                   { js: 282, css: 90, chunks: 15 },
+  "/scan":                     { js: 274, css: 90, chunks: 15 },
   "/architecture":             { js: 282, css: 90, chunks: 15 },
-  "/playbook":                 { js: 280, css: 90, chunks: 15 },
+  "/playbook":                 { js: 281, css: 90, chunks: 15 },
   "/driver":                   { js: 279, css: 90, chunks: 15 },
   "/agreement":                { js: 274, css: 90, chunks: 15 },
   "/offer":                    { js: 284, css: 90, chunks: 15 },
@@ -843,6 +843,14 @@ export const WEIGHT = {
 // pages, whose total's roll reads it). The ordering pages add the funnel's clock, read a minute at a time (lib/useMinute).
 // Crossed the rounding line upward on /, /3mpire, /delivery, /offer, /primal, /privacy and /terms, recorded — and on the
 // share page (/built, 269 → 270), which renders per request: smoke:ui weighs it from the server, not from disk.
+// 2026-10-17 (R18 of the 10/10 audit, what the database refused is said at its door): every route's script +221 to +241
+// bytes (gzip). Built R17 (5a70d7f) and this commit and gzipped what each route's HTML references (/menu 279 828 →
+// 280 068, /office 288 153 → 288 393, /shop 310 352 → 310 573). The browser's database client hands every answer
+// PostgREST refused to lib/failureReport as it arrives (reportFailingAnswers, +601 bytes raw), so a missing column or a
+// refused grant behind a read nobody reports — the 26 through lib/useLatestRead, every inline read — is reported once a
+// page load instead of being a quiet empty screen (operations F17); lib/failureReport moved into the shell with it, from
+// a chunk every route already loads. Crossed the rounding line upward on /menu (273.27 → 273.50 KB), /scan, /office,
+// /academy and /playbook, recorded.
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];

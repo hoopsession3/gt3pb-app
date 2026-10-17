@@ -11,8 +11,9 @@ import { packIsOpen, PICKUP_STOPS_READ, type PackStop } from "@/lib/pickupDay";
 import { changePack, diffFor, type After, type Money, type Tell, type Who } from "@/lib/packChange";
 import { packChangeStore } from "@/lib/packChangeStore";
 import { isUuid } from "@/lib/uuid";
-import { route } from "@/lib/apiRoute";
+import { route, isJsonObject } from "@/lib/apiRoute";
 import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
+import { errorMessage } from "@/lib/errorMessage";
 
 // A minute at most (R10b — the 10/10 audit; reserves/pay's rule): a claim still "started" two minutes on is taken for a
 // request that died (lib/packChange IN_FLIGHT_MS), so no request may outlive it — Square is asked with a 20-second
@@ -45,6 +46,7 @@ async function post(req: Request) {
     name?: unknown; phone?: unknown; size?: unknown; glass?: unknown; mix?: unknown; dropDate?: unknown;
   };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!isJsonObject(body)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const id = isUuid(body.id) ? body.id : "";
   if (!id) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const quote = body.quote === true;
@@ -74,7 +76,9 @@ async function post(req: Request) {
       return NextResponse.json(out.body, { status: out.status });
     } catch (e) {
       // A step could not be written. If the change had begun, the next request with this key finishes it or tells the
-      // crew (lib/packChange); the page keeps its key and card token for exactly that.
+      // crew (lib/packChange); the page keeps its key and card token for exactly that. Said in the platform's log (R18):
+      // a 502 nobody hears of is a failure nobody can find — the pack and the step's words, never the card.
+      console.error(`[pack-change-step] ${JSON.stringify({ order: id, error: errorMessage(e, 200) })}`);
       return NextResponse.json({ pending: true, error: "Couldn't confirm your change — tap again in a moment. Nothing is charged twice." }, { status: 502 });
     }
   };

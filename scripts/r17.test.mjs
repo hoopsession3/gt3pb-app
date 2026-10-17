@@ -241,7 +241,8 @@ const load = routeLoader({ react: React, "@/lib/failureReport": { reportFailure:
   const file = (rules) => ({ filePath: "x.tsx", errorCount: rules.length, warningCount: 0, messages: rules.map((ruleId) => ({ ruleId, severity: 2 })) });
   ok("lint: set-state-in-effect joins the seven held at zero", ZERO.includes("react-hooks/set-state-in-effect") && ZERO.length === 8, ZERO);
   ok("lint: one set-state-in-effect fails the gate under any ceiling", !verdict(countFrom(JSON.stringify([file(["react-hooks/set-state-in-effect"])])), { errors: 100, warnings: 100 }, ZERO).ok);
-  ok("lint: the ceilings are R17's — 0 errors, 47 warnings", CEILING.errors === 0 && CEILING.warnings === 47, CEILING);
+  // R18 took the warnings down to 46 (the pack change's failed step, said in the log); what R17 set still stands as a floor.
+  ok("lint: the ceilings are no higher than R17 left them — 0 errors, 47 warnings", CEILING.errors === 0 && CEILING.warnings <= 47, CEILING);
   const { readFileSync, readdirSync, statSync } = await import("node:fs");
   const { join, dirname } = await import("node:path");
   const { fileURLToPath } = await import("node:url");

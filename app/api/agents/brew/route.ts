@@ -78,7 +78,9 @@ async function post(req: Request) {
     if (e) { eventDay = (e as any).day; eventTitle = (e as any).title; }
   } else if (body.stop_id) {
     const { data: s } = await supabaseAdmin.from("stops").select("name, starts_at").eq("id", body.stop_id).maybeSingle();
-    if (s) { eventDay = (s as any).starts_at ? String((s as any).starts_at).slice(0, 10) : null; eventTitle = (s as any).name; }
+    // The stop's day in Eastern time (R18 — the 10/10 audit, database F20): starts_at is a UTC instant, and its first ten
+    // characters were the UTC date — a stop starting at 8 pm or later planned its brew for the next day's need.
+    if (s) { eventDay = (s as any).starts_at ? etDayKey(new Date((s as any).starts_at)) : null; eventTitle = (s as any).name; }
   }
   const needBy: string | null = body.need_by || eventDay || null;
   let brewDate: string | null = null, readyAt: string | null = null;

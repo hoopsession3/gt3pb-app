@@ -1,5 +1,7 @@
 import { supabase } from "./supabase";
 import type { Channels, CostBasis } from "./home";
+import { addDays, etDayKey } from "./dates";
+import { etDayStart } from "./etDay";
 
 // Sales-actuals report — one RPC (report_sales, owners' and admins' since 0384) returns everything the MONEY-tab
 // dashboard needs: real revenue from orders, per-event actuals from the Square mirror, product
@@ -25,6 +27,14 @@ export interface SalesReport {
   by_event: { event: string; cents: number; orders: number }[];
   by_day: { day: string; cents: number }[];
   error?: string;
+}
+
+/** Where a report of the last `days` days begins: Eastern midnight of its first business day — report_sales' own window
+ *  (0420: `business_day() - (days - 1)` at time zone America/New_York). The cash line beside the report counted from UTC
+ *  midnight, 8 pm the evening before, so after dark it took in the evening's cash the report did not (R18 — the 10/10
+ *  audit, DB F4). Pure. */
+export function salesWindowStart(days: number, nowMs: number = Date.now()): string {
+  return etDayStart(addDays(etDayKey(new Date(nowMs)), -(Math.max(Math.floor(days) || 1, 1) - 1))).toISOString();
 }
 
 /** The function's in-band refusal, in words a person can act on. */

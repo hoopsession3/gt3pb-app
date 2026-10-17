@@ -66,7 +66,8 @@ async function post(req: Request) {
 
     // Fingerprint, dedupe, first-sight alert: lib/errorIntake.ts — the same path a server route
     // that throws takes (lib/apiRoute.ts), so one bug is one row whichever side of the wire hit it.
-    await fileError({ message, stack, url, ua, fatal, skew, browser: true });
+    // The address goes with it (R18): a browser's new error spends its own address's share before the hour's shared one.
+    await fileError({ message, stack, url, ua, fatal, skew, browser: true, ip });
   } catch { /* telemetry never throws */ }
   return done;
 }

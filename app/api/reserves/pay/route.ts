@@ -9,7 +9,7 @@ import { checkoutClaims } from "@/lib/checkoutClaims";
 import { payReserve, type ReserveForPay, type Tell } from "@/lib/reservePay";
 import { reserveSteps } from "@/lib/reserveSteps";
 import { isUuid } from "@/lib/uuid";
-import { route } from "@/lib/apiRoute";
+import { route, isJsonObject } from "@/lib/apiRoute";
 import type { Answer } from "@/lib/chargeOnce";
 
 // PAY FOR A LIMITED RESERVE (0400, 2026-10-14 — R5 of the customer audit; decided 2026-10-13: charged like packs, no
@@ -30,6 +30,7 @@ async function post(req: Request) {
 
   let body: { reserveId?: unknown; qty?: unknown; sourceId?: unknown; idempotencyKey?: unknown; expectedCents?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!isJsonObject(body)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const reserveId = isUuid(body.reserveId) ? body.reserveId : "";
   if (!reserveId) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const key = safeIdemKey(body.idempotencyKey);

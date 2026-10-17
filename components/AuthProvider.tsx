@@ -355,9 +355,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (!supabase) return { error: "Sign-in isn't configured yet." };
     try {
       const parsed = new URL(url.trim());
-      // Implicit flow: tokens arrive in the URL hash fragment (#access_token=...&refresh_token=...)
-      const frag = parsed.hash.startsWith("#") ? parsed.hash.slice(1) : parsed.search.slice(1);
-      const p = new URLSearchParams(frag);
+      // Implicit flow: tokens arrive in the URL hash fragment (#access_token=...&refresh_token=...) — and only there (R18 —
+      // the 10/10 audit, security F8). The query string was read too: Supabase never puts a session there, and a link that
+      // does is one someone else made — a session pressed on this phone, its tokens already in every log the link passed.
+      const p = new URLSearchParams(parsed.hash.startsWith("#") ? parsed.hash.slice(1) : "");
       const access_token = p.get("access_token");
       const refresh_token = p.get("refresh_token");
       if (!access_token || !refresh_token)

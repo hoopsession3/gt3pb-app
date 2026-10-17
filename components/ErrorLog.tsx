@@ -17,7 +17,8 @@ import { ageLabel } from "@/lib/dates";
 // design: the intake writes it, nobody edits history. The policy is "client errors staff read".
 type Row = { id: string; message: string; stack: string | null; url: string | null; ua: string | null; fatal: boolean; skew: boolean; count: number; first_seen: string; last_seen: string };
 
-const kindOf = (r: Row) => (r.skew && !r.fatal ? "Healed itself" : r.fatal ? "Screen crashed" : r.ua === "server" ? "Server" : "Error");
+// "server" is route()'s throw; "server · GET · render" is what escaped every wrapper (instrumentation.ts) — both the server's.
+const kindOf = (r: Row) => (r.skew && !r.fatal ? "Healed itself" : /^server(?: ·|$)/.test(r.ua ?? "") ? "Server" : r.fatal ? "Screen crashed" : "Error");
 const whereOf = (r: Row) => { if (!r.url) return ""; try { return new URL(r.url).pathname; } catch { return r.url; } };
 const frameOf = (r: Row) => (r.stack || "").split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 2).join(" · ");
 

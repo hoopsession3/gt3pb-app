@@ -5009,11 +5009,27 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       pub.alerts[0].severity === "important" && pub.alerts[0].title === "App error — a screen crashed" && !/https?:|www\.|evil\.example/.test(pub.alerts[0].body)
       && /\[link\]/.test(pub.alerts[0].body) && / · \/menu/.test(pub.alerts[0].body) && !/[<>%]/.test(pub.alerts[0].body) && pub.rows[0].message.includes("https://evil.example/login")
       && srvFatal.alerts[0].severity === "critical", { pub: pub.alerts[0], srv: srvFatal.alerts[0]?.severity });
+    // R18 (the 10/10 audit, operations F1): one address's five new errors an hour come first; its sixth is dropped without
+    // spending the shared thirty, and another address still files.
+    const { NEW_ROWS_PER_ADDRESS, addressBucket } = require("../.smoke/errorIntake.js");
+    const share = intake();
+    for (let i = 1; i <= NEW_ROWS_PER_ADDRESS.max; i++) await share.file(100 + i, { browser: true, ip: "203.0.113.9" });
+    const sixth = await share.file(200, { browser: true, ip: "203.0.113.9" });
+    const other = await share.file(201, { browser: true, ip: "198.51.100.7" });
+    ok("budget: one address files five new errors an hour; its sixth is dropped without spending the shared thirty, and another address still files",
+      share.rows.length === NEW_ROWS_PER_ADDRESS.max + 1 && sixth === false && other === true && share.counts[NEW_ROWS.bucket] === NEW_ROWS_PER_ADDRESS.max + 1
+        && share.counts[addressBucket("203.0.113.9")] === NEW_ROWS_PER_ADDRESS.max + 1, { rows: share.rows.length, counts: share.counts });
+    const repeat = intake();
+    await repeat.file(300, { browser: true, ip: "203.0.113.9" }); await repeat.file(300, { browser: true, ip: "203.0.113.9" });
+    ok("budget: a repeat from an address asks for none of its share (a bump)", repeat.counts[addressBucket("203.0.113.9")] === 1);
+    const srvShare = intake();
+    await srvShare.file(400, { ua: "server", url: "/api/office" });
+    ok("budget: a server route's throw has no address and asks no share", Object.keys(srvShare.counts).every((b) => !b.startsWith("client-errors:new:")));
   })());
   {
     const er = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "app/api/errors/report/route.ts"), "utf8");
     ok("intake: a browser's report is counted by its address — thirty in ten minutes — and filed as a browser's",
-      /p_bucket: `error-report:\$\{ip\}`, p_window_ms: 600_000, p_max: 30/.test(er) && /await fileError\(\{ message, stack, url, ua, fatal, skew, browser: true \}\);/.test(er)
+      /p_bucket: `error-report:\$\{ip\}`, p_window_ms: 600_000, p_max: 30/.test(er) && /await fileError\(\{ message, stack, url, ua, fatal, skew, browser: true, ip \}\);/.test(er)
       && er.indexOf("error-report:") < er.indexOf("await fileError("));
   }
 }
@@ -6133,9 +6149,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /if \(next\.error\) \{ console\.warn\(`\[office\] office_next_delivery: \$\{next\.error\.message\}`\); return NextResponse\.json/.test(officeRoute));
     ok("office run: a weekly booking's deliveries come from its program (book_office_standing), never a second hand-made order for the same day",
       /await supabaseAdmin\.rpc\("book_office_standing", \{ p_account: businessId \}\);/.test(officeRoute)
-      // R15 (0422): the one-off is written with the form's key, and a repeat of the key answers with the first booking.
+      // R15 (0422): the one-off is written with the form's key, and a repeat of the key answers with the first booking;
+      // R18: 0422 is applied, so a refusal is said — never retried without the key.
       && /if \(!orderId\) \{\s*const row: Record<string, unknown> = \{/.test(officeRoute)
-      && /const insertOrder = \(r: Record<string, unknown>\) => supabaseAdmin!\.from\("business_orders"\)\.insert\(r\)\.select\("id"\)\.single\(\);/.test(officeRoute));
+      && /const made = await supabaseAdmin\.from\("business_orders"\)\.insert\(key \? \{ \.\.\.row, idempotency_key: key \} : row\)\.select\("id"\)\.single\(\);/.test(officeRoute)
+      && !/isMissingColumn/.test(officeRoute));
     ok("office run: the crew's button makes the week ahead from the programs (generate_office_deliveries) — the one-Monday call went with 0356 applied (R14)",
       /const res = await supabase\.rpc\("generate_office_deliveries"\);/.test(crewOffice) && !/generate_office_route/.test(crewOffice)
       && /toast\(res\.error \? `Couldn't generate the route — \$\{refusalText\(res\.error\) \?\? res\.error\.message\}`/.test(crewOffice));
@@ -7594,7 +7612,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !/console\.(log|info|warn|error)/.test(am + ar) && /createHash\("sha256"\)\.update\(`gt3-address:\$\{ip\}`\)/.test(am));
     ok("address: the route is public on purpose and bounded in the shared store — 40 a minute a caller, 1,000 an hour for the app, under Apple's 25,000 a day",
       /^\/\/ public: /m.test(ar) && /const PER_CALLER = \{ windowMs: 60_000, max: 40 \};/.test(ar) && /const PER_APP = \{ windowMs: 3_600_000, max: 1_000 \};/.test(ar)
-      && /\{ bucket: `address:\$\{callerKey\(req\)\}`, \.\.\.PER_CALLER \},\s+\{ bucket: "address:all", \.\.\.PER_APP \},/.test(ar) && /export const GET = route\("address", get\);/.test(ar) && !/export const POST/.test(ar));
+      && /\{ bucket: `address:\$\{callerKey\(req\)\}`, \.\.\.PER_CALLER \},\s+\{ bucket: "address:all", \.\.\.PER_APP \},/.test(ar) && /export const GET = route\("address", get\);/.test(ar) && /export const POST = route\("address", post\);/.test(ar));
+    // R18 (security F10): what is typed rides in a POST's body — never the query string every request log keeps.
+    ok("address: what is typed and what is picked go in a POST's body — the field never puts either in the address it asks",
+      /const askAddress = \(body: \{ q: string \} \| \{ pick: string \}, signal\?: AbortSignal\) =>\s+fetch\(apiUrl\("\/api\/address"\), \{ method: "POST", headers: \{ "Content-Type": "application\/json" \}, body: JSON\.stringify\(body\), signal \}\);/.test(af)
+        && /await askAddress\(\{ q: near \? `\$\{text\} \$\{near\}` : text \}, c\.signal\);/.test(af) && /await askAddress\(\{ pick: s\.pick \}\);/.test(af)
+        && !/\/api\/address\?/.test(af) && /if \(!isJsonObject\(body\)\) return NextResponse\.json\(\{ ok: false, error: "Bad request" \}, \{ status: 400 \}\);/.test(ar));
   }
   const oo = code(read("components/OfficeOrder.tsx"));
   ok("office: the order starts from the office account", ["useKnownField(o?.company)", "useKnownField(o?.contact || known?.fullName)", "useKnownField(o?.phone || known?.phone)", "useKnownField(o?.street)", "useKnownField(o?.access)"].every((x) => oo.includes(x))
@@ -11904,8 +11927,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("webhooks: Stripe — stripeSignatureOk, 401 on a miss (it was 400), before the first read or write; dormant while its secret is unset",
       /if \(!stripeSignatureOk\(payload, req\.headers\.get\("stripe-signature"\), secret\)\) \{\s*return NextResponse\.json\(\{ error: "bad signature" \}, \{ status: 401 \}\);/.test(bl)
       && first(bl, "stripeSignatureOk(payload") && /if \(!secret \|\| !supabaseAdmin\) return NextResponse\.json\(\{ ok: true \}\);/.test(bl));
-    ok("webhooks: the inbound-email door compares its token in constant time, 401 on a miss",
-      /if \(!tokenOk\(url\.searchParams\.get\("token"\), secret\)\) return NextResponse\.json\(\{ ok: false \}, \{ status: 401 \}\);/.test(nt) && first(nt, "tokenOk("));
+    ok("webhooks: the inbound-email door compares its token in constant time, 401 on a miss — the token from the Authorization header first (R18)",
+      /if \(!tokenOk\(tokenFrom\(req, url\), secret\)\) return NextResponse\.json\(\{ ok: false \}, \{ status: 401 \}\);/.test(nt) && first(nt, "tokenOk(")
+        && nt.indexOf('req.headers.get("authorization")') < nt.indexOf('url.searchParams.get("token")'));
     const apl = ["fulfillment", "product", "search"].map((r) => routeOf(`app/api/apliiq/${r}/route.ts`));
     ok("webhooks: every Apliiq door checks verifyApliiq first and answers 401 — and verifyApliiq is lib/webhookSignature's check",
       apl.every((s) => /if \(!verifyApliiq\(raw, req\.headers\)\) return NextResponse\.json\(\{ ok: false, error: "unauthorized" \}, \{ status: 401 \}\);/.test(s) && first(s, "verifyApliiq("))
@@ -15259,10 +15283,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     budgetsFor({ ua: "server" }).rows === SERVER_ROWS && budgetsFor({ ua: "server" }).alerts === SERVER_ALERTS
       && budgetsFor({ ua: "server", browser: true }).rows === NEW_ROWS && budgetsFor({ ua: "Safari" }).alerts === NEW_ALERTS
       && SERVER_ROWS.bucket !== NEW_ROWS.bucket && SERVER_ALERTS.bucket !== NEW_ALERTS.bucket);
-  const ins = rd("instrumentation.ts");
-  ok("R10b errors: the instrumentation hook spends the same server budget, in the same numbers (it imports nothing, so they are written twice)",
-    ins.includes(`fits("${SERVER_ROWS.bucket}", ${SERVER_ROWS.windowMs.toLocaleString("en-US").replace(/,/g, "_")}, ${SERVER_ROWS.max})`)
-      && ins.includes(`fits("${SERVER_ALERTS.bucket}", ${SERVER_ALERTS.windowMs.toLocaleString("en-US").replace(/,/g, "_")}, ${SERVER_ALERTS.max})`));
+  const ins = strip(rd("instrumentation.ts"));
+  // R18 (operations F3): the numbers are no longer written twice — both doors take them from lib/errorKey.
+  ok("R10b errors: the instrumentation hook spends the same server budget — the very objects the intake spends, from lib/errorKey, never its own numbers",
+    /import \{ errorKey, escapedErrorAlert, SERVER_ALERTS, SERVER_ROWS \} from "\.\/lib\/errorKey";/.test(ins)
+      && /if \(!\(await fits\(SERVER_ROWS\)\)\) return;/.test(ins) && /if \(!\(await fits\(SERVER_ALERTS\)\)\) return;/.test(ins)
+      && !/server-errors:|3_600_000|600_000/.test(ins) && SERVER_ROWS === require("../.smoke/errorKey.js").SERVER_ROWS && SERVER_ALERTS === require("../.smoke/errorKey.js").SERVER_ALERTS);
   const route = strip(rd("lib/apiRoute.ts"));
   ok("R10b errors: a route that throws says so in the platform's log first — the route, the message, the top of the stack, nothing of the request",
     route.indexOf("console.error(`[route-threw]") > 0 && route.indexOf("console.error(`[route-threw]") < route.indexOf("await fileError(") && !/req\.(json|text|headers)/.test(route));
@@ -15405,7 +15431,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R11 deadline: every payment POST carries the payment's deadline — a charge that never answers says \"tap Pay to retry\" instead of holding the sheet shut",
     Object.entries(pays).every(([f, n]) => (rd(f).match(/\{ deadlineMs: PAY_DEADLINE_MS \}\)/g) || []).length === n && /import \{ PAY_DEADLINE_MS \} from "@\/lib\/deadline";/.test(rd(f))));
   ok("R11 deadline: the database client and the app's own routes have theirs — every read, write, refresh and file",
-    /global: \{ fetch: withDeadline\(dbDeadlineFor\) \},/.test(rd("lib/supabase.ts"))
+    /global: \{ fetch: reportFailingAnswers\(withDeadline\(dbDeadlineFor\)\) \},/.test(rd("lib/supabase.ts"))   // R18: reported at the door too
       && /return withDeadline\(opts\.deadlineMs \?\? ROUTE_DEADLINE_MS\)\(apiUrl\(url\), \{ \.\.\.init, headers \}\);/.test(rd("lib/authedFetch.ts")));
   // the feed
   const rt = strip(rd("lib/realtime.ts")), nt = strip(rd("components/Notifications.tsx"));
@@ -15450,8 +15476,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R11 window: a window the worker can't steer goes to a tapped notification's link itself — on this site only",
     /if \(d\?\.type !== "gt3-open" \|\| typeof d\.url !== "string"\) return;/.test(swr) && /const here = new URL\(window\.location\.href\), to = new URL\(d\.url, here\);\s*if \(to\.origin === here\.origin && to\.href !== here\.href\) window\.location\.assign\(to\.href\);/.test(swr)
       && /navigator\.serviceWorker\.removeEventListener\("message", onMessage\);/.test(swr));
+  // R18: the recipe lives in lib/errorKey (instrumentation.ts hashes it too); the intake hashes errorKey.
   ok("R11 intake: one bug is one row across deploys — the fingerprint takes where it was thrown, not the chunk's hash and line",
-    /createHash\("sha256"\)\.update\(`\$\{stableErrorKey\(message\)\}\|\$\{stableFrame\(stack\)\}\|\$\{path\}`\)/.test(rd("lib/errorIntake.ts")));
+    /return `\$\{stableErrorKey\(message\)\}\|\$\{stableFrame\(stack\)\}\|\$\{path\}`;/.test(rd("lib/errorKey.ts"))
+      && /createHash\("sha256"\)\.update\(errorKey\(message, stack, path\)\)/.test(rd("lib/errorIntake.ts")));
 }
 
 // ── R12 · WHAT A SCREEN READER, A KEYBOARD AND LARGE TEXT GET (2026-10-16, the 10/10 audit's accessibility pass) ──
@@ -15843,6 +15871,79 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     .filter((f) => !/import \{ useLatest \} from "(@\/lib|\.)\/useLatest";/.test(rd(f)));
   ok("R16 refs: lib/useLatest writes its ref in useInsertionEffect, never during render, and the six that kept a latest value use it",
     /useInsertionEffect\(\(\) => \{ ref\.current = value; \}\);/.test(lt) && users.length === 0, users);
+}
+
+// ── R18 · A JSON BODY IS AN OBJECT BEFORE A ROUTE READS FROM IT (2026-10-17 — the 10/10 audit, API F14) ─────────────────
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const files = [];
+  const walk = (d) => { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); if (fs.statSync(p).isDirectory()) walk(p); else if (n === "route.ts") files.push(p); } };
+  walk(path.join(__dirname, "..", "app", "api"));
+  // The shape that threw: `body = await req.json()` (assigned, not destructured inside its try) and then `body.x`.
+  const unchecked = files.filter((f) => {
+    const src = fs.readFileSync(f, "utf8");
+    return /\bbody = await req\.json\(\)/.test(src) && !/isJsonObject\(body\)|typeof body !== "object"/.test(src);
+  }).map((f) => path.relative(path.join(__dirname, ".."), f));
+  ok("R18 bodies: every route that assigns req.json() to body checks it is an object first (isJsonObject) — a literal null is a 400, not a 500 and an alert",
+    unchecked.length === 0, unchecked);
+  const ar = fs.readFileSync(path.join(__dirname, "..", "lib", "apiRoute.ts"), "utf8");
+  ok("R18 bodies: isJsonObject refuses null, a list and every non-object", /return b !== null && typeof b === "object" && !Array\.isArray\(b\);/.test(ar));
+}
+
+// ── R18 · WHAT ESCAPES EVERY WRAPPER IS FILED THE INTAKE'S WAY (2026-10-17 — the 10/10 audit, operations F3) ───────────
+// instrumentation.ts was a drifted copy of lib/errorIntake. scripts/instrumentation.test.mjs runs the hook itself; these
+// hold the one recipe in one place, so a third copy can't start.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ROOTDIR = path.join(__dirname, "..");
+  const rd = (f) => fs.readFileSync(path.join(ROOTDIR, f), "utf8");
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const ek = strip(rd("lib/errorKey.ts")), ei = strip(rd("lib/errorIntake.ts")), ins = strip(rd("instrumentation.ts"));
+  const imports = (t) => [...t.matchAll(/^import[^"']*["']([^"']+)["'];?$/gm)].map((m) => m[1]);
+  ok("R18 errors: lib/errorKey imports only lib/deploySkew and lib/uuid — pure, so the edge-runtime hook can take it",
+    JSON.stringify(imports(ek)) === JSON.stringify(["./deploySkew", "./uuid"]), imports(ek));
+  const frames = [];
+  const walk = (d) => { for (const n of fs.readdirSync(d)) { const p = path.join(d, n); if (fs.statSync(p).isDirectory()) { if (!/node_modules|^\./.test(n)) walk(p); } else if (/\.tsx?$/.test(n) && /function stableFrame\(|function errorKey\(/.test(fs.readFileSync(p, "utf8"))) frames.push(path.relative(ROOTDIR, p)); } };
+  for (const d of ["lib", "app", "components"]) walk(path.join(ROOTDIR, d));
+  if (/function stableFrame\(|function errorKey\(/.test(rd("instrumentation.ts"))) frames.push("instrumentation.ts");
+  ok("R18 errors: where a bug was thrown, and what a fingerprint hashes, are written once — lib/errorKey", JSON.stringify(frames) === JSON.stringify(["lib/errorKey.ts"]), frames);
+  ok("R18 errors: the intake hashes errorKey; the hook hashes \"api|\" + errorKey — the same recipe, never the raw message or the raw stack",
+    /createHash\("sha256"\)\.update\(errorKey\(message, stack, path\)\)/.test(ei) && /new TextEncoder\(\)\.encode\(`api\|\$\{errorKey\(message, stack, path\)\}`\)/.test(ins)
+      && !/split\("\\n"\)\.slice\(0, 2\)/.test(ins));
+  const { escapedErrorAlert } = require("../.smoke/errorKey.js");
+  const id = "0b1e0000-0000-4000-8000-000000000001";
+  const a = escapedErrorAlert("boom at https://x.example.com/a", "/menu/<b>", "render", id);
+  ok("R18 errors: what escaped is important, kind client_error, about its own row — never a critical with no subject",
+    a.severity === "important" && a.kind === "client_error" && a.subject_id === id && escapedErrorAlert("x", "/", "route", "not-a-uuid").subject_id === null && !/critical/.test(ins), a);
+  ok("R18 errors: …and its words are the intake's for anything a request could carry — links out, the path plain",
+    a.body === "boom at [link] · /menu/b" && a.title === "Server error — a page didn't load" && escapedErrorAlert("x", "", "route", null).title === "Server error — a request failed", a.body);
+  ok("R18 errors: the hook reads the alert's answer — asked twice, then lib/serverAlerts' [alert-not-written] line — and says a row it couldn't file",
+    /for \(let attempt = 0; attempt < 2; attempt\+\+\)/.test(ins) && /if \(r\?\.ok\) return;/.test(ins) && /console\.error\(`\[alert-not-written\] /.test(ins)
+      && /console\.warn\(`errors: couldn't file or count a server error — /.test(ins));
+  ok("R18 errors: the hook's own test runs in npm test", JSON.parse(rd("package.json")).scripts.test.includes("node scripts/instrumentation.test.mjs"));
+}
+
+// ── R18 · A SESSION COMES IN THE FRAGMENT OR NOT AT ALL (2026-10-17 — the 10/10 audit, security F8) ─────────────────────
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ap = fs.readFileSync(path.join(__dirname, "..", "components", "AuthProvider.tsx"), "utf8");
+  const body = ap.slice(ap.indexOf("const signInWithUrl = useCallback"), ap.indexOf("const signInWithPassword = useCallback"));
+  ok("R18 links: a sign-in link's tokens are read from its fragment only — a query string carrying a session is refused",
+    /const p = new URLSearchParams\(parsed\.hash\.startsWith\("#"\) \? parsed\.hash\.slice\(1\) : ""\);/.test(body) && !/parsed\.search/.test(body));
+}
+
+// ── R18 · THE MONEY DOORS THE AUDIT NAMED ARE RUN, NOT READ (2026-10-17 — the 10/10 audit, operations F13) ──────────────
+// subscriptions/create, reserve/change, reserves/settle and reserves/cancel were held only by pins on their text. Each is
+// now compiled and called with a Request by a route test that npm test runs; these hold that it stays so.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ROOTDIR = path.join(__dirname, "..");
+  const rd = (f) => fs.readFileSync(path.join(ROOTDIR, f), "utf8");
+  const test = JSON.parse(rd("package.json")).scripts.test;
+  const runs = { "app/api/subscriptions/create/route.ts": "scripts/routes.subscriptions.test.mjs", "app/api/reserve/change/route.ts": "scripts/routes.packchange.test.mjs",
+    "app/api/reserves/settle/route.ts": "scripts/routes.reserves.test.mjs", "app/api/reserves/cancel/route.ts": "scripts/routes.reserves.test.mjs" };
+  const missing = Object.entries(runs).filter(([r, t]) => !rd(t).includes(`routeLoader(shims)("${r}")`) && !rd(t).includes(`load("${r}")`) || !test.includes(`node ${t}`)).map(([r]) => r);
+  ok("R18 doors: each money door the audit named is compiled and called by a route test npm test runs", missing.length === 0, missing);
 }
 
 // ── R17 · NO STATE SET BY AN EFFECT AS IT STARTS: THE LINT CEILING'S LAST RULE AT ZERO (2026-10-17) ─────────────────────

@@ -290,12 +290,13 @@ const newOrderAlerts = () => alerts.filter((a) => a.kind === "office_order_new")
   ok("office: a key that isn't one is no key (the booking is made, without it)", odd.status === 200 && bookings().length === 4 && bookings()[3].idempotency_key === undefined);
 }
 {
-  // Before 0422 is pasted: the column isn't there, so PostgREST refuses the key — the booking is made without it.
+  // 0422 is applied (2026-10-17): a booking the database refuses is said — never made again without the key that makes it
+  // one booking (the before-the-paste retry went with R18).
   officeWorld();
   w.fail.business_orders = { insert: { error: { code: "PGRST204", message: "Could not find the 'idempotency_key' column of 'business_orders' in the schema cache" } } };
-  const r = await book(booking({ key: "0c422000-before-the-paste" }));
-  ok("office (before 0422): the key's column missing → booked without it, as before (arrives-with: 0422)",
-    r.status === 200 && r.json?.ok && bookings().length === 1 && bookings()[0].idempotency_key === undefined, { r, rows: bookings() });
+  const r = await book(booking({ key: "0c422000-after-the-paste" }));
+  ok("office (0422 applied): a refused booking is said (500), nothing written, and not retried without its key",
+    r.status === 500 && /Couldn't book it/.test(r.json?.error ?? "") && bookings().length === 0, { r, rows: bookings() });
 }
 {
   officeWorld();

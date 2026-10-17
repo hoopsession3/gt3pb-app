@@ -343,6 +343,23 @@ await withEnv({ NOTES_INBOUND_SECRET: "made-up-notes-token", NOTES_INBOUND_FROM:
   const none = await run(null), wrong = await run("made-up-notes-tokeN"), good = await run("made-up-notes-token");
   ok("notes inbound: no token or a wrong one → 401, nothing written", none.status === 401 && wrong.status === 401 && !none.w.wrote() && !wrong.w.wrote(), [none.status, wrong.status]);
   ok("notes inbound: the right token → the note is written", good.status === 200 && good.w.calls.some((c) => c.table === "meeting_notes" && c.steps.some(([m]) => m === "insert")), good.status);
+  // R18 (security F10): the token in a header, never the address — Basic (a webhook URL's notes:<secret>@) or Bearer.
+  const byHeader = async (authorization, token = null) => {
+    const w = world();
+    const url = `https://app.example.test/api/notes/inbound${token === null ? "" : `?token=${encodeURIComponent(token)}`}`;
+    const r = await post(loader(w.shims)("app/api/notes/inbound/route.ts"), url, { "content-type": "application/json", authorization }, JSON.stringify({ from: "someone@example.test", subject: "A note", text: "Made-up text." }));
+    return { ...r, w };
+  };
+  const basic = (pair) => `Basic ${Buffer.from(pair).toString("base64")}`;
+  const hb = await byHeader(basic("notes:made-up-notes-token")), hbear = await byHeader("Bearer made-up-notes-token");
+  ok("notes inbound: the token as Basic auth (a webhook URL's notes:<secret>@) or Bearer → written, nothing in the address",
+    hb.status === 200 && hb.w.wrote() && hbear.status === 200 && hbear.w.wrote(), [hb.status, hbear.status]);
+  const hw = await byHeader(basic("notes:made-up-notes-tokeN")), hnone = await byHeader(basic("made-up-notes-token")), hjunk = await byHeader("Basic %%%not-base64%%%");
+  ok("notes inbound: a wrong Basic, one with no user part, or one that isn't base64 → 401, nothing written",
+    [hw, hnone, hjunk].every((x) => x.status === 401 && !x.w.wrote()), [hw.status, hnone.status, hjunk.status]);
+  const wrongHeaderGoodQuery = await byHeader("Bearer made-up-notes-tokeN", "made-up-notes-token");
+  ok("notes inbound: a header, when sent, is the token — a right one in the address doesn't rescue a wrong one in the header",
+    wrongHeaderGoodQuery.status === 401 && !wrongHeaderGoodQuery.w.wrote(), wrongHeaderGoodQuery.status);
 });
 
 // Apliiq (lib/apliiq reads its secret when it loads, so each world loads it with the env it needs)

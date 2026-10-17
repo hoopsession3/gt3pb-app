@@ -6,7 +6,7 @@ import { settleByHand } from "@/lib/reservePay";
 import { reserveSteps } from "@/lib/reserveSteps";
 import { checkoutClaims } from "@/lib/checkoutClaims";
 import { isUuid } from "@/lib/uuid";
-import { route } from "@/lib/apiRoute";
+import { route, isJsonObject } from "@/lib/apiRoute";
 import type { Claim } from "@/lib/chargeOnce";
 
 // SETTLE A RESERVE WHOSE PAYMENT NEVER ANSWERED (0400, 2026-10-14 — R5 of the customer audit). An owner or an admin
@@ -22,6 +22,7 @@ async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Settling isn't switched on yet." }, { status: 503 });
   let body: { id?: unknown; outcome?: unknown; paymentId?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!isJsonObject(body)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const id = isUuid(body.id) ? body.id : "";
   const outcome = body.outcome === "paid" || body.outcome === "not_charged" ? body.outcome : null;
   if (!id || !outcome) return NextResponse.json({ error: "Bad request" }, { status: 400 });

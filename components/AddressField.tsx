@@ -15,6 +15,11 @@ type Suggestion = { line1: string; line2: string; pick: string };
 
 let none = false; // this page asked, and the server has no Maps key
 
+/** What is typed goes in a POST's body, never in the address it is sent to (R18 — the 10/10 audit, security F10): a query
+ *  string is written into every request log it passes. */
+const askAddress = (body: { q: string } | { pick: string }, signal?: AbortSignal) =>
+  fetch(apiUrl("/api/address"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+
 export default function AddressField({ value, onChange, onPick, near, className, placeholder, label, maxLength = 120, id, autoComplete = "address-line1" }: {
   value: string;
   onChange: (v: string) => void;
@@ -47,7 +52,7 @@ export default function AddressField({ value, onChange, onPick, near, className,
       const c = new AbortController();
       asking.current = c;
       try {
-        const r = await fetch(apiUrl(`/api/address?q=${encodeURIComponent(near ? `${text} ${near}` : text)}`), { signal: c.signal });
+        const r = await askAddress({ q: near ? `${text} ${near}` : text }, c.signal);
         const j = await r.json();
         if (j?.configured === false) { none = true; setItems([]); return; }
         setItems(Array.isArray(j?.results) ? j.results.slice(0, 4) : []);
@@ -68,7 +73,7 @@ export default function AddressField({ value, onChange, onPick, near, className,
     setItems([]);
     onChange(s.line1);
     try {
-      const r = await fetch(apiUrl(`/api/address?pick=${encodeURIComponent(s.pick)}`));
+      const r = await askAddress({ pick: s.pick });
       const j = await r.json();
       if (j?.address?.street) onPick(j.address);
     } catch { /* the street is in; the rest is typed as before */ }

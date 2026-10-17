@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
-import { route } from "@/lib/apiRoute";
+import { route, isJsonObject } from "@/lib/apiRoute";
 import { verifyIdentityToken } from "@/lib/appleSignIn";
 import { linkApple, LINK_WORDS, type LinkSteps } from "@/lib/appleLink";
 import { errorMessage } from "@/lib/errorMessage";
@@ -29,6 +29,7 @@ async function post(req: Request) {
 
   let body: { idToken?: unknown; nonce?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!isJsonObject(body)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const idToken = typeof body.idToken === "string" && body.idToken.length < 4096 ? body.idToken : "";
   const nonce = typeof body.nonce === "string" && /^[0-9a-f]{32,128}$/.test(body.nonce) ? body.nonce : "";
   if (!idToken || !nonce) return NextResponse.json({ error: "Bad request" }, { status: 400 });

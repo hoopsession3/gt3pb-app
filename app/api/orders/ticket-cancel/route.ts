@@ -4,7 +4,7 @@ import { accountEmail, notifyCustomer } from "@/lib/notify";
 import { money } from "@/lib/money";
 import { orderNo } from "@/lib/activeOrder";
 import { isUuid } from "@/lib/uuid";
-import { route } from "@/lib/apiRoute";
+import { route, isJsonObject } from "@/lib/apiRoute";
 import { callerIp, limitsFit } from "@/lib/rateLimit";
 import { isGone } from "@/lib/refusal";
 
@@ -26,6 +26,7 @@ async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ ok: false, outcome: "error", error: "Not available." }, { status: 503 });
   let body: { ticket?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ ok: false, outcome: "error", error: "Bad request." }, { status: 400 }); }
+  if (!isJsonObject(body)) return NextResponse.json({ ok: false, outcome: "error", error: "Bad request." }, { status: 400 });
   const ticket = typeof body?.ticket === "string" ? body.ticket : "";
   if (!isUuid(ticket)) return NextResponse.json({ ok: false, outcome: "error", error: "That isn't an order's link." }, { status: 400 });
 

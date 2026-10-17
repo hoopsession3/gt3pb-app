@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "./supabaseAdmin";
 import { raiseAlert, raiseAlertOnce } from "./serverAlerts";
-import { stableErrorKey } from "./deploySkew";
+import { alertPath, errorKey, reportWords, SERVER_ALERTS, SERVER_ROWS, ERRORS_LINK } from "./errorKey";
 import { etToday } from "./dates";
 
 // ERROR INTAKE — the one place "the app broke" is written down.
@@ -47,53 +47,34 @@ export type ErrorReport = {
   fatal?: boolean;        // true = error-boundary hit (white-screen class)
   skew?: boolean;         // true = a stale-build crash the client is about to heal
   browser?: boolean;      // true = sent by a browser (/api/errors/report): anyone can send one (R9) — see below
+  ip?: string;            // a browser's report: the address it came from — its own share of the hour's new errors (R18)
 };
 
-/** What a browser's report may put in an alert (R9 — the abuse audit's seventh). Anyone can post one, and the alert's body
- *  goes into the admins' email and Teams: a "message" carrying a link was a phishing note sent from our own address. Its
- *  words are kept, with any link taken out; the row under Settings › Errors keeps all of it. Pure. */
-export function reportWords(message: string): string {
-  return message.replace(/\b(?:https?:\/\/|www\.)\S+/gi, "[link]").replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|co|app|xyz|info|biz|ru|cn|top|link|click|me|us)\b\S*/gi, "[link]").slice(0, 160);
-}
+// What a browser's report may put in an alert, the server's own budget, where the crew reads what was filed, where a bug
+// was thrown and what a fingerprint hashes live in lib/errorKey (R18, operations F3): instrumentation.ts files with the same
+// recipe, and it cannot import this file. Named here too, for the callers and tests that read them from the intake.
+export { reportWords, SERVER_ROWS, SERVER_ALERTS, ERRORS_LINK };
+export { stableFrame } from "./errorKey";
 
 export const NEW_ROWS = { bucket: "client-errors:new", windowMs: 3_600_000, max: 30 } as const;
+// ONE ADDRESS'S SHARE (R18, 2026-10-17 — the 10/10 audit, operations F1). The hour's thirty new browser errors were one
+// pool, and an address may post thirty reports in ten minutes (app/api/errors/report): one script's thirty made-up
+// messages spent all of it, and every real crash a browser sent for the rest of the hour was dropped unfiled. A browser's
+// new error asks its own address's five first — a repeat (a bump) asks nothing — and only then the shared thirty, which
+// a refused one never spends. Five, not one: a truck's phones and an office share an address behind one router.
+export const NEW_ROWS_PER_ADDRESS = { windowMs: 3_600_000, max: 5 } as const;
+/** The limiter's bucket for one address's new browser errors. Pure. */
+export const addressBucket = (ip: string): string => `client-errors:new:${ip}`;
 export const NEW_ALERTS = { bucket: "client-errors:alert", windowMs: 600_000, max: 5 } as const;
-// THE SERVER'S OWN BUDGET (R10b, 2026-10-16 — the 10/10 audit). A route that threw shared the hour's thirty with every
-// browser report — and anyone can post one: thirty made-up messages from one address in ten minutes, and a real crash
-// in the checkout was neither filed nor alerted for the rest of the hour. A route's own throw (ua "server", never sent
-// by a browser) counts against these; a browser's report never does.
-export const SERVER_ROWS = { bucket: "server-errors:new", windowMs: 3_600_000, max: 30 } as const;
-export const SERVER_ALERTS = { bucket: "server-errors:alert", windowMs: 600_000, max: 5 } as const;
 /** Whose budget a report spends: a route's own throw the server's, anything a browser could have sent the browsers'. Pure. */
 export function budgetsFor(r: Pick<ErrorReport, "ua" | "browser">): { rows: typeof NEW_ROWS | typeof SERVER_ROWS; alerts: typeof NEW_ALERTS | typeof SERVER_ALERTS } {
   return r.browser !== true && r.ua === "server" ? { rows: SERVER_ROWS, alerts: SERVER_ALERTS } : { rows: NEW_ROWS, alerts: NEW_ALERTS };
-}
-/** Where the crew reads what was filed: Settings › Advanced › Errors (components/ErrorLog.tsx). */
-export const ERRORS_LINK = "/crew?s=settings&a=set-errors";
-
-/** Where a bug was thrown, without what moves on every build (R11, 2026-10-16 — the 10/10 audit). The fingerprint took
- *  the stack's first two lines as they came: V8's first line repeats the message (ids and all), and a frame names a
- *  content-hashed chunk, a line and column, and a minified name — all different whenever the file is rebuilt. So one bug
- *  was a new row, a new alert and a split count after every deploy that touched its file; the test that said otherwise
- *  held the stack the same on both deploys. What is kept is the top frame's file, unhashed: a server route's own path, or
- *  "a chunk" in the browser. V8 ("at name (file:1:2)"), Safari and Firefox ("name@file:1:2"). Pure. */
-export function stableFrame(stack: string): string {
-  const lines = String(stack ?? "").split("\n").map((l) => l.trim());
-  const v8 = lines.find((l) => /^at\s/.test(l));
-  let where = "";
-  if (v8) where = /\(([^()]*)\)$/.exec(v8)?.[1] ?? v8.replace(/^at\s+(?:async\s+)?/, "");
-  else {
-    const other = lines.find((l) => /^[^@]*@\S+:\d+(?::\d+)?$/.test(l));
-    where = other ? other.slice(other.indexOf("@") + 1) : "";
-  }
-  // A build's hash in a server chunk's name ("[root-of-the-server]__a1b2c3d4._.js") is not a word stableErrorKey can see.
-  return stableErrorKey(where.replace(/:\d+(?::\d+)?$/, "").replace(/[?#].*$/, "").replace(/(?<![0-9a-z])(?=[0-9a-f]*\d)[0-9a-f]{6,}(?![0-9a-z])/gi, "<h>"));
 }
 
 /** Fingerprint: normalised message + where it was thrown + path — stable across users, sessions and
  *  deploys, so one bug is one row no matter how many phones (or instances) hit it. Pure. */
 export function fingerprintOf(message: string, stack: string, path: string): string {
-  return createHash("sha256").update(`${stableErrorKey(message)}|${stableFrame(stack)}|${path}`).digest("hex");
+  return createHash("sha256").update(errorKey(message, stack, path)).digest("hex");
 }
 
 /** The path part of a URL, or the string as given when it is not a URL. Pure. */
@@ -132,6 +113,10 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
     // Never seen — does a new row fit in this hour's budget? `false` is the limiter's answer;
     // anything else (null, an error) is the limiter not answering, and the intake fails open.
     const budget = budgetsFor(r);
+    if (r.browser === true && r.ip) {
+      const { data: mineFits } = await admin.rpc("rate_limit_hit", { p_bucket: addressBucket(r.ip), p_window_ms: NEW_ROWS_PER_ADDRESS.windowMs, p_max: NEW_ROWS_PER_ADDRESS.max });
+      if (mineFits === false) return false;
+    }
     const { data: rowFits } = await admin.rpc("rate_limit_hit", { p_bucket: budget.rows.bucket, p_window_ms: budget.rows.windowMs, p_max: budget.rows.max });
     if (rowFits === false) return false;
 
@@ -183,7 +168,7 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
         : fatal ? "App error — a screen crashed" : server ? "Server error — a route threw" : "App error (new)",
       body: healed
         ? `A tab was one deploy behind and reloaded itself${path ? ` · ${path}` : ""}. Nothing was lost; no action needed.`
-        : `${browser ? reportWords(message) : message.slice(0, 200)}${path ? ` · ${(browser ? path.replace(/[^\w/.-]/g, "") : path).slice(0, 80)}` : ""}`,
+        : `${browser ? reportWords(message) : message.slice(0, 200)}${path ? ` · ${browser ? alertPath(path) : path.slice(0, 80)}` : ""}`,
       link: ERRORS_LINK,
     });
     return true;

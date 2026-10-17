@@ -24,6 +24,13 @@ import { isSignInUnchecked, SIGN_IN_UNCHECKED_ANY } from "./signInUnchecked";
 
 export const ROUTE_THREW = "Something went wrong on our side — it has been logged.";
 
+/** A request's JSON is an object to read from — not a literal null, a number, a string or a list (R18 — the 10/10 audit,
+ *  API F14). `await req.json()` answers `null` for the body "null" without throwing, and the next line's `body.id` threw a
+ *  TypeError: a 500 and a "route threw" alert for what is a caller's mistake, a 400. Pure. */
+export function isJsonObject(b: unknown): b is Record<string, unknown> {
+  return b !== null && typeof b === "object" && !Array.isArray(b);
+}
+
 type Handler<A extends unknown[]> = (...args: A) => Promise<Response> | Response;
 
 export function route<A extends unknown[]>(name: string, handler: Handler<A>): (...args: A) => Promise<Response> {

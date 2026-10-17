@@ -35,7 +35,8 @@ export const SUPABASE_STANDINS = `
   create schema net; create schema vault; create schema supabase_functions;
   create table auth.users (id uuid primary key default gen_random_uuid(), email text, phone text,
     raw_user_meta_data jsonb default '{}'::jsonb, raw_app_meta_data jsonb default '{}'::jsonb,
-    created_at timestamptz default now(), last_sign_in_at timestamptz, email_confirmed_at timestamptz);
+    created_at timestamptz default now(), last_sign_in_at timestamptz, email_confirmed_at timestamptz,
+    encrypted_password text default '');   -- '' for an account with no password (a code or a provider), as GoTrue keeps it
   -- provider and provider_id as Supabase keeps them (Apple's sub is an Apple identity's provider_id): 0403 asks by them.
   create table auth.identities (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade,
     provider text, provider_id text, identity_data jsonb default '{}'::jsonb);
@@ -50,12 +51,14 @@ export const SUPABASE_STANDINS = `
   create or replace function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
   create or replace function storage.filename(name text) returns text language sql immutable as $$ select (string_to_array(name, '/'))[array_length(string_to_array(name, '/'), 1)] $$;
   create or replace function storage.extension(name text) returns text language sql immutable as $$ select split_part(name, '.', 2) $$;
-  create table cron.job (jobid bigserial primary key, jobname text, schedule text, command text);
+  create table cron.job (jobid bigserial primary key, jobname text, schedule text, command text, active boolean default true);
   -- pg_cron's run log, the columns 0419's cron_watch reads (and prunes): one row per run of a job.
   create table cron.job_run_details (runid bigserial primary key, jobid bigint, job_pid int, database text, username text, command text, status text, return_message text, start_time timestamptz, end_time timestamptz);
   create or replace function cron.schedule(job_name text, schedule text, command text) returns bigint language sql as $$ insert into cron.job (jobname, schedule, command) values (job_name, schedule, command) returning jobid $$;
   create or replace function cron.unschedule(job_name text) returns boolean language sql as $$ delete from cron.job where jobname = job_name returning true $$;
   create or replace function net.http_post(url text, body jsonb default '{}'::jsonb, params jsonb default '{}'::jsonb, headers jsonb default '{}'::jsonb, timeout_milliseconds int default 5000) returns bigint language sql as $$ select 1::bigint $$;
+  -- pg_net's answers to the requests the database makes (kept six hours there): 0423's cron_watch reads them.
+  create table net._http_response (id bigint, status_code int, content_type text, headers jsonb, content text, timed_out boolean, error_msg text, created timestamptz default now());
   create or replace function net.http_get(url text, params jsonb default '{}'::jsonb, headers jsonb default '{}'::jsonb, timeout_milliseconds int default 5000) returns bigint language sql as $$ select 1::bigint $$;
   create table vault.secrets (id uuid primary key default gen_random_uuid(), name text, secret text);
   create view vault.decrypted_secrets as select id, name, secret as decrypted_secret from vault.secrets;

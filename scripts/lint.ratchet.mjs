@@ -44,7 +44,9 @@ import { execFileSync } from "node:child_process";
 //   snap). One effect keeps it on purpose, named where it stands (components/Sheet: the open prop followed into the
 //   sheet's own stage). The four warnings were react-hooks/exhaustive-deps on effects this rewrote (the scanner's
 //   lookup, the brew planner's handoff, two of the trailer's reads).
-export const CEILING = { errors: 0, warnings: 47 };
+//   R18 (2026-10-17): 47 → 46 warnings. The pack change's failed step caught its error and said it nowhere; it says it in
+//   the platform's log now (app/api/reserve/change, [pack-change-step]), so the error it named is used.
+export const CEILING = { errors: 0, warnings: 46 };
 /** @deprecated the single total; kept so a reader of the old name still gets the sum. */
 export const LINT_CEILING = CEILING.errors + CEILING.warnings;
 

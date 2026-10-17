@@ -1,16 +1,20 @@
 // SERVER ERROR SELF-REPORTING (2026-07-30 — the "crash/error/outage email" round, part 1).
-// Next.js calls onRequestError for every UNCAUGHT error in route handlers / server components —
-// the 500s nobody sees because the requester just got a broken response and moved on. Same
-// contract as the client intake (/api/errors/report): fingerprint server-side, dedupe into ONE
-// client_errors row per unique error via bump_client_error, and only the FIRST occurrence raises
-// a critical alert — which the alerts webhook fans out as push + admin email. One bug = one
-// email, not a flood.
+// Next.js calls onRequestError for every error that escapes a route handler or a server-drawn page — the 500s nobody sees
+// because the requester just got a broken response and moved on. route() (lib/apiRoute) catches its handlers' throws and
+// files them through lib/errorIntake, so what arrives here is what escaped every wrapper. It is filed the intake's way:
+// one client_errors row per unique error, a repeat only bumps its counter, and the first sighting raises one alert.
 //
-// Deliberately self-contained: raw PostgREST fetches + WebCrypto (no supabase-js, no node:crypto)
-// so it runs identically on the nodejs and edge runtimes and never drags app imports into Next's
-// instrumentation bundle. Telemetry never throws — every path is fail-silent by contract.
+// THE SAME RECIPE, NOT A COPY OF IT (R18, 2026-10-17 — the 10/10 audit, operations F3). This file had drifted from the
+// intake: the raw message and the raw top of the stack were hashed (a new row and a new alert after every deploy), every
+// first sighting rang as a critical, the alert's answer was never read and the alert named no row. It now takes the
+// fingerprint recipe, the server's budgets and the alert itself from lib/errorKey — the intake takes them from there too —
+// and says in the platform's log when the row or the alert could not be written.
+//
+// Still self-contained where it matters: raw PostgREST fetches + WebCrypto (no supabase-js, no node:crypto), so it runs
+// the same on the nodejs and edge runtimes; its imports (lib/envSchema, lib/errorKey) are pure. Telemetry never throws.
 
 import { notSet } from "./lib/envSchema";
+import { errorKey, escapedErrorAlert, SERVER_ALERTS, SERVER_ROWS } from "./lib/errorKey";
 
 // WHAT THIS SERVER STARTED WITHOUT (R14, 2026-10-16 — the 10/10 audit's operations pass, F14). A secret missing in
 // production turned its feature off without a word: no service-role key, and no order saved, no alert raised, no error
@@ -38,47 +42,49 @@ export async function onRequestError(err: unknown, request: ReqInfo, context: Er
     if (!message) return;
     const stack = String(e?.stack ?? "").slice(0, 1500);
     const path = String(request?.path ?? "").split("?")[0].slice(0, 300);
+    const routeType = context?.routeType;
 
-    // Same fingerprint recipe as the client intake, "api|"-prefixed so a server hit of a shared
-    // message can never merge into a client row's counter.
-    const topFrame = stack.split("\n").slice(0, 2).join(" ");
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`api|${message}|${topFrame}|${path}`));
+    // The intake's recipe (lib/errorKey), "api|"-prefixed so an escaped error never counts into a row of the intake's.
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`api|${errorKey(message, stack, path)}`));
     const fingerprint = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
     const headers = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "return=minimal" };
+    const bump = () => fetch(`${base}/rest/v1/rpc/bump_client_error`, { method: "POST", headers, body: JSON.stringify({ p_fingerprint: fingerprint }) })
+      .then((r) => r.json()).then((v) => v === true).catch(() => false);
 
     // Seen before → bump the counter, no alert (the dedup that keeps this from flooding).
-    const bumped = await fetch(`${base}/rest/v1/rpc/bump_client_error`, {
-      method: "POST", headers, body: JSON.stringify({ p_fingerprint: fingerprint }),
-    }).then((r) => r.json()).catch(() => null);
-    if (bumped === true) return;
+    if (await bump()) return;
 
-    // THE SERVER'S BUDGET (R10b, 2026-10-16 — the 10/10 audit). Every new fingerprint was a critical — a push to every
-    // phone, an email to every admin — with no ceiling: a page that threw with the path in its message made a new one per
-    // address. It spends lib/errorIntake's SERVER_ROWS and SERVER_ALERTS now (the same buckets; this file imports nothing,
-    // so the numbers are written twice and scripts/smoke.cjs holds them together): thirty new rows an hour, five alerts
-    // in ten minutes. Fails open when the limiter can't be asked, as the intake does.
-    const fits = (bucket: string, windowMs: number, max: number) =>
-      fetch(`${base}/rest/v1/rpc/rate_limit_hit`, { method: "POST", headers, body: JSON.stringify({ p_bucket: bucket, p_window_ms: windowMs, p_max: max }) })
+    // THE SERVER'S BUDGET (R10b) — lib/errorKey's SERVER_ROWS and SERVER_ALERTS, the buckets route()'s throws spend too.
+    // Fails open when the limiter can't be asked, as the intake does.
+    const fits = (b: { bucket: string; windowMs: number; max: number }) =>
+      fetch(`${base}/rest/v1/rpc/rate_limit_hit`, { method: "POST", headers, body: JSON.stringify({ p_bucket: b.bucket, p_window_ms: b.windowMs, p_max: b.max }) })
         .then((r) => r.json()).then((v) => v !== false).catch(() => true);
-    if (!(await fits("server-errors:new", 3_600_000, 30))) return;
+    if (!(await fits(SERVER_ROWS))) return;
 
-    // First sighting → file it…
-    const ins = await fetch(`${base}/rest/v1/client_errors`, {
-      method: "POST", headers,
-      body: JSON.stringify({ fingerprint, message, stack: stack || null, url: path || null, ua: `server · ${request?.method ?? "?"} · ${context?.routeType ?? context?.routerKind ?? "unknown"}`, fatal: true }),
-    });
-    if (!ins.ok) {
-      // Unique-violation race (two instances, same brand-new error): the other one alerted.
-      await fetch(`${base}/rest/v1/rpc/bump_client_error`, { method: "POST", headers, body: JSON.stringify({ p_fingerprint: fingerprint }) }).catch(() => null);
+    // First sighting → file it, and keep its id: the alert names the row it is about, as the intake's do.
+    const ins = await fetch(`${base}/rest/v1/client_errors?select=id`, {
+      method: "POST", headers: { ...headers, Prefer: "return=representation" },
+      body: JSON.stringify({ fingerprint, message, stack: stack || null, url: path || null, ua: `server · ${request?.method ?? "?"} · ${routeType ?? context?.routerKind ?? "unknown"}`, fatal: routeType === "render" }),
+    }).catch(() => null);
+    if (!ins?.ok) {
+      // Unique-violation race (two instances, same brand-new error): the other one filed it, and this counts. Neither
+      // answered → said in the platform's log, the intake's line (lib/errorIntake).
+      if (!(await bump())) console.warn(`errors: couldn't file or count a server error — ${ins ? `the database answered ${ins.status}` : "the database didn't answer"}; ${message.slice(0, 120)}`);
       return;
     }
-    // …and raise the ONE critical alert, if the ten minutes' five have room. The alerts webhook does the rest: push + admin
-    // email. Past it the row is still filed (Settings › Errors), as the intake files a storm's.
-    if (!(await fits("server-errors:alert", 600_000, 5))) return;
-    await fetch(`${base}/rest/v1/alerts`, {
-      method: "POST", headers,
-      body: JSON.stringify({ severity: "critical", category: "system", kind: "server_error", title: "Server error — an API call failed", body: `${message.slice(0, 200)}${path ? ` · ${path}` : ""}`, link: "/crew" }),
-    });
+    const filed = await ins.json().catch(() => null) as { id?: string }[] | null;
+
+    // …and raise the ONE alert, if the ten minutes' five have room. Past it the row is still filed (Settings › Errors).
+    if (!(await fits(SERVER_ALERTS))) return;
+    const alert = escapedErrorAlert(message, path, routeType, Array.isArray(filed) ? filed[0]?.id : null);
+    // THE ANSWER IS READ (lib/serverAlerts' rule): asked twice; still refused, said in the platform's log in its words.
+    let why = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const r = await fetch(`${base}/rest/v1/alerts`, { method: "POST", headers, body: JSON.stringify(alert) }).catch(() => null);
+      if (r?.ok) return;
+      why = r ? `the database answered ${r.status}` : "the database didn't answer";
+    }
+    console.error(`[alert-not-written] ${JSON.stringify({ severity: alert.severity, category: alert.category, kind: alert.kind, title: alert.title, why })}`);
   } catch { /* telemetry never throws */ }
 }

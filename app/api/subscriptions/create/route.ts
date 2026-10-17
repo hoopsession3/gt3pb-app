@@ -19,6 +19,7 @@ import { route } from "@/lib/apiRoute";
 // (square_asked_at, 0421) the moment Square is asked; an answer that does not say keeps it, tells the crew, and tells the
 // member not to try again. Their next try asks Square first what it has for them: one it started is taken up, none means
 // the stamp is cleared and the try goes on. The nightly sweep (0421) never deletes a row Square was asked about.
+const SETUP_FAILED = "Couldn't set up billing just now — nothing was charged. Try again in a minute.";
 class SubscriptionUnknown extends Error {
   constructor(message: string) { super(message); this.name = "SubscriptionUnknown"; }
 }
@@ -59,7 +60,7 @@ async function post(req: Request) {
   let body: { sourceId?: string; pack?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null (R10b)
-  if (!body.sourceId) return NextResponse.json({ error: "Card required" }, { status: 400 });
+  if (typeof body.sourceId !== "string" || !body.sourceId) return NextResponse.json({ error: "Card required" }, { status: 400 });
   const pack = String(body.pack || "");
   const planId = planForPack(pack);
   if (!["6", "12", "18"].includes(pack) || !planId) return NextResponse.json({ error: "Choose a pack size (6, 12, or 18)." }, { status: 400 });
@@ -142,7 +143,7 @@ async function post(req: Request) {
         body: JSON.stringify({ idempotency_key: `cust-${user.id}`, given_name: prof?.display_name || undefined, email_address: email }),
       });
       const cData = await cRes.json();
-      if (!cRes.ok) throw new Error("Couldn't set up billing just now — nothing was charged. Try again in a minute.");   // Square's own words stay here (R10b)
+      if (!cRes.ok) throw new Error(SETUP_FAILED);   // Square's own words stay here (R10b)
       customerId = cData?.customer?.id;
       // Kept for the next time — unkept, the next subscription made a second Square customer for the same member (R12b).
       const keptCustomer = await supabaseAdmin.from("profiles").update({ square_customer_id: customerId }).eq("id", user.id);
@@ -166,7 +167,7 @@ async function post(req: Request) {
     // that then died waiting would be taken for one that made nothing. The card is saved; nothing is charged.
     // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
     const stamped = await supabaseAdmin.from("subscriptions").update({ square_asked_at: new Date().toISOString() }).eq("id", rowId);
-    if (stamped.error) throw new Error("Couldn't set up billing just now — nothing was charged. Try again in a minute.");
+    if (stamped.error) throw new Error(SETUP_FAILED);
     let subRes: Response;
     try {
       subRes = await fetch(`${SQUARE_BASE}/v2/subscriptions`, {
@@ -233,8 +234,12 @@ async function post(req: Request) {
     if (rolledBack.error) console.warn(`subscriptions: couldn't roll back pending row ${rowId} — the next try's self-heal clears it after ten minutes: ${rolledBack.error.message}`);
     // Square's own words stay here (R10b): a customer's or card's refusal is said in one sentence (refusalWords), and a
     // failure of ours — a dropped connection, a body that would not parse — is not the member's to read.
-    const said = e instanceof Error && !/fetch failed|JSON|Unexpected token|network|abort|timeout/i.test(e.message) ? e.message : "Your subscription couldn't start just now — nothing was charged. Try again in a minute.";
-    return NextResponse.json({ error: said }, { status: 400 });
+    // A REFUSAL IS A 400; NOT GETTING THROUGH IS A 503 (R18 — the 10/10 audit, API F14): a dropped connection, an answer
+    // that would not parse, or billing that couldn't be set up is ours and passing — "try again in a minute" — not the
+    // member's mistake, and was answered as one.
+    const ours = !(e instanceof Error) || /fetch failed|JSON|Unexpected token|network|abort|timeout/i.test(e.message);
+    const said = ours ? "Your subscription couldn't start just now — nothing was charged. Try again in a minute." : e.message;
+    return NextResponse.json({ error: said }, { status: ours || said === SETUP_FAILED ? 503 : 400 });
   }
 }
 

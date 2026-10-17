@@ -4,7 +4,7 @@ import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { nextDrop, dropDateKey } from "@/lib/orderAhead";
 import { packClosesAt, packIsOpen, pickupDayWords, PICKUP_STOPS_READ, type PackStop } from "@/lib/pickupDay";
-import { route } from "@/lib/apiRoute";
+import { route, isJsonObject } from "@/lib/apiRoute";
 import { isSettled } from "@/lib/settled";
 import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
 
@@ -23,6 +23,7 @@ async function post(req: Request) {
 
   let body: { id?: string; toDate?: string; stopId?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
+  if (!isJsonObject(body)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const id = typeof body.id === "string" ? body.id : "";
   const toDate = typeof body.toDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.toDate) ? body.toDate : "";
   if (!id || !toDate) return NextResponse.json({ error: "Bad request" }, { status: 400 });
