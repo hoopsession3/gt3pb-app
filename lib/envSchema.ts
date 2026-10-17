@@ -53,6 +53,7 @@ export const ENV: readonly EnvEntry[] = [
   { name: "TWILIO_WEBHOOK_URL", side: "server", need: "feature", what: "the address Twilio signs a reply for (STOP, START)" },
   { name: "NEXT_PUBLIC_TEXTS_ON", side: "public", need: "display", what: "the yes-to-texts box is offered (\"1\")" },
   { name: "NOTES_INBOUND_SECRET", side: "server", need: "feature", what: "meeting notes emailed in" },
+  { name: "HEALTH_PROBE_SECRET", side: "server", need: "display", what: "names the uptime check: only a check sending it feeds the watchdog (unset: any outside check does)" },
   { name: "NOTES_INBOUND_FROM", side: "server", need: "feature", what: "who may email meeting notes in" },
   // ── push ──
   { name: "NEXT_PUBLIC_VAPID_PUBLIC_KEY", side: "public", need: "feature", what: "web push on phones and browsers" },

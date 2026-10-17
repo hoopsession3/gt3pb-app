@@ -438,3 +438,18 @@
   background: color-mix(in srgb, var(--brand-red) 10%, transparent);
   & .orderbar-dot { background: var(--red-h); }
 }
+
+/* The nine focal spots on Studio's picture (R19 — the 10/10 audit, accessibility F15): a keyboard's and VoiceOver's way
+   to set where the crop centers. Each is a 44pt button at its third of the frame, invisible and out of a finger's way —
+   it takes no pointer, so a tap anywhere still sets the point where it lands — until it has focus. */
+@utility focal-spot {
+  position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; border-radius: 9999px;
+  background: transparent; opacity: 0; pointer-events: none;
+  &:focus-visible { opacity: 1; outline-offset: -8px; }
+  &[data-x="15"] { left: 15%; }
+  &[data-x="50"] { left: 50%; }
+  &[data-x="85"] { left: 85%; }
+  &[data-y="15"] { top: 15%; }
+  &[data-y="50"] { top: 50%; }
+  &[data-y="85"] { top: 85%; }
+}

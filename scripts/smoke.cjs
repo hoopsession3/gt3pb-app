@@ -15729,7 +15729,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // operations: the heartbeat and the failures
   const hl = rd("app/api/health/route.ts");
   ok("R13 heartbeat: the app's own questions don't feed the watchdog — the probe does",
-    /if \(from === "app-build"\) return NextResponse\.json\(\{ ok: true, build \}, \{ headers: noStore \}\);/.test(hl) && /if \(from !== "app"\) \{\s+const beat = await supabaseAdmin\.from\("ops_heartbeat"\)/.test(hl)
+    /if \(from === "app-build"\) return NextResponse\.json\(\{ ok: true, build \}, \{ headers: noStore \}\);/.test(hl) && /const probe = from !== "app" && \(!secret \|\| tokenOk\(sent\?\.trim\(\), secret\)\);\s+const stamps = [^\n]+\n\s+if \(probe && stamps\) \{\s+const beat = await supabaseAdmin\.from\("ops_heartbeat"\)/.test(hl)   // R19: the probe named, when the site says who it is
       && /\/api\/health\?from=app-build/.test(rd("components/FreshTab.tsx")) && /\/api\/health\?from=app"/.test(rd("components/IntegrationsPanel.tsx")));
   ok("R13 failures: a read and a write the database refused for a reason that is ours reach the error report — wired where every read and every write answer goes",
     /reportFailure\("load", err as \{ code\?: string; message\?: string \}\);/.test(rd("lib/useAsyncData.ts")) && /reportFailure\("save", e, what\);/.test(rd("lib/wrote.ts"))
@@ -16035,6 +16035,67 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const m23 = rd("supabase/migrations/0423_an_invite_waits_for_a_proven_address_money_keeps_its_doors_a_stopped_job_is_said.sql");
   ok("R18 review: cron_watch — an unreadable pg_net leaves the request line as it was (bad := null), never closes it as 'answering again'",
     /exception when others then[\s\S]{0,400}?bad := null;\s*end;\s*if bad > 0 then[\s\S]*?elsif bad = 0 then/.test(m23));
+}
+
+// ── R19 · ASKED ONCE A QUERY, MEASURED WHERE IT LIVES, READ ONLY WHEN SHOWN (2026-10-17 — the 10/10 audit) ────────────
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ROOTDIR = path.join(__dirname, "..");
+  const rd = (f) => fs.readFileSync(path.join(ROOTDIR, f), "utf8");
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const pkg = JSON.parse(rd("package.json"));
+  ok("R19: its tests run — r19.test in npm test, db.r19.test in db:test", pkg.scripts.test.includes("node scripts/r19.test.mjs") && pkg.scripts["db:test"].includes("node scripts/db.r19.test.mjs"));
+  // database F3: 0425
+  const m = rd("supabase/migrations/0425_who_is_calling_is_asked_once_a_query_in_every_policy.sql");
+  ok("R19 policies: 0425 rewrites every bare zero-argument caller helper in a public policy into a sub-select, from Postgres's own print, and leaves a wrapped one alone",
+    /pg_get_expr\(p\.polqual, p\.polrelid\)/.test(m) && /\(\?<!SELECT \)auth\\\.\(uid\|jwt\)\\\(\\\)/.test(m) && /is_staff\|is_admin\|is_owner\|effective_tenant\|current_tenant/.test(m)
+      && /continue when q is not distinct from r\.qual and c is not distinct from r\.chk;/.test(m) && /where s\.nspname = 'public'/.test(m));
+  // database F11, F15: the snapshot measures the money's keys, the buckets and the triggers — names and switches only
+  const snapSql = rd("scripts/security.snapshot.sql"), audit = strip(rd("scripts/security.audit.mjs"));
+  ok("R19 snapshot: the security snapshot measures every unique key, every trigger (names and switches, never a definition) and every bucket",
+    /'k', \(select coalesce\(j, '\[\]'::json\) from ukeys\)/.test(snapSql) && /'g', \(select coalesce\(j, '\[\]'::json\) from trigs\)/.test(snapSql)
+      && /'b', \(select coalesce\(j, '\[\]'::json\) from bkts\)/.test(snapSql) && !/pg_get_triggerdef|tgargs|prosrc/.test(snapSql));
+  ok("R19 audit: a money key missing and a bucket that takes anything are hard findings — judged only on a snapshot that measured them",
+    /hard\.push\(`money-key: \$\{name\} on \$\{table\}/.test(audit) && /hard\.push\(`bucket-caps: \$\{id\} takes/.test(audit) && /if \(snap\.keys\) \{/.test(audit) && /if \(snap\.buckets\) \{/.test(audit)
+      && ["orders_payment_id_uniq", "delivery_orders_payment_id_uniq", "drop_orders_payment_id_uniq", "drop_orders_idempotency_key_uniq"].every((k) => audit.includes(`${k}:`)));
+  // performance F6: the Pass rail's pickup tile reads only what it shows
+  const dops = strip(rd("components/DropOps.tsx"));
+  ok("R19 reads: the brief pickup face reads neither the past drops nor the upcoming ones, and the full face (the Pass rail) the past drops only while their fold is open — a fold whose read failed says so, never \"No past drops.\" (the third pass)",
+    dops.includes('brief || !histOpen ? none : supabase.from("drop_orders").select("*").lt("drop_date", dropISO)') && dops.includes('brief ? none : supabase.from("drop_orders").select("*").gt("drop_date", dropISO)')
+      && /\}, \[dropISO, brief, histOpen\]\);\s+const board = useAsyncData\(loader, \[dropISO, brief, histOpen\]\);/.test(dops)
+      && dops.includes("history: brief || !histOpen ? null : (h.data as DropOrder[]) ?? [],") && dops.includes("const history = board.data?.history ?? null;")
+      && dops.includes("{histOpen && history === null && (board.error && !board.refreshing") && dops.includes("Couldn&apos;t read past drops — this is not &ldquo;none&rdquo;.")
+      && dops.includes('{histOpen && history?.length === 0 && <p className="cp-line dim">No past drops.</p>}'));
+  // accessibility F15: the focal point from a keyboard or VoiceOver
+  const st = strip(rd("components/Studio.tsx"));
+  ok("R19 focal point: nine named spots set it without a pointer — one radio group, one Tab stop (the chosen spot), arrows among them, shown on focus, never under a finger",
+    (rd("components/Studio.tsx").match(/\[\d{2}, \d{2}, "[a-z ]+"\]/g) || []).length === 9 && /role="radiogroup" aria-label="Focal point — where the crop centers"/.test(st)
+      && st.includes("onKeyDown={(e) => rovingKeys(e, FOCAL_SPOTS.length, at)}") && st.includes("aria-checked={i === at} tabIndex={rovingTab(i, at)} onClick={() => void setFocalAt(x, y)}")
+      && st.includes("const at = FOCAL_SPOTS.findIndex(([x, y]) => Math.abs((cur.focal?.x ?? 50) - x) <= 17 && Math.abs((cur.focal?.y ?? 50) - y) <= 17);")
+      && /className="absolute inset-0 pointer-events-none" role="radiogroup"/.test(st) && /type="button" role="radio" className="focal-spot" data-x=\{x\} data-y=\{y\}/.test(st)
+      && /@utility focal-spot \{[\s\S]*?opacity: 0; pointer-events: none;[\s\S]*?&:focus-visible \{ opacity: 1;/.test(rd("app/tailwind.css")));
+  // The review of R19 before it shipped: each fix in the shape it took (run in r19.test, db.r19.test, audits.test).
+  const mr = strip(rd("app/api/migrations/route.ts")), hr = strip(rd("app/api/health/route.ts")), vp = strip(rd("scripts/verify.prod.mjs")), ss = strip(rd("scripts/security.snapshot.mjs"));
+  ok("R19 review: the public ledger is kept half a minute — by the instance, and by the edge only for what is left of it — whole answers only, one read shared until it settles and stopped at its deadline, the numbers a page at a time, nothing counted or written",
+    /const KEEP_MS = 30_000;/.test(mr) && mr.includes("public, s-maxage=${Math.max(0, Math.floor((KEEP_MS - ageMs) / 1000))}") && !/stale-while-revalidate/.test(mr)
+      && !/limitsFit|rate_limit_hit/.test(mr) && mr.includes("ledger ??= readLedger().finally(() => { ledger = null; })") && mr.includes("Promise.race([askLedger(), late])")
+      && mr.includes("const whole = answer.status === 200 && Array.isArray(answer.body.seqs);") && !/\basking\b/.test(mr)
+      && mr.includes("const READ_MS = 8_000;") && mr.includes("const deadline = setTimeout(() => stop.abort(), READ_MS);") && (mr.match(/\.abortSignal\(stop\.signal\)/g) || []).length === 3
+      && mr.includes(".range(at, at + PAGE - 1)") && mr.includes('.order("seq", { ascending: true }).order("version", { ascending: true })'));
+  ok("R19 review: a check that sends the probe's header is told whether it was taken, both read trimmed — and verify.prod fails on false where it means something: a run that sent a secret, or the scheduled check (the third pass)",
+    hr.includes('...(from !== "app" ? { probe } : {})') && hr.includes("tokenOk(sent?.trim(), secret)") && vp.includes("health.body.probe === true")
+      && vp.includes('const scheduled = process.env.GITHUB_ACTIONS === "true";') && vp.includes("else if (health.body.probe === true || PROBE || scheduled) ok(")
+      && vp.includes("— not judged by hand (the scheduled check carries it; set HEALTH_PROBE_SECRET here to judge it)")
+      && hr.includes('const stamps = process.env.VERCEL_ENV !== "preview" && process.env.VERCEL_ENV !== "development";') && hr.includes("if (probe && stamps) {"));
+  ok("R19 review: verify.prod reads the audit's headline NOT CHECKED only, on a run that didn't fail; a pull without keys, triggers or buckets is refused",
+    vp.includes("const notChecked = run.status === 0 && /^SECURITY AUDIT: NOT CHECKED/m.test(out);") && ss.includes("if (!json.k || !json.g || !json.b) return { error:"));
+  const au19 = strip(rd("scripts/security.audit.mjs")), sq19 = rd("scripts/security.snapshot.sql");
+  ok("R19 review (fourth pass): the snapshot reads auth.users' triggers too, and the audit requires the accounts' by name and on, from the migration that made each; a dropped constraint leaves it stale",
+    sq19.includes("where (n.nspname = 'public' or (n.nspname = 'auth' and c.relname = 'users')) and not t.tgisinternal")
+      && ['"auth.users.password_waits_for_proof": 423', '"auth.users.claim_invites_on_proof": 423', '"auth.users.password_chosen": 423', '"profiles.crew_role_takes_signup_password": 423', '"auth.users.on_auth_user_created": 1'].every((x) => au19.includes(x))
+      && au19.includes("hard.push(`account-trigger: ${name} on ${table} is switched off — it holds nothing back`);") && au19.includes("String.raw`\\bdrop\\s+constraint\\b`"));
+  ok("R19 review: 0425 leaves a rule whole when a helper's name sits inside a quoted literal, and names it",
+    m.includes("regexp_count(whole, helper) <> regexp_count(regexp_replace(whole, $re$'(?:[^']|'')*'$re$, '', 'g'), helper)") && m.includes("names a helper inside a quoted literal — left as it is"));
 }
 
 // ── R17 · NO STATE SET BY AN EFFECT AS IT STARTS: THE LINT CEILING'S LAST RULE AT ZERO (2026-10-17) ─────────────────────

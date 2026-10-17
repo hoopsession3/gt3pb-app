@@ -32,6 +32,17 @@
 //                 its owner, past RLS; each one is an API of its own.
 //   definer-view  a view anon or authenticated may read that runs as its OWNER (security_invoker
 //                 off), so RLS on the tables underneath does not apply to it.
+// HARD, from a snapshot that carries them (R19 — the 10/10 audit, database F11 and F15):
+//   money-key     a unique index the money depends on is not in the database: a payment, a checkout key or a booking
+//                 key could be recorded twice. 0238, 0242 and 0244 made theirs only where the rows were already clean
+//                 ("create only if clean"), so a migration in the directory never proved one was there (MONEY_KEYS) —
+//                 or is there and not valid (a build that failed holds nothing back). One production can't build is
+//                 exempted by name, "money-key:<name>", with its reason (R19 review).
+//   bucket-caps   a storage bucket the app writes to takes any size or any type — a wildcard of every type is any
+//                 (BUCKET_CAPS; 0421, 0423).
+//   bucket-private a bucket for what only the crew or the person may see is public (PRIVATE_BUCKETS; R19 review).
+// Triggers are measured (names and switches, never a definition) and listed with --list: the push webhooks made in the
+// dashboard (database F6) are visible there, not yet judged.
 // EXEMPT — an entry in EXEMPT below, with a reason; an exemption without one is a finding.
 //
 // ── STALENESS, AND WHAT NOT CHECKED MEANS HERE ─────────────────────────────────────────────────
@@ -103,6 +114,41 @@ export const EXEMPT = {
     "funnel telemetry from guests (0199): funnel and step are CHECK-constrained, session is a 24-char ephemeral token, and only staff can read sums through funnel_counts()",
 };
 
+// The unique indexes the money stands on, by name → their table. A payment recorded twice is money counted twice, a
+// checkout key twice is a card charged twice.
+export const MONEY_KEYS = {
+  orders_payment_id_uniq: "orders",                         // 0238 (made only if clean)
+  delivery_orders_payment_id_uniq: "delivery_orders",       // 0238 (made only if clean)
+  drop_orders_payment_id_uniq: "drop_orders",               // 0242 (made only if clean)
+  drop_orders_idempotency_key_uniq: "drop_orders",          // 0244 (made only if clean)
+  shop_orders_payment: "shop_orders",                       // the shop's payment
+  reserve_claims_key: "reserve_claims",                     // 0400: a reserve's checkout key
+  reserve_claims_payment: "reserve_claims",                 // 0400: a reserve's payment
+  business_orders_user_key_uidx: "business_orders",         // 0422: an office booking's key
+  checkout_claims_pkey: "checkout_claims",                  // 0371: one claim a checkout key
+  event_sales_square_payment_id_key: "event_sales",         // 0024: a Square payment mirrored once
+  drop_order_changes_charge_payment_id_key: "drop_order_changes",   // 0388: a pack change's charge
+};
+// The triggers the accounts stand on (the R18 review, fourth pass: 0423's whole answer to an invite claimed by a stranger
+// lives in auth.users' triggers, which the snapshot never named — one dropped or switched off would have gone unseen).
+// Each with the migration that made it: required by name, and on, in a snapshot pulled at or after that migration by a
+// query that reads auth.users' triggers (R19's, from its review's fourth pass). "table.trigger" → migration.
+export const ACCOUNT_TRIGGERS = {
+  "auth.users.on_auth_user_created": 1,                 // 0001: a profile for every account (handle_new_user)
+  "auth.users.on_auth_user_deleted": 353,               // 0353: an account's erasure
+  "auth.users.erasure_queues_what_is_outside": 404,     // 0404: …and what is outside the database
+  "auth.users.password_waits_for_proof": 423,           // 0423: a password set before the proof
+  "auth.users.claim_invites_on_proof": 423,             // 0423: an invite claimed by a proven address
+  "auth.users.password_chosen": 423,                    // 0423: a password set takes the mark off
+  "profiles.crew_role_takes_signup_password": 423,      // 0423: a sign-up password, as the account becomes crew
+};
+// The buckets the app writes to, each held to a size and a list of types — lib/bucketTakes' (R18), which r18.test holds
+// equal to the migrations' and r19.test holds equal to this.
+export const BUCKET_CAPS = ["avatars", "vip", "content", "shop", "brand", "training", "intake", "note-files", "receipts"];
+// The buckets that hold what only the crew or the person may see (0088, 0217, 0262, 0292): never public — a public
+// bucket serves any file to whoever has its address, whatever the row rules say.
+export const PRIVATE_BUCKETS = ["intake", "note-files", "receipts", "vip"];
+
 const API_ROLES = ["anon", "authenticated"];
 const CMD = { r: "select", a: "insert", w: "update", d: "delete", "*": "all" };
 
@@ -120,7 +166,11 @@ export function expand(snap) {
     };
   }
   const functions = (snap.f || []).map(([name, args, anon, authenticated, service_role]) => ({ name, args, definer: true, exec: { anon, authenticated, service_role } }));
-  return { tables, functions };
+  // R19: present only in a snapshot pulled with them (undefined — not checked — in an older one).
+  const keys = snap.k ? snap.k.map(([table, name, primary, valid]) => ({ table, name, primary: !!primary, valid: valid !== false })) : undefined;
+  const triggers = snap.g ? snap.g.map(([table, name, enabled]) => ({ table, name, enabled: String(enabled ?? "") })) : undefined;
+  const buckets = snap.b ? snap.b.map(([id, isPublic, sizeLimit, types]) => ({ id, public: !!isPublic, sizeLimit: sizeLimit ?? null, types: Array.isArray(types) ? types : null })) : undefined;
+  return { tables, functions, keys, triggers, buckets, ledger: snap.ledger };
 }
 
 const isTrue = (x) => x === null || x === undefined || String(x).trim() === "true";
@@ -128,9 +178,33 @@ const touches = (rel, roles = API_ROLES) => roles.some((r) => (rel.priv?.[r] || 
 const forApi = (pol) => (pol.r || []).some((r) => r === "public" || API_ROLES.includes(r));
 
 /** The verdict on one snapshot. Pure. */
-export function judge(snapshot, exempt = EXEMPT) {
+export function judge(snapshot, exempt = EXEMPT, { moneyKeys = MONEY_KEYS, bucketCaps = BUCKET_CAPS, privateBuckets = PRIVATE_BUCKETS, accountTriggers = ACCOUNT_TRIGGERS } = {}) {
   const snap = snapshot.t ? expand(snapshot) : snapshot;   // compact (the committed shape) or already expanded
   const hard = [], publicRead = [], definerExec = [], anonExec = [], definerView = [], info = { serviceOnly: 0, failClosed: 0, tables: 0, views: 0 };
+  // The money's keys and the buckets' caps — judged only when the snapshot measured them (R19).
+  if (snap.keys) {
+    for (const [name, table] of Object.entries(moneyKeys)) {
+      // A key production can't build (rows already doubled) is named here with its reason — never a gate red for good.
+      const why = exempt[`money-key:${name}`];
+      if (why !== undefined) { if (!String(why).trim()) hard.push(`money-key:${name}: exempt with NO reason`); continue; }
+      const k = snap.keys.find((x) => x.name === name && x.table === table);
+      if (!k) hard.push(`money-key: ${name} on ${table} is not in the database — a payment or a checkout key there could be recorded twice`);
+      else if (!k.valid) hard.push(`money-key: ${name} on ${table} is there but not valid (a build that failed) — it holds nothing back`);
+    }
+  }
+  if (snap.buckets) {
+    for (const id of bucketCaps) {
+      const b = snap.buckets.find((x) => x.id === id);
+      if (!b) continue;   // a bucket not made in this project: nothing to cap
+      const anySize = !(Number(b.sizeLimit) > 0);
+      const anyType = !(b.types && b.types.length) || b.types.some((t) => /^\*(\/\*)?$/.test(String(t)));   // R19 review: every type is any
+      if (anySize || anyType) hard.push(`bucket-caps: ${id} takes ${anySize ? "any size" : ""}${anySize && anyType ? " and " : ""}${anyType ? "any type" : ""}`);
+    }
+    for (const id of privateBuckets) {
+      const b = snap.buckets.find((x) => x.id === id);
+      if (b?.public) hard.push(`bucket-private: ${id} is public — any of its files is served to whoever has its address`);
+    }
+  }
   for (const [name, rel] of Object.entries(snap.tables || {})) {
     const isTable = rel.kind === "r" || rel.kind === "p";
     if (isTable) info.tables++; else info.views++;
@@ -159,8 +233,37 @@ export function judge(snapshot, exempt = EXEMPT) {
     if (fn.definer && API_ROLES.some((r) => fn.exec?.[r])) definerExec.push(`${fn.name}(${fn.args || ""})`);
     if (fn.definer && fn.exec?.anon) anonExec.push(`${fn.name}(${fn.args || ""})`);
   }
-  return { hard, publicRead: [...new Set(publicRead)].sort(), definerExec: definerExec.sort(), anonExec: anonExec.sort(), definerView: definerView.sort(), info };
+  info.keys = snap.keys ? snap.keys.length : null;
+  info.triggers = snap.triggers ? snap.triggers.filter((t) => !t.table.startsWith("auth.")).length : null;
+  // The accounts' triggers (fourth pass) — judged only where the snapshot read auth.users' (it always has some: 0001's).
+  info.accountTriggers = null;
+  if (snap.triggers && snap.triggers.some((t) => t.table.startsWith("auth."))) {
+    const mark = Number(snap.ledger?.max_seq);
+    info.accountTriggers = 0;
+    for (const [key, from] of Object.entries(accountTriggers)) {
+      if (!(Number.isFinite(mark) && mark >= from)) continue;   // its migration is not applied in this snapshot
+      const dot = key.lastIndexOf("."), table = key.slice(0, dot), name = key.slice(dot + 1);
+      const why = exempt[`account-trigger:${key}`];
+      if (why !== undefined) { if (!String(why).trim()) hard.push(`account-trigger:${key}: exempt with NO reason`); continue; }
+      const t = snap.triggers.find((x) => x.table === table && x.name === name);
+      if (!t) hard.push(`account-trigger: ${name} on ${table} is not there — ${String(from).padStart(4, "0")} made it, and the accounts stand on it`);
+      else if (t.enabled === "D") hard.push(`account-trigger: ${name} on ${table} is switched off — it holds nothing back`);
+      else info.accountTriggers++;
+    }
+  }
+  info.buckets = snap.buckets ? snap.buckets.length : null;
+  return { hard, publicRead: [...new Set(publicRead)].sort(), definerExec: definerExec.sort(), anonExec: anonExec.sort(), definerView: definerView.sort(), info, triggers: snap.triggers };
 }
+
+// What the snapshot measures, as a migration would change it: policies, grants, RLS, definer functions and views — and
+// since R19 the unique keys the money stands on, the buckets' caps and the triggers (the R19 review, third pass: a
+// migration that dropped a money key, opened a bucket or dropped a trigger left the old snapshot judging as current).
+const MEASURED = new RegExp([
+  String.raw`\b(create|alter|drop)\s+policy\b`, String.raw`\b(grant|revoke)\b`, String.raw`row\s+level\s+security`,
+  String.raw`security\s+definer`, String.raw`security_invoker`,
+  String.raw`\bcreate\s+unique\s+index\b`, String.raw`\bdrop\s+index\b`, String.raw`\bunique\s*\(`, String.raw`\bdrop\s+constraint\b`, String.raw`\bstorage\.buckets\b`,
+  String.raw`\b(create|drop)\s+(or\s+replace\s+)?(constraint\s+)?trigger\b`, String.raw`\b(enable|disable)\s+trigger\b`,
+].join("|"), "i");
 
 /** Migrations above the snapshot's high-water mark that touch what it measures. Pure over the list. */
 export function staleBecause(snap, files) {
@@ -171,7 +274,7 @@ export function staleBecause(snap, files) {
     const seq = Number(file.slice(0, 4));
     if (!(seq > mark)) continue;
     const code = text.replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
-    if (/\b(create|alter|drop)\s+policy\b|\b(grant|revoke)\b|row\s+level\s+security|security\s+definer|security_invoker/i.test(code)) out.push(file);
+    if (MEASURED.test(code)) out.push(file);
   }
   return out;
 }
@@ -190,7 +293,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   const age = Math.round((Date.now() - Date.parse(snap.pulled_at)) / 86_400_000);
   console.log(`SECURITY AUDIT: snapshot pulled ${age} day(s) ago at ledger ${String(snap.ledger?.max_seq).padStart(4, "0")} — ${Object.keys(snap.t || {}).length} relation(s), ${(snap.f || []).length} definer function(s), ${(snap.x || []).length} distinct policy expression(s)`);
   if (stale.length) {
-    console.log(`SECURITY AUDIT: NOT CHECKED — ${stale.length} migration(s) above the snapshot's mark change policies, grants or RLS: ${stale.join(", ")}.`);
+    console.log(`SECURITY AUDIT: NOT CHECKED — ${stale.length} migration(s) above the snapshot's mark change policies, grants, RLS, unique keys, buckets or triggers: ${stale.join(", ")}.`);
     console.log("  The snapshot predates a change to exactly what it measures. Re-pull it once they are applied (steps in this file's header).");
     process.exit(0);
   }
@@ -206,6 +309,19 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   console.log(`  ${v.info.tables} table(s), ${v.info.views} view(s); ${v.info.serviceOnly} reachable by the service role only; ${v.info.failClosed} with RLS on and no policy (closed)`);
   for (const h of v.hard) { fails++; console.log(`  ✗ ${h}`); }
   if (!v.hard.length) console.log("  ✓ no table the API roles can touch has RLS off; no write policy is `true`");
+  // R19: the money's keys, the buckets' caps and the triggers — from a snapshot that measured them.
+  // Said without the headline's words: verify.prod reads "SECURITY AUDIT: NOT CHECKED" at a line's start as the whole
+  // audit unread, and this one is a part of it, the rest judged (R19 review).
+  if (v.info.keys === null) console.log("  · the money's unique keys, the buckets' caps and the triggers: not measured by this snapshot (pulled before R19's query) — re-pull it (steps above) and they are judged");
+  else {
+    if (!v.hard.some((h) => h.startsWith("money-key"))) console.log(`  ✓ every unique key the money stands on is there (${Object.keys(MONEY_KEYS).length}, of ${v.info.keys} unique indexes)`);
+    if (!v.hard.some((h) => h.startsWith("bucket-caps"))) console.log(`  ✓ every bucket the app writes to has a size and a list of types (${v.info.buckets} bucket(s))`);
+    if (!v.hard.some((h) => h.startsWith("bucket-private"))) console.log(`  ✓ the private buckets are private (${PRIVATE_BUCKETS.join(", ")})`);
+    if (v.info.accountTriggers === null) console.log("  · the accounts' triggers (auth.users): not measured by this snapshot (pulled before the query read them) — re-pull it and they are judged");
+    else if (!v.hard.some((h) => h.startsWith("account-trigger"))) console.log(`  ✓ every trigger the accounts stand on is there and on (${v.info.accountTriggers} of those this snapshot's migrations made)`);
+    console.log(`  · ${v.info.triggers} trigger(s) on public tables${list ? ":" : " (--list names them)"}`);
+    if (list) for (const t of v.triggers) console.log(`      ${t.table}.${t.name}${t.enabled === "D" ? " (disabled)" : ""}`);
+  }
   ratchet("tables readable by the world (SELECT `true`)", v.publicRead, CEILING.publicRead);
   ratchet("SECURITY DEFINER functions the API roles may call", v.definerExec, CEILING.definerExec);
   ratchet("…of them, callable with no session (anon)", v.anonExec, CEILING.anonExec);

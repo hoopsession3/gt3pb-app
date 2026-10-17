@@ -36,6 +36,9 @@ export function reassemble(rows) {
   if (sha !== meta.sha256) return { error: "sha256 does not match — the text was altered on the way through the grid" };
   let json; try { json = JSON.parse(doc); } catch { return { error: "the document is not JSON" }; }
   if (!json.t || !json.f || !json.x) return { error: "the document has no t/f/x — wrong query? (see the shape in scripts/security.snapshot.sql)" };
+  // R19: the money's unique keys, the triggers and the buckets. A pull with an older copy of the query would write a
+  // snapshot the audit can't judge them on — refused here, not discovered later as "not measured".
+  if (!json.k || !json.g || !json.b) return { error: "the document has no k/g/b (the unique keys, the triggers, the buckets) — run the current scripts/security.snapshot.sql" };
   return { doc, meta, json };
 }
 

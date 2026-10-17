@@ -43,6 +43,12 @@ import { useLatestRead } from "@/lib/useLatestRead";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Media = { url: string; type: string; focal?: { x: number; y: number } };
+// The nine spots a focal point can be set to without a pointer: thirds of the frame, named as a person would say them.
+const FOCAL_SPOTS: readonly (readonly [number, number, string])[] = [
+  [15, 15, "top left"], [50, 15, "top"], [85, 15, "top right"],
+  [15, 50, "left"], [50, 50, "center"], [85, 50, "right"],
+  [15, 85, "bottom left"], [50, 85, "bottom"], [85, 85, "bottom right"],
+];   // where each sits is app/tailwind.css focal-spot's, by its data-x and data-y
 type Item = {
   id: string; kind: string; channel: string; title: string; hook: string | null; caption: string | null;
   hashtags: string[]; status: string; review_note: string | null; scheduled_for: string | null; campaign?: string | null;
@@ -476,12 +482,15 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const makeCover = async (i: number) => { const list = [...mediaList]; const [m] = list.splice(i, 1); await saveMedia([m, ...list]); setActive(0); };
   // Tap the mockup to set the focal point — where the crop centers — so one photo frames right in
   // every format (4:5 post, 9:16 reel/story) without re-cropping.
+  const setFocalAt = async (x: number, y: number) => {
+    const list = mediaList.map((m, j) => (j === active ? { ...m, focal: { x, y } } : m));
+    await saveMedia(list);
+  };
   const setFocal = async (e: React.MouseEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const x = Math.round(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100)));
     const y = Math.round(Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100)));
-    const list = mediaList.map((m, j) => (j === active ? { ...m, focal: { x, y } } : m));
-    await saveMedia(list);
+    await setFocalAt(x, y);
   };
   const focalPos = (m: Media | null) => (m?.focal ? `${m.focal.x}% ${m.focal.y}%` : "center");
 
@@ -784,6 +793,23 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
               : cur && <div className="studio-mockup-m" style={{ backgroundImage: `url(${cur.url})`, backgroundPosition: focalPos(cur) }} role="img" aria-label="Preview" onClick={setFocal} title="Tap to set the focal point (where the crop centers)">
                   {cur.focal && <span className="studio-focal" style={{ left: `${cur.focal.x}%`, top: `${cur.focal.y}%` }} aria-hidden />}
                 </div>}
+            {/* THE FOCAL POINT WITHOUT A POINTER (R19 — the 10/10 audit, accessibility F15). A tap anywhere on the picture still
+                sets it there; nine named spots set it from a keyboard or VoiceOver — each shown only while it has focus, and
+                never in a finger's way (they take no pointer). With none set the crop centers, and "center" is the one chosen.
+                One choice of nine, so a radio group (R19 review): one Tab stop — the chosen spot — arrows move among them,
+                Space or Enter sets one (the focal point is saved: passing over a spot doesn't). */}
+            {cur && cur.type !== "video" && (() => {
+              const at = FOCAL_SPOTS.findIndex(([x, y]) => Math.abs((cur.focal?.x ?? 50) - x) <= 17 && Math.abs((cur.focal?.y ?? 50) - y) <= 17);
+              return (
+                <div className="absolute inset-0 pointer-events-none" role="radiogroup" aria-label="Focal point — where the crop centers"
+                  onKeyDown={(e) => rovingKeys(e, FOCAL_SPOTS.length, at)}>
+                  {FOCAL_SPOTS.map(([x, y, name], i) => (
+                    <button key={name} type="button" role="radio" className="focal-spot" data-x={x} data-y={y} aria-label={`Focus ${name}`}
+                      aria-checked={i === at} tabIndex={rovingTab(i, at)} onClick={() => void setFocalAt(x, y)} />
+                  ))}
+                </div>
+              );
+            })()}
             {isVertical && <><span className="sim-safe top" /><span className="sim-safe bottom" /><span className="sim-safe right" /></>}
             {mediaList.length > 1 && <div className="studio-dots">{mediaList.map((_, i) => <span key={i} className={i === active ? "on" : ""} />)}</div>}
             {mediaList.length > 1 && active > 0 && <button type="button" className="k-icon-btn sm glass studio-nav prev" onClick={() => setActive((a) => a - 1)} aria-label="Previous"><Icon name="chevronLeft" /></button>}

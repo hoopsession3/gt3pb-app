@@ -50,49 +50,94 @@ export const runtime = "nodejs";
 // because /api/health answers "is this app up" for an uptime monitor hitting it every few minutes,
 // and "is this schema current" is a different question asked on a different clock. One route, one
 // question; a monitor should not be paying for a check it never reads.
-async function get() {
-  const noStore = { "cache-control": "no-store" };
-  if (!supabaseAdmin) return NextResponse.json({ ok: false, why: "db unconfigured" }, { status: 503, headers: noStore });
+// ── KEPT HALF A MINUTE (R19, 2026-10-17 — the 10/10 audit, API F18) ────────────────────────────────────────────────
+// Public, uncached, and three reads of the ledger each time: a loop from anywhere was three database reads a request,
+// for ever. The checks that ask — the scheduled production check every half hour, a release run by hand — need an answer
+// a few times an hour, and one half a minute old is as good as a new one. So the answer is kept: by the platform's edge
+// (s-maxage), and by this instance (a loop that changes the address to dodge the edge still costs the database one read
+// of the three a half minute, an instance). A counter would have been a database write on every request, and one caller's
+// loop could have spent the count every check shares; keeping the answer has nothing to spend. A failure is never kept.
+const KEEP_MS = 30_000;
+const READ_MS = 8_000;   // a read that hangs is a 503, never a wait every caller on this instance shares (R19 review)
+// The edge keeps it only for what is left of this instance's half minute — never longer than an answer is kept here, and
+// never served stale after (R19 review: kept here, then kept again there with stale-while-revalidate, it was ninety).
+const kept_for = (ageMs: number) => ({ "cache-control": `public, s-maxage=${Math.max(0, Math.floor((KEEP_MS - ageMs) / 1000))}` });
+const noStore = { "cache-control": "no-store" };
+type Answer = { status: number; body: Record<string, unknown> };
+let kept: { at: number; answer: Answer } | null = null;
+// THE ONE READ OUT, SHARED UNTIL IT SETTLES (R19 review, third pass). Shared until each caller's deadline only, a read
+// that hung was left running and the next caller started another: one more hung read every eight seconds. Now the read is
+// one until it answers — and it stops at its own deadline (aborted), so it always does — and each caller waits for it no
+// longer than READ_MS.
+let ledger: Promise<Answer> | null = null;
+const askLedger = () => (ledger ??= readLedger().finally(() => { ledger = null; }));
+
+async function read(): Promise<Answer> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<Answer>((done) => { timer = setTimeout(() => done({ status: 503, body: { ok: false } }), READ_MS); });
+  try { return await Promise.race([askLedger(), late]); } finally { clearTimeout(timer); }
+}
+
+// The numbers come a page at a time (R19 review, third pass): PostgREST answers at most its row limit (Supabase's is a
+// thousand) to one read, so a ledger past it was never whole, never kept — every ask three reads again.
+const PAGE = 1000;
+
+async function readLedger(): Promise<Answer> {
+  if (!supabaseAdmin) return { status: 503, body: { ok: false, why: "db unconfigured" } };
+  const stop = new AbortController();
+  const deadline = setTimeout(() => stop.abort(), READ_MS);
   try {
     // count: exact + head — the row count without shipping 326 rows over the wire.
     const { count, error: countErr } = await supabaseAdmin
-      .from("schema_migrations").select("version", { count: "exact", head: true });
+      .from("schema_migrations").select("version", { count: "exact", head: true }).abortSignal(stop.signal);
     if (countErr) throw countErr;
 
     // The high-water mark. One row, ordered on an indexed integer.
     const { data: top, error: topErr } = await supabaseAdmin
-      .from("schema_migrations").select("seq").order("seq", { ascending: false }).limit(1).maybeSingle();
+      .from("schema_migrations").select("seq").order("seq", { ascending: false }).limit(1).abortSignal(stop.signal).maybeSingle();
     if (topErr) throw topErr;
 
     // A failed read is not an empty ledger. If either call had errored we are in the catch below;
     // reaching here with count === null means PostgREST answered without a count header, which is
     // not the same as "zero migrations" and must not be reported as a number.
-    if (count === null || count === undefined) {
-      return NextResponse.json({ ok: false, why: "no count returned" }, { status: 503, headers: noStore });
-    }
+    if (count === null || count === undefined) return { status: 503, body: { ok: false, why: "no count returned" } };
 
-    // The numbers (above). A failed read here costs only the exact answer, never the two integers.
+    // The numbers (above), a page at a time — in a fixed order (two migrations share a number: the name breaks the tie),
+    // up to twenty pages. A failed or short read here costs only the exact answer, never the two integers.
     let seqs: number[] | undefined;
     try {
-      const { data: rows, error: seqErr } = await supabaseAdmin
-        .from("schema_migrations").select("seq").order("seq", { ascending: true }).range(0, 9999);
-      if (!seqErr && rows) {
-        const list = (rows as { seq?: unknown }[]).map((r) => r.seq).filter((n): n is number => Number.isInteger(n));
-        if (list.length === count) seqs = list;
+      const list: number[] = [];
+      for (let at = 0, pages = 0; at < count && pages < 20; pages++) {
+        const { data: rows, error: seqErr } = await supabaseAdmin
+          .from("schema_migrations").select("seq").order("seq", { ascending: true }).order("version", { ascending: true })
+          .range(at, at + PAGE - 1).abortSignal(stop.signal);
+        if (seqErr || !rows || rows.length === 0) break;
+        at += rows.length;
+        for (const r of rows as { seq?: unknown }[]) if (Number.isInteger(r.seq)) list.push(r.seq as number);
       }
+      if (list.length === count) seqs = list;
     } catch { /* the two integers stand alone */ }
 
-    return NextResponse.json({
-      ok: true,
-      count,
-      max_seq: (top as { seq?: number } | null)?.seq ?? null,
-      ...(seqs ? { seqs } : {}),
-    }, { headers: noStore });
+    return { status: 200, body: { ok: true, count, max_seq: (top as { seq?: number } | null)?.seq ?? null, ...(seqs ? { seqs } : {}) } };
   } catch {
     // Deliberately no error text: this route is public. The caller learns it could not be answered,
     // which is all it needs to print NOT CHECKED instead of a false pass.
-    return NextResponse.json({ ok: false }, { status: 503, headers: noStore });
+    return { status: 503, body: { ok: false } };
+  } finally {
+    clearTimeout(deadline);
   }
+}
+
+async function get() {
+  const now = Date.now();
+  if (kept && now - kept.at < KEEP_MS) return NextResponse.json(kept.answer.body, { status: kept.answer.status, headers: kept_for(now - kept.at) });
+  // Callers that arrive while it is being read share the one read (askLedger), each for READ_MS at most.
+  const answer = await read();
+  // Kept only whole: an answer without the numbers (a capped or failed third read) is sent, not kept — the next caller
+  // asks again for the exact one (R19 review).
+  const whole = answer.status === 200 && Array.isArray(answer.body.seqs);
+  if (whole) kept = { at: Date.now(), answer };
+  return NextResponse.json(answer.body, { status: answer.status, headers: whole ? kept_for(0) : noStore });
 }
 
 export const GET = route("migrations", get);

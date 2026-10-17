@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { buildInfo } from "@/lib/buildInfo";
 import { route } from "@/lib/apiRoute";
+import { tokenOk } from "@/lib/webhookSignature";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,14 @@ export const runtime = "nodejs";
 // asks with ?from=app: FreshTab's question (which build) is answered without the database at all, the crew's Integrations
 // card gets the real check without the stamp. Any other caller — the scheduled check, a monitor Ryan points here — is the
 // probe, and feeds it as before.
+// THE PROBE, NAMED (R19, 2026-10-17 — the 10/10 audit, operations F6). "Any other caller" was anyone: a crawler, a link
+// preview, a script — each GET kept the watchdog fed while the real check could have stopped. With HEALTH_PROBE_SECRET
+// set, only a check that carries it (the x-health-probe header — the scheduled check sends it from its own secret)
+// feeds the watchdog; everyone else gets the same answer and no stamp. Unset, nothing changes.
+// Every outside check is told whether it was taken as the probe (`probe`, R19 review): a site's secret and the check's
+// that differ — or a site given one before the check was — would otherwise starve the watchdog in silence, and the
+// scheduled check fails on `probe: false` instead. Both are read trimmed — a secret pasted with its newline is the same
+// secret. A preview deployment never feeds production's watchdog (R19 review): it may share production's database.
 async function get(req: Request) {
   const noStore = { "cache-control": "no-store" };
   const build = buildInfo();
@@ -42,11 +51,15 @@ async function get(req: Request) {
     const { error } = await supabaseAdmin.from("admin_emails").select("email", { count: "exact", head: true });
     if (error) throw error;
     // Feed the watchdog — the probe only (above). Best-effort but awaited — serverless won't flush a dangling write.
-    if (from !== "app") {
+    const secret = (process.env.HEALTH_PROBE_SECRET ?? "").trim();
+    const sent = req.headers.get("x-health-probe");
+    const probe = from !== "app" && (!secret || tokenOk(sent?.trim(), secret));
+    const stamps = process.env.VERCEL_ENV !== "preview" && process.env.VERCEL_ENV !== "development";
+    if (probe && stamps) {
       const beat = await supabaseAdmin.from("ops_heartbeat").upsert({ id: 1, seen_at: new Date().toISOString(), source: "health" });
       if (beat.error) console.warn(`health: the watchdog's heartbeat wasn't written — ${beat.error.message}`);   // the probe still answers; said (R12b)
     }
-    return NextResponse.json({ ok: true, db_ms: Date.now() - t0, build }, { headers: noStore });
+    return NextResponse.json({ ok: true, db_ms: Date.now() - t0, build, ...(from !== "app" ? { probe } : {}) }, { headers: noStore });
   } catch {
     return NextResponse.json({ ok: false, build }, { status: 503, headers: noStore });
   }

@@ -42,7 +42,8 @@ type DropOrder = {
   collected_via?: string | null; collected_at?: string | null; collected_by?: string | null;
 };
 type PlannedBatch = { id: string; recipe_name: string | null; batch_gal: number; status: string };
-type Board = { rows: DropOrder[]; batches: PlannedBatch[]; history: DropOrder[]; upcoming: DropOrder[] };
+// history: null when it was not read — the fold shut, the brief face (R19 review, third pass: never "no past drops" for a read not made).
+type Board = { rows: DropOrder[]; batches: PlannedBatch[]; history: DropOrder[] | null; upcoming: DropOrder[] };
 
 // The fulfillment path a reserved pack walks; the crew advances it, the customer sees it live.
 const PACK_STAGES: { key: PackStage; label: string; next: string }[] = [
@@ -101,24 +102,29 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
   // toasts / confirms / alert bodies below already read.
   const dropWhen = dayWithDate(dropISO);
 
+  // The brief face (the Now screen, read again on every change to a pack or a batch during service) draws neither the past
+  // drops nor the upcoming ones, so it reads neither: two of its four reads — up to three hundred whole rows — were for
+  // folds it never shows (R19 — the 10/10 audit, performance F6). The full face — the Pass rail during service among
+  // them — reads the past drops only while their fold is open (R19 review): two hundred rows for a fold that is shut.
   const loader = useCallback(async (): Promise<Board> => {
-    if (!supabase) return { rows: [], batches: [], history: [], upcoming: [] };
+    if (!supabase) return { rows: [], batches: [], history: null, upcoming: [] };
+    const none = Promise.resolve({ data: [] as DropOrder[], error: null });
     const [r, b, h, u] = await Promise.all([
       supabase.from("drop_orders").select("*").eq("drop_date", dropISO).is("canceled_at", null).order("created_at"),
       supabase.from("brew_batches").select("id, recipe_name, batch_gal, status").eq("drop_date", dropISO).order("recipe_name"),
-      supabase.from("drop_orders").select("*").lt("drop_date", dropISO).order("drop_date", { ascending: false }).order("created_at").limit(200),
-      supabase.from("drop_orders").select("*").gt("drop_date", dropISO).is("canceled_at", null).order("drop_date").order("created_at").limit(100),
+      brief || !histOpen ? none : supabase.from("drop_orders").select("*").lt("drop_date", dropISO).order("drop_date", { ascending: false }).order("created_at").limit(200),
+      brief ? none : supabase.from("drop_orders").select("*").gt("drop_date", dropISO).is("canceled_at", null).order("drop_date").order("created_at").limit(100),
     ]);
     const firstErr = [r, b, h, u].find((x) => x.error)?.error;
     if (firstErr) throw new Error(firstErr.message);
     return {
       rows: (r.data as DropOrder[]) ?? [],
       batches: (b.data as PlannedBatch[]) ?? [],
-      history: (h.data as DropOrder[]) ?? [],
+      history: brief || !histOpen ? null : (h.data as DropOrder[]) ?? [],
       upcoming: (u.data as DropOrder[]) ?? [],
     };
-  }, [dropISO]);
-  const board = useAsyncData(loader, [dropISO]);
+  }, [dropISO, brief, histOpen]);
+  const board = useAsyncData(loader, [dropISO, brief, histOpen]);
   const { reload } = board;
   useRealtimeTable("drop_orders", reload);
   useRealtimeTable("brew_batches", reload);
@@ -130,7 +136,9 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
 
   const rows = board.data?.rows ?? [];
   const upcoming = board.data?.upcoming ?? [];
-  const history = board.data?.history ?? [];
+  // The past drops as last read — null while the fold's own read has not answered (a reload that failed keeps the board,
+  // and the fold says it couldn't read them: not "No past drops.").
+  const history = board.data?.history ?? null;
   const batches = board.data?.batches ?? [];
 
   // Each of these three used to write and reload without looking at the answer, so a refused write
@@ -449,12 +457,16 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
               ))}
             </div>
           )}
-          {!brief && history.length > 0 && (
+          {!brief && (
             <div className="dops-hist">
               <button type="button" className="dops-hist-h" onClick={() => setHistOpen((v) => !v)} aria-expanded={histOpen}>
-                Past drops · {new Set(history.map((o) => o.drop_date)).size} <span>{histOpen ? "▾" : "▸"}</span>
+                Past drops{histOpen && history && history.length > 0 ? ` · ${new Set(history.map((o) => o.drop_date)).size}` : ""} <span>{histOpen ? "▾" : "▸"}</span>
               </button>
-              {histOpen && Object.entries(history.reduce<Record<string, DropOrder[]>>((m, o) => { (m[o.drop_date] ??= []).push(o); return m; }, {})).map(([d, os]) => {
+              {histOpen && history === null && (board.error && !board.refreshing
+                ? <p className="load-failed" role="status">Couldn&apos;t read past drops — this is not &ldquo;none&rdquo;. <button type="button" className="btn-ter" onClick={() => void reload()}>Try again</button></p>
+                : <p className="cp-line dim">Reading past drops…</p>)}
+              {histOpen && history?.length === 0 && <p className="cp-line dim">No past drops.</p>}
+              {histOpen && history && Object.entries(history.reduce<Record<string, DropOrder[]>>((m, o) => { (m[o.drop_date] ??= []).push(o); return m; }, {})).map(([d, os]) => {
                 const kept = os.filter((o) => !o.canceled_at);
                 const rev = kept.reduce((a, o) => a + o.total_cents, 0) / 100;
                 const label = new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });

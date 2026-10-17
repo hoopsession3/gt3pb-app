@@ -57,19 +57,35 @@ console.log(`VERIFY PRODUCTION — ${APP}`);
 let head = "";
 try { head = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim(); } catch { /* not a checkout */ }
 const same = (a, b) => !!a && !!b && (a.startsWith(b.slice(0, 7)) || b.startsWith(a.slice(0, 7)));
-let health = await json("/api/health");
+// The scheduled check names itself when it can (R19, operations F6): only a check carrying HEALTH_PROBE_SECRET feeds the
+// watchdog once the site has it set. A value read from the environment, never written down here.
+const PROBE = process.env.HEALTH_PROBE_SECRET?.trim() ? { headers: { "x-health-probe": process.env.HEALTH_PROBE_SECRET.trim() } } : undefined;
+let health = await json("/api/health", PROBE);
 // --wait: a push reaches GitHub before Vercel has built it. Poll until production reports this
 // commit, then judge. A deploy that never lands is a failure of this check, not a skipped one.
 if (WAIT > 0 && head) {
   const until = Date.now() + WAIT * 1000;
   while (!same(health.body?.build?.commitShort || "", head) && Date.now() < until) {
     await new Promise((r) => setTimeout(r, 15000));
-    try { health = await json("/api/health"); } catch { /* keep polling */ }
+    try { health = await json("/api/health", PROBE); } catch { /* keep polling */ }
   }
   console.log(`  · waited for production to report ${head}: ${same(health.body?.build?.commitShort || "", head) ? "it does" : `still ${health.body?.build?.commitShort || "?"} after ${WAIT}s`}`);
 }
 const built = health.body?.build?.commitShort || "";
 ok(`live: /api/health answers ok`, health.status === 200 && health.body?.ok === true, `HTTP ${health.status}`);
+// Not taken as the probe: the site's HEALTH_PROBE_SECRET and this check's differ, or the site has one and this check
+// none — either way the watchdog is starving in silence (R19 review). Said plainly — which two to set the same — never as
+// a pass. Judged where it means something (the third pass): a run that sent a secret, and the scheduled check (GitHub
+// Actions), which must carry it. A run by hand with no secret in its environment was never the probe: said, not failed —
+// or every release check run from a laptop would fail the day the site was given one.
+if (health.status === 200) {
+  const scheduled = process.env.GITHUB_ACTIONS === "true";
+  if (typeof health.body?.probe !== "boolean") console.log("  · probe: production's build doesn't say whether this check is its probe (built before R19) — not judged");
+  else if (health.body.probe === true || PROBE || scheduled) ok("live: this check is the site's probe — the watchdog is fed by it (HEALTH_PROBE_SECRET the same in GitHub and in Vercel)",
+    health.body.probe === true, PROBE ? "probe: false — set the repository secret and the Vercel variable HEALTH_PROBE_SECRET to the same value"
+      : "probe: false — the site has HEALTH_PROBE_SECRET and this check sent none: set the repository secret of that name (GitHub first, then Vercel, then redeploy)");
+  else console.log("  · probe: the site has HEALTH_PROBE_SECRET and this run sent none — not judged by hand (the scheduled check carries it; set HEALTH_PROBE_SECRET here to judge it)");
+}
 if (head) ok(`live: production is this tree (${built || "?"} = ${head})`, same(built, head),
   built ? `production runs ${built}; this tree is ${head}. Not deployed yet, or main is ahead/behind — do not read the rest as a verdict on this commit.` : "no build hash in /api/health");
 else console.log("  · live: not a git checkout here — the build hash is not compared");
@@ -108,7 +124,9 @@ try {
   const { spawnSync } = await import("node:child_process");
   const run = spawnSync(process.execPath, [new URL("./security.audit.mjs", import.meta.url).pathname], { encoding: "utf8" });
   const out = (run.stdout || "") + (run.stderr || "");
-  const notChecked = /NOT CHECKED/.test(out);
+  // Only the headline's NOT CHECKED, and only on a run that didn't fail: a part not measured (R19's keys and buckets on an
+  // older snapshot) is not the whole posture unread, and a finding is a finding whatever else the run printed.
+  const notChecked = run.status === 0 && /^SECURITY AUDIT: NOT CHECKED/m.test(out);
   const first = out.split("\n").find((l) => l.startsWith("SECURITY AUDIT")) || "SECURITY AUDIT: (no output)";
   if (notChecked) { console.log(`  · ${first.replace(/^SECURITY AUDIT: /, "posture: ")}`); console.log("    (pull the snapshot — steps in scripts/security.audit.mjs — and re-run; this is not a pass)"); }
   else ok(`posture: ${run.status === 0 ? "no table the API roles can touch has RLS off; no write policy is `true`; lists at their ceilings" : "the security audit has findings"}`, run.status === 0, out.split("\n").filter((l) => l.includes("✗")).slice(0, 4).join(" | "));

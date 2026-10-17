@@ -15,6 +15,11 @@
 --   t  relation → [kind, rls, force, anon, authenticated, service_role, invoker, [policies]]
 --      policy   → [name, cmd (r/a/w/d/*), permissive, roles ("public" | "anon,authenticated"), using#, check#]
 --   f  definer function → [name, identity args, anon?, authenticated?, service_role?]
+--   k  every unique index in public → [table, index, primary?]   (R19 — names only: the money's keys, proven present)
+--   g  every trigger a migration or the dashboard made on public, and on auth.users (the accounts' — R19 review, fourth
+--      pass; that table named "auth.users") → [table, trigger, enabled (O/D/R/A)]   (R19 — names and switches only,
+--      never a definition: a webhook's carries its address)
+--   b  every storage bucket → [id, public?, size limit, allowed types]   (R19)
 --
 -- Output: one JSON document cut into rows of 2000 characters so the grid can show every row
 -- whole, then one last row with the document's row count, length and sha256, so a read-back that
@@ -76,6 +81,26 @@ fns as (
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.prokind = 'f' and p.prosecdef
 ),
+ukeys as (
+  select json_agg(json_build_array(c.relname, i.relname, x.indisprimary, x.indisvalid) order by c.relname, i.relname) as j
+  from pg_index x
+  join pg_class i on i.oid = x.indexrelid
+  join pg_class c on c.oid = x.indrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and x.indisunique
+),
+trigs as (
+  select json_agg(json_build_array(case when n.nspname = 'public' then c.relname else n.nspname || '.' || c.relname end, t.tgname, t.tgenabled::text)
+                  order by n.nspname <> 'public', c.relname, t.tgname) as j
+  from pg_trigger t
+  join pg_class c on c.oid = t.tgrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where (n.nspname = 'public' or (n.nspname = 'auth' and c.relname = 'users')) and not t.tgisinternal
+),
+bkts as (
+  select json_agg(json_build_array(b.id, b.public, b.file_size_limit, b.allowed_mime_types) order by b.id) as j
+  from storage.buckets b
+),
 doc as (
   select json_build_object(
     'pulled_at', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
@@ -83,7 +108,10 @@ doc as (
     'ledger', (select json_build_object('count', count(*), 'max_seq', max(seq)) from public.schema_migrations),
     'x', (select coalesce(json_agg(e order by i), '[]'::json) from exprs),
     't', (select j from rels),
-    'f', (select coalesce(j, '[]'::json) from fns)
+    'f', (select coalesce(j, '[]'::json) from fns),
+    'k', (select coalesce(j, '[]'::json) from ukeys),
+    'g', (select coalesce(j, '[]'::json) from trigs),
+    'b', (select coalesce(j, '[]'::json) from bkts)
   )::text as d
 )
 select i as row, substr(d, i * 2000 + 1, 2000) as chunk

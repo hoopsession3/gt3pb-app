@@ -683,6 +683,20 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
     create table public.closed (id int); alter table public.closed enable row level security; grant select on public.closed to authenticated;
     create view public.v_owner as select id from public.menu_items; grant select on public.v_owner to anon;
     create view public.v_inv as select id from public.menu_items; alter view public.v_inv set (security_invoker = on); grant select on public.v_inv to anon;
+    -- R19: a unique key, a trigger and the storage buckets, as the snapshot measures them (names and switches only)
+    create unique index menu_items_id_uniq on public.menu_items (id);
+    create or replace function public.touch() returns trigger language plpgsql as $$ begin return new; end $$;
+    create trigger menu_items_touch before update on public.menu_items for each row execute function public.touch();
+    create trigger guestbook_touch before insert on public.guestbook for each row execute function public.touch();
+    alter table public.guestbook disable trigger guestbook_touch;
+    -- the accounts' table and two of its triggers, one switched off (the R18 review, fourth pass)
+    create schema auth; create table auth.users (id uuid primary key);
+    create trigger on_auth_user_created after insert on auth.users for each row execute function public.touch();
+    create trigger password_waits_for_proof before update on auth.users for each row execute function public.touch();
+    alter table auth.users disable trigger password_waits_for_proof;
+    create schema storage;
+    create table storage.buckets (id text primary key, public boolean default false, file_size_limit bigint, allowed_mime_types text[]);
+    insert into storage.buckets values ('content', false, 104857600, array['image/*', 'video/*']), ('shop', true, null, null);
     -- fourteen ordinary tenant tables, so the document spans several 2000-character rows (the refusals below need more than one)
     ${Array.from({ length: 14 }, (_, i) => `create table public.plain_${i} (id int, tenant_id uuid); alter table public.plain_${i} enable row level security; grant select on public.plain_${i} to authenticated; create policy "tenant isolation" on public.plain_${i} as restrictive for all using (tenant_id = tenant_id); create policy "staff read" on public.plain_${i} for select using ((select public.is_staff()));`).join("\n")}
   `);
@@ -693,7 +707,8 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   ok("security: the compact shape names every relation and definer function", Object.keys(snap.t).length === 22 && snap.f.length === 3, [Object.keys(snap.t).length, snap.f.length]);
   ok("security: the fixture spans several rows, so the refusals below mean something", rows.length >= 3, rows.length);
   ok("security: expressions are stored once and policies point at them", snap.x.includes("true") && snap.t.menu_items[7][0][4] === snap.x.indexOf("true"));
-  const v = judge(snap, {});
+  const NONE = { moneyKeys: {}, bucketCaps: [], accountTriggers: {} };   // the R19 rules, judged on their own below
+  const v = judge(snap, {}, NONE);
   ok("security: RLS off + a grant is the hard finding", v.hard.some((h) => h.startsWith("rls-off: leak")), v.hard);
   ok("security: a guest-writable `true` policy is the hard finding", v.hard.some((h) => h.startsWith("open-write: guestbook")), v.hard);
   ok("security: nothing else is hard", v.hard.length === 2, v.hard);
@@ -702,13 +717,59 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   ok("security: of those, the one a caller with no session may call is listed apart; the signed-in-only one is not", v.anonExec.join() === "is_staff()", v.anonExec);
   ok("security: an owner-run view the API may read is listed; an invoker view is not", v.definerView.join() === "v_owner", v.definerView);
   ok("security: a table nobody but the service role can touch is counted, not judged", v.info.serviceOnly === 2 && v.info.failClosed === 1 && v.info.tables === 20, v.info);
-  ok("security: an exemption with a reason clears a finding", judge(snap, { leak: "a planted reason", "guestbook.anyone writes": "a planted reason" }).hard.length === 0);
-  ok("security: an exemption with no reason is itself a finding", judge(snap, { leak: "" }).hard.some((h) => h.includes("NO reason")));
-  ok("security: the expanded shape judges the same", JSON.stringify(judge(expand(snap), {})) === JSON.stringify(v));
+  ok("security: an exemption with a reason clears a finding", judge(snap, { leak: "a planted reason", "guestbook.anyone writes": "a planted reason" }, NONE).hard.length === 0);
+  ok("security: an exemption with no reason is itself a finding", judge(snap, { leak: "" }, NONE).hard.some((h) => h.includes("NO reason")));
+  ok("security: the expanded shape judges the same", JSON.stringify(judge(expand(snap), {}, NONE)) === JSON.stringify(v));
+  // R19: the money's keys, the buckets' caps, the triggers — measured by the real query
+  ok("security: the unique keys are measured, by table and name (and the primary keys among them)", snap.k.some(([t, n, p]) => t === "menu_items" && n === "menu_items_id_uniq" && p === false), snap.k);
+  ok("security: the triggers are measured — names and switches, never a definition — public's, then the accounts' (auth.users, named so)",
+    JSON.stringify(snap.g) === JSON.stringify([["guestbook", "guestbook_touch", "D"], ["menu_items", "menu_items_touch", "O"], ["auth.users", "on_auth_user_created", "O"], ["auth.users", "password_waits_for_proof", "D"]]), snap.g);
+  // R18 review, fourth pass: the triggers the accounts stand on, required by name and on, from the migration that made each.
+  const onlyAt = (v) => ({ ...v, hard: v.hard.filter((h) => h.startsWith("account-trigger")) });   // the fixture's own two findings aside
+  const at = (accountTriggers) => onlyAt(judge(snap, {}, { moneyKeys: {}, bucketCaps: [], accountTriggers }));
+  ok("security (fourth pass): an account trigger there and on is no finding, and counted", !at({ "auth.users.on_auth_user_created": 1 }).hard.length && at({ "auth.users.on_auth_user_created": 1 }).info.accountTriggers === 1);
+  ok("security (fourth pass): one switched off is the hard finding", at({ "auth.users.password_waits_for_proof": 2 }).hard.join() === "account-trigger: password_waits_for_proof on auth.users is switched off — it holds nothing back");
+  ok("security (fourth pass): one not there is the hard finding — on public's tables too", at({ "auth.users.claim_invites_on_proof": 1, "profiles.crew_role_takes_signup_password": 2 }).hard.length === 2
+    && at({ "auth.users.claim_invites_on_proof": 1 }).hard[0].startsWith("account-trigger: claim_invites_on_proof on auth.users is not there"));
+  ok("security (fourth pass): one whose migration is after the snapshot's mark is not asked for", !at({ "auth.users.claim_invites_on_proof": 3 }).hard.length);
+  ok("security (fourth pass): an exemption needs its reason", !onlyAt(judge(snap, { "account-trigger:auth.users.password_waits_for_proof": "made-up reason" }, { moneyKeys: {}, bucketCaps: [], accountTriggers: { "auth.users.password_waits_for_proof": 2 } })).hard.length
+    && /exempt with NO reason/.test(onlyAt(judge(snap, { "account-trigger:auth.users.password_waits_for_proof": "" }, { moneyKeys: {}, bucketCaps: [], accountTriggers: { "auth.users.password_waits_for_proof": 2 } })).hard.join()));
+  const publicOnly = { ...snap, g: snap.g.filter(([t]) => !t.startsWith("auth.")) };
+  ok("security (fourth pass): a pull that read no auth.users triggers (an older query) is not judged on them",
+    onlyAt(judge(publicOnly, {}, { moneyKeys: {}, bucketCaps: [], accountTriggers: { "auth.users.claim_invites_on_proof": 1 } })).hard.length === 0
+      && judge(publicOnly, {}, NONE).info.accountTriggers === null);
+  ok("security (fourth pass): the triggers counted on public tables are public's only", judge(snap, {}, NONE).info.triggers === 2);
+  ok("security: the buckets are measured — public?, size and types", JSON.stringify(snap.b) === JSON.stringify([["content", false, 104857600, ["image/*", "video/*"]], ["shop", true, null, null]]), snap.b);
+  ok("security: a money key in the database is no finding", !judge(snap, {}, { moneyKeys: { menu_items_id_uniq: "menu_items" }, bucketCaps: [] }).hard.some((h) => h.startsWith("money-key")));
+  ok("security: a money key missing is the hard finding", judge(snap, {}, { moneyKeys: { orders_payment_id_uniq: "orders" }, bucketCaps: [] }).hard.some((h) => h.startsWith("money-key: orders_payment_id_uniq on orders")));
+  ok("security: …and a key of that name on another table is not it", judge(snap, {}, { moneyKeys: { menu_items_id_uniq: "orders" }, bucketCaps: [] }).hard.length === 3);
+  const caps = judge(snap, {}, { moneyKeys: {}, bucketCaps: ["content", "shop", "never-made"] }).hard.filter((h) => h.startsWith("bucket-caps"));
+  ok("security: a bucket the app writes to with no size and no types is the hard finding; one capped, or one not made here, is not", caps.length === 1 && caps[0] === "bucket-caps: shop takes any size and any type", caps);
+  // R19 review: a key there but not valid, a */* type list, a private bucket made public, and a key exempted by name.
+  const broken = { ...snap, k: snap.k.map(([t, n, p]) => [t, n, p, n === "menu_items_id_uniq" ? false : true]), b: [["content", false, 104857600, ["*/*"]], ["receipts", true, 20971520, ["image/*"]]] };
+  const bv = judge(broken, {}, { moneyKeys: { menu_items_id_uniq: "menu_items" }, bucketCaps: ["content"], privateBuckets: ["receipts"] }).hard;
+  ok("security (review): a money key there but not valid is the hard finding — it holds nothing back", bv.some((h) => /^money-key: menu_items_id_uniq on menu_items is there but not valid/.test(h)), bv);
+  ok("security (review): a bucket whose types are */* takes any type", bv.some((h) => h === "bucket-caps: content takes any type"), bv);
+  ok("security (review): a private bucket made public is the hard finding", bv.some((h) => /^bucket-private: receipts is public/.test(h)), bv);
+  ok("security (review): a key production can't build is exempted by name with its reason — and an exemption without one is a finding",
+    !judge(snap, { "money-key:orders_payment_id_uniq": "made-up reason for the test" }, { moneyKeys: { orders_payment_id_uniq: "orders" }, bucketCaps: [] }).hard.some((h) => h.startsWith("money-key"))
+      && judge(snap, { "money-key:orders_payment_id_uniq": "" }, { moneyKeys: { orders_payment_id_uniq: "orders" }, bucketCaps: [] }).hard.some((h) => /exempt with NO reason/.test(h)));
+  ok("security (review): the unique keys measured carry whether each is valid", snap.k.every((r) => r.length === 4 && typeof r[3] === "boolean"), snap.k.slice(0, 2));
+  const old = { ...snap }; delete old.k; delete old.g; delete old.b;
+  ok("security: a snapshot from before R19 is not judged on what it never measured", !judge(old, {}).hard.some((h) => /money-key|bucket-caps/.test(h)) && judge(old, {}).info.keys === null);
   ok("security: a later migration that touches a policy makes the snapshot stale", staleBecause(snap, [{ file: "0003_x.sql", text: "create policy p on t for select using (true);" }]).length === 1);
   ok("security: a later migration that only adds a column does not", staleBecause(snap, [{ file: "0003_x.sql", text: "alter table t add column c int; -- grant nothing" }]).length === 0);
   ok("security: a migration at the mark is not 'later'", staleBecause(snap, [{ file: "0002_x.sql", text: "grant select on t to anon;" }]).length === 0);
   ok("security: 'grant' inside a comment does not count", staleBecause(snap, [{ file: "0003_x.sql", text: "-- we grant nothing here\nalter table t add column c int;" }]).length === 0);
+  // R19 review, third pass: what R19's snapshot also measures — the money's keys, the buckets, the triggers.
+  ok("security (third pass): a later migration that makes or drops a unique key, changes a bucket or makes or drops a trigger makes the snapshot stale",
+    ["create unique index if not exists k on t (a);", "drop index if exists orders_payment_id_uniq;", "alter table t add constraint u unique (a);",
+     "update storage.buckets set public = true where id = 'vip';", "create trigger tr after insert on t for each row execute function f();",
+     "alter table orders drop constraint orders_payment_id_key;",
+     "drop trigger if exists tr on t;", "create or replace trigger tr before update on t for each row execute function f();", "alter table t disable trigger tr;"]
+      .every((text) => staleBecause(snap, [{ file: "0003_x.sql", text }]).length === 1));
+  ok("security (third pass): …and an index that is not unique, or the words in a comment, do not",
+    staleBecause(snap, [{ file: "0003_x.sql", text: "create index if not exists i on t (a);\n-- a unique (key) and a trigger, said in passing\nalter table t add column c int;" }]).length === 0);
   // the read-back refusals: each one is a snapshot that would have lied
   ok("security: a dropped row is refused", /chunk row/.test(reassemble(rows.filter((_, i) => i !== 1)).error || ""));
   ok("security: a doubled row is refused", /chunk row/.test(reassemble([...rows.slice(0, 2), rows[1], ...rows.slice(2)]).error || ""));
@@ -716,6 +777,14 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   ok("security: an altered character is refused", /sha256/.test(reassemble(rows.map((x, i) => (i === 0 ? { row: x.row, chunk: "X" + x.chunk.slice(1) } : x))).error || ""));
   ok("security: a result read without its digest row is refused", /digest row/.test(reassemble(rows.slice(0, -1)).error || ""));
   ok("security: the Supabase 'Copy as JSON' shape ({row, chunk}) and a bare [row, chunk] both read", !reassemble(rows.map((x) => [x.row, x.chunk])).error);
+  // R19 review: a document pulled with an older copy of the query — whole, its digest right — is refused for what it lacks.
+  {
+    const { createHash } = await import("node:crypto");
+    const older = JSON.stringify({ ...snap, k: undefined, g: undefined, b: undefined });
+    const cut = Array.from({ length: Math.ceil(older.length / 2000) }, (_, i) => ({ row: i, chunk: older.slice(i * 2000, (i + 1) * 2000) }));
+    const digest = { row: cut.length, chunk: JSON.stringify({ rows: cut.length, length: older.length, sha256: createHash("sha256").update(older, "utf8").digest("hex") }) };
+    ok("security: a document pulled with an older query (no keys, triggers or buckets) is refused, nothing written", /no k\/g\/b/.test(reassemble([...cut, digest]).error || ""), reassemble([...cut, digest]).error);
+  }
   await db.close();
 }
 
