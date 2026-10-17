@@ -16,6 +16,7 @@ import { zipMarket } from "@/lib/delivery";
 import { useStepFocus } from "./useStepFocus";
 import { marketServes } from "@/lib/markets";
 import { money } from "@/lib/money";
+import { mintId } from "@/lib/mintId";
 
 // OFFICE DELIVERY — the B2B bulk order (amber gallon jugs, Monday 5–8 AM, 3-gal minimum). Purpose-built
 // so it never entangles the residential pack cart. Books a business_order (0187); a standing toggle also
@@ -25,6 +26,9 @@ import { money } from "@/lib/money";
 export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
   const { toast } = useApp();
+  // This booking's key (R15, 0422 — the 10/10 audit, API F25): made once when the sheet opens and sent with every tap of
+  // Book, so an answer lost on the way back and tapped again finds the first booking instead of making a second.
+  const [bookingKey] = useState(mintId);
   // An office that has ordered before starts from its account (lib/customerKnown, 2026-10-04): the
   // company, who to text, the door and the access notes from its last order there. Every field was
   // empty on every order, phone included — and phone is required on the prepaid path, so a returning
@@ -83,7 +87,7 @@ export default function OfficeOrder({ onClose }: { onClose: () => void }) {
     try {
       const res = await authedFetch("/api/office", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ company, contact, phone, headcount, street, city, zip, access, gallons, standing, billing }),
+        body: JSON.stringify({ company, contact, phone, headcount, street, city, zip, access, gallons, standing, billing, key: bookingKey }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.ok) { toast(j.error || "Couldn't book it — try again", "error"); setBusy(false); return; }

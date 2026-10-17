@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { twilioSignatureOk } from "@/lib/webhookSignature";
 import { sayTextConsent } from "@/lib/notify";
-import { raiseAlert } from "@/lib/serverAlerts";
+import { raiseAlert, raiseAlertOnce } from "@/lib/serverAlerts";
 import { textKeyword, e164, phoneShown } from "@/lib/texts";
 import { route } from "@/lib/apiRoute";
 
@@ -62,8 +62,14 @@ async function post(req: Request) {
 
   const words = String(params.Body ?? "").trim().slice(0, 600);
   if (words) {
-    await raiseAlert({ severity: "important", category: "order", kind: "customer_text", title: `Text from ${phoneShown(from)}`,
-      body: `${words}\n\n(This inbox can't text back.)`, link: "/crew" });
+    // ONE TEXT, ONE LINE (R15, 2026-10-17 — the 10/10 audit, API F16). Twilio sends a text again when our answer is slow,
+    // and a signed request can be sent again by whoever kept it: keyed by its MessageSid, the second delivery is the
+    // first text, not a second "Text from" in the inbox. A text without one is raised as before.
+    const sid = String(params.MessageSid ?? params.SmsSid ?? "").trim().slice(0, 64);
+    const said = { severity: "important" as const, category: "order" as const, kind: "customer_text", title: `Text from ${phoneShown(from)}`,
+      body: `${words}\n\n(This inbox can't text back.)`, link: "/crew" };
+    if (sid) await raiseAlertOnce({ ...said, subjectId: `twilio:${sid}` });
+    else await raiseAlert(said);
   }
   return twiml();
 }

@@ -7,6 +7,7 @@ import { zipMarket } from "@/lib/delivery";
 import { marketServes } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { isMissingColumn } from "@/lib/schemaSkew";
 
 export const runtime = "nodejs";
 
@@ -37,7 +38,7 @@ async function post(req: Request) {
   let body: {
     company?: string; contact?: string; phone?: string; headcount?: string | number;
     street?: string; city?: string; zip?: string; access?: string;
-    gallons?: number; standing?: boolean; billing?: string;
+    gallons?: number; standing?: boolean; billing?: string; key?: string;
   };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
@@ -52,6 +53,9 @@ async function post(req: Request) {
   const access = String(body.access ?? "").trim().slice(0, 200);
   const billing: "prepaid" | "net15" = body.billing === "net15" ? "net15" : "prepaid";
   const standing = body.standing === true;
+  // The booking's own key (R15, 0422 — the 10/10 audit, API F25), made by the form when it opens. Anything else is no
+  // key: the booking is made as it was before keys.
+  const key = typeof body.key === "string" && /^[A-Za-z0-9-]{8,80}$/.test(body.key) ? body.key : null;
   const headcount = body.headcount != null && String(body.headcount).trim() !== ""
     ? Math.max(0, Math.min(9999, parseInt(String(body.headcount), 10) || 0)) : null;
 
@@ -141,7 +145,7 @@ async function post(req: Request) {
     orderId = first.order_id; dateKey = first.delivery_date; windowCode = first.delivery_window; totalCents = first.total_cents; cutoffAt = first.cutoff_at;
   }
   if (!orderId) {
-    const { data: order, error } = await supabaseAdmin.from("business_orders").insert({
+    const row: Record<string, unknown> = {
       business_id: businessId, user_id: userId, company,
       contact_name: contact || null, contact_phone: phone || null,
       address_street: street, address_city: city, address_zip: zip,
@@ -150,9 +154,22 @@ async function post(req: Request) {
       subtotal_cents: q.subtotalCents, delivery_fee_cents: q.deliveryFeeCents, tax_cents: q.taxCents, total_cents: q.totalCents,
       billing_terms: billing, standing, market,
       ...(cutoffAt ? { cutoff_at: cutoffAt } : {}),
-    }).select("id").single();
-    if (error) { console.warn(`[office] order insert: ${error.message}`); return NextResponse.json({ error: "Couldn't book it — try again in a moment, or text us." }, { status: 500 }); }
-    orderId = (order as { id: string } | null)?.id;
+    };
+    // ONE BOOKING PER KEY (R15, 0422 — the 10/10 audit, API F25). An answer lost on the way back and tapped again made a
+    // second office order: two alerts, two pay links or invoices. The form's key goes in with the booking; the same
+    // person and key again is refused by the database (23505), and this answers with the first booking — no second
+    // alert. arrives-with: 0422 — until the column is there, the booking is made without its key, as before.
+    const insertOrder = (r: Record<string, unknown>) => supabaseAdmin!.from("business_orders").insert(r).select("id").single();
+    let made = await insertOrder(key ? { ...row, idempotency_key: key } : row);
+    if (made.error && key && isMissingColumn(made.error)) made = await insertOrder(row);
+    if (made.error && key && made.error.code === "23505") {
+      const { data: first, error: firstErr } = await supabaseAdmin.from("business_orders")
+        .select("id, gallons, delivery_date, total_cents").eq("user_id", userId).eq("idempotency_key", key).maybeSingle();
+      const f = first as { id: string; gallons: number | string; delivery_date: string; total_cents: number } | null;
+      if (!firstErr && f) return NextResponse.json({ ok: true, id: f.id, gallons: Number(f.gallons), date: f.delivery_date, totalCents: f.total_cents, again: true });
+    }
+    if (made.error) { console.warn(`[office] order insert: ${made.error.message}`); return NextResponse.json({ error: "Couldn't book it — try again in a moment, or text us." }, { status: 500 }); }
+    orderId = (made.data as { id: string } | null)?.id;
   }
 
   // Tell the crew a new office order landed (same alerts spine as every other order). Best-effort by

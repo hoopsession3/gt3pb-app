@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ownerFromRequest } from "@/lib/apiAuth";
+import { ownerFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { refresh, graph, eventToGraph, graphToEvent, outlookConfigured } from "@/lib/msgraph";
 import { route } from "@/lib/apiRoute";
@@ -34,6 +34,12 @@ async function validToken(): Promise<{ token: string; base: string } | null> {
 
 async function post(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // THE CALLER'S OWN CALENDAR (R15, 2026-10-17 — the 10/10 audit, API F24). The sync read and wrote events with no tenant:
+  // every tenant's events — private bookings included — went to whichever Outlook was connected. It reads, maps and pulls
+  // the owner's own tenant's. (The connection itself is still one per deployment — outlook_connection has no tenant —
+  // which is right while there is one; 0305's guard blocks a second until it is.)
+  const tenant = await tenantFromRequest(req);
+  if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
   if (!outlookConfigured()) return NextResponse.json({ ok: false, error: "Outlook isn't configured." }, { status: 503 });
   if (!supabaseAdmin) return NextResponse.json({ ok: false }, { status: 503 });
 
@@ -49,9 +55,11 @@ async function post(req: Request) {
 
   try {
     // ── PUSH: our events → Outlook ──
-    const { data: ours } = await supabaseAdmin.from("events")
+    const { data: ours, error: oursErr } = await supabaseAdmin.from("events")
       .select("id, title, day, day_label, location_text, blurb, outlook_event_id")
-      .is("archived_at", null).not("day", "is", null).gte("day", fromDay).lte("day", toDay).limit(100);
+      .eq("tenant_id", tenant).is("archived_at", null).not("day", "is", null).gte("day", fromDay).lte("day", toDay).limit(100);
+    // A calendar that could not be read is not an empty one: "Pushed 0" would say the sync ran (R15).
+    if (oursErr) return NextResponse.json({ ok: false, error: "Couldn't read the calendar just now — try again." }, { status: 503 });
     for (const e of (ours ?? []) as any[]) {
       const body = JSON.stringify(eventToGraph(e));
       if (e.outlook_event_id) {
@@ -62,7 +70,7 @@ async function post(req: Request) {
           if (g?.id) {
             // Pushed, and remembered as pushed — or taken back (R12b, F4): an event in Outlook with no mapping here was
             // pushed again on the next sync, a duplicate each time.
-            const mapped = await supabaseAdmin.from("events").update({ outlook_event_id: g.id, outlook_synced_at: now }).eq("id", e.id);
+            const mapped = await supabaseAdmin.from("events").update({ outlook_event_id: g.id, outlook_synced_at: now }).eq("tenant_id", tenant).eq("id", e.id);
             if (mapped.error) { unmapped++; try { await graph(token, `${base}/events/${g.id}`, { method: "DELETE" }); } catch { /* the next sync says it again */ } }
             else pushed++;
           }
@@ -73,7 +81,10 @@ async function post(req: Request) {
     // ── PULL: Outlook events we don't own → our calendar ──
     const view = await graph(token, `${base}/calendarView?startDateTime=${fromD.toISOString()}&endDateTime=${toD.toISOString()}&$top=100&$select=id,subject,start,end,location,categories`);
     const items: any[] = view?.value ?? [];
-    const { data: mapped } = await supabaseAdmin.from("events").select("outlook_event_id").not("outlook_event_id", "is", null);
+    const { data: mapped, error: mappedErr } = await supabaseAdmin.from("events").select("outlook_event_id").eq("tenant_id", tenant).not("outlook_event_id", "is", null);
+    // Which Outlook events are already ours, or the pull stops (R15): an unread list is an empty one, and every event in
+    // the window would be pulled in again as a copy.
+    if (mappedErr) return NextResponse.json({ ok: false, error: "Pushed — but couldn't read which Outlook events are already here, so nothing was pulled. Try again." }, { status: 503 });
     const known = new Set((mapped ?? []).map((m: any) => m.outlook_event_id));
     for (const g of items) {
       if (!g?.id || known.has(g.id)) continue;                       // already mapped (ours or previously pulled)
@@ -81,7 +92,7 @@ async function post(req: Request) {
       const ev = graphToEvent(g);
       if (!ev.day) continue;
       const { error } = await supabaseAdmin.from("events").insert({
-        title: (ev.title || "Outlook event").slice(0, 200), day: ev.day, category: "admin",
+        tenant_id: tenant, title: (ev.title || "Outlook event").slice(0, 200), day: ev.day, category: "admin",
         location_text: ev.location_text, outlook_event_id: ev.outlook_event_id, outlook_synced_at: now,
       });
       if (!error) pulled++;

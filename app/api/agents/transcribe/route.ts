@@ -3,6 +3,7 @@ import { staffFromRequest } from "@/lib/apiAuth";
 import { callClaude, anthropicEnabled, MODELS } from "@/lib/anthropic";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
+import { REQUEST_BUDGET } from "@/lib/uploadBatches";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,7 +16,9 @@ export const maxDuration = 60;
 
 const IMG = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 const MAX_FILES = 8;
-const MAX_TOTAL_B64 = 18_000_000; // ~13 MB of raw attachments across the batch
+// One request's worth (R15 — the 10/10 audit, API F6): the platform refuses a body over 4.5 MB before this runs, so the
+// 18 MB this allowed was never reachable — the picker sends batches under REQUEST_BUDGET (lib/uploadBatches).
+const MAX_TOTAL_B64 = REQUEST_BUDGET;
 
 async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -27,7 +30,7 @@ async function post(req: Request) {
   if (files.length === 0) return NextResponse.json({ ok: false, error: "No readable files" }, { status: 400 });
 
   const total = files.reduce((s, f) => s + (f.data?.length ?? 0), 0);
-  if (total > MAX_TOTAL_B64) return NextResponse.json({ ok: false, error: "Attachments too large — under ~12 MB total per batch." }, { status: 413 });
+  if (total > MAX_TOTAL_B64) return NextResponse.json({ ok: false, error: "Too large for one request — under about 2.8 MB of files at a time." }, { status: 413 });
 
   const blocks: any[] = [{ type: "text", text: "Transcribe every attachment below into one faithful transcript." }];
   for (const f of files) {

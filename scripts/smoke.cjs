@@ -6133,7 +6133,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /if \(next\.error\) \{ console\.warn\(`\[office\] office_next_delivery: \$\{next\.error\.message\}`\); return NextResponse\.json/.test(officeRoute));
     ok("office run: a weekly booking's deliveries come from its program (book_office_standing), never a second hand-made order for the same day",
       /await supabaseAdmin\.rpc\("book_office_standing", \{ p_account: businessId \}\);/.test(officeRoute)
-      && /if \(!orderId\) \{\s*const \{ data: order, error \} = await supabaseAdmin\.from\("business_orders"\)\.insert\(/.test(officeRoute));
+      // R15 (0422): the one-off is written with the form's key, and a repeat of the key answers with the first booking.
+      && /if \(!orderId\) \{\s*const row: Record<string, unknown> = \{/.test(officeRoute)
+      && /const insertOrder = \(r: Record<string, unknown>\) => supabaseAdmin!\.from\("business_orders"\)\.insert\(r\)\.select\("id"\)\.single\(\);/.test(officeRoute));
     ok("office run: the crew's button makes the week ahead from the programs (generate_office_deliveries) — the one-Monday call went with 0356 applied (R14)",
       /const res = await supabase\.rpc\("generate_office_deliveries"\);/.test(crewOffice) && !/generate_office_route/.test(crewOffice)
       && /toast\(res\.error \? `Couldn't generate the route — \$\{refusalText\(res\.error\) \?\? res\.error\.message\}`/.test(crewOffice));
@@ -7609,7 +7611,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("office route: the account and the order are filed under the ZIP's market",
     /standing_gallons: q\.gallons, market,/.test(office) && /billing_terms: billing, standing, market,/.test(office));
   ok("office route: the account keeps its access notes — written with the account (0346 is applied: R14 took the skew out)",
-    /access_instructions: access \|\| null,/.test(office) && !/arrives-with|writeAcrossSkew/.test(read("app/api/office/route.ts"))
+    /access_instructions: access \|\| null,/.test(office) && !/arrives-with: 0346|writeAcrossSkew/.test(read("app/api/office/route.ts"))
     && /await supabaseAdmin\.from\("business_accounts"\)\.update\(acctRow\)\.eq\("id", existing\.id\)/.test(office) && /await supabaseAdmin\.from\("business_accounts"\)\.insert\(acctRow\)\.select\("id"\)\.single\(\)/.test(office));
 }
 
@@ -14947,7 +14949,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\? \[\{ bucket: `checkout-later:u:\$\{caller\.id\}`, windowMs: 600_000, max: 4 \}\]/.test(cup)
     && /: \[\{ bucket: `checkout-later:\$\{ip\}`, windowMs: 600_000, max: 20 \}, \{ bucket: "checkout-later:guests", windowMs: 60_000, max: 30 \}\]\);/.test(cup) && /const OPEN_AT_WINDOW_MAX = 3;/.test(cup)
     && cup.indexOf("await seenBefore(") < cup.indexOf("checkout-later:") && cup.indexOf("checkout-later:") < cup.indexOf("readMenuRows(supabaseAdmin, uniq)")
-    && (cup.match(/await userFromRequest\(req\)/g) || []).length === 1);
+    // R15: the caller is read once, three ways (lib/apiAuth callerFromRequest) — a sign-in that couldn't be checked is a 503.
+    && (cup.match(/await callerFromRequest\(req\)/g) || []).length === 1 && !/userFromRequest/.test(cup));
   const bookPage = strip(rd("app/book/page.tsx")), bookRoute = strip(rd("app/api/book/route.ts"));
   ok("R9 doors: a booking goes through /api/book — counted, a field only a bot fills, the fields cut — never straight from the browser",
     /authedFetch\("\/api\/book", \{/.test(bookPage) && !/from\("booking_requests"\)/.test(bookPage) && /<input id="b-hp-leave" name="hp_leave_empty" tabIndex=\{-1\}/.test(rd("app/book/page.tsx"))
@@ -15707,8 +15710,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /if \(!r\.ok\) return r\.missing \? cannotCheck : tryAgain;/.test(co) && /if \(!c\.ok\) return c\.missing \? cannotCheck : tryAgain;/.test(co)
       && !appCode.some((f) => /claims: null/.test(rd(f))));
   // F10 — every fallback kept for a migration that was not yet pasted is gone, and the audit retires the next one
+  // A marker is for a migration still in the paste file (written, not applied) — R15's 0422 has one; none is for one applied.
+  const pendingNow = new Set([...rd("supabase/APPLY_ALL_PENDING.sql").matchAll(/^--\s*={10,}\s*\n--\s*(\d{4})_\S*\.sql\s*$/gm)].map((m) => m[1]));
+  const staleMarks = appCode.flatMap((f) => [...rd(f).matchAll(/arrives-with: (0\d{3})/g)].filter((m) => !pendingNow.has(m[1])).map((m) => `${f}: ${m[1]}`));
   ok("R14 skew: no screen, route or helper keeps a path for a migration that is applied — and the columns audit says so when one is left",
-    !appCode.some((f) => /arrives-with: 0\d{3}/.test(rd(f))) && /export function staleMarkers\(files, pending = pendingMigrations\(\)\)/.test(rd("scripts/columns.audit.mjs")));
+    staleMarks.length === 0 && /export function staleMarkers\(files, pending = pendingMigrations\(\)\)/.test(rd("scripts/columns.audit.mjs")), staleMarks);
   // F5 — the retired Square switch is read nowhere
   ok("R14 square: NEXT_PUBLIC_SQUARE_ENV is read nowhere — the app ID's own prefix picks sandbox or production, the menu and the health check included",
     !appCode.some((f) => /process\.env\.NEXT_PUBLIC_SQUARE_ENV|env\[["']NEXT_PUBLIC_SQUARE_ENV["']\]/.test(rd(f))) && !/NEXT_PUBLIC_SQUARE_ENV/.test(rd(".github/workflows/ios.yml")));
@@ -15757,6 +15763,62 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R14 runbooks: how fast an outage is heard is what the system does (no 10-minute promise), a restore drill is silenced first, and a bad deploy has a way back",
     !/within 10 minutes/.test(rb) && /## 8 · Roll back a bad deploy/.test(rb) && /select cron\.unschedule\(jobid\) from cron\.job;/.test(rb) && /p\.proname = 'http_request'/.test(rb)
       && !/OneSignal|18 routes|\(59\)/.test(rm) && /A record of the v1 cut \(2026-07\), not today's checklist/.test(dv));
+}
+
+// ── R15 · WHO SEES WHAT, A SIGN-IN THAT COULDN'T BE CHECKED, UPLOADS THAT FIT, A BOOKING ONCE (2026-10-17, the 10/10 audit) ──
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const pkg = JSON.parse(rd("package.json"));
+  // API F24 — the tenant audit sees every tenant table (production's snapshot), and the reads it then found name their tenant
+  ok("R15 tenancy: the service-role audit reads which tables carry a tenant from production's own snapshot, not only the migrations' text",
+    /JSON\.parse\(readFileSync\(join\(ROOT, "supabase", "schema\.columns\.json"\), "utf8"\)\)/.test(rd("scripts/service-role.audit.mjs")));
+  const os = rd("app/api/outlook/sync/route.ts");
+  ok("R15 tenancy: the Outlook sync reads, maps and pulls the owner's own tenant's events — and a read that fails stops it (no copies pulled in)",
+    /const tenant = await tenantFromRequest\(req\);/.test(os) && (os.match(/\.from\("events"\)/g) || []).length === 4
+      && (os.match(/\.eq\("tenant_id", tenant\)/g) || []).length === 3 && /tenant_id: tenant, title:/.test(os)
+      && /if \(oursErr\) return NextResponse\.json/.test(os) && /if \(mappedErr\) return NextResponse\.json/.test(os));
+  ok("R15 tenancy: the day plan's event, the ops plan's vendors and the concierge's events name their business",
+    /\.eq\("tenant_id", tenant\)\.eq\("id", eventId\)\.maybeSingle\(\)\)\.data;\n\s+ofDays/.test(rd("app/api/agents/dayplan/route.ts"))
+      && /supabaseAdmin\.from\("vendors"\)\.select\("name"\)\.eq\("tenant_id", tenant\)\.limit\(120\)/.test(rd("app/api/agents/opsplan/route.ts"))
+      && /\.eq\("tenant_id", integrationTenant\(\)\)\.is\("archived_at", null\)/.test(rd("app/api/concierge/route.ts")));
+  // API F13 — the card doors: a sign-in that couldn't be checked is a 503, never a guest
+  const auth = rd("lib/apiAuth.ts");
+  ok("R15 sign-in: callerFromRequest answers a person, a guest, or unavailable — a refused token is a guest, the service not answering is not",
+    /export async function callerFromRequest\(req: Request\): Promise<Caller> \{/.test(auth) && /return authUnavailable\(error\) \? \{ kind: "unavailable" \} : \{ kind: "guest" \};/.test(auth)
+      && /import \{ authUnavailable \} from "\.\/authAnswer";/.test(auth));
+  const doors = ["app/api/checkout/route.ts", "app/api/shop/checkout/route.ts", "app/api/delivery/checkout/route.ts", "app/api/reserve/route.ts"];
+  ok("R15 sign-in: all four card doors ask it once and answer unavailable with a 503 before anything is claimed or charged",
+    doors.every((f) => { const t = rd(f); return (t.match(/await callerFromRequest\(req\)/g) || []).length === 1 && /if \(who\.kind === "unavailable"\) return NextResponse\.json\(\{ error: SIGN_IN_UNCHECKED \}, \{ status: 503 \}\);/.test(t) && !/userFromRequest/.test(t); }));
+  // API F16 — a customer's text is one line
+  ok("R15 texts: a customer's text is raised once per Twilio message (raiseAlertOnce, keyed by its MessageSid)",
+    /if \(sid\) await raiseAlertOnce\(\{ \.\.\.said, subjectId: `twilio:\$\{sid\}` \}\);/.test(rd("app/api/sms/inbound/route.ts")));
+  // API F6 — uploads that fit the platform
+  const na = rd("components/NoteAttach.tsx"), tr = rd("app/api/agents/transcribe/route.ts");
+  ok("R15 uploads: a photo is sent at the size handwriting needs and the files in requests under the platform's limit; a file too big alone is named",
+    /const \{ batches, tooBig \} = batchBySize\(media\.map\(\(m\) => m\.data\.length\)\);/.test(na) && /const \{ width, height \} = fitWithin\(bmp\.width, bmp\.height\);/.test(na)
+      && /const MAX_TOTAL_B64 = REQUEST_BUDGET;/.test(tr) && /await r\.json\(\)\.catch\(\(\) => null\)/.test(na));
+  // API F25 — an office booking once
+  const of = rd("app/api/office/route.ts"), oo = rd("components/OfficeOrder.tsx");
+  ok("R15 office: the form's key goes in with the booking; the same key again answers with the first booking — no second order, no second alert",
+    /const \[bookingKey\] = useState\(mintId\);/.test(oo) && /import \{ mintId \} from "@\/lib\/mintId";/.test(oo) && /billing, key: bookingKey \}\)/.test(oo)
+      && /const key = typeof body\.key === "string" && \/\^\[A-Za-z0-9-\]\{8,80\}\$\/\.test\(body\.key\) \? body\.key : null;/.test(of)
+      && /if \(made\.error && key && made\.error\.code === "23505"\) \{/.test(of) && /again: true \}\);/.test(of)
+      && of.indexOf('again: true });') < of.indexOf("await raiseAlert({"));
+  // the shell's uuid test stays one export: lib/uuid rides on every route (AppShell → RecordSheet → lib/records), so anything added to it is
+  // carried by every phone — R15's first cut put mintId there, +130 bytes gzipped everywhere (scripts/design.ratchet WEIGHT)
+  const uu = rd("lib/uuid.ts"), mi = rd("lib/mintId.ts");
+  ok("R15 weight: lib/uuid holds the one test (isUuid) and nothing else; an id is made in lib/mintId, loaded only where one is made",
+    (uu.match(/^export\b/gm) || []).length === 1 && /^export const isUuid = /m.test(uu)
+      && /^export function mintId\(/m.test(mi) && /^import \{ mintId \} from "\.\/mintId";$/m.test(rd("lib/heartbeat.ts")));
+  // database F16 and F3 — the migrations' new rules
+  const dc = rd("scripts/drift.check.mjs");
+  ok("R15 migrations: the drift check reads lock_timeout first and wrapped policy calls from 0422 on (scripts/migrationRules)",
+    /import \{ topLevelStatements, lockGap, LOCK_FLOOR, bareHelpers, WRAP_FLOOR \} from "\.\/migrationRules\.mjs";/.test(dc)
+      && /if \(seq >= LOCK_FLOOR\) \{ const why = lockGap\(sql\); if \(why\) lockGaps\.push/.test(dc) && /node scripts\/db\.r15\.test\.mjs/.test(pkg.scripts["db:test"]));
+  // the last false-empty
+  ok("R15 academy: a progress read that failed says it couldn't count — the false-empty audit's last silent file, its baseline 0",
+    /state\.status === "error" \? \(/.test(rd("components/AcademyCard.tsx")) && /export const SILENT_BASELINE = 0;/.test(rd("scripts/falseempty.audit.mjs")));
 }
 
 Promise.all(PENDING).then(() => {

@@ -1,3 +1,4 @@
+import { mintId } from "./mintId";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { roleLabel } from "./roles";
 import { isMissingFunction } from "./schemaSkew";
@@ -109,15 +110,9 @@ export const DEVICE_KEY = "gt3-device-id";
 const DEVICE_ID = /^[A-Za-z0-9-]{8,64}$/;   // 0375's check: the database refuses anything else
 let visitId: string | null = null;
 
-/** A random id in the uuid's shape (v4). getRandomValues, not randomUUID: the app's page is not always a secure
- *  context the way a browser counts one, and randomUUID is only offered to those. */
-export function mintId(fill: (b: Uint8Array) => Uint8Array = (b) => crypto.getRandomValues(b)): string {
-  const b = fill(new Uint8Array(16));
-  b[6] = (b[6] & 0x0f) | 0x40;
-  b[8] = (b[8] & 0x3f) | 0x80;
-  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
-}
+// mintId lives in lib/mintId (R15): an office booking's key is made with it too, on a guest page that must not load this
+// crew file. Exported here as it always was.
+export { mintId };
 
 /** This install's id: kept in localStorage, made once. Storage that cannot be read or written (a private window, a
  *  locked-down browser) gets an id for this visit instead — the same one for as long as the page is open. */

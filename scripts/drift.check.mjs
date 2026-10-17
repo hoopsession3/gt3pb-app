@@ -19,6 +19,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pendingMigrations } from "./columns.audit.mjs";
+import { topLevelStatements, lockGap, LOCK_FLOOR, bareHelpers, WRAP_FLOOR } from "./migrationRules.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = join(ROOT, "supabase", "migrations");
@@ -153,30 +154,7 @@ for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
 // reviewed as part of the function, not as loose DML.
 const DML_FLOOR = 315;
 
-/** Split SQL into top-level statements, respecting '' literals and $tag$ bodies. */
-function topLevelStatements(sql) {
-  const t = sql.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
-  const out = []; let cur = "", inStr = false, dq = null;
-  for (let i = 0; i < t.length; i++) {
-    if (dq) {
-      if (t.startsWith(dq, i)) { cur += dq; i += dq.length - 1; dq = null; continue; }
-      cur += t[i]; continue;
-    }
-    if (!inStr) {
-      const m = /^\$[a-zA-Z_]*\$/.exec(t.slice(i));
-      if (m) { dq = m[0]; cur += m[0]; i += m[0].length - 1; continue; }
-    }
-    const c = t[i];
-    if (c === "'") {
-      if (inStr && t[i + 1] === "'") { cur += "''"; i++; continue; }   // an escaped quote, not the end
-      inStr = !inStr; cur += c; continue;
-    }
-    if (c === ";" && !inStr) { out.push(cur.trim()); cur = ""; continue; }
-    cur += c;
-  }
-  if (cur.trim()) out.push(cur.trim());
-  return out.filter(Boolean);
-}
+// topLevelStatements: scripts/migrationRules.mjs (R15 — shared with the rules below and their tests).
 
 const wideDml = [];
 for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
@@ -316,6 +294,33 @@ for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
   }
 }
 
+// ── TENTH AND ELEVENTH RULES, added at 0422 (R15 — the 10/10 audit, database F16 and F3): scripts/migrationRules.mjs ──
+// A migration says how long it waits for a lock (its first statement), and a policy it writes asks who is calling once a
+// query — auth.uid(), is_staff(), effective_tenant() and the rest wrapped in (select …), never bare.
+const lockGaps = [], bare = [];
+for (const f of readdirSync(DIR).filter((x) => x.endsWith(".sql")).sort()) {
+  const seq = Number(f.slice(0, 4));
+  if (!Number.isFinite(seq)) continue;
+  const sql = readFileSync(join(DIR, f), "utf8");
+  if (seq >= LOCK_FLOOR) { const why = lockGap(sql); if (why) lockGaps.push(`${f} — ${why}`); }
+  if (seq >= WRAP_FLOOR) for (const b of bareHelpers(sql)) bare.push(`${f} — ${b}`);
+}
+if (lockGaps.length || bare.length) {
+  if (lockGaps.length) {
+    console.error(`LOCK GATE: ${lockGaps.length} migration(s) would wait for a lock with every order queued behind it:`);
+    for (const m of lockGaps) console.error(`  ✗ ${m}`);
+    console.error(`
+Start the file with   set lock_timeout = '5s';   — a busy table stops the paste instead of stalling the app.`);
+  }
+  if (bare.length) {
+    console.error(`POLICY GATE: ${bare.length} policy call(s) asked once a row instead of once a query:`);
+    for (const m of bare) console.error(`  ✗ ${m}`);
+    console.error(`
+Wrap it:   (select auth.uid())   (select public.is_staff())   (select public.effective_tenant())`);
+  }
+  process.exit(1);
+}
+
 if (halfRevokes.length) {
   console.error(`REVOKE GATE: ${halfRevokes.length} revoke(s) close a function to one of PUBLIC / anon / authenticated and leave the others' grants:`);
   for (const m of halfRevokes) console.error(`  ✗ ${m}`);
@@ -419,3 +424,5 @@ console.log("WHOLE-TABLE GATE: every UPDATE/DELETE from 0315 names its rows, or 
 console.log(`PASTE-FILE GATE: every loose .sql under supabase/ says what it is current as of, and none is behind ${String(highestMigration).padStart(4, "0")} — clean.`);
 console.log("PASTE-FILE GATE: every migration the paste file carries is its file, verbatim — clean.");
 console.log("REVOKE GATE: every function revoke from 0381 that names anon or authenticated names public too, and from 0401 one that names public names anon and authenticated — clean.");
+console.log(`LOCK GATE: every migration from ${String(LOCK_FLOOR).padStart(4, "0")} says how long it waits for a lock — clean.`);
+console.log(`POLICY GATE: every policy written from ${String(WRAP_FLOOR).padStart(4, "0")} asks who is calling once a query — clean.`);

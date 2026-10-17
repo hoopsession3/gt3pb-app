@@ -43,11 +43,9 @@ export default function AcademyCard() {
   const p = state.data ?? null;
 
   // The link always renders, even while loading or if the query fails — a training path that cannot
-  // be counted is still a path someone should be able to open.
-  // NOT a false-empty: the whole progress block below is behind `p ?`, and p is null on a failed
-  // read, so a failure renders the bare link and no numbers — never a confident 0%. The comment
-  // above is the considered decision, and it holds. scripts/falseempty.audit.mjs flags this file
-  // because it never names the error; that is the rule being conservative, not a defect here.
+  // be counted is still a path someone should be able to open. A failed read renders no numbers (never
+  // a confident 0%) and SAYS it could not count (R15 — the last file scripts/falseempty.audit.mjs named:
+  // the bare link was honest, but it looked the same as having nothing to show).
   const pct = p && p.modulesTotal > 0 ? Math.round((p.modulesDone / p.modulesTotal) * 100) : 0;
 
   return (
@@ -74,6 +72,8 @@ export default function AcademyCard() {
             </span>
           )}
         </>
+      ) : state.status === "error" ? (
+        <span className="opx-link-s">Couldn&apos;t count your progress just now — open it to see where you are <Icon name="arrowRight" /></span>
       ) : (
         <span className="opx-link-s">Training, certifications &amp; the cookbook <Icon name="arrowRight" /></span>
       )}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { userFromRequest } from "@/lib/apiAuth";
+import { callerFromRequest, SIGN_IN_UNCHECKED } from "@/lib/apiAuth";
 import { cardTryFits, callerAddress, CARD_TRIES_WORDS } from "@/lib/cardGuard";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
@@ -46,7 +46,10 @@ async function post(req: Request) {
 
   // Order-ahead is member-only: the reservation needs an owner (drop_orders.user_id) so it lives
   // in the member's account. Checked FIRST — before validation and long before any charge.
-  const user = await userFromRequest(req);
+  // "Sign in" only to someone who isn't (R15, API F13): a sign-in the auth service couldn't check is a 503.
+  const who = await callerFromRequest(req);
+  if (who.kind === "unavailable") return NextResponse.json({ error: SIGN_IN_UNCHECKED }, { status: 503 });
+  const user = who.kind === "user" ? { id: who.id, email: who.email } : null;
   if (!user) return NextResponse.json({ error: "Order-ahead is for members — sign in to reserve." }, { status: 401 });
 
   // ONE KEY, ONE RESERVATION — asked first, on both paths (2026-10-11). The funnel keeps one key per

@@ -30,6 +30,18 @@ const MIGRATIONS = join(ROOT, "supabase", "migrations");
 // picked up without anyone remembering to add it here.
 function tenantScopedTables() {
   const t = new Set();
+  // THE SNAPSHOT FIRST (R15, 2026-10-17 — the 10/10 audit, API F24). The migration reading below missed the tables 0040
+  // names through a variable (`tables text[] := array[…]` then `foreach t in array tables`): events, reserves,
+  // booking_requests, push_subscriptions, vendors, check_ins and fifteen more were invisible to this audit, so its zero
+  // said nothing about them. supabase/schema.columns.json is production's own answer — every relation with a tenant_id —
+  // and the migrations still add what arrives with one not yet applied.
+  try {
+    const snap = JSON.parse(readFileSync(join(ROOT, "supabase", "schema.columns.json"), "utf8"));
+    for (const [rel, cols] of Object.entries(snap)) {
+      if (rel.startsWith("$")) continue;
+      if ((Array.isArray(cols) ? cols : Object.keys(cols ?? {})).includes("tenant_id")) t.add(rel);
+    }
+  } catch { /* no snapshot: the migrations alone, as before */ }
   for (const f of readdirSync(MIGRATIONS).filter((n) => n.endsWith(".sql"))) {
     const sql = readFileSync(join(MIGRATIONS, f), "utf8");
     // create table public.x ( ... tenant_id ... )

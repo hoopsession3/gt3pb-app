@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "./supabaseAdmin";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { authUnavailable } from "./authAnswer";
 
 // Verify the caller's Supabase access token (sent as Authorization: Bearer <jwt>)
 // and return their user id and verified email. Server-only. Returns null if missing/invalid.
@@ -15,6 +16,29 @@ export async function userFromRequest(req: Request): Promise<{ id: string; email
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) return null;
   return { id: data.user.id, email: data.user.email ?? null };
+}
+
+// THE CALLER OF A CARD DOOR (R15, 2026-10-17 — the 10/10 audit, API F13). userFromRequest answers null for no session AND
+// for an auth service that did not answer, and the card doors read null as a guest: during an auth blip a member paid
+// the list price (the perks went, the total no longer matched — "the price changed"), their order landed on no account,
+// and a member-only door said "sign in" to someone signed in. A door that charges asks this instead: a person, a guest
+// (no bearer, or one the auth service refused), or UNAVAILABLE — a bearer was sent and the service could not say whose
+// it is — which the door answers 503, nothing charged, before anything else.
+export type Caller = { kind: "user"; id: string; email: string | null } | { kind: "guest" } | { kind: "unavailable" };
+export const SIGN_IN_UNCHECKED = "We couldn't check your sign-in just now — nothing was charged. Try again in a moment.";
+
+export async function callerFromRequest(req: Request): Promise<Caller> {
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) return { kind: "guest" };
+  if (!supabaseAdmin) return { kind: "unavailable" };
+  try {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (data?.user) return { kind: "user", id: data.user.id, email: data.user.email ?? null };
+    return authUnavailable(error) ? { kind: "unavailable" } : { kind: "guest" };
+  } catch {
+    return { kind: "unavailable" };
+  }
 }
 
 // Staff-only gate for internal READ routes (assets, inventory) so they never return

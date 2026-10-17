@@ -27,6 +27,7 @@ const API = join(ROOT, "app/api");
 export const GUARDS = [
   /\buserFromRequest\(/, /\bstaffFromRequest\(/, /\bownerFromRequest\(/, /\btenantFromRequest\(/, /\bleadershipFromRequest\(/,
   /\badminFromRequest\(/,                    // owner or admin, is_admin() (2026-10-14: a reserve's refund and its payment settled by hand)
+  /\bcallerFromRequest\(/,                   // the card doors' caller (R15): a person, a guest, or an auth service that didn't answer — userFromRequest's three-way twin
   /\bverifyApliiq\(/,                         // Apliiq webhook signature (lib/apliiq.ts)
   /\btimingSafeEqual\(/, /\bcreateHmac\(/,     // a signed webhook (Stripe/Square shape)
   // lib/webhookSignature.ts (2026-10-11): the same signed-webhook checks, in one home — a route that calls one of
@@ -151,12 +152,12 @@ const ROLE_GUARDS = "staffFromRequest|ownerFromRequest|adminFromRequest|leadersh
 export const AGENT_DOOR_DEBT = {
   "app/api/agents/brew/route.ts": 2,          // stops ×2, by the stop_id the request sent
   "app/api/agents/campaign/route.ts": 1,      // content_items: the approved captions it takes the voice from
-  "app/api/agents/dayplan/route.ts": 4,       // stops ×2, events by id, event_schedule_items by owner
+  "app/api/agents/dayplan/route.ts": 3,       // stops ×2, event_schedule_items by owner (R15: the event by id names its tenant)
   "app/api/agents/eventprep/route.ts": 4,     // stops ×2, compliance_rules ×2
   "app/api/agents/inspection/route.ts": 1,    // compliance_rules — and it resolves no tenant at all
   "app/api/agents/intake/route.ts": 1,        // asset_maintenance, by the asset ids it just read
   "app/api/agents/operator/route.ts": 1,      // compliance_rules
-  "app/api/agents/opsplan/route.ts": 2,       // vendors, stops
+  "app/api/agents/opsplan/route.ts": 1,       // stops (R15: the vendors name their tenant)
   "app/api/agents/spaceplan/route.ts": 1,     // stops
   "app/api/agents/troubleshoot/route.ts": 1,  // stops
 };
@@ -247,7 +248,7 @@ export function roleCheckOf(src) {
   const named = new RegExp(`^(?:const|let)\\s+(\\w+)\\s*=\\s*await\\s+(${ROLE_GUARDS})\\(\\s*\\w+\\s*\\)\\s*;?\\s*if\\s*\\(\\s*!\\s*\\1\\s*\\)\\s*return\\b`).exec(first);
   if (named) return { ok: true, guard: named[2] };
   if (new RegExp(`\\b(?:${ROLE_GUARDS})\\(`).test(code)) return { ok: false, guard: null, why: "checks a role, but not as the handler's first statement — something runs before the refusal" };
-  if (/\b(?:userFromRequest|tenantFromRequest)\(/.test(code)) return { ok: false, guard: null, why: "knows who is calling (userFromRequest/tenantFromRequest), not whether they may — that is staffFromRequest or ownerFromRequest" };
+  if (/\b(?:userFromRequest|callerFromRequest|tenantFromRequest)\(/.test(code)) return { ok: false, guard: null, why: "knows who is calling (userFromRequest/callerFromRequest/tenantFromRequest), not whether they may — that is staffFromRequest or ownerFromRequest" };
   return { ok: false, guard: null, why: "checks no role at all" };
 }
 

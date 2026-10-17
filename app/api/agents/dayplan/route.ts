@@ -121,7 +121,7 @@ async function post(req: Request) {
   if (eventId) {
     e = (await supabaseAdmin.from("events")
       .select("title, day, day_label, start_time, end_time, location_text, state, county, rig, expected_attendance, staff_count, plan_days")
-      .eq("id", eventId).maybeSingle()).data;
+      .eq("tenant_id", tenant).eq("id", eventId).maybeSingle()).data;
     ofDays = e?.plan_days ?? 1;
   } else {
     const s = (await supabaseAdmin.from("stops").select("name, location_text, address, starts_at, notes, menu_tier, plan_days").eq("id", stopId).maybeSingle()).data as any;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { userFromRequest } from "@/lib/apiAuth";
+import { callerFromRequest, SIGN_IN_UNCHECKED } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
@@ -49,7 +49,10 @@ async function post(req: Request) {
 
   // Guests can buy merch (unlike order-ahead) — but we need a shipping address + a contact email to send
   // tracking. A signed-in member's account email is used automatically; a guest supplies one.
-  const user = await userFromRequest(req);
+  // A member whose sign-in can't be checked is not a guest (R15, API F13): refused before the card, nothing charged.
+  const who = await callerFromRequest(req);
+  if (who.kind === "unavailable") return NextResponse.json({ error: SIGN_IN_UNCHECKED }, { status: 503 });
+  const user = who.kind === "user" ? { id: who.id, email: who.email } : null;
   const ship: Ship = body.ship ?? {};
   const shipName = String(ship.name ?? "").trim().slice(0, 90);
   const email = (user ? await accountEmail(user.id) : String(ship.email ?? "").trim().slice(0, 120)) || "";

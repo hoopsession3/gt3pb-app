@@ -5,6 +5,7 @@ import { menuKnowledge } from "@/lib/conciergeKb";
 import { menuOf, seedMenu, type Drink } from "@/lib/drinks";
 import { readCityOut, readMenuRows } from "@/lib/drinksRead";
 import { FOUNDING_MARKET } from "@/lib/markets";
+import { integrationTenant } from "@/lib/tenantScope";
 import { ownerCorrections, logConvo } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
 import { etTimeLabel, etToday, etWhen } from "@/lib/dates";
@@ -124,7 +125,9 @@ async function post(req: Request) {
       // bookings were being fed to the guest concierge).
       // PUBLISHED public events only (0270): the service role bypasses RLS, so the guest-visibility
       // rule is applied by hand here too — published_at gates it, public_title is the guest name.
-      supabaseAdmin.from("events").select("title, public_title, day_label, day, start_time, location_text, member_only").is("archived_at", null)
+      // The storefront's own events (R15): the guest concierge speaks for this deployment's storefront tenant
+      // (lib/tenantScope integrationTenant), not every tenant's published schedule at once.
+      supabaseAdmin.from("events").select("title, public_title, day_label, day, start_time, location_text, member_only").eq("tenant_id", integrationTenant()).is("archived_at", null)
         .eq("category", "event").or("archetype.is.null,archetype.neq.private_booking")
         .not("published_at", "is", null)
         .gte("day", today).order("day").limit(8),

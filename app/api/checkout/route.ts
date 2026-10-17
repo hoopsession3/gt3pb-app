@@ -8,7 +8,7 @@ import { orderIdForToday } from "@/lib/orderNumber";
 import { squarePriceMap } from "@/lib/squareCatalog";
 import { priceCups, priceChangedWords, tipCentsFor } from "@/lib/cupPrice";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { userFromRequest } from "@/lib/apiAuth";
+import { callerFromRequest, SIGN_IN_UNCHECKED } from "@/lib/apiAuth";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
@@ -130,7 +130,10 @@ async function post(req: Request) {
   // the sixty every customer shares — before, its sixty-first try a minute closed card checkout for everybody.
   const ip = callerIp(req);
   // Who is ordering, read once: the limiter below, the member's perks and the order's own row all ask it.
-  const caller = await userFromRequest(req);
+  // A member whose sign-in can't be checked is not a guest (R15, API F13): refused before anything, nothing charged.
+  const who = await callerFromRequest(req);
+  if (who.kind === "unavailable") return NextResponse.json({ error: SIGN_IN_UNCHECKED }, { status: 503 });
+  const caller = who.kind === "user" ? { id: who.id, email: who.email } : null;
   if (paying) {
     if (!(await limitsFit(supabaseAdmin, [
       { bucket: `checkout:${ip}`, windowMs: 60_000, max: 6 },

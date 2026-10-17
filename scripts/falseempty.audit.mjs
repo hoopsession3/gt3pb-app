@@ -46,7 +46,7 @@ export const BASELINE = 0;
 // own work: a rule about how code LOOKS cannot tell you what a person SEES. So the audit now also
 // counts loaders that catch a failure and never show it, which is the only way the first number
 // can be trusted to mean anything.
-export const SILENT_BASELINE = 1;
+export const SILENT_BASELINE = 0;   // 1 → 0 (R15): AcademyCard says it couldn't count, instead of a bare link that looked like nothing to show
 
 // ── THE THIRD MEASURE: WRITES WHOSE ANSWER IS NEVER READ (R12b — the 10/10 audit, F4) ──────────────────────────
 // The first two meter reads. A write fails the same quiet way: supabase-js answers a refused insert, update, delete or

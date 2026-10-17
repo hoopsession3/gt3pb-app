@@ -520,6 +520,11 @@ await withEnv({ TWILIO_AUTH_TOKEN: TW_TOKEN, TWILIO_WEBHOOK_URL: TW_URL, NEXT_PU
   ok("sms inbound: a person writing → the crew hear it (customer_text: the number, the words, and that this inbox can't text back); nothing recorded",
     twiml(person) && person.w.rpcs.length === 0 && person.w.alerts.length === 1 && a.kind === "customer_text" && a.severity === "important"
     && a.title === "Text from (864) 555-0100" && a.body.startsWith("Running 10 min late, can you hold my pack?") && a.body.includes("can't text back"), person.w.alerts);
+  // R15 (API F16): one text is one line — keyed by its MessageSid, Twilio's second delivery folds into the first.
+  ok("sms inbound (R15): a person's text is raised once per message — keyed by Twilio's MessageSid",
+    a.subjectId === "twilio:SM-made-up-1", a.subjectId);
+  const unkeyed = await run(text("No sid on this one", { MessageSid: "" }));
+  ok("sms inbound (R15): …and a text with no MessageSid is still heard", unkeyed.w.alerts.length === 1 && !unkeyed.w.alerts[0].subjectId, unkeyed.w.alerts);
   const sentence = await run(text("please stop by at 5"));
   ok("sms inbound: 'stop' inside a sentence is a person writing, not a STOP", sentence.w.rpcs.length === 0 && sentence.w.alerts[0]?.kind === "customer_text", sentence.w.rpcs);
   const blank = await run(text("   "));

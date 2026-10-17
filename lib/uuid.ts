@@ -8,7 +8,10 @@
 // appears anywhere else.
 //
 // Its own file, and tiny, on purpose: the browser's alert door (lib/clientAlerts) needs it, and
-// importing it from a larger module put 1 KB onto /driver (measured by the weight ratchet).
+// importing it from a larger module put 1 KB onto /driver (measured by the weight ratchet). It rides
+// in the shell on every route (AppShell → RecordSheet → lib/records), so it holds this one test and
+// nothing else: making an id is lib/mintId (R15 — beside this, it put 130 bytes onto every route).
+// scripts/smoke.cjs holds it to one export.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** True when a value is a canonical, hyphenated uuid string. */

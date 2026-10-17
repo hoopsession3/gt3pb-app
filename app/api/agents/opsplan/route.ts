@@ -86,7 +86,7 @@ async function post(req: Request) {
 
   // Live snapshot so the agent reuses what exists and can flag "new".
   const [vendors, stops] = await Promise.all([
-    supabaseAdmin.from("vendors").select("name").limit(120),
+    supabaseAdmin.from("vendors").select("name").eq("tenant_id", tenant).limit(120),
     supabaseAdmin.from("stops").select("name").is("archived_at", null).limit(60),
   ]);
   const snapshot = `Known vendors/venues: ${list(vendors.data) || "(none yet)"}\nKnown truck stops/locations: ${list(stops.data) || "(none yet)"}\nPipeline stages: lead → warm → sampled → pilot → live → expand (lost is the terminal).`;
