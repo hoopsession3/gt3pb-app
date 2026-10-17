@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { supabase } from "./supabase";
 import { coalesce } from "./rush";
+import { useLatest } from "./useLatest";
 
 // THE realtime-refetch hook. Nineteen files hand-rolled the same subscribe/refetch/cleanup effect
 // (36 call sites), and ELEVEN of them independently reinvented the same module-level sequence
@@ -84,7 +85,7 @@ export function useRealtimeTable(
   const { enabled = true, loadOnMount = false } = opts;
   // Latest-callback ref: callers pass inline closures; re-subscribing on every render identity
   // change would churn websocket channels for nothing.
-  const cb = useRef(onChange); cb.current = onChange;
+  const cb = useLatest(onChange);
   const key = JSON.stringify(tables);
 
   useEffect(() => {

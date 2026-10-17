@@ -93,13 +93,14 @@ export default function RoadFlyer() {
   const [logoReady, setLogoReady] = useState(0);
   const headEditedRef = useRef(false); // once the user types their own headline, stop auto-seeding the saying
 
+  // Each template carries its own GT3 saying; picking one shows that saying (a different angle),
+  // unless the user has already written their own headline.
+  const seedSaying = (i: number) => { if (!headEditedRef.current) setF((p) => ({ ...p, headline1: THEMES[i].l1, headline2: THEMES[i].l2 })); };
+  // After seedSaying, which it calls (R16: a function read before its declaration is the stale one).
   useEffect(() => {
     const saved = typeof window !== "undefined" ? Number(localStorage.getItem("gt3-flyer-tpl")) : 0;
     if (saved >= 0 && saved < THEMES.length) { setTpl(saved); seedSaying(saved); }
   }, []);
-  // Each template carries its own GT3 saying; picking one shows that saying (a different angle),
-  // unless the user has already written their own headline.
-  const seedSaying = (i: number) => { if (!headEditedRef.current) setF((p) => ({ ...p, headline1: THEMES[i].l1, headline2: THEMES[i].l2 })); };
   const pickTpl = (i: number) => { setTpl(i); if (typeof window !== "undefined") localStorage.setItem("gt3-flyer-tpl", String(i)); seedSaying(i); };
   const applyTemplate = (id: string) => { const i = THEMES.findIndex((x) => x.id === id); if (i >= 0) pickTpl(i); return i >= 0 ? THEMES[i].name : ""; };
 
@@ -138,8 +139,11 @@ export default function RoadFlyer() {
       supabase.from("events").select("id,title,day,start_time,end_time,location_text").is("archived_at", null).gte("day", today).order("day").limit(20),
       supabase.from("stops").select("id,name,starts_at,when_label,time_label,location_text,address").is("archived_at", null).neq("status", "done").order("starts_at").limit(20),
     ]).then(([e, s]) => {
-      const ev = ((e.data as any[]) ?? []).map((x) => ({ key: `e:${x.id}`, label: `🎪 ${x.title}`, date: dateLine(x.day), time: [x.start_time, x.end_time].filter(Boolean).join("–"), place: x.title || "", address: x.location_text || "" }));
-      const st = ((s.data as any[]) ?? []).map((x) => ({ key: `s:${x.id}`, label: `🚚 ${x.name}`, date: x.starts_at ? dateLine(x.starts_at) : (x.when_label || ""), time: x.time_label || "", place: x.name || "", address: x.address || x.location_text || "" }));
+      // The rows as the two selects name them (R16: typed, not any).
+      type EvRow = { id: string; title: string | null; day: string | null; start_time: string | null; end_time: string | null; location_text: string | null };
+      type StRow = { id: string; name: string | null; starts_at: string | null; when_label: string | null; time_label: string | null; location_text: string | null; address: string | null };
+      const ev = ((e.data as EvRow[] | null) ?? []).map((x) => ({ key: `e:${x.id}`, label: `🎪 ${x.title}`, date: dateLine(x.day), time: [x.start_time, x.end_time].filter(Boolean).join("–"), place: x.title || "", address: x.location_text || "" }));
+      const st = ((s.data as StRow[] | null) ?? []).map((x) => ({ key: `s:${x.id}`, label: `🚚 ${x.name}`, date: x.starts_at ? dateLine(x.starts_at) : (x.when_label || ""), time: x.time_label || "", place: x.name || "", address: x.address || x.location_text || "" }));
       setOpts([...ev, ...st]);
     });
   }, []);
@@ -178,26 +182,26 @@ export default function RoadFlyer() {
   const draw = useCallback(async () => {
     const cv = canvasRef.current; if (!cv) return; const ctx = cv.getContext("2d"); if (!ctx) return;
     try { await Promise.all([document.fonts.load("900 100px 'Archivo Black'"), document.fonts.load("700 46px Inter"), document.fonts.load("500 24px 'DM Mono'"), document.fonts.load("italic 600 84px Fraunces")]); } catch { /* */ }
-    ctx.textBaseline = "alphabetic"; ctx.textAlign = "left"; (ctx as any).letterSpacing = "0px";
+    ctx.textBaseline = "alphabetic"; ctx.textAlign = "left"; ctx.letterSpacing = "0px";
     const th = THEMES[tpl] ?? THEMES[0];
     const goldHair = th.dark ? "rgba(200,166,97,.7)" : GOLD;
     const goldFaint = th.dark ? cm(.28) : "rgba(200,166,97,.5)";
 
     // ── theme-aware helpers (closure over th) ──
     const eyebrow = (t: string, x: number, y: number, color: string, align: CanvasTextAlign = "left", ls = 4) => {
-      ctx.save(); (ctx as any).letterSpacing = `${ls}px`; ctx.font = "500 21px 'DM Mono', monospace"; ctx.fillStyle = color; ctx.textAlign = align;
-      ctx.fillText(t.toUpperCase(), x, y); ctx.restore(); (ctx as any).letterSpacing = "0px"; ctx.textAlign = "left";
+      ctx.save(); ctx.letterSpacing = `${ls}px`; ctx.font = "500 21px 'DM Mono', monospace"; ctx.fillStyle = color; ctx.textAlign = align;
+      ctx.fillText(t.toUpperCase(), x, y); ctx.restore(); ctx.letterSpacing = "0px"; ctx.textAlign = "left";
     };
     const disp = (t: string, x: number, y: number, color: string | CanvasGradient, size: number, glow?: string) => {
-      ctx.save(); (ctx as any).letterSpacing = "-1px"; ctx.font = `900 ${size}px 'Archivo Black', system-ui`;
+      ctx.save(); ctx.letterSpacing = "-1px"; ctx.font = `900 ${size}px 'Archivo Black', system-ui`;
       // Offset cut — a riso-style misregistration ghost behind the type (handmade-print look)
       if (th.offset && typeof color === "string") { ctx.fillStyle = color === INK ? "rgba(184,36,32,.5)" : "rgba(21,18,13,.42)"; ctx.fillText(t, x + 7, y + 7); }
       if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 32; } ctx.fillStyle = color; ctx.fillText(t, x, y);
-      ctx.restore(); (ctx as any).letterSpacing = "0px";
+      ctx.restore(); ctx.letterSpacing = "0px";
     };
     // shrink a display line so it always fits the column (long sayings never run off the frame)
     const fitSize = (t: string, maxSize: number, maxW: number) => {
-      ctx.save(); (ctx as any).letterSpacing = "-1px"; ctx.font = `900 ${maxSize}px 'Archivo Black', system-ui`; const w = ctx.measureText(t).width; ctx.restore(); (ctx as any).letterSpacing = "0px";
+      ctx.save(); ctx.letterSpacing = "-1px"; ctx.font = `900 ${maxSize}px 'Archivo Black', system-ui`; const w = ctx.measureText(t).width; ctx.restore(); ctx.letterSpacing = "0px";
       return w > maxW ? Math.max(52, Math.floor(maxSize * (maxW / w))) : maxSize;
     };
     const goldHead = (y: number, size: number) => { const g = ctx.createLinearGradient(0, y - size, 0, y + 8); g.addColorStop(0, GOLD_LT); g.addColorStop(.5, GOLD); g.addColorStop(1, "#8a6531"); return g; };
@@ -215,10 +219,10 @@ export default function RoadFlyer() {
       const hw = gtLogo(cx, cy, 74, th.id === "redline");
       if (hw != null) return hw + (th.id === "redline" ? 24 : 16);
       // fallback ONLY if the asset failed to load — the red GT3 wordmark drawn (never white/checker)
-      ctx.save(); (ctx as any).letterSpacing = "-2px"; ctx.font = "900 60px 'Archivo Black', system-ui";
+      ctx.save(); ctx.letterSpacing = "-2px"; ctx.font = "900 60px 'Archivo Black', system-ui";
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; const w = ctx.measureText("GT3").width;
       ctx.fillStyle = th.id === "redline" ? CREAM : RED; ctx.fillText("GT3", cx, cy + 1);
-      ctx.restore(); (ctx as any).letterSpacing = "0px"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      ctx.restore(); ctx.letterSpacing = "0px"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       return w / 2 + 18;
     };
     // background paint; returns the split-band bottom (0 if none)
@@ -298,8 +302,8 @@ export default function RoadFlyer() {
     };
     const pageTag = (n: number) => {
       if (!n || th.motif === "masthead") return;
-      ctx.save(); (ctx as any).letterSpacing = "2px"; ctx.font = "500 23px 'DM Mono', monospace"; ctx.fillStyle = goldHair; ctx.textAlign = "right";
-      ctx.fillText(`0${n} ⁄ 0${PAGES}`, W - M, 100); ctx.restore(); (ctx as any).letterSpacing = "0px"; ctx.textAlign = "left";
+      ctx.save(); ctx.letterSpacing = "2px"; ctx.font = "500 23px 'DM Mono', monospace"; ctx.fillStyle = goldHair; ctx.textAlign = "right";
+      ctx.fillText(`0${n} ⁄ 0${PAGES}`, W - M, 100); ctx.restore(); ctx.letterSpacing = "0px"; ctx.textAlign = "left";
     };
     // the divider under the headline/title — checker band, neon glow bar, or the house tick+hairline
     const rule = (x: number, y: number, w: number) => {

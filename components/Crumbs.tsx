@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useLatest } from "@/lib/useLatest";
 
 // BREADCRUMBS — orientation for deep crew views (e.g. Prep › Atlanta BeltLine). A deep view
 // registers a crumb for its lifetime via useCrumb(); the trail renders in the section header with
@@ -21,13 +22,12 @@ export function CrumbProvider({ children }: { children: React.ReactNode }) {
 // the level above this crumb (kept in a ref so an unstable handler doesn't thrash the effect).
 export function useCrumb(id: string, label: string | null, go?: () => void) {
   const { push, remove } = useCrumbs();
-  const goRef = useRef(go);
-  goRef.current = go;
+  const goRef = useLatest(go);
   useEffect(() => {
     if (!label) { remove(id); return; }
     push({ id, label, go: () => goRef.current?.() });
     return () => remove(id);
-  }, [id, label, push, remove]);
+  }, [id, label, push, remove, goRef]);   // goRef: the same object every render (lib/useLatest)
 }
 
 export function Breadcrumbs({ root }: { root: string }) {

@@ -12450,7 +12450,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const ownerFns = fs.readdirSync(path.join(__dirname, "..", "supabase/migrations")).filter((f) => /create or replace function public\.is_owner\(\)/.test(rd(`supabase/migrations/${f}`)));
   ok("briefing: …which is exactly the route's check — ownerFromRequest first, is_owner(), and is_owner() is profiles.role = 'owner' (0023, never redefined)",
     /async function post\(req: Request\) \{\s*if \(!\(await ownerFromRequest\(req\)\)\) return/.test(chief) && !/staffFromRequest|leadershipFromRequest/.test(chief)
-      && /export async function ownerFromRequest[\s\S]*?sb\.rpc\("is_owner"\)/.test(auth)
+      && /export async function ownerFromRequest\(req: Request\): Promise<boolean> \{\s*const r = await askAsCaller\(req, "is_owner"\);/.test(auth) && /r = await sb\.rpc\(fn\);/.test(auth)
       && ownerFns.join() === "0023_roles.sql" && /select coalesce\(\(select role = 'owner' from public\.profiles where id = auth\.uid\(\)\), false\);/.test(rd("supabase/migrations/0023_roles.sql")), ownerFns);
   ok("briefing: the card still says why if the server refuses anyway (a role changed while the page was open)",
     /if \(r\.status === 401 \|\| r\.status === 403\) setErr\("The Chief of Staff briefing is owner-only\. Ask an owner to run it for you\."\);/.test(rd("components/ChiefOfStaff.tsx")));
@@ -14618,7 +14618,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /if \(!user\) return NextResponse\.json\(\{ error: "Reserves are for members — sign in to reserve\." \}, \{ status: 401 \}\);/.test(pr)
     && /if \(body\.crew === true\) \{\s*if \(!\(await adminFromRequest\(req\)\)\) return NextResponse\.json\(\{ error: "Only an owner or an admin refunds a reserve\." \}, \{ status: 403 \}\);/.test(cr)
     && /async function post\(req: Request\) \{\s*if \(!\(await adminFromRequest\(req\)\)\) return NextResponse\.json\(\{ error: "Only an owner or an admin settles a payment\." \}, \{ status: 403 \}\);/.test(sr)
-    && !/staffFromRequest/.test(cr + sr) && /export async function adminFromRequest[\s\S]*?sb\.rpc\("is_admin"\)/.test(rd("lib/apiAuth.ts"))
+    && !/staffFromRequest/.test(cr + sr) && /export async function adminFromRequest\(req: Request\): Promise<boolean> \{\s*const r = await askAsCaller\(req, "is_admin"\);/.test(rd("lib/apiAuth.ts"))
     && /export const POST = route\("reserves\/pay", post\);/.test(pr) && /export const POST = route\("reserves\/cancel", post\);/.test(cr) && /export const POST = route\("reserves\/settle", post\);/.test(sr));
   ok("routes: the pay route is cut off at a minute — inside the two minutes a checkout claim is given before it is taken for dead",
     /export const maxDuration = 60;/.test(pr) && /export const IN_FLIGHT_MS = 120_000;/.test(rd("lib/chargeOnce.ts")));
@@ -15753,7 +15753,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // F25 — gates that are what they say
   const lr = rd("scripts/lint.ratchet.mjs");
   ok("R14 lint: errors and warnings each have a ceiling, and rules-of-hooks is held at zero — a fixed warning no longer buys a new error",
-    /export const CEILING = \{ errors: \d+, warnings: \d+ \};/.test(lr) && /export const ZERO = \["react-hooks\/rules-of-hooks"\];/.test(lr) && /const v = verdict\(c\);/.test(lr));
+    /export const CEILING = \{ errors: \d+, warnings: \d+ \};/.test(lr) && /export const ZERO = \[[^\]]*"react-hooks\/rules-of-hooks"[^\]]*\];/.test(lr) && /const v = verdict\(c\);/.test(lr));
   const tests = fs.readdirSync(__dirname).filter((f) => /\.(mjs|cjs)$/.test(f)).map((f) => [f, fs.readFileSync(path.join(__dirname, f), "utf8")]);
   const literal = new RegExp("\\bok\\(\\s*([\"'`])[^\"'`]*\\1\\s*,\\s*true\\s*[,)]");
   ok("R14 tests: no check passes by being written true — a milestone that cannot fail is a comment, not a count",
@@ -15819,6 +15819,29 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // the last false-empty
   ok("R15 academy: a progress read that failed says it couldn't count — the false-empty audit's last silent file, its baseline 0",
     /state\.status === "error" \? \(/.test(rd("components/AcademyCard.tsx")) && /export const SILENT_BASELINE = 0;/.test(rd("scripts/falseempty.audit.mjs")));
+}
+
+// ── R16 · THE FRONT END'S RULES AT ZERO, THE MONEY ROUTES RUN WHOLE, A SIGN-IN THAT COULDN'T BE CHECKED AT EVERY DOOR (2026-10-17) ──
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const pkg = JSON.parse(rd("package.json"));
+  // operations F13 — the money routes, run
+  const runs = ["routes.money", "routes.shop", "routes.delivery", "routes.reserve", "routes.reserves", "r16"].filter((t) => !pkg.scripts.test.includes(`node scripts/${t}.test.mjs`));
+  ok("R16 money routes: the cup checkout, the office booking, the shop, Sunday delivery, the packs and the Limited Reserve run whole in npm test (scripts/routes.*.test.mjs)", runs.length === 0, runs);
+  // API F13's rest — the thirty-one doors on userFromRequest
+  const au = rd("lib/apiAuth.ts"), ar = rd("lib/apiRoute.ts"), su = rd("lib/signInUnchecked.ts");
+  ok("R16 sign-in: userFromRequest throws on a bearer the auth service couldn't check — never null, never 'sign in'",
+    /if \(authUnavailable\(error\)\) throw new SignInUnchecked\(/.test(au) && /throw new SignInUnchecked\(e instanceof Error/.test(au));
+  ok("R16 sign-in: the route wrapper answers it 503 ('nothing was changed') before anything is filed as a crash",
+    ar.indexOf("if (isSignInUnchecked(e)) {") > 0 && ar.indexOf("if (isSignInUnchecked(e)) {") < ar.indexOf("await fileError(") && /status: 503 \}/.test(ar));
+  ok("R16 sign-in: lib/signInUnchecked imports nothing — the wrapper every route loads stays as light as it was", !/^import /m.test(su));
+  // the front end — a value kept for an effect is written after render
+  const lt = rd("lib/useLatest.ts");
+  const users = ["components/Crumbs.tsx", "components/EditableCopy.tsx", "components/FloatRail.tsx", "components/ScrollRestore.tsx", "lib/realtime.ts", "lib/useAsyncData.ts"]
+    .filter((f) => !/import \{ useLatest \} from "(@\/lib|\.)\/useLatest";/.test(rd(f)));
+  ok("R16 refs: lib/useLatest writes its ref in useInsertionEffect, never during render, and the six that kept a latest value use it",
+    /useInsertionEffect\(\(\) => \{ ref\.current = value; \}\);/.test(lt) && users.length === 0, users);
 }
 
 Promise.all(PENDING).then(() => {

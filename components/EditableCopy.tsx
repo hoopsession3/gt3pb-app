@@ -5,6 +5,7 @@ import { useAuth, roleOf } from "./AuthProvider";
 import { useApp } from "./AppProvider";
 import { saveCopy } from "@/lib/copy";
 import { EDIT_MODE_KEY, readEditMode } from "@/lib/editModeToggle";
+import { useLatest } from "@/lib/useLatest";
 
 // INLINE, ON-SCREEN COPY EDITING — Ryan's ask, 2026-07-17: owners should be able to edit copy
 // directly on the page they're looking at, not only through the SiteCopyEditor form in Settings.
@@ -60,7 +61,7 @@ export default function EditableCopy({
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
   const ref = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-  const activeRef = useRef(active); activeRef.current = active;
+  const activeRef = useLatest(active);
 
   // Follow upstream value changes (realtime save elsewhere, or a fresh page load) — but never
   // clobber what's actively being typed. Deliberately depends on `value` ONLY, not `active`: right
@@ -69,7 +70,7 @@ export default function EditableCopy({
   // (the realtime round-trip hasn't landed yet) — the exact flash-back-to-old-copy commit() is
   // trying to avoid. Reading `active` via a ref keeps this reacting only to genuine upstream
   // changes while still seeing the current active state, not a stale one from when it last ran.
-  useEffect(() => { if (!activeRef.current) setDraft(value); }, [value]);
+  useEffect(() => { if (!activeRef.current) setDraft(value); }, [value, activeRef]);   // activeRef never changes (lib/useLatest)
   useEffect(() => { if (active) { ref.current?.focus(); ref.current?.select(); } }, [active]);
 
   // `role` only applies here — this branch is the "renders exactly what the caller would have

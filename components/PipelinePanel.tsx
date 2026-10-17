@@ -23,6 +23,7 @@ import { localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { scrollMotion } from "@/lib/motion";
 import { wrote } from "@/lib/wrote";
+import { useMinute } from "@/lib/useMinute";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -284,6 +285,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
 
 export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const confirm = useConfirm();
+  const clock = useMinute();   // read as the panel renders (R16: the purity rule)
   const { toast } = useApp();
   const { user } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);   // expanded opportunity
@@ -637,7 +639,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     </div>
   );
 
-  const weekKey = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const weekKey = new Date(clock + 7 * 864e5).toISOString().slice(0, 10);
   const dueSoon = openOpps.filter((o) => o.next_step_at && o.next_step_at <= weekKey).length;
   return (
     <div className="adm-sec pipe-flow">

@@ -16,6 +16,10 @@ import { errorMessage } from "@/lib/errorMessage";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
 
+// What the load-out agent and the vehicle lookup answer (R16: typed, not any) — read as the screens below read them.
+type LoadPlan = { summary?: string; zones?: { zone: string; items?: string[]; note?: string }[]; at_risk?: { item: string; issue?: string; fix: string }[]; stacking?: string[]; load_order?: string[] };
+type VehicleSpec = { resolved: string; tow_capacity_lb: number; seat_config: string; usable_cuft: number; cargo_cuft_all_seats_up: number; cargo_cuft_all_seats_down: number; note?: string };
+
 const fmt = (n: number | null | undefined) => (n ?? 0).toLocaleString();
 const ZONE_LABEL: Record<string, string> = { nose: "Nose (front)", axle: "Over axle", tail: "Tail (rear)" };
 
@@ -35,11 +39,11 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   const [labels, setLabels] = useState<string[]>([]);
   const [rig, setRig] = useState<SpaceRig>("trailer");
   const [sel, setSel] = useState<string | null>(null);
-  const [plan, setPlan] = useState<any | null>(null);
+  const [plan, setPlan] = useState<LoadPlan | null>(null);
   const [planning, setPlanning] = useState(false);
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState<Partial<TrailerProfile>>({});
-  const [veh, setVeh] = useState<{ q: string; pax: number; busy: boolean; spec: any | null }>({ q: "", pax: 2, busy: false, spec: null });
+  const [veh, setVeh] = useState<{ q: string; pax: number; busy: boolean; spec: VehicleSpec | null }>({ q: "", pax: 2, busy: false, spec: null });
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { tp: null, assets: [], events: [], stops: [] };
@@ -272,7 +276,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
               {plan && (
                 <div className="tl-plan">
                   {plan.summary && <div className="tl-plan-sum">{plan.summary}</div>}
-                  {Array.isArray(plan.zones) && plan.zones.map((z: any, i: number) => (
+                  {Array.isArray(plan.zones) && plan.zones.map((z, i) => (
                     <div key={i} className="tl-plan-zone">
                       <div className="tl-plan-zh">{z.zone}</div>
                       <div className="tl-zone-items">{(z.items ?? []).map((it: string) => <span key={it} className="tl-chip">{it}</span>)}</div>
@@ -282,7 +286,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
                   {Array.isArray(plan.at_risk) && plan.at_risk.length > 0 && (
                     <div className="tl-plan-risk">
                       <div className="tl-plan-zh">At risk</div>
-                      {plan.at_risk.map((a: any, i: number) => <div key={i} className="tl-bar-note"><b>{a.item}</b> — {a.issue ? `${a.issue} · ` : ""}{a.fix}</div>)}
+                      {plan.at_risk.map((a, i) => <div key={i} className="tl-bar-note"><b>{a.item}</b> — {a.issue ? `${a.issue} · ` : ""}{a.fix}</div>)}
                     </div>
                   )}
                   {Array.isArray(plan.stacking) && plan.stacking.length > 0 && (

@@ -67,6 +67,12 @@ Lost/stolen owner phone: (1) from any browser, Supabase → Auth → revoke the 
 - Menu QR fallback: print the menu (one page, prices) and keep it in the truck bin. ☐ printed
 - **Square is down:** a card checkout says so on its own screen. Pay at pickup (crew → Settings → Payments & checkout)
   keeps orders coming in, to be paid in person.
+- **Supabase's sign-in (or its database) is down, the app up** (R16): nobody is told to sign in again. Every door that
+  needs to know who is asking answers "We couldn't check your sign-in just now — nothing was changed" (the card
+  checkouts: "nothing was charged"), and changes nothing; the crew's doors say the same instead of "staff only". In
+  Vercel → the project → Logs, each one is a `[sign-in-unchecked]` line naming the door — many of them at once is the
+  outage. Nothing is filed as a crash and no alert is raised for it: check status.supabase.com, and take orders at the
+  window until it is back.
 - **Pushes are not arriving:** every alert is still in the console's bell (/crew) — the push is only the doorbell. A
   critical's email goes out through the same push function, so it is down with it: open /crew. The function is
   deployed by hand from `supabase/functions/push` (its file says how); Supabase → Edge Functions → push → Logs says why.

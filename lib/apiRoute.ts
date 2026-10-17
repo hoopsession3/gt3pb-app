@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fileError } from "./errorIntake";
+import { isSignInUnchecked, SIGN_IN_UNCHECKED_ANY } from "./signInUnchecked";
 
 // THE ROUTE WRAPPER — every handler under app/api is exported through this.
 //
@@ -30,6 +31,13 @@ export function route<A extends unknown[]>(name: string, handler: Handler<A>): (
     try {
       return await handler(...args);
     } catch (e: unknown) {
+      // A SIGN-IN THE AUTH SERVICE COULDN'T CHECK (R16, lib/signInUnchecked): not this route's fault and not a crash — the
+      // caller is told it wasn't checked and nothing was changed (503), the platform's log gets one line, and nothing is
+      // filed (an auth blip would file one per door).
+      if (isSignInUnchecked(e)) {
+        console.error(`[sign-in-unchecked] ${JSON.stringify({ route: name, message: e.message.slice(0, 200) })}`);
+        return NextResponse.json({ ok: false, error: SIGN_IN_UNCHECKED_ANY, signInUnchecked: true }, { status: 503 });
+      }
       const err = e instanceof Error ? e : new Error(String(e));
       // ONE LINE IN THE PLATFORM'S LOG, FIRST (R10b, 2026-10-16 — the 10/10 audit). The intake writes to the database —
       // so when the database was what failed, the error went nowhere a person could find it. The route, the message and

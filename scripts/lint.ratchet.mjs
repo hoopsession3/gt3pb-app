@@ -29,12 +29,29 @@ import { execFileSync } from "node:child_process";
 // same day. Errors and warnings each have their own now, and neither may rise.
 //   182 total on 2026-10-16 (R13) → R14: 130 errors, 51 warnings. The one rules-of-hooks error was a plain function
 //   named use… (Studio's takeOption) and an unused ternary was a statement (Changelog).
-export const CEILING = { errors: 130, warnings: 51 };
+//   R16 (2026-10-17, the 10/10 audit's front end): 130 → 89 errors — every error left is react-hooks/set-state-in-effect.
+//   41 gone, by rule: no-explicit-any 19 (the rows each screen reads have their types: RoadFlyer's stops and stays, the
+//   trailer's load plan, the shop's products and variants, Apliiq's search); purity 8 (a render that read the clock reads
+//   lib/useMinute's minute, and a tap's time is taken in the handler — BrewPlanner tapTime); refs 6 (a callback or value
+//   kept for an effect is lib/useLatest's, written after render, never during it); immutability 3 (a function used before
+//   its line, a reset moved above the effect that calls it, a navigation said as window.location.assign); unescaped
+//   entities 3 (the console's apostrophes); preserve-manual-memoization 2 (the academy's two callbacks name setView).
+export const CEILING = { errors: 89, warnings: 51 };
 /** @deprecated the single total; kept so a reader of the old name still gets the sum. */
 export const LINT_CEILING = CEILING.errors + CEILING.warnings;
 
 // RULES HELD AT ZERO (R14). Every hit of these is a bug, never debt: a ceiling would let one in.
-export const ZERO = ["react-hooks/rules-of-hooks"];
+// R16: the six R16 brought to zero join it — each was a real wrong answer (a render that reads the clock draws a time
+// that is already stale; a ref written in render is a value React may throw away), not a style.
+export const ZERO = [
+  "react-hooks/rules-of-hooks",
+  "react-hooks/purity",
+  "react-hooks/refs",
+  "react-hooks/immutability",
+  "react-hooks/preserve-manual-memoization",
+  "@typescript-eslint/no-explicit-any",
+  "react/no-unescaped-entities",
+];
 
 export function countFrom(json) {
   // Returns null rather than 0 when the shape is not what eslint produces. The difference between

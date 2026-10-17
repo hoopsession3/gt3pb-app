@@ -22,6 +22,7 @@ import { staffAccess } from "@/lib/access";
 import { useBackStep } from "@/components/useBackStep";
 import Button from "@/components/Button";
 import Said from "@/components/Said";
+import { useMinute } from "@/lib/useMinute";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
 // what the role owns, the non-negotiables, the rhythm it keeps, and how it is actually judged.
@@ -78,6 +79,7 @@ export default function AcademyPage() {
   const [assignFor] = useState<string | null>(() => readParam("assign"));
   useEffect(() => { dropParam("assign"); }, []);
   const [view, setView] = useState<View>(() => (assignFor ? { k: "team" } : { k: "home" }));
+  const clock = useMinute();   // the clock, read as the page renders (R16: the purity rule) — an assignment goes overdue on its own
   const [loaded, setLoaded] = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
@@ -126,7 +128,7 @@ export default function AcademyPage() {
     toast("Signed — thank you");
     await load();
     setView({ k: "home" });
-  }, [user, load, toast]);
+  }, [user, load, toast, setView]);
 
   const completeModule = useCallback(async (slug: string, score: number | null) => {
     if (!supabase || !user) return;
@@ -171,7 +173,7 @@ export default function AcademyPage() {
     }
     await load();
     setView({ k: "home" });
-  }, [user, progress, completed, certs, certExp, load, toast]);
+  }, [user, progress, completed, certs, certExp, load, toast, setView]);
 
   // a cert's live status from earned + expiry
   const certStatus = useCallback((key: string): "none" | "active" | "expiring" | "expired" => {
@@ -290,7 +292,7 @@ export default function AcademyPage() {
           <SectionHeader label="Assigned to you" />
           <div className="ac-mods">
             {openAssignments.map((a, i) => {
-              const overdue = a.due_at != null && new Date(a.due_at).getTime() < Date.now();
+              const overdue = a.due_at != null && new Date(a.due_at).getTime() < clock;
               const label = a.target_type === "module" ? (moduleBySlug(a.target_key)?.title ?? a.target_key)
                 : a.target_type === "cert" ? (certByKey(a.target_key)?.title ?? a.target_key) : "Full role path";
               return (

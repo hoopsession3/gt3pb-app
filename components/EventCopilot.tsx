@@ -36,12 +36,13 @@ export default function EventCopilot() {
   const [address, setAddress] = useState("");
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
 
+  // Declared before the effect that calls it (R16: a function read before its declaration is the stale one).
+  const reset = () => { setText(""); setDraft(null); setBusy(false); setCreating(false); setVenueId(null); setAddress(""); setPin(null); };
   useEffect(() => {
     const onOpen = (e: Event) => { if ((e as CustomEvent).detail === "event-build") { reset(); setOpen(true); } };
     window.addEventListener("gt3-copilot", onOpen);
     return () => window.removeEventListener("gt3-copilot", onOpen);
   }, []);
-  const reset = () => { setText(""); setDraft(null); setBusy(false); setCreating(false); setVenueId(null); setAddress(""); setPin(null); };
 
   if (!isStaff) return null;
 

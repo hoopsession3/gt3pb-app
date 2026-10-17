@@ -7,7 +7,7 @@ import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
 import { orderReceipt, shopReceipt } from "@/lib/receipt";
 import { submitOrderToApliiq } from "@/lib/apliiq";
-import { cleanVariant, hasSkus, skuFor } from "@/lib/apliiqOrder";
+import { cleanVariant, hasSkus, skuFor, type ApliiqVariant } from "@/lib/apliiqOrder";
 import { variantLabel, type Variant } from "@/lib/shopCart";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
 import { stateCode, usZip } from "@/lib/usAddress";
@@ -123,7 +123,10 @@ async function post(req: Request) {
     .select("id, title, price_cents, cost_cents, apliiq_product_id, variants, kind, published_at, archived_at").eq("tenant_id", tenant)
     .in("id", ids).eq("kind", "merch");
   if (prodErr) return NextResponse.json({ error: "Couldn't price your cart." }, { status: 500 });
-  const byId = new Map((prods ?? []).map((p) => [(p as { id: string }).id, p as Record<string, any>]));
+  // The rows as the select names them (R16: typed, not any).
+  type ShopProductRow = { id: string; title: string; price_cents: number | null; cost_cents: number | null; apliiq_product_id: string | null;
+    variants: ApliiqVariant[] | null; kind: string | null; published_at: string | null; archived_at: string | null };
+  const byId = new Map(((prods ?? []) as ShopProductRow[]).map((p) => [p.id, p]));
 
   let subtotal = 0;
   // `apliiq_sku` is resolved HERE, while the product's variant list and the shopper's choice are

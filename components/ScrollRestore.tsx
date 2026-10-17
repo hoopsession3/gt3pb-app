@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useOperatorSection } from "./OperatorNav";
+import { useLatest } from "@/lib/useLatest";
 
 // SCROLL RESTORATION — remember where you were in each crew section and return there when you come
 // back (via nav, back button, or swipe-back). Section switches are query-only, so the shell's
@@ -10,8 +11,7 @@ import { useOperatorSection } from "./OperatorNav";
 export default function ScrollRestore() {
   const { section } = useOperatorSection();
   const positions = useRef<Record<string, number>>({});
-  const sectionRef = useRef(section);
-  sectionRef.current = section;
+  const sectionRef = useLatest(section);
 
   // Continuously record the current section's scroll so it's captured BEFORE the content swaps.
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function ScrollRestore() {
     const onScroll = () => { positions.current[sectionRef.current] = body.scrollTop; };
     body.addEventListener("scroll", onScroll, { passive: true });
     return () => body.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [sectionRef]);   // the same object every render (lib/useLatest): this runs once, as before
 
   // On section change, restore the incoming section's saved scroll (next frame, after content mounts).
   useEffect(() => {

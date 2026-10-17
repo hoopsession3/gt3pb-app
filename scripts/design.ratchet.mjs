@@ -727,8 +727,8 @@ export const PROD_ROUTE = {
 // on /truck, /events and /driver (89 → 90) and on /order (88 → 90). Measured by scripts/smoke.ui.mjs on this commit's
 // build, route by route.
 export const WEIGHT = {
-  "/truck":                    { js: 285, css: 90, chunks: 16 },
-  "/events":                   { js: 285, css: 90, chunks: 16 },
+  "/truck":                    { js: 286, css: 90, chunks: 16 },
+  "/events":                   { js: 286, css: 90, chunks: 16 },
   "/menu":                     { js: 273, css: 90, chunks: 15 },
   "/reserve":                  { js: 297, css: 90, chunks: 17 },
   "/delivery":                 { js: 294, css: 90, chunks: 17 },
@@ -741,7 +741,7 @@ export const WEIGHT = {
   "/architecture":             { js: 282, css: 90, chunks: 15 },
   "/playbook":                 { js: 280, css: 90, chunks: 15 },
   "/driver":                   { js: 279, css: 90, chunks: 15 },
-  "/agreement":                { js: 273, css: 90, chunks: 15 },
+  "/agreement":                { js: 274, css: 90, chunks: 15 },
   "/offer":                    { js: 283, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 269, css: 90, chunks: 15 },
   "/display":                  { js: 271, css: 90, chunks: 15 },
@@ -823,6 +823,13 @@ export const WEIGHT = {
 // read for a burst of changes (lib/rush), and a tapped notification's window steered (components/ServiceWorkerRegister).
 // The three that take a card add the form that can be tried again (components/PaymentCard, lib/square) and the payment's
 // deadline. Crossed the rounding line upward on every route, recorded with the new chunk.
+// 2026-10-17 (R16 of the 10/10 audit, the lint rules held at zero): every route's script +67 bytes (gzip), /truck and
+// /events +247. Built R15 (fc05d9a) and this commit and gzipped what each route's HTML references (/menu 279 418 →
+// 279 485, /agreement 280 054 → 280 121, /truck 292 313 → 292 560): the shell's float rail keeps its latest bottom in a
+// ref written as the render commits, not while rendering (lib/useLatest, the refs rule, 157 bytes raw), and Find Us reads
+// the clock a minute at a time instead of Date.now() in its render, so the live tag and the ordering window turn on their
+// own (lib/useMinute, the purity rule). Crossed the rounding line upward on /agreement (273.49 → 273.56 KB), /truck and
+// /events (285.46 → 285.70), recorded.
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];

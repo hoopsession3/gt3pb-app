@@ -88,7 +88,7 @@ export default function Discussions({ onOpenNotes }: { onOpenNotes: () => void }
     if (r.kind === "task") openTask(r.id, "event");
     else if (r.kind === "note") onOpenNotes();
     else if (r.kind === "alert") window.dispatchEvent(new Event("gt3-open-inbox"));
-    else window.location.href = "/playbook";
+    else window.location.assign("/playbook");
   };
 
   return (

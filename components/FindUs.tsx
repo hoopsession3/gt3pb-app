@@ -27,6 +27,7 @@ import { useLivePing } from "@/components/useLivePing";
 import Skeleton from "@/components/Skeleton";
 import { apiUrl } from "@/lib/native";
 import Said from "./Said";
+import { useMinute } from "@/lib/useMinute";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
 // live on two strangers of pages; they're one chronological road now, each row self-typing:
@@ -186,6 +187,9 @@ export default function FindUs() {
   const t = useSiteCopy();
   const avail = useCupAvailability();
   const [openStop, setOpenStop] = useState<string | null>(null);
+  // The clock, read as the page renders and turning each minute (R16: the purity rule) — the live tag and the ordering
+  // window come off on their own, not only when the poll redraws.
+  const minuteNow = useMinute();
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { ops: [], live: null };
@@ -246,7 +250,7 @@ export default function FindUs() {
   // long as it was left on). Both are computed at render (re-evaluated on the poll), so no cron has
   // to write a flag on the tick.
   const LIVE_OFF_BEFORE_MS = 45 * 60_000;
-  const nowMs = Date.now();
+  const nowMs = minuteNow;
   // MARKET (0279) — the audit's step 02. This road used to be every public stop everywhere, sorted
   // by time, shown to everyone: a Greenville member's "where's the truck next" could answer with a
   // stop four hours away. The QUERY stays unfiltered on purpose, because the screen needs to see

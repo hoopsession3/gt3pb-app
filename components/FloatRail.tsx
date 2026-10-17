@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useLatest } from "@/lib/useLatest";
 
 // FLOAT RAIL — the one home for every floating tab (Ask us · Connect · Display). Three promises:
 //   MOVABLE    — drag the ≡ grip to slide the rail anywhere along the right edge (persisted).
@@ -18,8 +19,7 @@ export default function FloatRail({ children }: { children: React.ReactNode }) {
   // an explicit prior choice (open or folded) is still honored below once localStorage has one.
   const [min, setMin] = useState(true);
   const [dragging, setDragging] = useState(false);
-  const bottomRef = useRef(170);
-  bottomRef.current = bottom;
+  const bottomRef = useLatest(bottom);
   const drag = useRef<{ startY: number; startBottom: number } | null>(null);
 
   // The floor clears the floating tier: the crew nav (87px, measured — it was written down as 68)

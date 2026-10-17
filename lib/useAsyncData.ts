@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { reportFailure } from "./failureReport";
+import { useLatest } from "./useLatest";
 
 // THE fetch-state hook (Wave 2, 2026-07-15). An audit found 59 sites across 41 files where a failed
 // fetch renders identically to genuine emptiness — "no reservations," "$0 revenue," "you're all
@@ -21,8 +22,7 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: React.Dependency
   // never overwrite a newer one with stale data — this is the exact bug the ad-hoc safe() wrappers
   // never covered, since they only checked truthiness, not which request was still current.
   const gen = useRef(0);
-  const loaderRef = useRef(loader);
-  loaderRef.current = loader;
+  const loaderRef = useLatest(loader);
   // Mirrors `data` for run()'s closure without needing `data` in its deps (run must stay a stable
   // identity — it's exposed as `reload` and plenty of callers pass it to useRealtimeTable/effects).
   const dataRef = useRef<T | null>(null);
@@ -57,7 +57,7 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: React.Dependency
         // fall back to. `error` is still set either way, for a caller that wants to show a toast.
         if (dataRef.current === null) setStatus("error");
       });
-  }, []);
+  }, [loaderRef]);   // the same object every render (lib/useLatest): run keeps one identity, as before
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { run(); }, deps);

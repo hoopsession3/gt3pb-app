@@ -25,6 +25,7 @@ import { keepPassOpen, passWasOpen, PASS_OPEN_BEAT_MS } from "@/lib/passOpen";
 import { groupItems } from "@/lib/passBoard";
 import { usePassHeartbeat } from "@/components/usePassHeartbeat";
 import { useEtDay } from "@/lib/useEtDay";
+import { useMinute } from "@/lib/useMinute";
 import { NotifPrefs, NotifPrefsSheet } from "@/components/NotifPrefs";
 import { DeviceAlerts } from "@/components/DeviceAlerts";
 import { RingThisPhone } from "@/components/RingThisPhone";
@@ -1547,7 +1548,7 @@ function InspectionPrep() {
                 </div>
               ))}</>
             )}
-            <p className="insp-foot">Always confirm with the jurisdiction's health department for your specific date.</p>
+            <p className="insp-foot">Always confirm with the jurisdiction&apos;s health department for your specific date.</p>
           </div>
         )}
       </div>
@@ -3658,6 +3659,8 @@ function ReservesAdmin() {
 // ───────────────────────── subscribers (read-only mirror) ─────────────────────────
 function Subscribers() {
   const [names, setNames] = useState<Record<string, string>>({});
+  // The clock, read as the screen renders (lib/useMinute) — not Date.now() in a render (R16: the purity rule).
+  const now = useMinute();
   const subsState = useAsyncData<Subscription[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
     // A FAILED READ IS NOT "NO SUBSCRIBERS YET" (2026-10-12): the error went unread, null became [], and the panel
@@ -3679,7 +3682,7 @@ function Subscribers() {
   // Fulfillment-first ordering: trouble (past_due) and soonest-due float to the top so
   // an admin sees "who do I prep next / who needs a nudge" at a glance.
   const rank: Record<string, number> = { past_due: 0, active: 1, pending: 2, paused: 3, canceled: 4 };
-  const daysTo = (d: string | null) => (d ? Math.ceil((new Date(d).getTime() - Date.now()) / 86400000) : null);
+  const daysTo = (d: string | null) => (d ? Math.ceil((new Date(d).getTime() - now) / 86400000) : null);
   const packOf = (plan: string) => { const n = plan?.match(/\d+/)?.[0]; return n ? `${n} bottles · every 2 wks` : plan; };
   const renew = (s: Subscription) => {
     if (s.status === "past_due") return { text: "Payment failed — card needs updating", cls: "due" };
@@ -3953,6 +3956,7 @@ type NextEvent = {
 // event is Readiness' and Plan's, where it already was.
 function EventHUD() {
   const { toast } = useApp();
+  const now = useMinute();   // the clock, read as the screen renders (R16: the purity rule)
   const { openRecord } = useRecord();
   const [ev, setEv] = useState<EventRow | null | undefined>(undefined);
   // undefined = still looking; "error" = could not read it (never shown as "nothing on the calendar")
@@ -4045,7 +4049,7 @@ function EventHUD() {
       </FoldCard>
     );
   }
-  const hrs = stats.firstAt ? Math.max(0.25, (Date.now() - new Date(stats.firstAt).getTime()) / 3600000) : 0;
+  const hrs = stats.firstAt ? Math.max(0.25, (now - new Date(stats.firstAt).getTime()) / 3600000) : 0;
   const perHr = hrs ? stats.cents / hrs : 0;
   // plan vs actual — feed the real gross into the projection's cost structure
   const proj = projectEvent(ev, econ ?? DEFAULT_ECON, catalog);
@@ -5146,10 +5150,10 @@ function SectionGuide({ allowed, current, start, onGo, onClose }: { allowed: OpS
                 {isOpen && (
                   <div className="guide-body">
                     <p className="guide-more">{SEC_MORE[s]}</p>
-                    <div className="guide-inside-h">What's inside</div>
+                    <div className="guide-inside-h">What&apos;s inside</div>
                     <ul className="guide-inside">{SEC_INSIDE[s].map((x) => <li key={x}>{x}</li>)}</ul>
                     {here
-                      ? <div className="guide-here-note">You're in {SEC_LABEL[s]} now.</div>
+                      ? <div className="guide-here-note">You&apos;re in {SEC_LABEL[s]} now.</div>
                       : <Button type="button" kind="primary" compact onClick={() => { onGo(s); onClose(); }}>Go to {SEC_LABEL[s]} ›</Button>}
                   </div>
                 )}

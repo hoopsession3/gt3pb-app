@@ -29,7 +29,7 @@ async function post(req: Request) {
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({
     ok: true,
-    products: ((data ?? []) as any[]).map((r) => ({
+    products: ((data ?? []) as { apliiq_product_id: string | null; title: string | null; price_cents: number | null; image_url: string | null }[]).map((r) => ({
       id: r.apliiq_product_id, name: r.title, price: (r.price_cents ?? 0) / 100, image: r.image_url,
     })),
   });

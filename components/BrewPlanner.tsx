@@ -30,6 +30,7 @@ import { IconButton } from "@/components/controls";
 import { RowMenu } from "@/components/LongPress";
 import { rovingKeys, rovingTab } from "./roving";
 import { wrote } from "@/lib/wrote";
+import { useMinute } from "@/lib/useMinute";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -50,6 +51,8 @@ type St = { id: string; name: string; starts_at: string | null; status: string |
 type LotBoard = { lots: BrewLot[]; lotsErr: string | null; linkable: boolean; use: ReadonlyMap<string, LotUse>; today: string; recipes: Recipe[]; batches: Batch[]; names: ReadonlySet<string> };
 type BrewBoard = { recipes: Recipe[]; vessels: Vessel[]; batches: Batch[]; events: Ev[]; stops: St[]; inv: InvItem[]; demand: Record<string, Record<string, number>>; lots: BrewLot[]; lotsErr: string | null; linkable: boolean };
 const cityOf = (m: string | null | undefined) => (isMarket(m) ? MARKET_LABEL[m] : m || "this city");
+/** The moment of a tap — read in a handler, never while rendering (R16: the purity rule names Date.now in the body). */
+const tapTime = () => Date.now();
 /** What a batch says about its coffee, as the pick starts from it. */
 const lotOf = (b: Batch): LotValue => ({ id: b.coffee_lot_id ?? null, text: b.coffee_lot ?? "" });
 
@@ -274,11 +277,12 @@ export default function BrewPlanner() {
   const startBrew = async (b: Batch, extras?: { lot?: LotValue; brewer?: PersonValue }): Promise<boolean> => {
     if (!supabase) return false;
     const hrs = Number(b.extraction_hours) || 20;
-    const startIso = new Date().toISOString();
-    const readyIso = new Date(Date.now() + hrs * 3600000).toISOString();
+    const at = tapTime();   // one moment: the start, the ready time and the board's clock agree
+    const startIso = new Date(at).toISOString();
+    const readyIso = new Date(at + hrs * 3600000).toISOString();
     const lot = extras?.lot ? { coffee_lot: extras.lot.text.trim() || null, coffee_lot_id: extras.lot.id } : {};
     const brewer = extras?.brewer?.name.trim() || b.brewer || null;
-    setNow(Date.now());
+    setNow(at);
     const { error } = await supabase.from("brew_batches").update(
       { status: "brewing", brew_started_at: startIso, ready_at: readyIso, ...lot, brewer, ...(extras?.brewer ? { brewer_id: extras.brewer.id } : {}), alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false }).eq("id", b.id);
     if (error) { setMutErr(error.message); return false; }
@@ -588,12 +592,13 @@ function StartBrewSheet({ batch, lotBoard, onClose, onStart }: { batch: Batch; l
   });
   // You, unless you say otherwise — the person starting the brew is almost always the one brewing.
   const me = usePersonMe();
+  const clock = useMinute();   // "ready ~" from the minute the sheet shows (R16: the purity rule)
   const [brewer, setBrewer] = useState<PersonValue>(batch.brewer ? { id: null, name: batch.brewer } : me);
   const [busy, setBusy] = useState(false);
   const hrs = Number(batch.extraction_hours) || 20;
   return (
     <Sheet open onClose={onClose} label="Start brew" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Start brew · {batch.recipe_name}</b><CloseButton onClick={onClose} /></div>}>
-          <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""} · {hrs}h cold extraction → ready ~{new Date(Date.now() + hrs * 3600000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
+          <div className="brew-spec">{batch.batch_gal} gal{batch.vessel ? ` · ${batch.vessel}` : ""} · {hrs}h cold extraction → ready ~{new Date(clock + hrs * 3600000).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
           <CoffeeLotPick label="Coffee lot — the bag this batch is made from" value={lot} onChange={setLot} lots={lotBoard.lots} failed={lotBoard.lotsErr}
                          market={batch.market} cityName={cityOf(batch.market)} use={lotBoard.use} needGrams={coffeeGrams(batch, lotBoard.recipes)}
                          today={lotBoard.today} linkable={lotBoard.linkable} logged={!!batch.consumption_logged_at} />
