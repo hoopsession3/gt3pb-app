@@ -65,6 +65,7 @@ export const FIRE_AND_FORGET = {
   "lib/track.ts#track_user": "a visit count: never worth a word to the person, never allowed to slow a tap (15s apart at most)",
   "lib/track.ts#track_guest": "a guest count, once an hour a device: the same",
   "lib/funnel.ts#funnel_events": "a step in a funnel report: an analytics row a checkout must never wait on or fail over",
+  "components/AuthProvider.tsx#password_not_now": "\"Not now\" to choosing a password (0423): a mark not taken off asks once more at the next page load — nothing lost, nothing to say",
 };
 const WRITE_VERBS = new Set(["insert", "update", "delete", "upsert"]);
 const TASK_WRITERS = new Set(["updateTask", "deleteTask", "deleteTasks", "deleteTasksForParent", "createTodo", "createEventTask", "createEventTasks", "completeTask", "completeInitiative"]);

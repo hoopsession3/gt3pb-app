@@ -170,7 +170,8 @@ function reads() {
     && c({ message: "The operation timed out." }) === "network");
   ok("failure: anything else the server named is 'other'", c({ code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" }) === "other");
   const r = FC.reportable;
-  ok("reportable: schema and permission are reported", r({ code: "42703", message: "x" }) === "schema" && r({ code: "42501", message: "x" }) === "permission");
+  // A 42501 is a grant or a row rule in Postgres's own words; in a sentence of the app's it is a refusal (R18 review).
+  ok("reportable: schema and permission are reported", r({ code: "42703", message: "x" }) === "schema" && r({ code: "42501", message: "permission denied for table x" }) === "permission");
   ok("reportable: a refusal and the network are not", r({ code: "P0001", message: "x" }) === null && r({ message: "Failed to fetch" }) === null);
   ok("reportable: a loader's own sentence (no code) is not — it does not say which kind it was", r(new Error("Couldn't load the plan")) === null && r("Couldn't load") === null);
   ok("reportable: an 'other' with a code is", r({ code: "PGRST116", message: "rows" }) === "other");

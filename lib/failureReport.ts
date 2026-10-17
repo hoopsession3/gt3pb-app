@@ -25,12 +25,27 @@ export function setFailureSender(fn: Send | null): void {
 
 type Failure = { code?: string | null; message?: string | null; status?: number | null } | string | null | undefined;
 
+// What the door says besides a schema or a permission failure (R18 review): an answer the server itself failed (5xx), and
+// the codes that are always a bug in a rule or a function of ours — ambiguous or mistyped SQL and the rest of class 42
+// (42501 and the missing-thing codes are said above), more rows than one where one was meant (21000), a deadlock (40P01),
+// a feature not there (0A000), Postgres's internal error (XX…). A function's own refusal never reaches here (failureClass).
+const ALWAYS_OURS = /^(42|21|0A|XX)|^40P01$/;
+function atTheDoorAnyway(failure: Failure): boolean {
+  if (typeof failure !== "object" || !failure) return false;
+  return Number(failure.status) >= 500 || ALWAYS_OURS.test(String(failure.code ?? ""));
+}
+
 /** Report a failure if it is one of ours: `doing` is "load", "save" or "call" (a database function), `what` names the
- *  thing where the caller can. */
-export function reportFailure(doing: "load" | "save" | "call", failure: Failure, what?: string): void {
+ *  thing where the caller can. `atTheDoor` is reportFailingAnswers below: it hears every answer the database refused,
+ *  including the ones a screen asked for knowing they may fail and says itself, so it reports the kinds that are never a
+ *  person's — a missing column, table or function, a grant or a row rule that refused, and a coded answer that is always a
+ *  bug (ALWAYS_OURS, or the server's own 5xx) (R18 review). A screen's own reader (lib/useAsyncData, lib/wrote) reports any
+ *  coded "other". */
+export function reportFailure(doing: "load" | "save" | "call", failure: Failure, what?: string, atTheDoor = false): void {
   try {
     const kind = reportable(failure);
     if (!kind || !send || seen.size >= MAX_PER_LOAD) return;
+    if (atTheDoor && kind !== "schema" && kind !== "permission" && !(kind === "other" && atTheDoorAnyway(failure))) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
     const code = typeof failure === "object" && failure ? String(failure.code ?? "") : "";
     const words = (typeof failure === "string" ? failure : String(failure?.message ?? "")).replace(/\s+/g, " ").trim().slice(0, 200);
@@ -46,9 +61,10 @@ type Fetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 /** The browser's door to the database (lib/supabase wraps its fetch in this): every answer PostgREST refused is handed to
  *  reportFailure as it arrives — what was being done (a read, a write, a function), the table or the function by name,
- *  the database's code and words; never a value or a filter. Only an answer that is not ok is read, from a copy (the
- *  caller reads its own); auth and storage answers are their own doors' to say. "No such row" for .single() (PGRST116)
- *  is the caller's to judge — a code typed wrong is not a bug — so it is not said here. Never throws, never waits. */
+ *  the database's code and words; never a value or a filter — and said only when it is a schema or a permission
+ *  failure. Only an answer that is not ok is read, from a copy (the caller reads its own); auth and storage answers are
+ *  their own doors' to say. "No such row" for .single() (PGRST116) is the caller's to judge — a code typed wrong is not
+ *  a bug — so it is not said here. Never throws, never waits. */
 export function reportFailingAnswers(fetchFn: Fetch): Fetch {
   return async (input, init) => {
     const res = await fetchFn(input, init);
@@ -59,7 +75,7 @@ export function reportFailingAnswers(fetchFn: Fetch): Fetch {
         const method = String(init?.method ?? (typeof input === "object" && "method" in input ? input.method : "GET")).toUpperCase();
         if (door) res.clone().json().then((b: { code?: string; message?: string } | null) => {
           if (b?.code === "PGRST116") return;
-          reportFailure(door[1] ? "call" : method === "GET" || method === "HEAD" ? "load" : "save", { code: b?.code, message: b?.message, status: res.status }, door[1] ? `${door[2]}()` : door[2]);
+          reportFailure(door[1] ? "call" : method === "GET" || method === "HEAD" ? "load" : "save", { code: b?.code, message: b?.message, status: res.status }, door[1] ? `${door[2]}()` : door[2], true);
         }, () => { /* not the database's words */ });
       } catch { /* reporting never makes a failure worse */ }
     }

@@ -8,6 +8,7 @@ import { cartRefusal, MENU_UNCHECKED } from "@/lib/catalog";
 import { priceCups } from "@/lib/cupPrice";
 import { squarePriceMap } from "@/lib/squareCatalog";
 import { route } from "@/lib/apiRoute";
+import { callerIp } from "@/lib/rateLimit";
 
 // THE CUP CHECKOUT'S QUOTE (2026-10-12, C2 of the customer frontend audit, approved) — what /api/checkout would charge
 // for this cart, before Pay: each line at its price, a member's perks applied and named, and the subtotal. The page
@@ -32,7 +33,7 @@ async function post(req: Request) {
   // changes stays far under, a venue's Wi-Fi too; without one, nothing is counted. Past it the quote says to wait — never
   // a price without the code, which Pay would then refuse as changed. Fails open.
   if (code) {
-    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+    const ip = callerIp(req);
     const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `quote-code:${ip}`, p_window_ms: 600_000, p_max: 120 });
     if (fits.data === false) return NextResponse.json({ error: "Too many tries with a code — give it a minute." }, { status: 429 });
   }

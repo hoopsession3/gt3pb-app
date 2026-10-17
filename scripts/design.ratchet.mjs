@@ -727,30 +727,30 @@ export const PROD_ROUTE = {
 // on /truck, /events and /driver (89 → 90) and on /order (88 → 90). Measured by scripts/smoke.ui.mjs on this commit's
 // build, route by route.
 export const WEIGHT = {
-  "/truck":                    { js: 286, css: 90, chunks: 16 },
-  "/events":                   { js: 286, css: 90, chunks: 16 },
+  "/truck":                    { js: 287, css: 90, chunks: 16 },
+  "/events":                   { js: 287, css: 90, chunks: 16 },
   "/menu":                     { js: 274, css: 90, chunks: 15 },
-  "/reserve":                  { js: 297, css: 90, chunks: 17 },
+  "/reserve":                  { js: 298, css: 90, chunks: 17 },
   "/delivery":                 { js: 295, css: 90, chunks: 17 },
   "/3mpire":                   { js: 287, css: 90, chunks: 15 },
-  "/craft":                    { js: 272, css: 90, chunks: 15 },
-  "/book":                     { js: 273, css: 90, chunks: 15 },
+  "/craft":                    { js: 273, css: 90, chunks: 15 },
+  "/book":                     { js: 274, css: 90, chunks: 15 },
   "/academy":                  { js: 326, css: 90, chunks: 16 },
   "/office":                   { js: 282, css: 90, chunks: 15 },
   "/scan":                     { js: 274, css: 90, chunks: 15 },
-  "/architecture":             { js: 282, css: 90, chunks: 15 },
+  "/architecture":             { js: 283, css: 90, chunks: 15 },
   "/playbook":                 { js: 281, css: 90, chunks: 15 },
-  "/driver":                   { js: 279, css: 90, chunks: 15 },
-  "/agreement":                { js: 274, css: 90, chunks: 15 },
+  "/driver":                   { js: 280, css: 90, chunks: 15 },
+  "/agreement":                { js: 275, css: 90, chunks: 15 },
   "/offer":                    { js: 284, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 270, css: 90, chunks: 15 },
-  "/display":                  { js: 271, css: 90, chunks: 15 },
-  "/shop":                     { js: 303, css: 90, chunks: 17 },
+  "/built/gt3-built-k7m9x4q2": { js: 271, css: 90, chunks: 15 },
+  "/display":                  { js: 272, css: 90, chunks: 15 },
+  "/shop":                     { js: 304, css: 90, chunks: 17 },
   "/primal":                   { js: 273, css: 90, chunks: 15 },
   "/privacy":                  { js: 269, css: 90, chunks: 14 },
   "/terms":                    { js: 269, css: 90, chunks: 14 },
   "/":                         { js: 279, css: 90, chunks: 15 },
-  "/order":                    { js: 277, css: 90, chunks: 15 },
+  "/order":                    { js: 278, css: 90, chunks: 15 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).
@@ -851,6 +851,26 @@ export const WEIGHT = {
 // page load instead of being a quiet empty screen (operations F17); lib/failureReport moved into the shell with it, from
 // a chunk every route already loads. Crossed the rounding line upward on /menu (273.27 → 273.50 KB), /scan, /office,
 // /academy and /playbook, recorded.
+// 2026-10-17 (R18's review, put right before it shipped): every route's script +273 to +327 bytes (gzip), /3mpire +383.
+// Built the first R18 (888a880) and this commit and gzipped what each route's HTML references (/menu 280 068 → 280 343,
+// /office 288 393 → 288 720, /truck 293 143 → 293 464; /built weighed as served, 270.52 KB). In the shell: a person's
+// refusal is told apart from a bug of ours — the app's own codes (lib/refusal's, PT…, a 42501 in a sentence), the
+// database out of connections (PGRST003) — so the door reports only a schema or a permission failure, and those reports
+// never spend the crash cap (lib/failureClass, lib/failureReport, components/ErrorReporter); and a password join
+// confirmed by its emailed link is asked to choose its password again, since 0423 clears one set before the proof
+// (lib/linkSignin, components/AuthProvider — the sheet itself loads when raised). The bucket table every upload asks
+// (lib/bucketTakes) is fetched as a file is sent, not carried by the pages that can send one: /3mpire's VIP photo had it
+// at +792. Crossed the rounding line upward on /truck and /events (286.27 → 286.59 KB), /reserve, /book, /architecture,
+// /driver, /built, /display, /shop and /order, recorded.
+// 2026-10-17 (R18's second review, put right before it shipped): every route's script +144 to +163 bytes (gzip), /3mpire
+// +212, /shop +201. Built the cut that review read (32acc05) and this commit and gzipped what each route's HTML references
+// (/craft 278 950 → 279 096, /agreement 281 025 → 281 185, /3mpire 294 010 → 294 222; /built weighed as served, 270.66 KB).
+// In the shell: a join's password asked for again by the join's own mark, whatever confirmed it, and once the person
+// answers it is not asked again (components/AuthProvider); the browser's door also says the answers that are always a bug
+// of ours — a 5xx, class 42, a deadlock — not only a missing column or a refused grant (lib/failureReport). The type table
+// a file is read by (lib/fileType) rides with the bucket table, fetched as a file is sent; the shop page and the VIP
+// photo carry none of it (it went into /shop and /3mpire at first: +364 and +338, taken back out). Crossed the rounding
+// line upward on /craft (272.41 → 272.55 KB) and /agreement (274.44 → 274.59), recorded.
 
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];

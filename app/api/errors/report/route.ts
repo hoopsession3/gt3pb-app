@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fileError } from "@/lib/errorIntake";
 import { route } from "@/lib/apiRoute";
+import { callerIp } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -49,7 +50,7 @@ async function post(req: Request) {
     // One address, thirty reports in ten minutes (R9 — the abuse audit's seventh): a browser sends at most eight a session
     // (components/ErrorReporter); one script filled the hour's budget of new errors alone, hiding real ones behind it.
     // In the store every instance shares; fails open, as telemetry must.
-    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+    const ip = callerIp(req);
     const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `error-report:${ip}`, p_window_ms: 600_000, p_max: 30 });
     if (fits.data === false) return done;
 
@@ -63,11 +64,12 @@ async function post(req: Request) {
     const ua = s(b.ua, 200);
     const fatal = b.fatal === true;
     const skew = b.skew === true;
+    const failure = b.failure === true;   // a read or a write the database refused, not a crash: its own share (R18 review)
 
     // Fingerprint, dedupe, first-sight alert: lib/errorIntake.ts — the same path a server route
     // that throws takes (lib/apiRoute.ts), so one bug is one row whichever side of the wire hit it.
     // The address goes with it (R18): a browser's new error spends its own address's share before the hour's shared one.
-    await fileError({ message, stack, url, ua, fatal, skew, browser: true, ip });
+    await fileError({ message, stack, url, ua, fatal, skew, browser: true, ip, failure });
   } catch { /* telemetry never throws */ }
   return done;
 }

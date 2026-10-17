@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { route } from "@/lib/apiRoute";
+import { callerIp } from "@/lib/rateLimit";
 
 // public: a read of one code's marketing fields — nothing here that is not already printed on the card in someone's hand
 // COUPON LOOKUP (0268) — the public face of ONE code-scoped row in the member_benefits engine
@@ -13,7 +14,7 @@ async function get(req: Request, { params }: { params: Promise<{ code: string }>
   // ones that weren't. Sixty an address in ten minutes — a person scanning a card asks once, and a table of them on one
   // venue's Wi-Fi stays under — in the store every instance shares. Past it: "couldn't check", never "ended" (the page
   // says so and asks again on a tap). Fails open.
-  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+  const ip = callerIp(req);
   const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `coupon:${ip}`, p_window_ms: 600_000, p_max: 60 });
   if (fits.data === false) return NextResponse.json({ ok: false, busy: true }, { status: 429 });
   try {

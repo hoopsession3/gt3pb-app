@@ -17,15 +17,17 @@ const seen = new Set<string>();
 
 // `skew` says this crash is the stale-build family (a tab one deploy behind). The server uses it
 // to file the report as an FYI rather than paging someone about a screen that healed itself.
-export function reportClientError(input: { message?: string; stack?: string; fatal?: boolean; skew?: boolean }): void {
+// `failure` is a read or a write the database refused (lib/failureReport): those are capped there (MAX_PER_LOAD) and
+// never spend this cap — a page whose reads all failed must still be able to say the crash that followed (R18 review).
+export function reportClientError(input: { message?: string; stack?: string; fatal?: boolean; skew?: boolean; failure?: boolean }): void {
   try {
     if (typeof window === "undefined") return;
     const message = (input.message ?? "").slice(0, 400).trim();
-    if (!message || sent >= SESSION_MAX) return;
+    if (!message || (!input.failure && sent >= SESSION_MAX)) return;
     const localKey = `${message}|${(input.stack ?? "").split("\n")[1] ?? ""}`;
     if (seen.has(localKey)) return;
     seen.add(localKey);
-    sent++;
+    if (!input.failure) sent++;
     const body = JSON.stringify({
       message,
       stack: (input.stack ?? "").slice(0, 1500),
@@ -33,6 +35,7 @@ export function reportClientError(input: { message?: string; stack?: string; fat
       ua: navigator.userAgent.slice(0, 200),
       fatal: input.fatal === true,
       skew: input.skew === true,
+      ...(input.failure ? { failure: true } : {}),   // its own share at the server too (lib/errorIntake, R18 review)
     });
     // Beacon survives page unloads (the exact moment fatal errors happen); fetch is the fallback.
     // Not in the iPhone app (2026-10-06): its report goes to the web, another origin, and a JSON
@@ -86,7 +89,7 @@ export default function ErrorReporter() {
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onReject);
     // A read or a write the database refused for a reason that is ours (lib/failureReport, R13 — F17) comes here too.
-    setFailureSender((message) => reportClientError({ message, stack: "", fatal: false }));
+    setFailureSender((message) => reportClientError({ message, stack: "", fatal: false, failure: true }));
     return () => { window.removeEventListener("error", onError); window.removeEventListener("unhandledrejection", onReject); setFailureSender(null); };
   }, []);
   return null;

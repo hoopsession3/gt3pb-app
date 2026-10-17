@@ -71,6 +71,7 @@ export interface Profile {
   title?: string | null;
   bio?: string | null;
   nav_pins?: string[] | null;  // pinned work-stream keys for the crew bar (0160); null = role default
+  password_taken_at?: string | null;  // 0423: the password set before the address was proven was taken — choose one
 }
 
 // The role vocabulary now lives in lib/roles.ts so that non-React code can use it — lib/access.ts
@@ -96,7 +97,8 @@ interface AuthCtx {
   sendCode: (email: string, displayName?: string) => Promise<{ error?: string }>;
   // "email": the sign-in or sign-up code; "recovery": the password-reset code, whose session raises the
   // set-a-new-password overlay (supabase-js fires PASSWORD_RECOVERY for it, as for the reset link).
-  verifyCode: (email: string, token: string, kind?: "email" | "recovery") => Promise<{ error?: string }>;
+  // passwordFollows: the join screen sets the password it holds right after this code (SignIn) — not asked for again.
+  verifyCode: (email: string, token: string, kind?: "email" | "recovery", opts?: { passwordFollows?: boolean }) => Promise<{ error?: string }>;
   signInWithUrl: (url: string) => Promise<{ error?: string }>;
   signInWithPassword: (email: string, password: string) => Promise<{ error?: string }>;
   // `existing`: the email already had an account — a sign-in code went to it instead (R8, below).
@@ -139,6 +141,23 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // as a confident negative — but in the auth layer, where the negative is "you are not staff".
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>(supabaseEnabled ? "loading" : "ready");
   const [recovery, setRecovery] = useState(false); // landed via a password-reset link → must set a new password
+  // A PASSWORD TAKEN, ASKED FOR AGAIN (0423, the R18 review). Where the database took a password set before the address
+  // was proven, it marks the account (profiles.password_taken_at), and its person is asked to choose one — once a page
+  // load, whichever screen, phone or browser they are next signed in on: confirmed by the link, by a code elsewhere, or
+  // in an iPhone build from before. After "Signed in as …" when that is asked first; never over a reset; not on the join
+  // screen that is setting it again (verifyCode, passwordFollows). The mark gone — a password set in another tab, or
+  // "Not now" — the sheet goes too, unless this tab is the one saving (its "Password saved." is seen).
+  const [choosePassword, setChoosePassword] = useState(false);
+  const chooseAfterNotice = useRef(false);   // asked once "Signed in as …" is answered Keep
+  const chooseAsked = useRef(false);         // asked (or not to be) this page load
+  const noticePending = useRef(false);       // "Signed in as …" is up, or about to be
+  const chooseHere = useRef(false);          // this tab's sheet is saving the password, or saved it
+  const seeMark = useCallback((row: Profile | null) => {
+    if (!row?.password_taken_at) { if (!chooseHere.current) { chooseAfterNotice.current = false; setChoosePassword(false); } return; }
+    if (chooseAsked.current || recoveryPending(null)) return;
+    chooseAsked.current = true;
+    if (noticePending.current) chooseAfterNotice.current = true; else setChoosePassword(true);
+  }, []);
 
   // When the profile was last read — the quiet re-read on return (below) waits 30 seconds after one.
   const lastProfileRead = useRef(0);
@@ -194,7 +213,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     setProfileStatus("ready");   // includes a genuine null: asked, answered, no row
     shown.current = uid;
     lastProfileRead.current = Date.now();
-  }, []);
+    seeMark(data as Profile | null);
+  }, [seeMark]);
 
   // WHO YOU ARE, READ AGAIN WHEN YOU COME BACK (2026-10-08). The profile — and the role in it — was
   // read when the session started and on a sign-in, and never again. Bringing someone onto the crew
@@ -215,12 +235,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       void sb.from("profiles").select("*").eq("id", uid).maybeSingle().then(({ data, error }) => {
         if (error || !data || ask !== profileAsk.current) return;   // a full read began since: it has the newer row
         setProfile((prev) => (prev && JSON.stringify(prev) === JSON.stringify(data) ? prev : (data as Profile)));
+        seeMark(data as Profile);
       });
     };
     document.addEventListener("visibilitychange", onBack);
     window.addEventListener("focus", onBack);
     return () => { document.removeEventListener("visibilitychange", onBack); window.removeEventListener("focus", onBack); };
-  }, [user]);
+  }, [user, seeMark]);
 
   // Capture a referral code from the invite link (/?ref=CODE) before sign-in so it
   // survives the auth round-trip; loadProfile attaches it on first profile load.
@@ -288,7 +309,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       setQueueOwner(u?.id ?? null);   // the offline queue replays only its own person's writes (R10b, components/offline)
       // A profile not yet read (or whose last read failed) is read on any event; one already here is not read again.
       if (u && (!same || back || event === "USER_UPDATED" || shown.current !== u.id)) loadProfile(u.id);
-      else if (!u) { profileAsk.current++; shown.current = null; setProfile(null); setProfileStatus("ready"); }   // signed out: known, not unknown — a read still out lands nowhere, and the next one is not quiet
+      else if (!u) {   // signed out: known, not unknown — a read still out lands nowhere, and the next one is not quiet
+        profileAsk.current++; shown.current = null; setProfile(null); setProfileStatus("ready");
+        // …and nothing asked of the person who left stays up, or stays asked (the R18 review, fourth pass: a sign-out in
+        // another tab left this tab's choose sheet open, its Save bound to fail).
+        chooseAsked.current = false; chooseAfterNotice.current = false; chooseHere.current = false; setChoosePassword(false);
+      }
       // A sign-out from anywhere — another tab, the phone's own — wipes too: the phone's storage, and what the shared stores
       // held for the person (their orders, their alerts — lib/shared, R13).
       if (event === "SIGNED_OUT") { wipeAccountData(); forgetPersonal(); }
@@ -299,7 +325,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       else if (u && event === "INITIAL_SESSION") import("@/lib/track").then((m) => m.trackUser("open"), () => {});
       // A reset link, or the reset code (verifyOtp type "recovery"), signs the user in with a short-lived recovery
       // session and fires this event — gate the app behind a "set a new password" overlay until they pick one.
-      if (event === "PASSWORD_RECOVERY") { recoveryPending(true); setRecovery(true); }
+      if (event === "PASSWORD_RECOVERY") { recoveryPending(true); setRecovery(true); chooseAsked.current = true; chooseAfterNotice.current = false; setChoosePassword(false); }
       // A reload in the middle of setting a new password (the overlay's Reload, above): raised again.
       else if (u && event === "INITIAL_SESSION" && recoveryPending(null)) setRecovery(true);
       // THE PAGE YOU STARTED ON (2026-10-09, lib/returnTo): a sign-in link lands on the front door; the
@@ -308,7 +334,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       // said once, with a way out — a link someone else asked for, opened here, signed this device into their account.
       if (u && (event === "SIGNED_IN" || event === "INITIAL_SESSION") && OPENED_WITH_SESSION && !linkSeen.current) {
         linkSeen.current = true;
-        if (!signinAskedHere()) setLinkNotice(u.email ?? "another account");
+        if (!signinAskedHere()) { setLinkNotice(u.email ?? "another account"); noticePending.current = true; }
       }
       if (u && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
         const to = takeReturn();
@@ -332,20 +358,27 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // publicOrigin (lib/native): the web's own address on the web, app.gt3pb.com in the iPhone app,
     // whose own address (capacitor://localhost) means nothing to a mail app.
     markSigninAsked();   // this device asked: its link reads as its own (R9, lib/linkSignin)
+    // joined_by_code (0423, the R18 review's fourth pass): a new account made by this code has GoTrue's random password on
+    // it, which nobody typed — the database takes it at the proof as any other, but never asks its person to choose one.
+    // Kept only when the account is made here; a sign-in to one already there changes nothing.
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
         emailRedirectTo: typeof window !== "undefined" ? publicOrigin() : undefined,
-        data: displayName ? { display_name: displayName } : undefined,
+        data: { ...(displayName ? { display_name: displayName } : {}), joined_by_code: true },
       },
     });
     return error ? { error: error.message } : {};
   }, []);
 
-  const verifyCode = useCallback<AuthCtx["verifyCode"]>(async (email, token, kind = "email") => {
+  const verifyCode = useCallback<AuthCtx["verifyCode"]>(async (email, token, kind = "email", opts) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
+    // The join screen holds the password it is about to set again (SignIn): the sign-in this code fires asks for nothing.
+    const asked = chooseAsked.current;
+    if (opts?.passwordFollows) chooseAsked.current = true;
     const { error } = await supabase.auth.verifyOtp({ email, token, type: kind });
+    if (error) chooseAsked.current = asked;
     return error ? { error: error.message } : {};
   }, []);
 
@@ -363,10 +396,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const refresh_token = p.get("refresh_token");
       if (!access_token || !refresh_token)
         return { error: "Paste the full URL from your browser's address bar after clicking the sign-in link." };
+      // The iPhone app's sign-in link (NativeBridge): the same notice when this phone asked for none (R9, lib/linkSignin) —
+      // known before the session lands, so "choose your password" (seeMark, as the profile lands) waits behind it.
+      const notice = !signinAskedHere();
+      if (notice) noticePending.current = true;
       const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
-      if (error) return { error: error.message };
-      // The iPhone app's sign-in link (NativeBridge): the same notice when this phone asked for none (R9, lib/linkSignin).
-      if (!signinAskedHere()) setLinkNotice(data.user?.email ?? "another account");
+      if (error) { if (notice) { noticePending.current = false; if (chooseAfterNotice.current) { chooseAfterNotice.current = false; setChoosePassword(true); } } return { error: error.message }; }
+      if (notice) setLinkNotice(data.user?.email ?? "another account");
       return {};
     } catch {
       return { error: "That doesn't look like a valid sign-in URL." };
@@ -433,11 +469,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   // Set the new password (the recovery session's, or — R8 — a join that met the account it already had: SignIn). The
   // overlay is not dropped here (R8, 2026-10-16): it dropped the moment the password saved, so "Password updated." was
   // never seen — the sheet vanished and the focus with it. Its Continue drops it (PasswordRecovery, onDone).
+  // A password set takes off the mark that asks for one (0423's password_chosen, in the database). The same password it
+  // already has is saved as asked (GoTrue's same_password): the join screen sets the typed one again after every code,
+  // and an account whose password was never taken still has it.
   const updatePassword = useCallback<AuthCtx["updatePassword"]>(async (password) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
     const { error } = await supabase.auth.updateUser({ password });
-    if (error) return { error: error.message };
-    return {};
+    if (!error) return {};
+    if ((error as { code?: string }).code === "same_password" || /different from the old password/i.test(error.message)) return {};
+    return { error: error.message };
   }, []);
 
   const signOut = useCallback(async () => {
@@ -479,7 +519,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       {children}
       {/* Saved is saved (R8): the reload flag goes the moment the new password is, not at Continue — a reload on "Password
           updated." would raise "Set a new password." again, and its Cancel sign them out of the account they just secured. */}
-      {linkNotice && <LinkSigninNotice email={linkNotice} onKeep={() => { markSigninAsked(); setLinkNotice(null); }} onLeave={() => { setLinkNotice(null); void signOut(); }} />}
+      {linkNotice && <LinkSigninNotice email={linkNotice} onKeep={() => { markSigninAsked(); setLinkNotice(null); noticePending.current = false; if (chooseAfterNotice.current) { chooseAfterNotice.current = false; setChoosePassword(true); } }} onLeave={() => { noticePending.current = false; chooseAfterNotice.current = false; setLinkNotice(null); void signOut(); }} />}
+      {/* Choosing is optional: Not now keeps them signed in (a code signs them in next time) and takes the mark off
+          (password_not_now), as a password saved does — asked once, not at every sign-in. */}
+      {choosePassword && <PasswordRecovery mode="choose" updatePassword={async (pw) => { chooseHere.current = true; const r = await updatePassword(pw); if (r.error) chooseHere.current = false; return r; }}
+        onDone={() => { chooseHere.current = false; setChoosePassword(false); }}
+        onCancel={() => { setChoosePassword(false); void supabase?.rpc("password_not_now").then(() => undefined, () => undefined); }} />}
       {recovery && <PasswordRecovery updatePassword={async (pw) => { const r = await updatePassword(pw); if (!r.error) recoveryPending(false); return r; }} onDone={() => { recoveryPending(false); setRecovery(false); }} onCancel={() => { recoveryPending(false); setRecovery(false); signOut(); }} />}
     </Ctx.Provider>
   );

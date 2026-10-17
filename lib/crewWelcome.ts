@@ -39,6 +39,8 @@ export type WelcomeFacts = {
   track?: Track | null;
   /** The person who brought them on (the owner pressing the button). */
   from?: string | null;
+  /** The password the account was made with was taken as it came onto the crew (0423, take_signup_password). */
+  passwordTaken?: boolean;
 };
 
 const first = (n: string | null | undefined) => (n ?? "").trim().split(/\s+/)[0] || "";
@@ -52,6 +54,7 @@ export function crewWelcome(f: WelcomeFacts): { subject: string; message: string
     "",
     `Welcome to GT3 Performance Bar. You're on the crew as ${role}${where}.${f.leadsCity && f.city ? ` You lead ${f.city}.` : ""}`,
   ];
+  if (f.passwordTaken) lines.push("", "One thing first: your old password stops working with your new role. Sign in with the code we email you, then choose a new password.");
   if (f.track?.blurb) lines.push("", f.track.blurb);
   lines.push("", ...startLetterLines({ track: f.track?.label ?? null }, CONNECT_APP));
   if (f.cityLead && !f.leadsCity && f.city) lines.push("", `${f.cityLead} leads ${f.city} — they're your first call.`);

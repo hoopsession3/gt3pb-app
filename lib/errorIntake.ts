@@ -3,6 +3,7 @@ import { supabaseAdmin } from "./supabaseAdmin";
 import { raiseAlert, raiseAlertOnce } from "./serverAlerts";
 import { alertPath, errorKey, reportWords, SERVER_ALERTS, SERVER_ROWS, ERRORS_LINK } from "./errorKey";
 import { etToday } from "./dates";
+import { limitAddress } from "./rateLimit";
 
 // ERROR INTAKE — the one place "the app broke" is written down.
 //
@@ -48,6 +49,7 @@ export type ErrorReport = {
   skew?: boolean;         // true = a stale-build crash the client is about to heal
   browser?: boolean;      // true = sent by a browser (/api/errors/report): anyone can send one (R9) — see below
   ip?: string;            // a browser's report: the address it came from — its own share of the hour's new errors (R18)
+  failure?: boolean;      // a browser's report of a read or a write the database refused (lib/failureReport), not a crash (R18)
 };
 
 // What a browser's report may put in an alert, the server's own budget, where the crew reads what was filed, where a bug
@@ -63,8 +65,12 @@ export const NEW_ROWS = { bucket: "client-errors:new", windowMs: 3_600_000, max:
 // new error asks its own address's five first — a repeat (a bump) asks nothing — and only then the shared thirty, which
 // a refused one never spends. Five, not one: a truck's phones and an office share an address behind one router.
 export const NEW_ROWS_PER_ADDRESS = { windowMs: 3_600_000, max: 5 } as const;
-/** The limiter's bucket for one address's new browser errors. Pure. */
-export const addressBucket = (ip: string): string => `client-errors:new:${ip}`;
+// A page's refused reads (lib/failureReport — six a page load at most) have a share of their own (R18 review): spending
+// the crashes' five, a page whose reads all failed had the crash that followed dropped here.
+export const NEW_FAILURES_PER_ADDRESS = { windowMs: 3_600_000, max: 6 } as const;
+/** The limiter's bucket for one address's new browser errors — an IPv6 caller's /64, as every limit counts it — a
+ *  database failure's apart from a crash's. Pure. */
+export const addressBucket = (ip: string, failure = false): string => `client-errors:new${failure ? ":db" : ""}:${limitAddress(ip)}`;
 export const NEW_ALERTS = { bucket: "client-errors:alert", windowMs: 600_000, max: 5 } as const;
 /** Whose budget a report spends: a route's own throw the server's, anything a browser could have sent the browsers'. Pure. */
 export function budgetsFor(r: Pick<ErrorReport, "ua" | "browser">): { rows: typeof NEW_ROWS | typeof SERVER_ROWS; alerts: typeof NEW_ALERTS | typeof SERVER_ALERTS } {
@@ -114,7 +120,8 @@ export async function fileError(r: ErrorReport, deps: IntakeDeps = { admin: supa
     // anything else (null, an error) is the limiter not answering, and the intake fails open.
     const budget = budgetsFor(r);
     if (r.browser === true && r.ip) {
-      const { data: mineFits } = await admin.rpc("rate_limit_hit", { p_bucket: addressBucket(r.ip), p_window_ms: NEW_ROWS_PER_ADDRESS.windowMs, p_max: NEW_ROWS_PER_ADDRESS.max });
+      const share = r.failure === true ? NEW_FAILURES_PER_ADDRESS : NEW_ROWS_PER_ADDRESS;
+      const { data: mineFits } = await admin.rpc("rate_limit_hit", { p_bucket: addressBucket(r.ip, r.failure === true), p_window_ms: share.windowMs, p_max: share.max });
       if (mineFits === false) return false;
     }
     const { data: rowFits } = await admin.rpc("rate_limit_hit", { p_bucket: budget.rows.bucket, p_window_ms: budget.rows.windowMs, p_max: budget.rows.max });

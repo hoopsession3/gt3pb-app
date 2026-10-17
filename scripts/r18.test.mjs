@@ -39,6 +39,25 @@ const BASE = "https://db.example.test";
   ok("class: R13's kinds stand — a missing column, a grant, a refusal, no signal",
     FC.reportable({ code: "42703", message: "column a does not exist" }) === "schema" && FC.reportable({ code: "42501", message: "permission denied" }) === "permission"
       && FC.reportable({ code: "P0001", message: "That stop is closed." }) === null && FC.reportable({ message: "Failed to fetch" }) === null);
+  // R18 review: the app's own functions say no with codes of their own (counted in supabase/migrations: PT404 ×25,
+  // PT409 ×18, PT429, P0002 ×11, 28000 ×10, 55000 ×8, and 42501 ×54 with a sentence) — refusals, never reports.
+  const own = [
+    { code: "PT404", message: "That order isn't there." }, { code: "PT409", message: "That stop already closed." }, { code: "PT429", message: "Too many tries." },
+    { code: "P0002", message: "No such pack." }, { code: "28000", message: "Sign in to change a delivery." }, { code: "55000", message: "That week is closed." },
+    { code: "42501", message: "staff only" }, { code: "42501", message: "Only the crew can log a delivery." }, { code: "42501", message: "not_allowed" },
+  ];
+  ok("class: the app's own refusals — PT4xx, P0002, 28000, 55000, a 42501 in a sentence — are refusals, not reported",
+    own.every((e) => FC.failureClass(e) === "refusal" && FC.reportable(e) === null), own.map((e) => `${e.code}:${FC.failureClass(e)}`));
+  ok("class: a 42501 in Postgres's own words is still a grant or a row rule, and reported",
+    FC.reportable({ code: "42501", message: "permission denied for table orders" }) === "permission"
+      && FC.reportable({ code: "42501", message: 'new row violates row-level security policy for table "notes"' }) === "permission"
+      && FC.reportable({ code: "42501", message: "permission denied for function cron_watch" }) === "permission");
+  ok("class: no free connection in time (PGRST003) is the network's too",
+    FC.failureClass({ code: "PGRST003", message: "Timed out acquiring connection from connection pool." }) === "network" && FC.reportable({ code: "PGRST003", message: "x" }) === null);
+  ok("class: a coded answer nobody has named (an internal error) is still 'other' — the screen's reader reports it",
+    FC.reportable({ code: "XX000", message: "internal error" }) === "other" && FC.reportable({ code: "PGRST100", message: "failed to parse filter" }) === "other");
+  ok("class (review): a deadlock is two writers taking locks in different orders — ours, reported; a PT5xx is not a person's refusal",
+    FC.reportable({ code: "40P01", message: "deadlock detected" }) === "other" && FC.reportable({ code: "PT500", message: "x" }) === "other");
 }
 
 // ── lib/failureReport: once per kind, code and words, whichever door says it ───────────────────────────────────────────
@@ -68,6 +87,11 @@ const BASE = "https://db.example.test";
     if (url.pathname === "/rest/v1/stops") return json(401, { code: "PGRST303", message: "JWT expired" });
     if (url.pathname === "/rest/v1/orders") return json(409, { code: "23505", message: "duplicate key value violates unique constraint" });
     if (url.pathname === "/rest/v1/menu") return new Response("<html>Bad gateway</html>", { status: 502, headers: { "content-type": "text/html" } });
+    if (url.pathname === "/rest/v1/rpc/claim_reserve") return json(403, { code: "42501", message: "staff only" });
+    if (url.pathname === "/rest/v1/rpc/internal_boom") return json(500, { code: "XX000", message: "internal error" });
+    if (url.pathname === "/rest/v1/rpc/parse_me") return json(400, { code: "PGRST100", message: "failed to parse filter" });
+    if (url.pathname === "/rest/v1/rpc/ambiguous") return json(400, { code: "42702", message: "column reference \"id\" is ambiguous" });
+    if (url.pathname === "/rest/v1/rpc/deadlocked") return json(409, { code: "40P01", message: "deadlock detected" });
     if (url.pathname === "/auth/v1/token") return json(400, { code: "invalid_grant", message: "Invalid login credentials" });
     if (url.pathname === "/rest/v1/down") throw new TypeError("Failed to fetch");
     return json(200, [{ id: 1 }]);
@@ -93,6 +117,26 @@ const BASE = "https://db.example.test";
   await door(`${BASE}/rest/v1/orders`, { method: "POST", body: "{}" });
   await settle();
   ok("door: no such row for .single(), a token that ran out and a person's refusal are not reported", sent.length === n, sent.slice(n));
+  // R18 review: the door hears answers a screen asked for knowing they may fail, and says itself — so it says the kinds
+  // that are never a person's: schema, permission, and a coded answer that is always a bug of ours (a 5xx, class 42, 21000,
+  // a deadlock, XX…). A coded "other" in a 4xx is the screen's own reader's to report.
+  await door(`${BASE}/rest/v1/rpc/claim_reserve`, { method: "POST", body: "{}" }).then(() => null);
+  await door(`${BASE}/rest/v1/rpc/parse_me`, { method: "GET" }).then(() => null);
+  await settle();
+  ok("door: a function's own 'staff only' (42501 in a sentence) and a 4xx it can't name are not said at the door", sent.length === n, sent.slice(n));
+  FR.reportFailure("call", { code: "PGRST100", message: "failed to parse filter" }, "parse_me()");
+  ok("door: …the screen's own reader still reports the coded 'other'", sent.at(-1) === "[call: parse_me()] other PGRST100 — failed to parse filter", sent.at(-1));
+  sent.length = n;
+  {
+    const fresh2 = fresh();   // a page load of its own: the one above is near its MAX_PER_LOAD
+    const door2 = fresh2.FR.reportFailingAnswers(stand);
+    await door2(`${BASE}/rest/v1/rpc/internal_boom`, { method: "POST", body: "{}" });
+    await door2(`${BASE}/rest/v1/rpc/ambiguous`, { method: "POST", body: "{}" });
+    await door2(`${BASE}/rest/v1/rpc/deadlocked`, { method: "POST", body: "{}" });
+    await settle();
+    ok("door (review): an internal error (5xx), an ambiguous column (42702) and a deadlock (40P01) are said at the door — always ours",
+      fresh2.sent.length === 3 && fresh2.sent.some((m) => /XX000/.test(m)) && fresh2.sent.some((m) => /42702/.test(m)) && fresh2.sent.some((m) => /40P01/.test(m)), fresh2.sent);
+  }
   const html = await door(`${BASE}/rest/v1/menu?select=*`);
   await settle();
   ok("door: an answer that isn't the database's words (a gateway's page) is passed on, unreported, unbroken", sent.length === n && html.status === 502 && (await html.text()).includes("Bad gateway"));
@@ -183,6 +227,111 @@ const BASE = "https://db.example.test";
   ok("window: in winter the day starts at 05:00Z", R.salesWindowStart(1, at("2026-12-01T20:00:00-05:00")) === "2026-12-01T05:00:00.000Z", R.salesWindowStart(1, at("2026-12-01T20:00:00-05:00")));
   ok("window: across the clock change (seven days back from November 3 is October 28, still EDT)", R.salesWindowStart(7, at("2026-11-03T12:00:00-05:00")) === "2026-10-28T04:00:00.000Z", R.salesWindowStart(7, at("2026-11-03T12:00:00-05:00")));
   ok("window: nothing or nonsense is one day", R.salesWindowStart(0, at("2026-10-17T12:00:00-04:00")) === "2026-10-17T04:00:00.000Z" && R.salesWindowStart(NaN, at("2026-10-17T12:00:00-04:00")) === "2026-10-17T04:00:00.000Z");
+}
+
+// ── components/ErrorReporter: the database's failures never spend the crash cap (R18 review) ───────────────────────────
+{
+  const posted = [];
+  const g = globalThis;
+  const keep = { window: g.window, fetch: g.fetch, navigator: Object.getOwnPropertyDescriptor(g, "navigator") };
+  g.window = { location: { href: "https://app.example.test/crew", origin: "https://app.example.test", pathname: "/crew", search: "", hash: "" } };
+  Object.defineProperty(g, "navigator", { value: { userAgent: "test", onLine: true, sendBeacon: (_u, b) => { posted.push(b); return true; } }, configurable: true });
+  try {
+    const ER = routeLoader({ react: { useEffect: () => {} }, "@/lib/native": { APP_BUILD: false, apiUrl: (p) => p }, "@/lib/reportUrl": { shareableUrl: (l) => l.href } })("components/ErrorReporter.tsx");
+    for (let i = 0; i < 12; i++) ER.reportClientError({ message: `[load: t${i}] schema 42703 — column t.c${i} does not exist`, failure: true });
+    ER.reportClientError({ message: "TypeError: x is undefined", stack: "TypeError\n    at Pass (pass.js:1:2)" });
+    ok("reporter: a page whose reads all failed still says the crash that followed — failures are capped by lib/failureReport, not here",
+      posted.length === 13, posted.length);
+    for (let i = 0; i < 12; i++) ER.reportClientError({ message: `crash ${i}`, stack: `E\n    at f${i} (a.js:1:1)` });
+    ok("reporter: crashes still stop at eight a page load", posted.length === 13 + 7, posted.length);
+  } finally {
+    g.window = keep.window; g.fetch = keep.fetch;
+    if (keep.navigator) Object.defineProperty(g, "navigator", keep.navigator); else delete g.navigator;
+  }
+}
+
+// ── lib/rateLimit limitAddress: an IPv6 caller is its /64 (R18 review) ─────────────────────────────────────────────────
+{
+  const RL = routeLoader()("lib/rateLimit.ts");
+  const req = (xff) => new Request("https://x.test/", { headers: xff ? { "x-forwarded-for": xff } : {} });
+  ok("limit address: IPv4 as it is; the platform's first entry; none is 'anon'",
+    RL.callerIp(req(" 9.8.7.6 , 10.0.0.1")) === "9.8.7.6" && RL.callerIp(req("")) === "anon" && RL.callerIp(req(null)) === "anon");
+  ok("limit address: two addresses in one IPv6 /64 are one caller",
+    RL.limitAddress("2001:db8:1:2:aaaa::1") === "2001:db8:1:2::/64" && RL.limitAddress("2001:0DB8:0001:0002:ffff:ffff:ffff:fffe") === "2001:db8:1:2::/64");
+  ok("limit address: …and the next /64 is another", RL.limitAddress("2001:db8:1:3::1") === "2001:db8:1:3::/64");
+  ok("limit address: shortened forms, a zone, brackets — the same /64",
+    RL.limitAddress("2001:db8::1") === "2001:db8:0:0::/64" && RL.limitAddress("[2001:db8:1:2::9]") === "2001:db8:1:2::/64" && RL.limitAddress("fe80::1%eth0") === "fe80:0:0:0::/64" && RL.limitAddress("::1") === "0:0:0:0::/64");
+  ok("limit address: an IPv4 address written as IPv6 is its IPv4 — dotted, or in hex (review)",
+    RL.limitAddress("::ffff:203.0.113.9") === "203.0.113.9" && RL.limitAddress("::ffff:c000:201") === "192.0.2.1" && RL.limitAddress("::FFFF:CB00:7109") === "203.0.113.9");
+  ok("limit address (review): a port after an IPv4 address is dropped; a quad that isn't an address is kept as it came, never lumped into one bucket",
+    RL.limitAddress("203.0.113.9:4431") === "203.0.113.9" && RL.limitAddress("999.1.1.1") === "999.1.1.1" && RL.limitAddress("2001:db8::1.2.3.999") === "2001:db8::1.2.3.999"
+      && RL.limitAddress("2001:db8:1:2:1.2.3.4::") === "2001:db8:1:2:1.2.3.4::" && RL.limitAddress("64:ff9b::192.0.2.33") === "64:ff9b:0:0::/64");
+  ok("limit address: what isn't an address is kept as it came (and once made a /64, stays one)",
+    RL.limitAddress("not-an-address") === "not-an-address" && RL.limitAddress("1:2:3") === "1:2:3" && RL.limitAddress("2001:db8:1:2::/64") === "2001:db8:1:2::/64");
+  const EI = routeLoader({ "./supabaseAdmin": { supabaseAdmin: null }, "./serverAlerts": { raiseAlert: async () => {}, raiseAlertOnce: async () => {} } })("lib/errorIntake.ts");
+  ok("limit address: a browser's share of new errors is its /64's", EI.addressBucket("2001:db8:1:2::77") === EI.addressBucket("2001:db8:1:2:9::1") && EI.addressBucket("203.0.113.9") === "client-errors:new:203.0.113.9");
+  // R18 review: a page's refused reads have their own share — six, a page load's most — apart from its crashes' five.
+  const asked = [];
+  const admin = { rpc: async (fn, a) => { asked.push({ fn, ...a }); return { data: fn === "bump_client_error" ? false : true, error: null }; },
+    from: () => ({ insert: () => ({ select: () => ({ single: async () => ({ data: { id: "0c418000-0000-4000-8000-0000000000e1" }, error: null }) }) }) }) };
+  const deps = { admin, raiseAlert: async () => {}, raiseAlertOnce: async () => true };
+  await EI.fileError({ message: "[load: events] schema 42703 — column events.eta does not exist", url: "https://app.example.test/crew", ua: "t", browser: true, ip: "203.0.113.9", failure: true }, deps);
+  await EI.fileError({ message: "TypeError: x is undefined", url: "https://app.example.test/crew", ua: "t", browser: true, ip: "203.0.113.9" }, deps);
+  const shares = asked.filter((a) => a.fn === "rate_limit_hit" && /^client-errors:new:|^client-errors:new:db:/.test(a.p_bucket)).map((a) => `${a.p_bucket}/${a.p_max}`);
+  ok("limit address (review): a database failure spends its own share (six), a crash the crashes' (five) — never each other's",
+    JSON.stringify(shares) === JSON.stringify(["client-errors:new:db:203.0.113.9/6", "client-errors:new:203.0.113.9/5"]), shares);
+}
+
+// ── lib/fileType: what kind of file this is, by what was said and then by its name (R18 review) ──────────────────────
+{
+  const FT = routeLoader()("lib/fileType.ts");
+  ok("file type: what the file was handed over as, without its parameters", FT.fileType({ type: "Video/MP4; codecs=avc1", name: "a.mp4" }) === "video/mp4");
+  ok("file type: none said, or only 'some bytes' — its name says (any case)",
+    FT.fileType({ type: "", name: "Clip.MOV" }) === "video/quicktime" && FT.fileType({ type: "application/octet-stream", name: "notes.md" }) === "text/markdown"
+      && FT.fileType({ type: "", name: "IMG_0001.HEIC" }) === "image/heic");
+  ok("file type: another name for what the extension says is the extension's type — a real Excel sheet stays one",
+    FT.fileType({ type: "application/vnd.ms-excel", name: "sales.csv" }) === "text/csv" && FT.fileType({ type: "application/vnd.ms-excel", name: "sales.xls" }) === "application/vnd.ms-excel"
+      && FT.fileType({ type: "text/x-markdown", name: "a.md" }) === "text/markdown" && FT.fileType({ type: "image/jpg", name: "a.jpg" }) === "image/jpeg"
+      && FT.fileType({ type: "video/x-m4v", name: "Trip.m4v" }) === "video/mp4");   // Safari's name for an iPhone .m4v (the third pass)
+  ok("file type: a type said is never overruled by a name that disagrees", FT.fileType({ type: "image/png", name: "photo.jpg" }) === "image/png");
+  ok("file type: neither saying — nothing", FT.fileType({ type: "", name: "README" }) === "" && FT.fileType({ type: "application/octet-stream", name: "x.bin" }) === "" && FT.fileType({}) === "");
+}
+
+// ── lib/bucketTakes: what each bucket takes, said before a byte goes up — and the same as the database's (R18 review) ──
+{
+  const BT = routeLoader()("lib/bucketTakes.ts");
+  const MB = 1024 * 1024;
+  ok("bucket: a file past the size is refused in a person's words",
+    BT.bucketRefusal("brand", { size: 13 * MB, type: "image/png" }) === "That file is over 12 MB — pick a smaller one." && BT.bucketRefusal("brand", { size: 12 * MB, type: "image/png" }) === null);
+  ok("bucket: a type it doesn't take is refused, saying what it takes",
+    BT.bucketRefusal("avatars", { size: 1, type: "image/avif" }) === "That kind of file can't go here — it takes a photo (JPEG, PNG, WebP, HEIC or GIF)."
+      && BT.bucketRefusal("note-files", { size: 1, type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }) === "That kind of file can't go here — it takes a picture, a PDF or a text file.");
+  ok("bucket: a wildcard takes the family; a type with parameters is its type",
+    BT.bucketRefusal("content", { size: 1, type: "video/mp4;codecs=avc1" }) === null && BT.bucketRefusal("brand", { size: 1, type: "image/heic" }) === null
+      && BT.bucketRefusal("receipts", { size: 1, type: "application/pdf" }) === null);
+  ok("bucket (review): a type the phone didn't name is read from the file's name; Excel's name for a .csv is a .csv; with neither, it's said in words",
+    BT.bucketRefusal("intake", { size: 1, type: "", name: "notes.md" }) === null && BT.bucketRefusal("intake", { size: 1, type: "application/vnd.ms-excel", name: "sales.csv" }) === null
+      && BT.bucketRefusal("intake", { size: 1, type: "application/vnd.ms-excel", name: "sales.xls" }) === "That kind of file can't go here — it takes a picture, a PDF or a text file."
+      && BT.bucketRefusal("intake", { size: 1, type: "" }) === "We couldn't tell what kind of file that is — this takes a picture, a PDF or a text file.");
+  ok("bucket (review): the shop takes its picker's types, type for type — no SVG, no HEIC most browsers can't show",
+    BT.bucketRefusal("shop", { size: 1, type: "image/svg+xml", name: "logo.svg" }) !== null && BT.bucketRefusal("shop", { size: 1, type: "image/heic" }) !== null
+      && BT.bucketRefusal("shop", { size: 1, type: "", name: "clip.mov" }) === null && BT.bucketRefusal("shop", { size: 1, type: "image/avif" }) === null);
+  ok("bucket: a bucket with no limits of its own is not judged here", BT.bucketRefusal("somewhere-else", { size: 10 ** 12, type: "x/y" }) === null);
+  // The same as the database's own: 0421 (avatars, vip), 0423 (the rest), 0292 (a receipt's size).
+  const { readFileSync, readdirSync } = await import("node:fs");
+  const mig = (prefix) => readFileSync(new URL(`../supabase/migrations/${readdirSync(new URL("../supabase/migrations/", import.meta.url)).find((f) => f.startsWith(prefix))}`, import.meta.url), "utf8");
+  const db = {};
+  for (const sql of [mig("0421_"), mig("0423_")]) {
+    for (const m of sql.matchAll(/update storage\.buckets set (?:file_size_limit = (\d+),\s*)?allowed_mime_types = array\[([^\]]*)\]\s*where id (?:= '([\w-]+)'|in \(([^)]*)\))/g)) {
+      const ids = m[3] ? [m[3]] : m[4].split(",").map((x) => x.trim().replace(/'/g, ""));
+      for (const id of ids) db[id] = { size: m[1] ? Number(m[1]) : (db[id]?.size ?? null), types: m[2].split(",").map((x) => x.trim().replace(/'/g, "")) };
+    }
+  }
+  db.receipts.size ??= Number(/values \('receipts', 'receipts', false, (\d+)\)/.exec(mig("0292_"))[1]);
+  const lib = Object.fromEntries(Object.entries(BT.BUCKET_TAKES).map(([k, v]) => [k, { size: v.maxBytes, types: [...v.types] }]));
+  ok("bucket: the app's table is the database's — every bucket, its size and its types (0421, 0423, 0292)",
+    JSON.stringify(Object.keys(lib).sort()) === JSON.stringify(Object.keys(db).sort())
+      && Object.keys(db).every((k) => lib[k].size === db[k].size && JSON.stringify(lib[k].types) === JSON.stringify(db[k].types)), { lib, db });
 }
 
 console.log(`R18 — WHAT THE DATABASE REFUSED IS SAID AT ITS DOOR, WHAT IS TYPED STAYS OUT OF THE ADDRESS: ${pass} passed, ${fail} failed`);

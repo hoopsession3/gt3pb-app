@@ -149,7 +149,8 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
     if (token.length < MIN_CODE || busy) return;
     setBusy(true); setErr("");
     const kind = cs?.kind ?? "email";
-    const { error } = await verifyCode(email.trim(), token, kind);
+    // The password this form holds is set again right after the code (below) — the sign-in it fires asks for nothing.
+    const { error } = await verifyCode(email.trim(), token, kind, { passwordFollows: step === "confirm" && !!password });
     setBusy(false);
     if (error) {
       setErr(/expired|invalid/i.test(error)
@@ -161,12 +162,19 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
       // THE ACCOUNT THEY ALREADY HAD (R8). They asked to join with a password, and the code they just typed proves the
       // email is theirs — the same proof a reset asks for — so the password they chose becomes the account's, and they
       // are told what happened: this screen is about to give way to the signed-in page.
-      if (step === "confirm" && hadAccount.current && password) {
+      // AND THE ACCOUNT THEY JUST MADE (R18 review). A password set before the address was proven no longer opens the
+      // account once it is (password_waits_for_proof — 0423 where a crew role is at stake, held 0424 on every account:
+      // whoever set it may not be whoever owns the address). The one who typed this code on this screen is both — the
+      // password is still in this form, never stored — so it is set again now, under the proven address; a join that kept
+      // it loses nothing.
+      if (step === "confirm" && password) {
+        const had = hadAccount.current;
         hadAccount.current = false;
         const set = await updatePassword(password);
-        toast(set.error
+        if (had) toast(set.error
           ? "This email already had an account — you’re signed in to it. Its password didn’t change."
           : "This email already had an account — you’re signed in to it, with the password you just chose.", "info");
+        else if (set.error) toast("You’re in — but your password didn’t save. Next time, have us email you a code, or reset it.", "info");
       }
     }
     // a reset code's session raises AuthProvider's "Set a new password." over everything (PASSWORD_RECOVERY)

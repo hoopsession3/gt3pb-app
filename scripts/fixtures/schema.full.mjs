@@ -15,6 +15,7 @@
 // also need care in production, or a stand-in this file should grow.
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
+import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,10 +37,19 @@ export const SUPABASE_STANDINS = `
   create table auth.users (id uuid primary key default gen_random_uuid(), email text, phone text,
     raw_user_meta_data jsonb default '{}'::jsonb, raw_app_meta_data jsonb default '{}'::jsonb,
     created_at timestamptz default now(), last_sign_in_at timestamptz, email_confirmed_at timestamptz,
+    confirmation_sent_at timestamptz,      -- set when GoTrue sends a confirmation (an account made unproven — R18, 0423)
     encrypted_password text default '');   -- '' for an account with no password (a code or a provider), as GoTrue keeps it
   -- provider and provider_id as Supabase keeps them (Apple's sub is an Apple identity's provider_id): 0403 asks by them.
   create table auth.identities (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade,
     provider text, provider_id text, identity_data jsonb default '{}'::jsonb);
+  -- An account's sign-ins as GoTrue keeps them: a session, and the refresh tokens that renew it (gone with it — and a
+  -- token from before sessions were kept carries only its user, as text). 0423 ends them where it takes a password.
+  create table auth.sessions (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
+    created_at timestamptz default now());
+  create table auth.refresh_tokens (id bigserial primary key, token text, user_id varchar(255), revoked boolean default false,
+    session_id uuid references auth.sessions(id) on delete cascade, created_at timestamptz default now());
+  -- pgcrypto in extensions, as Supabase keeps it (0423's set_password_by_hand: a bcrypt hash GoTrue reads).
+  create extension if not exists pgcrypto schema extensions;
   create or replace function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create or replace function auth.role() returns text language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'anon') $$;
   create or replace function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
@@ -74,7 +84,7 @@ export function migrationFiles() {
  * (the schema as production had it, for a test that shows what a migration changed). Throws with the
  * file that would not load. */
 export async function fullSchema({ before } = {}) {
-  const db = new PGlite({ extensions: { pg_trgm } });
+  const db = new PGlite({ extensions: { pg_trgm, pgcrypto } });
   await db.exec(SUPABASE_STANDINS);
   for (const f of migrationFiles().filter((f) => !before || f < before)) {
     const sql = readFileSync(join(DIR, f), "utf8").replace(/create extension if not exists pg_cron[^;]*;/gi, "");

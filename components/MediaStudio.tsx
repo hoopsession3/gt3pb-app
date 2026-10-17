@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import Icon from "@/components/Icon";
 import { uploadToBucket } from "@/lib/uploads";
+import { fileType } from "@/lib/fileType";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import {
   ACCEPT, BUCKET, MAX_ITEMS, makeCover, move, prettyBytes, removeAt, setAlt,
@@ -41,7 +42,8 @@ export default function MediaStudio({ productId, value, onChange }: Props) {
 
     for (const file of chosen) {
       if (queue.length >= room) { problems.push(`${file.name} — a product holds ${MAX_ITEMS} items.`); continue; }
-      const v = validateFile(file);
+      // The type as lib/fileType reads it — what the phone said, else what the name says (a .mov handed over with none).
+      const v = validateFile({ name: file.name, size: file.size, type: fileType(file) });
       if (!v.ok) { problems.push(v.reason); continue; }
       queue.push({ file, kind: v.kind });
     }

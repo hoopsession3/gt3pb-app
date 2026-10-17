@@ -26,7 +26,38 @@ export async function limitsFit(db: Pick<SupabaseClient, "rpc">, limits: readonl
   return true;
 }
 
-/** The address a request came from, as the platform says it (Vercel sets x-forwarded-for; its first entry is the caller). */
+/** The address a request came from, as the platform says it (Vercel sets x-forwarded-for; its first entry is the caller),
+ *  as a limit counts it (limitAddress). Every per-caller limit in the app asks with this. */
 export function callerIp(req: Request): string {
-  return (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+  return limitAddress((req.headers.get("x-forwarded-for") || "").split(",")[0]) || "anon";
+}
+
+/** A caller as a limit counts them (R18 review): an IPv4 address as it is, an IPv6 one by its /64 — the block a home, a
+ *  phone or a server is handed whole, so a script inside it could walk to a fresh address, and a fresh limit, at will.
+ *  An IPv4 address written as IPv6 (::ffff:a.b.c.d, or in hex ::ffff:c000:201) is its IPv4; a port after one is dropped.
+ *  Anything that isn't an address is kept as it came. Pure. */
+export function limitAddress(ip: string): string {
+  const a = ip.trim().replace(/^\[|\](?::\d+)?$/g, "").replace(/%.*$/, "").toLowerCase();
+  const quad = (q: string) => q.split(".").every((n) => Number(n) <= 255);
+  const v4 = /^(?:::ffff:)?(\d{1,3}(?:\.\d{1,3}){3})$/.exec(a) ?? /^(\d{1,3}(?:\.\d{1,3}){3}):\d{1,5}$/.exec(a);
+  if (v4) return quad(v4[1]) ? v4[1] : a;
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(a);
+  if (hex) { const hi = parseInt(hex[1], 16), lo = parseInt(hex[2], 16); return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`; }
+  if (!a.includes(":")) return a;
+  const halves = a.split("::");
+  if (halves.length > 2) return a;
+  const head = halves[0] ? halves[0].split(":") : [], tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  // An IPv4 address may close an IPv6 one (its last 32 bits) — only there, and only a real one.
+  const end = halves.length === 2 ? tail : head;   // the address's own last group — never one "::" follows
+  const last = end.length ? end[end.length - 1] : "";
+  if (last.includes(".")) {
+    const q = last;
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(q) || !quad(q)) return a;
+    end.splice(-1, 1, "0", "0");
+  }
+  const gap = 8 - head.length - tail.length;
+  if (gap < 0 || (halves.length === 1 && gap !== 0)) return a;
+  const all = [...head, ...Array<string>(halves.length === 2 ? gap : 0).fill("0"), ...tail];
+  if (!all.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return a;
+  return `${all.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`;
 }

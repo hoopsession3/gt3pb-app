@@ -48,12 +48,12 @@ export function toKind(v: unknown): MediaKind {
 
 /** MIME → kind. Anything unrecognised is not media at all; callers reject before this matters. */
 export function kindOfType(mime: string): MediaKind | null {
-  const m = (mime || "").toLowerCase();
+  // Type for type, as the shop's bucket takes them (0423, R18 review): a phone's "video/mp4;codecs=…" is its type without
+  // the parameters; anything else — an SVG, a HEIC most browsers can't show — is not shop media. A type the phone didn't
+  // name is read from the file's name by the picker (components/MediaStudio, lib/fileType), never guessed from a prefix.
+  const m = (mime || "").split(";")[0].trim().toLowerCase();
   if ((IMAGE_TYPES as readonly string[]).includes(m)) return "image";
   if ((VIDEO_TYPES as readonly string[]).includes(m)) return "video";
-  // Some phones hand up "video/mp4;codecs=..." or an empty type for .mov — fall back to the prefix.
-  if (m.startsWith("image/")) return "image";
-  if (m.startsWith("video/")) return "video";
   return null;
 }
 
@@ -66,8 +66,8 @@ export const prettyBytes = (n: number): string =>
 
 /** The gate the picker runs before a byte is uploaded. Returns a reason a human can act on. */
 export function validateFile(file: { name?: string; type?: string; size?: number }): { ok: true; kind: MediaKind } | { ok: false; reason: string } {
-  const kind = kindOfType(file.type ?? "");
-  if (!kind) return { ok: false, reason: `${file.name || "That file"} isn't a photo or a video.` };
+  const kind = kindOfType(file.type ?? "");   // the picker hands the type lib/fileType read (components/MediaStudio)
+  if (!kind) return { ok: false, reason: `${file.name || "That file"} can't go in the shop — it takes a JPEG, PNG, WebP, AVIF or GIF picture, or an MP4, MOV or WebM video.` };
   const size = file.size ?? 0;
   const cap = maxBytesFor(kind);
   if (size > cap) {

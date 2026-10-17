@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FOUNDING_MARKET } from "./markets";
+import { BUCKET_TAKES, bucketRefusal } from "./bucketTakes";
+import { fileType } from "./fileType";
 
 // A RECEIPT, FILED — one home.
 //
@@ -12,7 +14,7 @@ import { FOUNDING_MARKET } from "./markets";
 // overwrite each other and a receipt can always be found from its row. A brand-new path is an
 // insert, which the bucket allows; nothing here asks for update rights it does not have.
 
-export const RECEIPT_MAX_BYTES = 20 * 1024 * 1024;
+export const RECEIPT_MAX_BYTES = BUCKET_TAKES.receipts.maxBytes;   // 0292's 20 MB, the bucket's own (lib/bucketTakes)
 
 export function receiptPath(expense: { id: string; market?: string | null }, fileName: string): string {
   const ext = (String(fileName).split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
@@ -26,8 +28,13 @@ export async function attachReceipt(
   file: File,
 ): Promise<string | null> {
   if (file.size > RECEIPT_MAX_BYTES) return "That file is over 20MB — photograph it instead of scanning it.";
+  const refused = bucketRefusal("receipts", file);   // a photo or a PDF (0423) — said here, not by storage
+  if (refused) return refused;
   const path = receiptPath(expense, file.name);
-  const up = await sb.storage.from("receipts").upload(path, file, { upsert: false, contentType: file.type || undefined });
+  // Sent as what it is (lib/fileType): a scan handed over with no type would reach storage as "some bytes" and be refused.
+  const type = fileType(file);
+  const body = type && type !== file.type && typeof File !== "undefined" ? new File([file], file.name, { type }) : file;
+  const up = await sb.storage.from("receipts").upload(path, body, { upsert: false, contentType: type || undefined });
   if (up.error && !/exists|duplicate/i.test(up.error.message)) return up.error.message;
   const { error } = await sb.from("expenses")
     .update({ receipt_path: path, receipt_uploaded_at: new Date().toISOString() }).eq("id", expense.id);

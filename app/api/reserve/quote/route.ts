@@ -5,6 +5,7 @@ import { benefitsForUser, refillIsFree } from "@/lib/benefits";
 import { packCents } from "@/lib/packOrder";
 import { isPackSize, type GlassPath } from "@/lib/orderAhead";
 import { route } from "@/lib/apiRoute";
+import { callerIp } from "@/lib/rateLimit";
 
 // A PACK'S PRICE, BEFORE PAY (R7b, 2026-10-16). What /api/reserve would charge this caller for this pack — their tier's
 // perks (0176: a founding member's bring-back refill is on us) and a code's discount applied, in the reserve's own rule
@@ -25,7 +26,7 @@ async function post(req: Request) {
   // changes stays far under, a venue's Wi-Fi too; without one, nothing is counted. Past it the quote says to wait — never
   // a price without the code, which Pay would then refuse as changed. Fails open.
   if (code) {
-    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "anon";
+    const ip = callerIp(req);
     const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `quote-code:${ip}`, p_window_ms: 600_000, p_max: 120 });
     if (fits.data === false) return NextResponse.json({ error: "Too many tries with a code — give it a minute." }, { status: 429 });
   }

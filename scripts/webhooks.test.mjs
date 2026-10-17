@@ -357,9 +357,15 @@ await withEnv({ NOTES_INBOUND_SECRET: "made-up-notes-token", NOTES_INBOUND_FROM:
   const hw = await byHeader(basic("notes:made-up-notes-tokeN")), hnone = await byHeader(basic("made-up-notes-token")), hjunk = await byHeader("Basic %%%not-base64%%%");
   ok("notes inbound: a wrong Basic, one with no user part, or one that isn't base64 → 401, nothing written",
     [hw, hnone, hjunk].every((x) => x.status === 401 && !x.w.wrote()), [hw.status, hnone.status, hjunk.status]);
-  const wrongHeaderGoodQuery = await byHeader("Bearer made-up-notes-tokeN", "made-up-notes-token");
-  ok("notes inbound: a header, when sent, is the token — a right one in the address doesn't rescue a wrong one in the header",
-    wrongHeaderGoodQuery.status === 401 && !wrongHeaderGoodQuery.w.wrote(), wrongHeaderGoodQuery.status);
+  // Either one opens it (R18 review): a provider's own Authorization header beside a ?token= webhook set up before R18
+  // doesn't shut it out — and a wrong token in both places still does.
+  const otherHeaderGoodQuery = await byHeader("Bearer the-providers-own-header", "made-up-notes-token");
+  ok("notes inbound: a header that isn't the token beside the right one in the address → written (either one opens it)",
+    otherHeaderGoodQuery.status === 200 && otherHeaderGoodQuery.w.wrote(), otherHeaderGoodQuery.status);
+  const goodHeaderWrongQuery = await byHeader(basic("notes:made-up-notes-token"), "made-up-notes-tokeN");
+  ok("notes inbound: the right header beside a wrong ?token= → written", goodHeaderWrongQuery.status === 200 && goodHeaderWrongQuery.w.wrote(), goodHeaderWrongQuery.status);
+  const bothWrong = await byHeader("Bearer made-up-notes-tokeN", "made-up-notes-tokeN");
+  ok("notes inbound: wrong in the header and wrong in the address → 401, nothing written", bothWrong.status === 401 && !bothWrong.w.wrote(), bothWrong.status);
 });
 
 // Apliiq (lib/apliiq reads its secret when it loads, so each world loads it with the env it needs)

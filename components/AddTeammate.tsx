@@ -100,7 +100,7 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
   const [marketChosen, setMarketChosen] = useState<string | null>(null);
   const [lead, setLead] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ kind: "bring_on"; id: string; name: string; role: string; city: string; lead: boolean; letter: Letter } | { kind: "invite"; email: string; role: string; letter: Letter } | null>(null);
+  const [done, setDone] = useState<{ kind: "bring_on"; id: string; name: string; role: string; city: string; lead: boolean; letter: Letter; passwordTaken: boolean } | { kind: "invite"; email: string; role: string; letter: Letter } | null>(null);
   const wanted = useRef<string | null>(promoteFor);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const setPick = (id: string | null) => { setPickRaw(id); setInviting(null); setMarketChosen(null); };
@@ -159,11 +159,13 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
     const city = market ? cityName(market) : "";
     if (!(await confirm({ title: `Bring ${name} onto the crew as ${roleLabel(role)}?`, body: city ? `In ${city}${lead ? `, leading ${city}` : ""}. They get a GT3 welcome letter.` : "They get a GT3 welcome letter.", confirmLabel: "Bring them on" }))) return;
     setBusy(true);
-    const { error } = await supabase.rpc("promote_to_crew", { p_member: picked.id, p_role: role, p_market: market || null, p_lead: lead });
+    const { data: came, error } = await supabase.rpc("promote_to_crew", { p_member: picked.id, p_role: role, p_market: market || null, p_lead: lead });
     if (error) { setBusy(false); toast(`Couldn't bring ${name} on — ${error.message}`, "error"); return; }
     const letter = await sendLetter({ kind: "bring_on", user_id: picked.id });
     setBusy(false);
-    setDone({ kind: "bring_on", id: picked.id, name, role: roleLabel(role), city, lead, letter });
+    // The password the account was made with, taken as it came on (0423, take_signup_password): said here, and in the letter.
+    const passwordTaken = (came as { password_taken?: unknown } | null)?.password_taken === true;
+    setDone({ kind: "bring_on", id: picked.id, name, role: roleLabel(role), city, lead, letter, passwordTaken });
     setPick(null); setLead(false); setQ("");
     load(); onDone();
   };
@@ -221,6 +223,7 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
           {done?.kind === "bring_on" && (
             <div className="tm-hired" role="status">
               <b>{done.name} is on the crew.</b> {done.role}{done.city ? ` · ${done.city}` : ""}{done.lead ? " · leads the city" : ""}. {letterLine(done.letter, "Welcome letter")}
+              {done.passwordTaken && <> Their old password stops working with the new role — they sign in with the code we email them, then choose a new one.</>}
               <div className="tm-hired-next">
                 <a className="tm-hire-open" href={`/crew?s=team&a=offers&offer_for=${done.id}`}>
                   Draft their offer letter <span className="ev-chev" aria-hidden="true">›</span>

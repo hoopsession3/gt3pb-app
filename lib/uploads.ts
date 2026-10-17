@@ -19,9 +19,18 @@ export async function uploadToBucket(opts: {
   cacheSeconds?: number;
 }): Promise<{ url: string; path: string } | { error: string }> {
   if (!supabase) return { error: "Storage isn't configured." };
+  // What the bucket takes, said before the file goes up — not storage's words after (lib/bucketTakes, R18). Its table is
+  // fetched as a file is sent, not carried by every page that could send one (/3mpire's script: +792 bytes → +383).
+  const { bucketRefusal, fileType } = await import("./bucketTakes");
+  const refused = bucketRefusal(opts.bucket, opts.file);
+  if (refused) return { error: refused };
   const name = opts.file instanceof File ? opts.file.name : "blob.png";
+  // Sent as what it is (lib/fileType, R18 review): supabase-js sends a file's own type, so one handed over with none — a
+  // Markdown note, a .mov — or misnamed (Excel's name for a .csv) is sent again under its real one.
+  const type = fileType({ type: opts.file.type, name });
+  const body = type && type !== opts.file.type && typeof File !== "undefined" ? new File([opts.file], name, { type }) : opts.file;
   const path = opts.path ?? `${(opts.prefix ?? "misc").replace(/\/+$/, "")}/${Date.now()}-${rand()}.${cleanExt(name)}`;
-  const { error } = await supabase.storage.from(opts.bucket).upload(path, opts.file, {
+  const { error } = await supabase.storage.from(opts.bucket).upload(path, body, {
     upsert: opts.upsert ?? false,
     cacheControl: String(opts.cacheSeconds ?? 3600),
   });

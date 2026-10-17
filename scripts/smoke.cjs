@@ -874,9 +874,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     SM.validateFile({ name: "c.mp4", type: "video/mp4", size: 40e6 }).ok &&
     !SM.validateFile({ name: "c.jpg", type: "image/jpeg", size: 40e6 }).ok);
   ok("media: a pdf is not media", !SM.validateFile({ name: "x.pdf", type: "application/pdf", size: 10 }).ok);
-  ok("media: a phone's odd mime still resolves by prefix",
-    SM.kindOfType("video/mp4;codecs=avc1") === "video" && SM.kindOfType("image/heic") === "image");
-  ok("media: an empty type is not guessed into media", SM.kindOfType("") === null);
+  // R18 review: type for type, as the shop's bucket takes them — never by prefix (an SVG in a public bucket).
+  ok("media: a phone's type with parameters is its type; one the shop can't show (HEIC, SVG) is not media",
+    SM.kindOfType("video/mp4;codecs=avc1") === "video" && SM.kindOfType("image/heic") === null && SM.kindOfType("image/svg+xml") === null);
+  ok("media: an empty type is not guessed into media — the picker reads it from the file's name (lib/fileType, components/MediaStudio)",
+    SM.kindOfType("") === null && !SM.validateFile({ name: "clip.mov", type: "", size: 5e6 }).ok && SM.validateFile({ name: "clip.mov", type: "video/quicktime", size: 5e6 }).ok
+      && !SM.validateFile({ name: "logo.svg", type: "image/svg+xml", size: 10 }).ok
+      && /validateFile\(\{ name: file\.name, size: file\.size, type: fileType\(file\) \}\)/.test(require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "components/MediaStudio.tsx"), "utf8")));
   ok("media: the accept list covers both families",
     SM.ACCEPT.includes("image/jpeg") && SM.ACCEPT.includes("video/mp4"));
 
@@ -5029,7 +5033,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   {
     const er = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "app/api/errors/report/route.ts"), "utf8");
     ok("intake: a browser's report is counted by its address — thirty in ten minutes — and filed as a browser's",
-      /p_bucket: `error-report:\$\{ip\}`, p_window_ms: 600_000, p_max: 30/.test(er) && /await fileError\(\{ message, stack, url, ua, fatal, skew, browser: true, ip \}\);/.test(er)
+      /p_bucket: `error-report:\$\{ip\}`, p_window_ms: 600_000, p_max: 30/.test(er) && /await fileError\(\{ message, stack, url, ua, fatal, skew, browser: true, ip, failure \}\);/.test(er)
       && er.indexOf("error-report:") < er.indexOf("await fileError("));
   }
 }
@@ -6431,11 +6435,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // PASSWORD RESET BY CODE (2026-10-11, Ryan: "you have permission to do anything"): the "Reset password" email carries the code too.
   ok("sign-in: a forgotten password is reset by code, here — the code's session raises \"Set a new password.\", and a resend sends a reset",
     /"reset-sent": \{ head: "Check your email\.", then: "Enter it, then choose a new password\.", go: "Continue", label: "Reset code", kind: "recovery" \}/.test(si)
-    && /const \{ error \} = await verifyCode\(email\.trim\(\), token, kind\);/.test(si)
+    && /const \{ error \} = await verifyCode\(email\.trim\(\), token, kind, \{ passwordFollows: step === "confirm" && !!password \}\);/.test(si)
     && /step === "reset-sent" \? await resetPassword\(email\.trim\(\)\)\s+: step === "confirm" && !hadAccount\.current \? await resendConfirm\(email\.trim\(\)\)\s+: await sendCode\(/.test(si)
     && /Forgot your password\? Email me a reset code/.test(si) && !/password-reset link/.test(si)
     && /const \{ error \} = await supabase\.auth\.verifyOtp\(\{ email, token, type: kind \}\);/.test(auth)
-    && /if \(event === "PASSWORD_RECOVERY"\) \{ recoveryPending\(true\); setRecovery\(true\); \}/.test(auth));
+    && /if \(event === "PASSWORD_RECOVERY"\) \{ recoveryPending\(true\); setRecovery\(true\);/.test(auth));
   ok("sign-in: a resent code empties the field and says to use the newest email; a wrong or old code says so and selects itself",
     /else \{ setCooldown\(30\); setOtp\(""\); setResent\(true\); codeRef\.current\?\.focus\(\); \}/.test(si)
     && /requestAnimationFrame\(\(\) => codeRef\.current\?\.select\(\)\);/.test(si) && /A new code is on its way — use the newest email\./.test(si));
@@ -10220,7 +10224,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("auth: the last profile read asked for is the one that lands — an older one coming back last (a sign-in's, after the name Apple gave was kept) is dropped, and nothing lands after a sign-out",
       /const ask = \+\+profileAsk\.current;/.test(au) && /if \(ask !== profileAsk\.current\) return;[^\n]*\n\s*if \(error\) \{\n[\s\S]{0,600}?setProfileStatus\("error"\); return;\n\s*\}/.test(au)
       && /const ask = profileAsk\.current;/.test(au) && /if \(error \|\| !data \|\| ask !== profileAsk\.current\) return;/.test(au)
-      && /else if \(!u\) \{ profileAsk\.current\+\+; shown\.current = null; setProfile\(null\); setProfileStatus\("ready"\); \}/.test(au));
+      && /else if \(!u\) \{[^\n]*\n\s*profileAsk\.current\+\+; shown\.current = null; setProfile\(null\); setProfileStatus\("ready"\);\n/.test(au));
     // 2026-10-11: every auth event — a token refresh, a return to the app — said "loading", and the console went blank
     // under the person using it; a read that failed said "Couldn't load your account" over the profile still in hand.
     ok("auth: the same person read again is read quietly — no 'loading', and a failure keeps the profile and 'ready'; another person, or a sign-out, starts over",
@@ -11927,8 +11931,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("webhooks: Stripe — stripeSignatureOk, 401 on a miss (it was 400), before the first read or write; dormant while its secret is unset",
       /if \(!stripeSignatureOk\(payload, req\.headers\.get\("stripe-signature"\), secret\)\) \{\s*return NextResponse\.json\(\{ error: "bad signature" \}, \{ status: 401 \}\);/.test(bl)
       && first(bl, "stripeSignatureOk(payload") && /if \(!secret \|\| !supabaseAdmin\) return NextResponse\.json\(\{ ok: true \}\);/.test(bl));
-    ok("webhooks: the inbound-email door compares its token in constant time, 401 on a miss — the token from the Authorization header first (R18)",
-      /if \(!tokenOk\(tokenFrom\(req, url\), secret\)\) return NextResponse\.json\(\{ ok: false \}, \{ status: 401 \}\);/.test(nt) && first(nt, "tokenOk(")
+    ok("webhooks: the inbound-email door compares its token in constant time, 401 on a miss — the Authorization header's token or the address's, either one (R18)",
+      /if \(!tokensFrom\(req, url\)\.some\(\(t\) => tokenOk\(t, secret\)\)\) return NextResponse\.json\(\{ ok: false \}, \{ status: 401 \}\);/.test(nt) && first(nt, "tokenOk(")
         && nt.indexOf('req.headers.get("authorization")') < nt.indexOf('url.searchParams.get("token")'));
     const apl = ["fulfillment", "product", "search"].map((r) => routeOf(`app/api/apliiq/${r}/route.ts`));
     ok("webhooks: every Apliiq door checks verifyApliiq first and answers 401 — and verifyApliiq is lib/webhookSignature's check",
@@ -15010,9 +15014,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ok("R9 doors: a session that arrives in an address on a device that asked for none is said — whose account, and a way out (lib/linkSignin)",
       LS.carriesSession("#access_token=a&refresh_token=b&type=magiclink") && !LS.carriesSession("#access_token=a&type=recovery") && !LS.carriesSession("#code=1")
       && supa.indexOf('import "./linkSignin";') > 0 && supa.indexOf('import "./linkSignin";') < supa.indexOf("createClient(url")
-      && (rd("components/AuthProvider.tsx").match(/markSigninAsked\(\);   \/\//g) || []).length === 3 && /onKeep=\{\(\) => \{ markSigninAsked\(\); setLinkNotice\(null\); \}\}/.test(ap)
-      && /if \(!signinAskedHere\(\)\) setLinkNotice\(u\.email \?\? "another account"\);/.test(ap)
-      && /if \(!signinAskedHere\(\)\) setLinkNotice\(data\.user\?\.email \?\? "another account"\);/.test(ap) && /onLeave=\{\(\) => \{ setLinkNotice\(null\); void signOut\(\); \}\}/.test(ap));
+      && (rd("components/AuthProvider.tsx").match(/markSigninAsked\(\);   \/\//g) || []).length === 3 && /onKeep=\{\(\) => \{ markSigninAsked\(\); setLinkNotice\(null\);/.test(ap)
+      // R18 review: the same notice, and a password join's "choose your password" after it when both are asked.
+      && /if \(!signinAskedHere\(\)\) \{ setLinkNotice\(u\.email \?\? "another account"\); noticePending\.current = true; \}/.test(ap)
+      && /const notice = !signinAskedHere\(\);[\s\S]{0,400}?if \(notice\) setLinkNotice\(data\.user\?\.email \?\? "another account"\);/.test(ap)
+      && /onLeave=\{\(\) => \{ noticePending\.current = false; chooseAfterNotice\.current = false; setLinkNotice\(null\); void signOut\(\); \}\}/.test(ap));
   }
   const gw = rd("app/api/wallet/google/route.ts");
   ok("R8 wallet: the Google pass carries the card — the name and the code the window scans — and no stamp count it could never update",
@@ -15026,9 +15032,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /else if \(needsConfirm\) \{ setStep\("confirm"\); setCooldown\(30\); \}/.test(si)
     && !/step !== "confirm" && \(/.test(si) && /await supabase\.auth\.resend\(\{ type: "signup", email, options: \{ emailRedirectTo:/.test(au));
   ok("R8 join: once the code proves the email theirs, the password they chose is the account's, and they are told — only then",
-    /if \(step === "confirm" && hadAccount\.current && password\) \{\s+hadAccount\.current = false;\s+const set = await updatePassword\(password\);/.test(si)
+    /if \(step === "confirm" && password\) \{\s+const had = hadAccount\.current;\s+hadAccount\.current = false;\s+const set = await updatePassword\(password\);\s+if \(had\) toast\(set\.error/.test(si)
     && /This email already had an account — you’re signed in to it, with the password you just chose\./.test(si)
     && /This email already had an account — you’re signed in to it\. Its password didn’t change\./.test(si));
+  // R18 review: 0423 clears a password set before the address was proven (password_waits_for_proof) — a new join's
+  // code, typed on the screen that set it, sets it again; the code step is the only place the password is in hand.
+  ok("R18 join: a new account's confirmation code sets the password it chose again (0423 cleared it at proof) — and a failure is said",
+    /else if \(set\.error\) toast\("You’re in — but your password didn’t save\./.test(si)
+    && (si.match(/updatePassword\(password\)/g) || []).length === 1
+    && /password_waits_for_proof/.test(rd("supabase/migrations/0423_an_invite_waits_for_a_proven_address_money_keeps_its_doors_a_stopped_job_is_said.sql")));
   const pr = rd("components/PasswordRecovery.tsx");
   ok("R8 reset: \"Password updated.\" is seen — the overlay stays until Continue, which keeps them signed in; the heading takes focus",
     !/setRecovery\(false\);\s+return \{\};/.test(au) && /onDone=\{\(\) => \{ recoveryPending\(false\); setRecovery\(false\); \}\}/.test(au)
@@ -15038,11 +15050,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R8 weight: the set-a-new-password overlay loads when a reset raises it — not in the bundle every page downloads — fetched as the code is asked for, said if it cannot load, raised again by a reload",
     /const PasswordRecovery = dynamic\(\(\) => import\("\.\/PasswordRecovery"\)\.catch\(\(\) => \(\{ default: RecoveryDidNotLoad \}\)\), \{ ssr: false \}\);/.test(au) && !/function PasswordRecovery\(/.test(au)
     && /void import\("\.\/PasswordRecovery"\)\.catch\(\(\) => \{\}\);/.test(si)
-    && /if \(event === "PASSWORD_RECOVERY"\) \{ recoveryPending\(true\); setRecovery\(true\); \}/.test(au)
+    && /if \(event === "PASSWORD_RECOVERY"\) \{ recoveryPending\(true\); setRecovery\(true\);/.test(au)
     && /else if \(u && event === "INITIAL_SESSION" && recoveryPending\(null\)\) setRecovery\(true\);/.test(au)
     && /onDone=\{\(\) => \{ recoveryPending\(false\); setRecovery\(false\); \}\}/.test(au)
     && /updatePassword=\{async \(pw\) => \{ const r = await updatePassword\(pw\); if \(!r\.error\) recoveryPending\(false\); return r; \}\}/.test(au)
-    && !/useFocusTrap/.test(au) && /export default function PasswordRecovery\(/.test(pr) && /aria-label="Set a new password"/.test(pr));
+    && !/useFocusTrap/.test(au) && /export default function PasswordRecovery\(/.test(pr) && /aria-label=\{w\.label\}/.test(pr) && /label: "Set a new password"/.test(pr));
   ok("R8 sign out: out is out offline too — a refused sign-out removes this phone's copy, and keeps the library's refresh for the next sign-in",
     /const r = await supabase\?\.auth\.signOut\(\)\.catch\(\(e: unknown\) => \(\{ error: e \}\)\);/.test(au) && /if \(typeof auth\._removeSession === "function"\) await auth\._removeSession\(\);/.test(au)
     && /else for \(const k of Object\.keys\(localStorage\)\) if \(\/\^sb-\.\*-auth-token\/\.test\(k\)\) localStorage\.removeItem\(k\);/.test(au) && !/stopAutoRefresh\(\)/.test(au));
@@ -15640,8 +15652,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && W.wrote({ error: "offline" }, t, "Couldn't move it") === false && said[1][0] === "Couldn't move it — offline"
       && W.wrote({ error: { message: "" } }, t, "Couldn't save") === false && said[2][0] === "Couldn't save — try again in a moment");
   const fe = rd("scripts/falseempty.audit.mjs");
-  ok("R12b meter: the audit counts writes whose answer is never read — none allowed but three named analytics pings, each with why",
-    /export const UNREAD_WRITES_BASELINE = 0;/.test(fe) && (fe.slice(fe.indexOf("export const FIRE_AND_FORGET = {"), fe.indexOf("};", fe.indexOf("export const FIRE_AND_FORGET = {"))).match(/^\s+"[\w/.-]+#[\w-]+": "/gm) || []).length === 3
+  // R18 review (third pass): a fourth, the choose sheet's "Not now" — a mark not taken off only asks again next page load.
+  ok("R12b meter: the audit counts writes whose answer is never read — none allowed but three named analytics pings and the choose sheet's Not now, each with why",
+    /export const UNREAD_WRITES_BASELINE = 0;/.test(fe) && (fe.slice(fe.indexOf("export const FIRE_AND_FORGET = {"), fe.indexOf("};", fe.indexOf("export const FIRE_AND_FORGET = {"))).match(/^\s+"[\w/.-]+#[\w-]+": "/gm) || []).length === 4
+      && fe.includes('"components/AuthProvider.tsx#password_not_now": "')
       && /if \(unread\.length > UNREAD_WRITES_BASELINE\)/.test(fe));
   const lc = rd("components/crew/LiveControl.tsx"), studio = rd("components/Studio.tsx"), oo = rd("components/OfficeOrders.tsx");
   ok("R12b screens: a live stop is archived only once the truck is offline; Studio says Not saved where Saved stood; the office route logs in one write",
@@ -15719,7 +15733,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /\/api\/health\?from=app-build/.test(rd("components/FreshTab.tsx")) && /\/api\/health\?from=app"/.test(rd("components/IntegrationsPanel.tsx")));
   ok("R13 failures: a read and a write the database refused for a reason that is ours reach the error report — wired where every read and every write answer goes",
     /reportFailure\("load", err as \{ code\?: string; message\?: string \}\);/.test(rd("lib/useAsyncData.ts")) && /reportFailure\("save", e, what\);/.test(rd("lib/wrote.ts"))
-      && /setFailureSender\(\(message\) => reportClientError\(\{ message, stack: "", fatal: false \}\)\);/.test(rd("components/ErrorReporter.tsx")));
+      && /setFailureSender\(\(message\) => reportClientError\(\{ message, stack: "", fatal: false, failure: true \}\)\);/.test(rd("components/ErrorReporter.tsx")));
   const W = require("../.smoke/wrote.js");
   ok("R13 failures: wrote still says it and answers false (the report is beside it, never instead of it)",
     W.wrote({ error: { code: "42703", message: "column x does not exist" } }, () => {}, "Couldn't save") === false);
@@ -15944,6 +15958,83 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     "app/api/reserves/settle/route.ts": "scripts/routes.reserves.test.mjs", "app/api/reserves/cancel/route.ts": "scripts/routes.reserves.test.mjs" };
   const missing = Object.entries(runs).filter(([r, t]) => !rd(t).includes(`routeLoader(shims)("${r}")`) && !rd(t).includes(`load("${r}")`) || !test.includes(`node ${t}`)).map(([r]) => r);
   ok("R18 doors: each money door the audit named is compiled and called by a route test npm test runs", missing.length === 0, missing);
+}
+
+// ── R18 · THE REVIEW'S FINDINGS, PUT RIGHT BEFORE IT SHIPPED (2026-10-17) ──────────────────────────────────────────────
+// Run in scripts/r18.test.mjs and scripts/db.r18.test.mjs; these hold the shape each fix took, so it can't drift back.
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ROOTDIR = path.join(__dirname, "..");
+  const rd = (f) => fs.readFileSync(path.join(ROOTDIR, f), "utf8");
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const fr = strip(rd("lib/failureReport.ts")), fc = strip(rd("lib/failureClass.ts")), er = strip(rd("components/ErrorReporter.tsx"));
+  ok("R18 review: the database's door says only what is never a person's — schema, permission, and a coded answer always ours (5xx, class 42, 21000, a deadlock, XX…); a screen's reader says any coded 'other'",
+    /if \(atTheDoor && kind !== "schema" && kind !== "permission" && !\(kind === "other" && atTheDoorAnyway\(failure\)\)\) return;/.test(fr)
+      && fr.includes("const ALWAYS_OURS = /^(42|21|0A|XX)|^40P01$/;") && /door\[1\] \? `\$\{door\[2\]\}\(\)` : door\[2\], true\);/.test(fr));
+  ok("R18 review: the app's own refusals are refusals — lib/refusal's codes, a PT4xx, and a 42501 not in Postgres's own words; PGRST003 is the network's; a deadlock is ours",
+    /import \{ isClosed, isGone \} from "\.\/refusal";/.test(fc) && fc.includes("/^PT4\\d\\d$/.test(code)") && /if \(code === "42501" && !OURS_REFUSED\.test\(message\)\) return "refusal";/.test(fc)
+      && /"PGRST003"/.test(fc) && !/"40P01"/.test(fc));
+  ok("R18 review: a database failure never spends the crash cap — the crash that followed is still said",
+    /if \(!message \|\| \(!input\.failure && sent >= SESSION_MAX\)\) return;/.test(er) && /if \(!input\.failure\) sent\+\+;/.test(er));
+  // Every per-caller limit counts an IPv6 caller by its /64 — one door's copy of "the first x-forwarded-for" is how a
+  // fresh address, and a fresh limit, came free.
+  const walk = (d) => fs.readdirSync(path.join(ROOTDIR, d), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${d}/${e.name}`) : /\.(ts|tsx)$/.test(e.name) ? [`${d}/${e.name}`] : []));
+  const xff = ["app", "lib", "components"].flatMap(walk).filter((f) => /x-forwarded-for/.test(strip(rd(f))));
+  ok("R18 review: the caller's address is read in lib/rateLimit (callerIp, limitAddress) — and lib/appleMaps' hash of it goes through limitAddress",
+    JSON.stringify(xff.sort()) === JSON.stringify(["lib/appleMaps.ts", "lib/rateLimit.ts"]) && /limitAddress\(\(req\.headers\.get\("x-forwarded-for"\)/.test(rd("lib/appleMaps.ts"))
+      && /return limitAddress\(\(req\.headers\.get\("x-forwarded-for"\) \|\| ""\)\.split\(","\)\[0\]\) \|\| "anon";/.test(rd("lib/rateLimit.ts")), xff);
+  const up = strip(rd("lib/uploads.ts")), rc = strip(rd("lib/receipts.ts"));
+  ok("R18 review: every upload asks what its bucket takes first (lib/bucketTakes — the same as 0421/0423, r18.test proves) and says it in a person's words",
+    /const \{ bucketRefusal, fileType \} = await import\("\.\/bucketTakes"\);\s*const refused = bucketRefusal\(opts\.bucket, opts\.file\);\s*if \(refused\) return \{ error: refused \};/.test(up)
+      && !/^import .*(bucketTakes|fileType)/m.test(up) && !/^import .*fileType/m.test(rd("lib/shopMedia.ts")) && up.indexOf("bucketRefusal(") < up.indexOf(".upload(")   // fetched as a file is sent (weight, R18)
+      && /const refused = bucketRefusal\("receipts", file\);/.test(rc) && rc.indexOf('bucketRefusal("receipts"') < rc.indexOf(".upload("));
+  const au2 = strip(rd("components/AuthProvider.tsx")), pr2 = strip(rd("components/PasswordRecovery.tsx"));
+  const m23p = rd("supabase/migrations/0423_an_invite_waits_for_a_proven_address_money_keeps_its_doors_a_stopped_job_is_said.sql");
+  ok("R18 review: a password the database took at the proof is asked for again — by its mark (profiles.password_taken_at), once a page load, after 'Signed in as …', never over a reset, not on the join screen setting it again; gone in another tab, the sheet goes; 'Not now' takes the mark off",
+    /const seeMark = useCallback\(\(row: Profile \| null\) => \{/.test(au2)
+      && /if \(!row\?\.password_taken_at\) \{ if \(!chooseHere\.current\) \{ chooseAfterNotice\.current = false; setChoosePassword\(false\); \} return; \}/.test(au2)
+      && /if \(chooseAsked\.current \|\| recoveryPending\(null\)\) return;/.test(au2)
+      && /if \(noticePending\.current\) chooseAfterNotice\.current = true; else setChoosePassword\(true\);/.test(au2)
+      && (au2.match(/seeMark\(data as Profile/g) || []).length === 2
+      && /if \(event === "PASSWORD_RECOVERY"\) \{ recoveryPending\(true\); setRecovery\(true\); chooseAsked\.current = true;/.test(au2)
+      && /await supabase\.auth\.updateUser\(\{ password \}\);/.test(au2) && !/password_join/.test(au2) && !/joinedWithPassword/.test(au2)
+      && /\(error as \{ code\?: string \}\)\.code === "same_password"/.test(au2)
+      && /<PasswordRecovery mode="choose" updatePassword=\{async \(pw\) => \{ chooseHere\.current = true;/.test(au2) && /out: "Not now"/.test(pr2)
+      && /supabase\?\.rpc\("password_not_now"\)\.then\(/.test(au2)
+      && /if \(opts\?\.passwordFollows\) chooseAsked\.current = true;/.test(au2)
+      && /verifyCode\(email\.trim\(\), token, kind, \{ passwordFollows: step === "confirm" && !!password \}\)/.test(rd("components/SignIn.tsx"))
+      && /create or replace function public\.password_not_now\(\)/.test(m23p) && /update public\.profiles set password_taken_at = now\(\) where id = new\.id;/.test(m23p));
+  // The third and fourth passes: a customer's password is taken only once an iPhone build that sets it again is on the
+  // phones — 0424, held, turns 0423's switch; 0423 takes it where a crew role is at stake, however the address was proven
+  // (an owner's hand included), never marks a code sign-up, and takes a sign-up password still on an account as it becomes crew.
+  const m24p = rd("supabase/migrations/0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql");
+  ok("R18 review: 0423 takes a password where a crew role is at stake, by the claim's own proof test with the owner's hand counted — every account is 0424's switch, held for the iPhone build, and kept by a second paste of 0423",
+    /and \(public\.address_proved_itself\(old\.confirmation_sent_at, new\.raw_app_meta_data\) or public\.vouched_by_hand\(\)\)\s+and \(public\.password_scope_everywhere\(\)\s+or exists \(select 1 from public\.team_invites i/.test(m23p)
+      && /or exists \(select 1 from public\.profiles p where p\.id = new\.id and coalesce\(p\.role, 'member'\) <> 'member'\)\) then/.test(m23p)
+      && !/and not public\.vouched_by_hand\(\)/.test(m23p)
+      && /if to_regprocedure\('public\.password_scope_everywhere\(\)'\) is null then/.test(m23p) && /as 'select false'/.test(m23p)
+      && /create or replace function public\.password_scope_everywhere\(\) returns boolean\s+language sql stable set search_path = public as 'select true';/.test(m24p)
+      && !/create or replace function public\.password_waits_for_proof/.test(m24p)
+      && JSON.parse(rd("supabase/held.json")).held.some((h) => h.file === "0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql"));
+  const at23 = strip(rd("components/AddTeammate.tsx")), wl23 = strip(rd("app/api/team/welcome/route.ts")), cw23 = strip(rd("lib/crewWelcome.ts"));
+  ok("R18 review (fifth pass): a sign-up password taken as an account becomes crew ends every session it had, and is said — in Add teammate and the welcome letter; an owner whose person's mail never comes sets one by hand; the paste first checks it may write auth.users",
+    /delete from auth\.sessions where user_id = p_user;/.test(m23p) && /update auth\.refresh_tokens set revoked = true where user_id = p_user::text and coalesce\(revoked, false\) = false;/.test(m23p)
+      && m23p.indexOf("perform 1 from auth.refresh_tokens where user_id = p_user::text for update;") < m23p.indexOf("perform 1 from auth.sessions where user_id = p_user for update;")
+      && /password_set_by_hand_at is null   -- a hand-set one stays asked/.test(m23p)
+      && /perform set_config\('gt3\.password_taken', p_user::text, true\);/.test(m23p) && /'password_taken', coalesce\(current_setting\('gt3\.password_taken', true\), ''\) = p_member::text\)/.test(m23p)
+      && at23.includes("const passwordTaken = (came as { password_taken?: unknown } | null)?.password_taken === true;") && at23.includes("{done.passwordTaken && <> Their old password stops working with the new role")
+      && wl23.includes('select("password_taken_at")') && wl23.includes("track: trackFor(person.role), from, passwordTaken,") && cw23.includes("if (f.passwordTaken) lines.push(")
+      && /create or replace function public\.set_password_by_hand\(p_email text, p_password text\) returns text/.test(m23p) && /hash := extensions\.crypt\(p_password, extensions\.gen_salt\('bf', 10\)\);/.test(m23p) && /format\('Its address isn''t confirmed yet — confirm it first: select public\.confirm_address\(%L\);', btrim\(p_email\)\)/.test(m23p)
+      && m23p.indexOf("if not (has_table_privilege('auth.users', 'UPDATE')") < m23p.indexOf("create or replace function public.claim_team_invites"));
+  ok("R18 review (fourth pass): a code sign-up is marked by the app and never asked to choose a password; a sign-up password still on an account is taken as it becomes crew; the choose state goes with a sign-out",
+    /if coalesce\(new\.raw_user_meta_data ->> 'joined_by_code', ''\) <> 'true' then/.test(m23p)
+      && /create trigger crew_role_takes_signup_password after update of role on public\.profiles\s+for each row when \(coalesce\(old\.role, 'member'\) = 'member' and coalesce\(new\.role, 'member'\) <> 'member'\)/.test(m23p)
+      && /where id = p_user and email_confirmed_at is not null and confirmation_sent_at is not null/.test(m23p)
+      && au2.includes("data: { ...(displayName ? { display_name: displayName } : {}), joined_by_code: true },")
+      && au2.includes("chooseAsked.current = false; chooseAfterNotice.current = false; chooseHere.current = false; setChoosePassword(false);"));
+  const m23 = rd("supabase/migrations/0423_an_invite_waits_for_a_proven_address_money_keeps_its_doors_a_stopped_job_is_said.sql");
+  ok("R18 review: cron_watch — an unreadable pg_net leaves the request line as it was (bad := null), never closes it as 'answering again'",
+    /exception when others then[\s\S]{0,400}?bad := null;\s*end;\s*if bad > 0 then[\s\S]*?elsif bad = 0 then/.test(m23));
 }
 
 // ── R17 · NO STATE SET BY AN EFFECT AS IT STARTS: THE LINT CEILING'S LAST RULE AT ZERO (2026-10-17) ─────────────────────

@@ -1,5 +1,6 @@
 import { createHash, createPrivateKey, sign } from "node:crypto";
 import { b64url, es256Jwt, pem } from "./appleKey";
+import { limitAddress } from "./rateLimit";
 
 // APPLE MAPS, FROM THE SERVER (2026-10-10, Ryan: "When someone types in their address, it goes out and finds it.
 // Prepopulate. Is that any security risk?"). The address fields suggest real addresses as they are typed, and a pick
@@ -121,8 +122,9 @@ export async function placeOf(street: string): Promise<{ lat: number; lng: numbe
   return c && c.latitude != null && c.longitude != null && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
-/** A caller, for the limiter, without keeping their address: a short one-way hash of it. */
+/** A caller, for the limiter, without keeping their address: a short one-way hash of it — an IPv6 caller's /64, as every
+ *  limit counts it (lib/rateLimit's limitAddress, R18 review). */
 export function callerKey(req: Request): string {
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
+  const ip = limitAddress((req.headers.get("x-forwarded-for") ?? "").split(",")[0]) || req.headers.get("x-real-ip") || "unknown";
   return createHash("sha256").update(`gt3-address:${ip}`).digest("hex").slice(0, 16);
 }

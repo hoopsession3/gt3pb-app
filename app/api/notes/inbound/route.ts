@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 // Provider-agnostic: most inbound-email services (Postmark, SendGrid Inbound Parse,
 // Mailgun, Cloudflare Email Workers) POST either JSON or multipart/form-data to a webhook
 // URL you register. Point that webhook at:  https://notes:<NOTES_INBOUND_SECRET>@app.gt3pb.com/api/notes/inbound
-// (the secret rides as Basic auth, in a header — never in the address; see tokenFrom below).
+// (the secret rides as Basic auth, in a header — never in the address; see tokensFrom below).
 //
 // Two gates before any write (so a guessed URL can't inject notes):
 //   1. the token must equal NOTES_INBOUND_SECRET.
@@ -38,15 +38,20 @@ const emailOf = (from: string) => (from.match(/<([^>]+)>/)?.[1] ?? from).trim().
 // token is taken from the Authorization header first: Basic (what a webhook URL with `notes:<secret>@` in it sends — most
 // inbound-email services take one) or Bearer. ?token= is still read for a webhook set up before R18; moving it is the
 // owner's change in the provider's settings, and then the address carries nothing.
-function tokenFrom(req: Request, url: URL): string | null {
+// Either one opens it (R18 review): a provider that sends an Authorization header of its own beside a ?token= webhook
+// set up before R18 is still let in by the token in the address, and the header's never shuts it out.
+function tokensFrom(req: Request, url: URL): string[] {
+  const out: string[] = [];
   const auth = req.headers.get("authorization") ?? "";
   const bearer = /^Bearer\s+(\S+)\s*$/i.exec(auth)?.[1];
-  if (bearer) return bearer;
+  if (bearer) out.push(bearer);
   const basic = /^Basic\s+(\S+)\s*$/i.exec(auth)?.[1];
   if (basic) {
-    try { const pair = atob(basic); return pair.includes(":") ? pair.slice(pair.indexOf(":") + 1) : null; } catch { return null; }
+    try { const pair = atob(basic); if (pair.includes(":")) out.push(pair.slice(pair.indexOf(":") + 1)); } catch { /* not Basic's shape */ }
   }
-  return url.searchParams.get("token");
+  const query = url.searchParams.get("token");
+  if (query) out.push(query);
+  return out;
 }
 
 async function post(req: Request) {
@@ -56,7 +61,7 @@ async function post(req: Request) {
   // Compared in constant time (2026-10-11, lib/webhookSignature): `!==` stops at the first wrong character, and how
   // long a refusal takes is one more thing a guesser can measure.
   const url = new URL(req.url);
-  if (!tokenOk(tokenFrom(req, url), secret)) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!tokensFrom(req, url).some((t) => tokenOk(t, secret))) return NextResponse.json({ ok: false }, { status: 401 });
 
   // Accept JSON (Postmark) or multipart/form-data (SendGrid/Mailgun).
   let f: Record<string, any> = {};

@@ -73,10 +73,16 @@ async function post(req: Request) {
     if (person.role === "member") return NextResponse.json({ ok: false, error: "they are not on the crew yet" }, { status: 409 });
     to = (await accountEmail(person.id)) ?? "";
     const f = await crewFacts(tenant, person);
+    // Its old password taken as it came on (0423's mark, set in the last few minutes): the letter says how to get back in.
+    // arrives-with: 0423 — before 0423 is pasted the column isn't there, and nothing was taken.
+    // scoped-by: the person read above, by tenant
+    const mark = await supabaseAdmin.from("profiles").select("password_taken_at").eq("tenant_id", tenant).eq("id", person.id).maybeSingle();
+    const takenAt = !mark.error ? (mark.data as { password_taken_at?: string | null } | null)?.password_taken_at ?? null : null;
+    const passwordTaken = !!takenAt && Date.now() - Date.parse(takenAt) < 15 * 60_000;
     letter = crewWelcome({
       name: person.display_name, role: person.role,
       city: f.city, leadsCity: f.leadsCity, cityLead: f.cityLead,
-      track: trackFor(person.role), from,
+      track: trackFor(person.role), from, passwordTaken,
     });
   } else {
     const em = String(email).trim().toLowerCase();
