@@ -10,7 +10,8 @@ import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides, unreadWritesIn, collectUnreadWrites, FIRE_AND_FORGET } from "./falseempty.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption, peelsErrorMessageByHand } from "./dupe.audit.mjs";
-import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, arrivingRelations, declaresArrival } from "./columns.audit.mjs";
+import { envFindings, readsIn } from "./env.audit.mjs";
+import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, arrivingRelations, declaresArrival, staleMarkers } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
 import { classify as classifyRoute, unwrapped, boundOf, agentDoor, roleCheckOf, chainEnd, relationsOf, AGENT_DOOR_DEBT } from "./api.audit.mjs";
 import { reassemble } from "./security.snapshot.mjs";
@@ -475,6 +476,28 @@ ok("arriving: …and the number must match, so an old marker does not cover a ne
   declaresArrival("// arrives-with: 0330 — something else", 337) === false);
 ok("arriving: silence is not a declaration",
   declaresArrival("const x = 1; // we handle it, honest", 337) === false);
+
+// R14 (F10): a marker outlives its migration only until the audit sees it.
+{
+  const files = [["lib/a.ts", "// arrives-with: 0341 — the old read\nconst x = 1;"], ["lib/b.ts", "// arrives-with: 0422 — pending\n"], ["lib/c.ts", "const y = 2; // no marker"]];
+  const pending = new Map([[422, "alter table x add column y text;"]]);
+  ok("stale markers: one naming an applied migration is named, with its file", JSON.stringify(staleMarkers(files, pending)) === JSON.stringify(["lib/a.ts  arrives-with: 0341"]), staleMarkers(files, pending));
+  ok("stale markers: one naming a pending migration is not", !staleMarkers(files, pending).some((m) => m.includes("0422")));
+  ok("stale markers: with every migration applied (an empty paste file), every marker is stale", staleMarkers(files, new Map()).length === 2);
+  ok("stale markers: an unreadable paste file checks nothing", staleMarkers(files, null).length === 0);
+}
+
+// R14 (F14): every setting the app reads is declared, and every declaration is read.
+{
+  const reads = new Map([["SQUARE_ACCESS_TOKEN", new Set(["a.ts"])], ["NEW_SECRET", new Set(["b.ts"])]]);
+  const list = [{ name: "SQUARE_ACCESS_TOKEN", side: "server" }, { name: "OLD_NAME", side: "server" }, { name: "NEXT_PUBLIC_X", side: "server" }, { name: "NEXT_PUBLIC_Y", side: "public" }];
+  const f = envFindings(reads, list, ["NEXT_PUBLIC_Y", "NEXT_PUBLIC_Z"]);
+  ok("env: a name read but not declared is found", JSON.stringify(f.undeclared) === '["NEW_SECRET"]', f);
+  ok("env: a declaration read nowhere is found — unless the iPhone build takes it from the web", JSON.stringify(f.unread) === '["NEXT_PUBLIC_X","OLD_NAME"]', f);
+  ok("env: NEXT_PUBLIC_ is public and nothing else is", JSON.stringify(f.wrongSide) === '["NEXT_PUBLIC_X"]', f);
+  ok("env: a name the iPhone build takes from the web must be declared", JSON.stringify(f.publicUndeclared) === '["NEXT_PUBLIC_Z"]', f);
+  ok("env: reads are process.env.NAME, nothing looser", JSON.stringify(readsIn("const a = process.env.ONE; const b = env.TWO; process.env.THREE_3")) === '["ONE","THREE_3"]');
+}
 
 // ── api.audit: guarded / public / silent ───────────────────────────────────────────────────────
 // Shapes lifted from app/api. The trap this guards against is the one that produced "50 unguarded

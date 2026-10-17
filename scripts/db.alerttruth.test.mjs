@@ -186,7 +186,7 @@ const old = {};
   await sweep();   // the cron ran before the paste: Bea's late task has its past-due line
   const pPaste = await pushes();
   await db.exec(MIG(F383));
-  ok("0383 applies to the whole schema", true);
+  // 0383 applies to the whole schema — a throw above fails this file; a milestone, not counted as a check (R14, F25).
   ok("0383: the lines already open — a task done, a task gone, Sam's line on Bea's task, a pushed-out date — are closed by the mechanism (ack_by null)",
     byMechanism(await lines(old.done)) && byMechanism(await lines(old.gone))
     && byMechanism((await lines(old.moved)).filter((l) => l.target_user_id === SAM))

@@ -203,7 +203,9 @@ const post = async (mod, url, headers, body) => {
 
 // Square
 await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: SQ_KEY, SQUARE_WEBHOOK_URL: SQ_URL }, async () => {
-  const run = async (headers, body) => { const w = world(); const r = await post(loader(w.shims)("app/api/square/webhook/route.ts"), SQ_URL, headers, body); return { ...r, w }; };
+  // The route says each refusal in the platform's log (R14); the test keeps its own output to its checks.
+  const quiet = async (fn) => { const e = console.error, w = console.warn; console.error = () => {}; console.warn = () => {}; try { return await fn(); } finally { console.error = e; console.warn = w; } };
+  const run = async (headers, body) => quiet(async () => { const w = world(); const r = await post(loader(w.shims)("app/api/square/webhook/route.ts"), SQ_URL, headers, body); return { ...r, w }; });
   const body = JSON.stringify({ type: "unknown.event", event_id: "evt-sq-test" });
   const none = await run({}, body), wrong = await run({ "x-square-hmacsha256-signature": sqSign(body, SQ_URL, "not-the-key") }, body);
   ok("square route: no signature → 401, nothing read or written", none.status === 401 && none.w.calls.length === 0, none.status);
@@ -212,6 +214,26 @@ await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: SQ_KEY, SQUARE_WEBHOOK_URL: SQ_URL
   ok("square route: a forged header with a non-ASCII character → 401, not a 500 filed as a crash", forged.status === 401 && forged.w.filed.length === 0, { status: forged.status, filed: forged.w.filed.length });
   const tampered = await run({ "x-square-hmacsha256-signature": sqSign(body) }, body.replace("unknown", "subscription"));
   ok("square route: a body changed after signing → 401", tampered.status === 401 && !tampered.w.wrote());
+  // R14 (2026-10-17 — the 10/10 audit, F15): a refusal is said. An event shaped like Square's whose signature fails tells
+  // the crew (raiseAlertOnce — one open alert however many arrive): a rotated key or a changed address. A stranger's post
+  // — no signature, or not shaped like Square's — is a forgery's 401 and tells no one.
+  const sqShaped = JSON.stringify({ merchant_id: "ML-TEST", type: "payment.updated", event_id: "evt-sig-1" });
+  const rotated = await quiet(() => run({ "x-square-hmacsha256-signature": sqSign(sqShaped, SQ_URL, "a-rotated-key") }, sqShaped));
+  const sigAlert = rotated.w.alerts.find((a) => a.kind === "webhook_signature");
+  ok("square route (R14): a Square-shaped event whose signature fails → 401, and the crew is told (critical, money, once while it lasts)",
+    rotated.status === 401 && !!sigAlert && sigAlert.severity === "critical" && sigAlert.category === "money" && sigAlert.subjectId === "square" && !rotated.w.wrote(), rotated.w.alerts);
+  ok("square route (R14): …a post with no signature, or one not shaped like Square's, tells no one",
+    none.w.alerts.length === 0 && wrong.w.alerts.length === 0 && forged.w.alerts.length === 0, { none: none.w.alerts, wrong: wrong.w.alerts });
+  // What threw is kept with the event, in its own words, and Square is answered 500 so it sends the event again.
+  const threw = await quiet(async () => {
+    const w = world({ table: (table) => { if (table === "subscriptions") throw new Error("connection reset by peer"); return { data: null, error: null }; } });
+    const tb = JSON.stringify({ type: "subscription.updated", event_id: "evt-throw-1", data: { object: { subscription: { id: "sq-sub-1", status: "ACTIVE" } } } });
+    const r = await post(loader(w.shims)("app/api/square/webhook/route.ts"), SQ_URL, { "x-square-hmacsha256-signature": sqSign(tb) }, tb);
+    return { ...r, w };
+  });
+  const noted = threw.w.calls.filter((c) => c.table === "webhook_events").flatMap((c) => c.steps).find(([m, v]) => m === "update" && typeof v?.error === "string");
+  ok("square route (R14): what threw is kept with the event in its own words (not \"processing threw\" alone), and Square is answered 500 to send it again",
+    threw.status === 500 && noted?.[1]?.error === "processing threw: connection reset by peer", { status: threw.status, noted });
   const good = await run({ "x-square-hmacsha256-signature": sqSign(body) }, body);
   ok("square route: correctly signed → 200, and it records the event (the inbox insert, 0230)",
     good.status === 200 && good.w.calls.some((c) => c.table === "webhook_events" && c.steps.some(([m]) => m === "insert")), { status: good.status, json: good.json });
@@ -259,8 +281,13 @@ await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: SQ_KEY, SQUARE_WEBHOOK_URL: SQ_URL
 await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: undefined, SQUARE_WEBHOOK_URL: undefined }, async () => {
   const w = world();
   const body = "{}";
+  const said = console.error; console.error = () => {};
   const r = await post(loader(w.shims)("app/api/square/webhook/route.ts"), SQ_URL, { "x-square-hmacsha256-signature": sqSign(body) }, body);
+  console.error = said;
   ok("square route: with its key unset it refuses every event (503), as it always has", r.status === 503 && w.calls.length === 0, r.status);
+  const off = w.alerts.find((a) => a.kind === "webhook_off");
+  ok("square route (R14): …and says so — the crew is told once while it lasts (critical, money), naming what is not set and no value",
+    !!off && off.severity === "critical" && off.category === "money" && off.subjectId === "square" && /SQUARE_WEBHOOK_SIGNATURE_KEY/.test(off.body) && /SQUARE_WEBHOOK_URL/.test(off.body), off);
 });
 
 // Resend (Svix)

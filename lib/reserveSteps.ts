@@ -1,21 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isClosed, isGone, refusalText } from "./refusal";
-import { isMissingFunction } from "./schemaSkew";
 import { errorMessage } from "./errorMessage";
 import type { ClaimState, Done, Held, ReserveClaimRow, ReserveSteps } from "./reservePay";
 
 // THE DATABASE UNDER lib/reservePay — 0400's functions and reserve_claims, with the service role (the routes are the
 // only callers: hold_reserve, settle_reserve and release_reserve are the server's alone).
 //
-// arrives-with: 0400 — until it is pasted hold_reserve is not there, and a hold says reserving by card is not switched
-// on yet (503) instead of taking anybody's money; the claim's new columns are read nowhere a phone draws from.
-//
 // A refusal is the database's own sentence (lib/refusal): gone → 404, closed or sold out → 409, anything else it will
 // not take → 400. An answer that does not say — the network, a timeout — may still have made the hold, so it is read
 // back by its key before it is called a failure.
 
 const COLS = "id, reserve_id, user_id, qty, state, idempotency_key, payment_id, paid_cents, refunded_cents, created_at";
-const OFF = "Reserving with a card isn't switched on yet — check back shortly.";
 
 type DbError = { code?: string | null; message?: string | null } | null | undefined;
 const failed = (e: DbError): Done => ({ ok: false, error: refusalText(e) ?? String(e?.message || e?.code || "it didn't answer") });
@@ -38,7 +33,6 @@ export function reserveSteps(db: SupabaseClient): ReserveSteps {
       } catch (e) {
         error = { message: errorMessage(e) };
       }
-      if (isMissingFunction(error)) return { ok: false, answer: { status: 503, body: { error: OFF, off: true } } };
       const words = refusalText(error);
       if (words) return { ok: false, answer: { status: isGone(error) ? 404 : isClosed(error) ? 409 : 400, body: { error: words, ...(isGone(error) ? { gone: true } : {}) } } };
       // The answer did not say. The hold may be there: read it back by its key — the member's own, still pending. Found,

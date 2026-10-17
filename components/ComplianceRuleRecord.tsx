@@ -49,8 +49,7 @@ export default function ComplianceRuleRecord({ ruleId, onClose }: { ruleId: stri
     const [r, f, c] = await Promise.all([
       supabase.from("compliance_rules").select("*").eq("id", ruleId).maybeSingle(),
       supabase.from("v_compliance_freshness").select("freshness").eq("id", ruleId).maybeSingle(),
-      // arrives-with: 0342 — before it is applied the table does not exist; the history is then
-      // simply not shown, and nothing else on the sheet depends on it.
+      // The history (0342): a read that fails shows none, and nothing else on the sheet depends on it.
       supabase.from("compliance_checks").select("id, checked_on, outcome, checked_against, note, checked_by").eq("rule_id", ruleId).order("created_at", { ascending: false }).limit(6),
     ]);
     if (r.error) throw new Error(r.error.message);

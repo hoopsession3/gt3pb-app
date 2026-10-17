@@ -95,7 +95,7 @@ export function fakeSquare() {
   return sq;
 }
 
-/** public.checkout_claims as 0371 declares it, in a Map — and `failing` to stand in for an unpasted table or a down one. */
+/** public.checkout_claims as 0371 declares it, in a Map — and `failing` to stand in for a table PostgREST does not know ("missing") or a down one. */
 export function memoryClaims() {
   const rows = new Map();
   const copy = (x) => JSON.parse(JSON.stringify(x));
@@ -546,22 +546,20 @@ export async function branches({ C, SQ, I, store, ok, memory = false }) {
 
   if (!memory) return;
 
-  // ── 10 · 0371 not pasted yet: no claims, and the page's own key and token still hold ─────────
+  // ── 10 · the claims table missing — a restore, a branch, a stale schema cache (R14) ─────────
+  // Until 0371 was pasted, a missing table ran the checkout without claims (Square's replay of its key the only dedupe —
+  // and the old page, with a new token after a reload, was charged twice: the bug 0371 fixed). 0371 is applied, so a
+  // missing table is refused like a table that is down: nothing is charged, whichever page asks.
   {
     store.failing = "missing";
     try {
       const { sq, route, page } = fresh();
-      const first = await tap(page, route, CART, { lose: true });
-      const retry = await tap(page, route, CART);
-      ok("10 · unpasted: a lost answer retried with the same token is replayed by Square — one payment, one order",
-        retry.status === 200 && sq.calls.length === 2 && sq.payments.length === 1 && route.orders.length === 1 && retry.body.paymentId === sq.payments[0].id, retry.body);
-      ok("10 · unpasted: nothing was claimed", store.rows.size === 0 || !store.rows.has(first.key));
-      const p2 = cardPage(I);
-      await tap(p2, route, CART, { lose: true });
-      p2.reload();
-      const r2 = await tap(p2, route, CART);
-      ok("10 · unpasted, after a reload: Square refuses the key with a new token, which is \"may have been charged\" — never a second payment",
-        r2.status === 502 && r2.body.pending === true && sq.payments.length === 2, { r2: r2.body, payments: sq.payments.length });
+      const t = await tap(page, route, CART);
+      ok("10 · claims table missing: refused, nothing charged, and safe to tap again — never charged without its claim",
+        t.status === 503 && /nothing was charged/.test(t.body.error) && sq.calls.length === 0 && page.state.key === t.key, t.body);
+      const old = cardPage(I, { old: true });
+      const o = await tap(old, route, CART);
+      ok("10 · …the page from before 0371 too", o.status === 503 && sq.calls.length === 0 && route.orders.length === 0, o.body);
     } finally { store.failing = null; }
   }
 
@@ -572,18 +570,6 @@ export async function branches({ C, SQ, I, store, ok, memory = false }) {
       const { sq, route, page } = fresh();
       const t = await tap(page, route, CART);
       ok("11 · claims unreadable: refused, nothing charged, and safe to tap again", t.status === 503 && /nothing was charged/.test(t.body.error) && sq.calls.length === 0 && page.state.key === t.key, t.body);
-    } finally { store.failing = null; }
-  }
-
-  // ── 12 · the page before this fix, against the route before it ──────────────────────────────
-  {
-    store.failing = "missing";
-    try {
-      const { sq, route } = fresh();
-      const old = cardPage(I, { old: true });
-      await tap(old, route, CART, { lose: true });
-      await tap(old, route, CART);
-      ok("12 · the bug, reproduced: the old page's retry after a lost answer charged the card twice", sq.payments.length === 2 && route.orders.length === 2, sq.payments.length);
     } finally { store.failing = null; }
   }
 }

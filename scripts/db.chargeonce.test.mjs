@@ -3,8 +3,9 @@
 // 0371 adds public.checkout_claims, the row /api/checkout writes for a checkout's idempotency key before it asks
 // Square for money (lib/chargeOnce decides, lib/checkoutClaims reads and writes). The claims worth a database:
 //
-//   1. Before the paste, lib/checkoutClaims reports the table MISSING — the one error lib/chargeOnce forgives,
-//      by running the checkout without claims as it ran before them — not a failure that refuses every order.
+//   1. Before the paste — or on a database PostgREST does not know it in (a restore, a branch, a stale schema cache) —
+//      lib/checkoutClaims reports the table MISSING, and lib/chargeOnce refuses the checkout: nothing is charged without
+//      its claim (R14; before 0371 was applied it ran the checkout without claims).
 //   2. The table as production will have it, under production's rules: Supabase grants every new table to anon
 //      and authenticated by default (modelled here with the same default privileges, and the same for
 //      functions), so 0371 must take that back by name. RLS on, no policy; a browser can neither read a claim
@@ -119,7 +120,7 @@ const store = CC.checkoutClaims(postgrest());
   const c = await store.claim("before-0371-key-0001", { channel: "cups", card: true, amountCents: 1000 }, new Date().toISOString());
   ok("before 0371: so does the claim", c.ok === false && c.missing === true, c);
   const seen = await C.seenBefore(store, "before-0371-key-0001", true, () => Date.now(), async () => {});
-  ok("before 0371: the checkout runs without claims, as it did before them", !("answer" in seen) && seen.claims === null, seen);
+  ok("table missing: the checkout is refused — nothing charged, safe to tap again (R14)", "answer" in seen && seen.answer.status === 503 && /nothing was charged/i.test(seen.answer.body.error) && seen.answer.body.charged === false, seen);
 }
 
 const sql = readFileSync(join(ROOT, "supabase/migrations/0371_a_card_is_charged_once.sql"), "utf8");

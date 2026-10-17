@@ -7,7 +7,6 @@ import { zipMarket } from "@/lib/delivery";
 import { marketServes } from "@/lib/markets";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
-import { writeAcrossSkew, isMissingFunction } from "@/lib/schemaSkew";
 
 export const runtime = "nodejs";
 
@@ -83,15 +82,14 @@ async function post(req: Request) {
   // the server's own zone — UTC on Vercel — so from a Sunday evening in Greenville it booked the Monday
   // after next, and nothing closed changes before a delivery. office_next_delivery answers in the
   // market's time zone: the next day the market's window falls on whose cutoff (6 PM the weekday
-  // before) is still ahead, with the market's own window. Until 0356 is pasted it isn't there
-  // (PGRST202) and the old answer stands.
+  // before) is still ahead, with the market's own window.
   let dateKey = nextMondayKey();
   let windowCode: string = OFFICE.window;
   let cutoffAt: string | null = null;
   const next = await supabaseAdmin.rpc("office_next_delivery", { p_market: market });
   // The database's own words stay in the logs (R9 — the abuse audit's twelfth): a member is told what didn't happen, and
   // how to get it done — never a table's or a function's name.
-  if (next.error && !isMissingFunction(next.error)) { console.warn(`[office] office_next_delivery: ${next.error.message}`); return NextResponse.json({ error: "Couldn't work out the delivery date — try again in a moment, or text us." }, { status: 500 }); }
+  if (next.error) { console.warn(`[office] office_next_delivery: ${next.error.message}`); return NextResponse.json({ error: "Couldn't work out the delivery date — try again in a moment, or text us." }, { status: 500 }); }
   const slot = (next.data as { delivery_date: string; cutoff_at: string; delivery_window: string }[] | null)?.[0];
   if (slot) { dateKey = slot.delivery_date; windowCode = slot.delivery_window; cutoffAt = slot.cutoff_at; }
 
@@ -113,21 +111,16 @@ async function post(req: Request) {
       user_id: userId, company: companyNorm, contact_name: contact || null, contact_phone: phone || null,
       contact_email: userEmail, address_street: street, address_city: city, address_zip: zip,
       headcount, billing_terms: billing, standing_active: true, standing_gallons: q.gallons, market,
-      access_instructions: access || null,   // arrives-with: 0346
+      access_instructions: access || null,
     };
     const { data: existing } = await supabaseAdmin.from("business_accounts").select("id")
       .eq("user_id", userId).ilike("company", companyNorm.replace(/[%_\\]/g, (c) => `\\${c}`)).maybeSingle();
     if (existing?.id) {
-      const { error } = await writeAcrossSkew((row) => supabaseAdmin!.from("business_accounts").update(row).eq("id", existing.id), acctRow, ["access_instructions"]);
+      const { error } = await supabaseAdmin.from("business_accounts").update(acctRow).eq("id", existing.id);
       if (error) { console.warn(`[office] account update: ${error.message}`); return NextResponse.json({ error: "Couldn't update your standing account — try again in a moment, or text us." }, { status: 500 }); }
       businessId = existing.id as string;
     } else {
-      let made: { id: string } | null = null;
-      const { error } = await writeAcrossSkew(async (row) => {
-        const r = await supabaseAdmin!.from("business_accounts").insert(row).select("id").single();
-        made = (r.data as { id: string } | null) ?? null;
-        return r;
-      }, acctRow, ["access_instructions"]);
+      const { data: made, error } = await supabaseAdmin.from("business_accounts").insert(acctRow).select("id").single();
       if (error) { console.warn(`[office] account insert: ${error.message}`); return NextResponse.json({ error: "Couldn't set up your standing account — try again in a moment, or text us." }, { status: 500 }); }
       businessId = (made as { id: string } | null)?.id ?? null;
     }
@@ -142,10 +135,10 @@ async function post(req: Request) {
   let totalCents = q.totalCents;
   if (standing && businessId) {
     const booked = await supabaseAdmin.rpc("book_office_standing", { p_account: businessId });
-    if (booked.error && !isMissingFunction(booked.error)) { console.warn(`[office] book_office_standing: ${booked.error.message}`); return NextResponse.json({ error: "Couldn't schedule your first delivery — try again in a moment, or text us." }, { status: 500 }); }
+    if (booked.error) { console.warn(`[office] book_office_standing: ${booked.error.message}`); return NextResponse.json({ error: "Couldn't schedule your first delivery — try again in a moment, or text us." }, { status: 500 }); }
     const first = (booked.data as { order_id: string; delivery_date: string; total_cents: number; cutoff_at: string; delivery_window: string }[] | null)?.[0];
-    if (!booked.error && !first) return NextResponse.json({ error: "Couldn't schedule your first delivery — text us and we'll set it up." }, { status: 500 });
-    if (first) { orderId = first.order_id; dateKey = first.delivery_date; windowCode = first.delivery_window; totalCents = first.total_cents; cutoffAt = first.cutoff_at; }
+    if (!first) return NextResponse.json({ error: "Couldn't schedule your first delivery — text us and we'll set it up." }, { status: 500 });
+    orderId = first.order_id; dateKey = first.delivery_date; windowCode = first.delivery_window; totalCents = first.total_cents; cutoffAt = first.cutoff_at;
   }
   if (!orderId) {
     const { data: order, error } = await supabaseAdmin.from("business_orders").insert({
@@ -156,7 +149,7 @@ async function post(req: Request) {
       gallons: q.gallons, price_per_gallon_cents: priceCents,
       subtotal_cents: q.subtotalCents, delivery_fee_cents: q.deliveryFeeCents, tax_cents: q.taxCents, total_cents: q.totalCents,
       billing_terms: billing, standing, market,
-      ...(cutoffAt ? { cutoff_at: cutoffAt } : {}),   // arrives-with: 0356
+      ...(cutoffAt ? { cutoff_at: cutoffAt } : {}),
     }).select("id").single();
     if (error) { console.warn(`[office] order insert: ${error.message}`); return NextResponse.json({ error: "Couldn't book it — try again in a moment, or text us." }, { status: 500 }); }
     orderId = (order as { id: string } | null)?.id;

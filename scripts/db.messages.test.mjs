@@ -50,7 +50,7 @@ await db.exec(`
 
 // ── the migration itself, from its file ────────────────────────────────────────────────────────
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0326_what_we_told_the_customer.sql"), "utf8"));
-ok("0326 applies against a real Postgres", true);
+// 0326 applies against a real Postgres — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 ok("0326 records itself in the ledger",
   (await q1(`select count(*)::int n from public.schema_migrations where version = '0326_what_we_told_the_customer'`)).n === 1);
 ok("0326 says what changed, once — re-running must not duplicate the changelog line",

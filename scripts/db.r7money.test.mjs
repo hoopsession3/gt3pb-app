@@ -54,7 +54,7 @@ const refundAlerts = async (id) => q(`select severity, category, title, body, li
 
 for (const sql of SQL) await db.exec(sql);
 for (const sql of SQL) await db.exec(sql);   // a second run changes nothing (below: one alert, one reversal)
-ok("0409–0411 load on the schema to 0408, and load again", true);
+// 0409–0411 load on the schema to 0408, and load again — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
 // ── 0409 · money back is all of it ──────────────────────────────────────────────────────────────────────────
 ok("refund_words says what the card was charged, and which is which",

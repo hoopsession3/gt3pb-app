@@ -68,7 +68,6 @@ async function post(req: Request) {
   // the stock or the Sunday is asked again: a retry of a delivery that went through hears "booked", not "that Sunday
   // closed" because the clock moved while its first answer was lost. A delivery is not collected at a window, so it says
   // its own "paid, not saved" and "couldn't confirm".
-  // arrives-with: 0371 — before it is pasted the checkout runs without claims, as it did before them.
   const idemKey = safeIdemKey(b.idempotencyKey);
   const now = () => Date.now();
   const say: Say = {
@@ -154,12 +153,12 @@ async function post(req: Request) {
   if (raised) return NextResponse.json(raised, { status: 409 });
   // The customer picks which Sunday (this one or next). A pick that is no longer on offer — its Friday
   // cutoff passed while the page was open — is refused before any charge, with the Sundays on offer now
-  // (C4, 2026-10-12): it used to fall back to the coming slot and charge for a Sunday never shown. The
-  // retry of a send whose answer was lost keeps its Sunday while it is ahead: that send may be charged. Only without the
-  // claims (R7): with them, a send that was charged under this key has been answered from its claim above, so a "retry"
-  // that reaches here was never claimed — nothing was charged — and the flag, which the phone sets, books no closed Sunday.
+  // (C4, 2026-10-12): it used to fall back to the coming slot and charge for a Sunday never shown. A send that was charged
+  // under this key has been answered from its claim above (R7), so a "retry" that reaches here was never claimed — nothing
+  // was charged — and the flag the phone sets books no closed Sunday. (Before 0371 the retry kept its closed Sunday while
+  // it was ahead: without claims, that send might have been charged. R14 took the without.)
   const slotNow = Date.now();
-  const slot = pickedSlot(b.deliveryDate, slotNow, b.retry === true && !seen.claims);
+  const slot = pickedSlot(b.deliveryDate, slotNow);
   if (!slot) return NextResponse.json({ error: SUNDAY_CLOSED, slotClosed: true, choices: deliverySlotChoices(slotNow) }, { status: 409 });
 
   // A city held closed takes no order of any kind (0412) — a delivery included (R8: only the cups and the packs asked). The
@@ -204,7 +203,7 @@ async function post(req: Request) {
         payment_id: paymentId || null,   // Square charge id — links this order to its event_sales mirror (walk-up dedupe, 0216)
         empties_expected: quote.refillCount,
       };
-      // Idempotency at the ORDER row, the line behind the claim (and the only dedupe while 0371 is unpasted): a retry
+      // Idempotency at the ORDER row, the line behind the claim: a retry
       // returns the SAME Square paymentId, so don't insert a second paid delivery → double fulfillment + double invoice.
       if (paymentId) {
         // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by

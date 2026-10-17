@@ -114,9 +114,7 @@ async function post(req: Request) {
   // answered NOW — before the limiter, the stock or the truck's hours are asked again — with what its
   // first request said, or "still confirming": a retry of an order that went in must hear "order in",
   // not "sold out" or "closed" because the world moved on while the first answer was lost. Nothing
-  // under a claimed key is ever sent to Square again.
-  // arrives-with: 0371 — before it is pasted lib/checkoutClaims reports the table missing and the
-  // checkout runs without claims, exactly as it did before them; nothing is refused for it.
+  // under a claimed key is ever sent to Square again. A claims table that does not answer refuses the checkout (R14).
   const idemKey = safeIdemKey(body.idempotencyKey);
   const now = () => Date.now();
   const stopped = stoppedAlert(items.map(String), customer, false);
@@ -289,8 +287,7 @@ async function post(req: Request) {
   const orderId = await orderIdForToday(supabaseAdmin, randomUUID);
   const receiptLines = priced.lines.map((l) => ({ slug: l.slug, name: l.name, qty: l.qty, unit_cents: l.cents, ...(l.cents !== l.baseCents ? { base_cents: l.baseCents } : {}) }));
   const ticketFor = async (card: PaidCard | null): Promise<string | null> => {
-    // arrives-with: 0395 — until it is pasted the columns are not there: this write and its read fail together, on
-    // their own, after the order is in; the answer carries the order's number and no link.
+    // A write that fails here fails on its own, after the order is in: the answer carries the order's number and no link.
     // scoped-by: orderId was made above and the row was just inserted with it — this checkout's own order, one row.
     const { data } = await supabaseAdmin!.from("orders")
       .update(card?.last4 ? { lines: receiptLines, card_brand: card.brand, card_last4: card.last4 } : { lines: receiptLines })
@@ -333,9 +330,8 @@ async function post(req: Request) {
   const recordPaid = async (paymentId: string | null, paidWith: PaidCard | null): Promise<Answer> => {
     try {
       // Idempotency at the ORDER row, the line behind the claim: Square answers a repeated key with the
-      // SAME paymentId, so if an order already carries it — a retry while 0371 is unpasted, when that
-      // replay is the only dedupe there is — don't insert a SECOND paid order → double fulfillment.
-      // (A unique index on payment_id backs this in DB.)
+      // SAME paymentId, so if an order already carries it, don't insert a SECOND paid order → double
+      // fulfillment. (A unique index on payment_id backs this in DB.)
       if (paymentId) {
         // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id
         const { data: already } = await supabaseAdmin!.from("orders").select("id").eq("payment_id", paymentId).maybeSingle();
@@ -353,9 +349,9 @@ async function post(req: Request) {
         ({ error: insErr } = await insertOrder(orderRow));
       }
       if (insErr) {
-        // Two requests for one charge reach this insert only without the claim (0371 unpasted): Square
-        // answered both with the same paymentId, so the OTHER insert succeeding isn't a failure, it's the
-        // dedupe working. Confirm that row is really there before raising a false "didn't record" alert,
+        // Two requests for one charge should never both reach this insert — the claim stops the second — but if
+        // they do, Square answered both with the same paymentId, and the OTHER insert succeeding isn't a failure,
+        // it's the dedupe working. Confirm that row is really there before raising a false "didn't record" alert,
         // which would otherwise have staff double-add an order that's already correctly on the pass.
         if ((insErr as { code?: string }).code === "23505" && paymentId) {
           // scoped-by: payment_id carries a UNIQUE index (verified in production) and the value is issued by Square, never chosen by the caller — at most one row in the whole table, a stricter key than tenant_id

@@ -138,7 +138,7 @@ await db.exec(mig("0277_operator_agreements.sql"));
 await db.exec(mig("0281_offer_letters.sql"));
 await db.exec(mig("0280_role_integrity.sql").replace(/create or replace function public\.handle_new_user[\s\S]*?end \$\$;/, ""));
 
-ok("fixture: 0277 + 0281 + 0280 load", true);
+// fixture: 0277 + 0281 + 0280 load — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
 // ═══ 0284 — compliance freshness ════════════════════════════════════════════════════════════════
 await db.exec(mig("0284_compliance_freshness.sql"));

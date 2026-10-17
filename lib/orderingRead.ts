@@ -91,9 +91,7 @@ export async function readOrdering(sb: SupabaseClient, market: Market, nowMs: nu
 // pours, or null — no menu set, which limits nothing. The crew's menu table is staff-only (0173); stop_menu (0393) answers
 // one stop's list to anyone, because the menu shows it. The phone reads it to say "Not at this stop" — on any error it
 // limits nothing, and Pay decides; the server, before any charge, refuses on a failed read rather than sell what it could
-// not check (app/api/checkout). The error comes back as PostgREST gave it, so the server can tell the one it forgives:
-// arrives-with: 0393 — until stop_menu is pasted PostgREST answers PGRST202 (lib/schemaSkew isMissingFunction), and a
-// stop's menu limits nothing, as before. (schemaSkew is the server's to load: this file rides in every page's bundle.)
+// not check (app/api/checkout). The error comes back as PostgREST gave it.
 export async function readStopMenu(sb: SupabaseClient, stopId: string): Promise<{ menu: string[] | null; error: { code?: string; message: string } | null }> {
   const { data, error } = await sb.rpc("stop_menu", { p_stop: stopId });
   if (error) return { menu: null, error: { code: error.code, message: error.message } };

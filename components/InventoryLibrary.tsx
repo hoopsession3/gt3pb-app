@@ -17,7 +17,6 @@ import { homeMarket } from "@/lib/homeMarket";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { rankSuppliers, readVendorBook, type VendorRow } from "@/lib/suppliers";
 import { resolveSupplier, type VendorMatch } from "@/lib/vendorLink";
-import { writeAcrossSkew } from "@/lib/schemaSkew";
 import VendorResolve from "./VendorResolve";
 import Button from "./Button";
 
@@ -160,13 +159,11 @@ export default function InventoryLibrary() {
       notes: draft.notes.trim() || null,
       critical: draft.critical,
     };
-    // arrives-with: 0347 — until it is pasted there is no vendor_id to write, and the typed name is
-    // saved alone, as before (lib/schemaSkew: that one column, nothing else forgiven).
     const { error } = editing === "new"
-      ? await writeAcrossSkew((r) => supabase!.from("inventory_items").insert(r), { ...row, qty: count, market: draft.market } as Record<string, unknown>, ["vendor_id"])
+      ? await supabase.from("inventory_items").insert({ ...row, qty: count, market: draft.market })
       // The hand count follows too: the brew planner and the agents still read `qty`, and a recount
       // made here should not leave them a number behind the shelf.
-      : await writeAcrossSkew((r) => supabase!.from("inventory_items").update(r).eq("id", editing as string), (count != null && Number.isFinite(count) ? { ...row, qty: count } : row) as Record<string, unknown>, ["vendor_id"]);
+      : await supabase.from("inventory_items").update(count != null && Number.isFinite(count) ? { ...row, qty: count } : row).eq("id", editing as string);
     if (error) { setBusy(false); setErr(error.message); return; }
     // A changed count on an existing shelf is a correction to the shelf, not a new hand count.
     if (editingItem && count != null && Number.isFinite(count) && count !== onHandOf(editingItem)) {

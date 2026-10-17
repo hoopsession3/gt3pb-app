@@ -38,15 +38,13 @@ export default function Reports() {
   // CASH AT THE WINDOW (2026-10-04, 0341). It is inside the revenue above — cash sets paid — and
   // said on its own because it is the one part of that number in a till rather than a bank: the
   // count to check the drawer against. Same window and same exclusions as report_sales. Its own
-  // read, apart from the report's: the column arrives with 0341, and until then the filter is
-  // refused and the line is simply not drawn — never a zero that looks like a count.
+  // read, apart from the report's: a read that fails draws no line — never a zero that looks like a count.
   const [cash, setCash] = useState<{ cents: number; n: number } | null>(null);
   useEffect(() => {
     let live = true;
     (async () => {
       if (!supabase) return;
       const since = `${new Date(Date.now() - (Math.max(days, 1) - 1) * 864e5).toISOString().slice(0, 10)}T00:00:00Z`;
-      // arrives-with: 0341
       const [o, p] = await Promise.all([
         supabase.from("orders").select("total_cents").eq("collected_via", "cash").neq("status", "void").gte("created_at", since),
         supabase.from("drop_orders").select("total_cents").eq("collected_via", "cash").is("canceled_at", null).gte("created_at", since),

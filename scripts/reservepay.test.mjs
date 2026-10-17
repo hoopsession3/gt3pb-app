@@ -218,8 +218,8 @@ const reset = () => { told.crew.length = 0; told.customer.length = 0; };
   const gone = await pay({ key: "rsv-gone-000000001", reserve: null });
   const draft = await pay({ key: "rsv-gone-000000002", reserve: { ...forPay(W.reserves.get(RES)), status: "draft" } });
   ok("checks: no such reserve, or not on offer — 404", gone.status === 404 && draft.status === 404 && gone.body.gone === true, [gone, draft]);
-  const pre = await pay({ key: "rsv-pre-0000000001", reserve: { id: RES, name: "Barrel Rise", price_cents: 4000, status: "live", stock_remaining: 98 } });
-  ok("checks: before 0400 (no pickup column) — reserving by card isn't switched on yet (503), nothing taken", pre.status === 503 && pre.body.off === true && /isn't switched on yet/.test(pre.body.error), pre);
+  // (Before 0400 a reserve read without its pickup column said "reserving by card isn't switched on yet"; 0400 is applied,
+  // and the route reads the pickup or refuses — R14 took the pre-0400 path out.)
   const soon = await pay({ key: "rsv-soon-000000001", reserve: { ...forPay(W.reserves.get(RES)), stop_id: null, stop: null } });
   ok("checks: no pickup named yet — opening soon, not payable", soon.status === 409 && /opens once its pickup is set/.test(soon.body.error), soon);
   const off = await pay({ key: "rsv-off-0000000001", reserve: { ...forPay(W.reserves.get(RES)), stop: { ...STOP, canceled_at: "2026-10-15T12:00:00Z" } } });
@@ -707,16 +707,18 @@ const stampHold = (key) => { const c = [...W.claims.values()].find((x) => x.idem
   const cx = src.slice(src.indexOf("export async function cancelReserve("), src.indexOf("// ── SETTLED BY HAND"));
   ok("order: a cancel refunds before it lets the bottles go", cx.indexOf("o.refund({") > 0 && cx.indexOf("o.refund({") < cx.indexOf("steps.release("));
   const route = readFileSync(join(ROOT, "app/api/reserves/pay/route.ts"), "utf8");
-  ok("route: members only, the reserve read with its pickup (and without it until 0400), and the key on the card's charge",
+  ok("route: members only, the reserve read with its pickup — a read that fails refuses — and the key on the card's charge",
     /if \(!user\) return NextResponse\.json\(\{ error: "Reserves are for members/.test(route) && /stop:stops\(name, starts_at, ends_at, canceled_at\)/.test(route)
-    && /isMissingRelation\(withStop\.error\) \|\| isMissingColumn\(withStop\.error\)/.test(route) && /idempotencyKey: key, buyerEmail: email/.test(route));
+    && /if \(withStop\.error\) return NextResponse\.json\(\{ error: "Couldn't read that reserve just now — try again\." \}, \{ status: 503 \}\);/.test(route)
+    && !/isMissingColumn|isMissingRelation/.test(route) && /idempotencyKey: key, buyerEmail: email/.test(route));
   const settleRoute = readFileSync(join(ROOT, "app/api/reserves/settle/route.ts"), "utf8");
   const cancelRoute = readFileSync(join(ROOT, "app/api/reserves/cancel/route.ts"), "utf8");
   ok("routes: a payment settled by hand and a crew refund are an owner's or an admin's (is_admin), asked first",
     /async function post\(req: Request\) \{\s*if \(!\(await adminFromRequest\(req\)\)\) return/.test(settleRoute)
     && /if \(body\.crew === true\) \{\s*if \(!\(await adminFromRequest\(req\)\)\) return/.test(cancelRoute) && !/staffFromRequest/.test(settleRoute + cancelRoute));
-  ok("routes: settle reads its checkout and refuses on a failed read (only a missing table is none), and asks Square — the search, and a pasted id",
-    /if \(k\.error && !isMissingTable\(k\.error\)\) return/.test(settleRoute) && /lookup: token \? \(paymentId\) => getPayment\(\{ token, paymentId \}\) : null/.test(settleRoute)
+  ok("routes: settle reads its claim and its checkout and refuses on a failed read — a missing table too, since 0371 — and asks Square — the search, and a pasted id",
+    /if \(cErr\) return NextResponse\.json\(\{ error: "Couldn't read that claim just now — try again\." \}, \{ status: 503 \}\);/.test(settleRoute)
+    && /if \(k\.error\) return NextResponse\.json\(\{ error: "Couldn't read its checkout just now — try again\." \}, \{ status: 503 \}\);/.test(settleRoute) && !/isMissingTable/.test(settleRoute) && /lookup: token \? \(paymentId\) => getPayment\(\{ token, paymentId \}\) : null/.test(settleRoute)
     && /search: token && locationId \? \(reference, fromIso, toIso\) => findPaymentByReference\(\{ token, locationId, reference, fromIso, toIso \}\) : null/.test(settleRoute));
 }
 

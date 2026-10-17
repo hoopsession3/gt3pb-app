@@ -21,7 +21,6 @@ import Icon from "@/components/Icon";
 import { addDays, localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
 import dynamic from "next/dynamic";
-import { isMissingColumn } from "@/lib/schemaSkew";
 import { type PortfolioStream, milestoneStream } from "@/lib/portfolio";
 import Said from "./Said";
 
@@ -118,16 +117,11 @@ export default function CommandBoard() {
   const [weekOpen, setWeekOpen] = useState(false);
   const [allOverdue, setAllOverdue] = useState(false);
 
-  // 0350 adds initiative_milestones.workstream_id. Until it is pasted the milestones are asked for
-  // again without it, and the board knows (linkable: false): the pick is still offered and a
-  // milestone keeps the workstream's name, which 0350 links when it lands. The forgiveness is
-  // lib/schemaSkew's one condition; every other error still throws.
+  // The milestones with their workstream's link (0350: initiative_milestones.workstream_id) — linkable: a milestone can be
+  // linked to a workstream. (Before 0350 was pasted they were asked for again without it; R14 took that path out.)
   const milesRead = useCallback(async () => {
-    // arrives-with: 0350
     const full = await supabase!.from("initiative_milestones").select("id, initiative_id, title, due_on, done, workstream, workstream_id, sort").order("sort");
-    if (!full.error || !isMissingColumn(full.error)) return { ...full, linkable: true };
-    const prior = await supabase!.from("initiative_milestones").select("id, initiative_id, title, due_on, done, workstream, sort").order("sort");
-    return { ...prior, linkable: false };
+    return { ...full, linkable: true };
   }, []);
 
   const loader = useCallback(async (): Promise<BoardData> => {

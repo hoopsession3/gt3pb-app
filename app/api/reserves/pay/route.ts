@@ -8,7 +8,6 @@ import { accountEmail, notifyCustomer, whoAsked } from "@/lib/notify";
 import { checkoutClaims } from "@/lib/checkoutClaims";
 import { payReserve, type ReserveForPay, type Tell } from "@/lib/reservePay";
 import { reserveSteps } from "@/lib/reserveSteps";
-import { isMissingColumn, isMissingRelation } from "@/lib/schemaSkew";
 import { isUuid } from "@/lib/uuid";
 import { route } from "@/lib/apiRoute";
 import type { Answer } from "@/lib/chargeOnce";
@@ -41,23 +40,12 @@ async function post(req: Request) {
   // A card try, counted at every card door (R9, lib/cardGuard) — before the reserve is read or a key is claimed.
   if (sourceId && !(await cardTryFits(supabaseAdmin, { userId: user.id, ip: callerAddress(req) }))) return NextResponse.json({ error: CARD_TRIES_WORDS, charged: false }, { status: 429 });
 
-  // The reserve, with its pickup.
-  // arrives-with: 0400 — until it is pasted reserves.stop_id is not there: the reserve is read without its pickup, and
-  // lib/reservePay says reserving by card is not switched on yet — before any key is claimed or card asked.
+  // The reserve, with its pickup (0400).
   const db = supabaseAdmin;
   // scoped-by: one reserve by its id — a live reserve is shown to anyone (RLS 0014) — and nothing here writes it; the hold is the member's own.
   const withStop = await db.from("reserves").select("id, name, price_cents, status, stock_remaining, stop_id, stop:stops(name, starts_at, ends_at, canceled_at)").eq("id", reserveId).maybeSingle();
-  let reserve: ReserveForPay | null = null;
-  if (withStop.error && (isMissingRelation(withStop.error) || isMissingColumn(withStop.error))) {
-    // scoped-by: as above — one reserve by its id, read only.
-    const bare = await db.from("reserves").select("id, name, price_cents, status, stock_remaining").eq("id", reserveId).maybeSingle();
-    if (bare.error) return NextResponse.json({ error: "Couldn't read that reserve just now — try again." }, { status: 503 });
-    reserve = (bare.data as unknown as ReserveForPay | null) ?? null;
-  } else if (withStop.error) {
-    return NextResponse.json({ error: "Couldn't read that reserve just now — try again." }, { status: 503 });
-  } else {
-    reserve = (withStop.data as unknown as ReserveForPay | null) ?? null;
-  }
+  if (withStop.error) return NextResponse.json({ error: "Couldn't read that reserve just now — try again." }, { status: 503 });
+  const reserve = (withStop.data as unknown as ReserveForPay | null) ?? null;
 
   // Read before the card is asked, so a failure reading it is a failure before anything was charged.
   const email = user.email ?? (await accountEmail(user.id));

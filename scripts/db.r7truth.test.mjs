@@ -45,7 +45,7 @@ ok("before 0412: a city switched on stays live after Go offline — the bug, rep
 
 for (const sql of SQL) await db.exec(sql);
 for (const sql of SQL) await db.exec(sql);   // a second run changes nothing
-ok("0412 and 0413 load on the schema to 0411, and load again", true);
+// 0412 and 0413 load on the schema to 0411, and load again — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
 // ── 0412 · go offline stops every order ──────────────────────────────────────────────────────────────────────
 ok("Go offline: the city switched on is not taking orders", (await liveIn("greenville")) === false);
@@ -137,7 +137,7 @@ const loggedBefore = Object.fromEntries(await Promise.all([HAL, FAY, GUS, IVY].m
 const SQL14 = sqlOf("0414_founding_is_one_switch.sql");
 await db.exec(SQL14);
 await db.exec(SQL14);   // a second run changes nothing
-ok("0414 loads on 0413, and loads again", true);
+// 0414 loads on 0413, and loads again — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 ok("where the card and the price disagreed they agree now — the card's way, the owner's last word",
   ((h, f, g, i) => h.tier === "founding" && h.f && f.tier === "founding" && f.f && g.tier === "member" && !g.f && i.tier === "member" && !i.f)(
     await card(HAL), await card(FAY), await card(GUS), await card(IVY)), [await card(HAL), await card(FAY), await card(GUS), await card(IVY)]);

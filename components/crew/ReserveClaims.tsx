@@ -11,7 +11,6 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { authedFetch } from "@/lib/authedFetch";
 import { refusalText } from "@/lib/refusal";
-import { isMissingColumn } from "@/lib/schemaSkew";
 import { IN_FLIGHT_MS } from "@/lib/chargeOnce";
 import { canOf } from "@/lib/roles";
 import { addDays, clockTime } from "@/lib/dates";
@@ -32,9 +31,6 @@ import { money } from "@/lib/money";
 // hand (app/api/reserves/settle), each refused by the server to anyone else; here they are simply not offered. A claim
 // whose checkout may still be going — under two minutes old (lib/chargeOnce IN_FLIGHT_MS) — is not offered for settling
 // either: it says it is being confirmed until its request has had its chance to answer.
-//
-// arrives-with: 0400 — until it is pasted reserves have no pickup and claims no payment; the day's face reads nothing and
-// shows nothing, and a reserve's own list reads the claims it always could.
 
 type Claim = {
   id: string; reserve_id: string; qty: number; state: "held" | "pending" | "paid" | "collected" | "expired" | "cancelled";
@@ -44,7 +40,6 @@ type Claim = {
 type Board = { rows: Claim[]; at: number };
 
 const COLS = "id, reserve_id, qty, state, paid_cents, refunded_cents, created_at, collected_at, reserve:reserves(name, price_cents), customer:customers(name)";
-const LEGACY = "id, reserve_id, qty, state, created_at, reserve:reserves(name, price_cents), customer:customers(name)";
 
 export default function ReserveClaims({ day, reserveId }: { day?: string; reserveId?: string }) {
   const { toast } = useApp();
@@ -67,7 +62,7 @@ export default function ReserveClaims({ day, reserveId }: { day?: string; reserv
       const stopIds = (stops.data ?? []).map((s) => (s as { id: string }).id);
       if (stopIds.length === 0) return { rows: [], at };
       const res = await supabase.from("reserves").select("id").in("stop_id", stopIds);
-      if (res.error) { if (isMissingColumn(res.error)) return { rows: [], at }; throw new Error(res.error.message); }
+      if (res.error) throw new Error(res.error.message);
       const ids = (res.data ?? []).map((r) => (r as { id: string }).id);
       if (ids.length === 0) return { rows: [], at };
       const c = await supabase.from("reserve_claims").select(COLS).in("reserve_id", ids).in("state", ["pending", "paid", "collected"]).order("created_at");
@@ -75,11 +70,8 @@ export default function ReserveClaims({ day, reserveId }: { day?: string; reserv
       return { rows: (c.data ?? []) as unknown as Claim[], at };
     }
     const c = await supabase.from("reserve_claims").select(COLS).eq("reserve_id", reserveId ?? "").order("created_at", { ascending: false });
-    if (!c.error) return { rows: (c.data ?? []) as unknown as Claim[], at };
-    if (!isMissingColumn(c.error)) throw new Error(c.error.message);
-    const old = await supabase.from("reserve_claims").select(LEGACY).eq("reserve_id", reserveId ?? "").order("created_at", { ascending: false });
-    if (old.error) throw new Error(old.error.message);
-    return { rows: (old.data ?? []) as unknown as Claim[], at };
+    if (c.error) throw new Error(c.error.message);
+    return { rows: (c.data ?? []) as unknown as Claim[], at };
   }, [day, reserveId]);
   const load = state.reload;
   useRealtimeTable("reserve_claims", load);

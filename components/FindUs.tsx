@@ -143,9 +143,8 @@ async function fetchRoad(): Promise<Board> {
     supabase!.from("field_ops").select("id, kind, name, public_title, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public, published_at, market").eq("is_public", true),
     // Named columns, never * (R6): this page is read signed out, and the switch and its stop are all it needs.
     supabase!.from("live_status").select("id, is_live, current_stop_id").maybeSingle(),
-    // Called off lately or ahead (0391; stops are public). An error — 0391 not pasted yet — is no canceled stops,
-    // never a page that cannot load.
-    // arrives-with: 0391 — until it is pasted this read errors on its own, is not checked, and the road reads as before.
+    // Called off lately or ahead (0391; stops are public). A read that fails shows none called off — never a page that
+    // cannot load.
     supabase!.from("stops").select("id, name, starts_at, ends_at, cancel_reason, market").not("canceled_at", "is", null)
       .gte("starts_at", new Date(Date.now() - 36 * 3600 * 1000).toISOString()).order("starts_at", { ascending: true }).limit(5),
   ]);

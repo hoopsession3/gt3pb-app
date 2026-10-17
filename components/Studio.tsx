@@ -599,7 +599,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setPubBusy("");
   };
 
-  const useOption = (o: any) => {
+  // A plain function, not a hook (R14): named use… it read as one, and the hooks rule called it a hook inside a callback.
+  const takeOption = (o: any) => {
     const t = o.title || title, h = o.hook || "", cap = o.caption || "", tags = (o.hashtags || []).join(", ");
     setTitle(t); setHook(h); setCaption(cap); setTags(tags);
     chRef.current?.send({ type: "broadcast", event: "patch", payload: { by: me.id, field: "caption", value: cap } });
@@ -861,7 +862,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             <div className="studio-opt-t">{o.hook}</div>
             <div className="studio-opt-c">{o.caption}</div>
             {o.hashtags?.length ? <div className="studio-opt-h">{o.hashtags.map((h: string) => `#${h}`).join(" ")}</div> : null}
-            <button type="button" className="insp-yes" onClick={() => useOption(o)}>Use this</button>
+            <button type="button" className="insp-yes" onClick={() => takeOption(o)}>Use this</button>
           </div>
         ))}
         <button type="button" className="btn-sec mt-1.5" onClick={doRepurpose} disabled={repBusy || !caption.trim()}>{repBusy ? "Repurposing…" : "Repurpose — Story · Reel · Email · Site"}</button>

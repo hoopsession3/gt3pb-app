@@ -285,7 +285,7 @@ await db.exec(readFileSync(join(ROOT, "supabase/migrations/0336_the_guard_that_m
 
   const pushesBefore = Number((await q1(`select count(*) n from public.test_pushes`)).n);
   await db.exec(readFileSync(join(ROOT, "supabase/migrations/0340_three_things_the_inbox_still_said.sql"), "utf8"));
-  ok("0340 applies against a real Postgres", true);
+  // 0340 applies against a real Postgres — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
   // ── the restatement, by the migration alone ──
   const now = await open(shot);

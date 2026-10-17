@@ -6,8 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { canOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import { mondayLabel, nextMondayKey, windowHours } from "@/lib/office";
-import { isMissingFunction, isMissingTable } from "@/lib/schemaSkew";
+import { mondayLabel, windowHours } from "@/lib/office";
 import { dayLabel } from "@/lib/officeStatus";
 import { clientChanges, requestLabel } from "@/lib/officeChange";
 import { haptic } from "@/lib/haptics";
@@ -82,16 +81,13 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
         .or(`status.neq.delivered,payment_status.in.(pending,failed),delivery_date.gte.${weekAgo}`)
         .order("delivery_date").limit(400),
       supabase.from("business_accounts").select("id", { count: "exact", head: true }).eq("standing_active", true),
-      // arrives-with: 0359 — until it is pasted the table isn't there (PGRST205): isMissingTable below reads
-      // that as nothing asked yet, and the route loads as it did; it is its own request, so it fails alone.
       supabase.from("company_requests").select("id, kind, body, status, order_id, created_at, companies(name)")
         .in("status", ["open", "in_progress"]).order("created_at").limit(50),
     ]);
     if (ord.error) throw new Error(ord.error.message);
     if (acct.error) throw new Error(acct.error.message);
-    // Before 0359 the requests table isn't there: nothing asked yet, not a broken route.
-    if (reqs.error && !isMissingTable(reqs.error)) throw new Error(reqs.error.message);
-    const requests = reqs.error ? [] : ((reqs.data as unknown as Req[]) ?? []);
+    if (reqs.error) throw new Error(reqs.error.message);
+    const requests = (reqs.data as unknown as Req[]) ?? [];
     // SIX WEEKS AHEAD (2026-10-07, 0358). The schedule now keeps six weeks of each program's
     // deliveries, so "every undelivered order" is the next route plus five more weeks of the same
     // offices. The route is the next delivery day (and anything overdue before it), in date order;
@@ -151,19 +147,14 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
   // THE SCHEDULE, FROM THE PROGRAMS (2026-10-07, 0356; six weeks from 0358). generate_office_deliveries
   // makes every active program's deliveries for the next six weeks, each in its market's own time, once
   // each, and logs the run — what the schedule now does by itself every night. This made one Monday, picked by the
-  // phone's clock, so on a Sunday evening the phone and the server could pick different weeks. Until
-  // 0356 is pasted the function isn't there and the old one-Monday call stands.
+  // phone's clock, so on a Sunday evening the phone and the server could pick different weeks.
   const gen = async () => {
     if (!supabase || busyId) return; setBusyId("gen");
-    let res = await supabase.rpc("generate_office_deliveries");
-    let made = "for the next six weeks";
-    if (res.error && isMissingFunction(res.error)) {
-      const dk = nextMondayKey(); made = `for ${mondayLabel(dk)}`;
-      res = await supabase.rpc("generate_office_route", { p_date: dk });
-    }
+    const res = await supabase.rpc("generate_office_deliveries");
+    const made = "for the next six weeks";
     setBusyId(null);
     const n = (res.data as number | null) ?? 0;
-    toast(res.error ? "Couldn't generate the route" : n ? `${n} office deliver${n === 1 ? "y" : "ies"} made ${made}` : `Nothing new — every delivery ${made} is already on the route`, res.error ? "error" : undefined);
+    toast(res.error ? `Couldn't generate the route — ${refusalText(res.error) ?? res.error.message}` : n ? `${n} office deliver${n === 1 ? "y" : "ies"} made ${made}` : `Nothing new — every delivery ${made} is already on the route`, res.error ? "error" : undefined);
     reload();
   };
 

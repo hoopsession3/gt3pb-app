@@ -4,11 +4,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Begin, Change, ChangeState, PackChangeStore } from "./packChange";
 
-/** The function or table is not there: 0388 is not pasted yet. */
-export const packChangeMissing = (e: { code?: string; message?: string } | null | undefined): boolean =>
-  !!e && (e.code === "PGRST202" || e.code === "PGRST205" || e.code === "42P01" || e.code === "42883"
-    || (/pack_change_|drop_order_changes/.test(String(e.message ?? "")) && /does not exist|could not find/i.test(String(e.message ?? ""))));
-
 export function packChangeStore(sb: SupabaseClient): PackChangeStore {
   const rpc = async <T>(fn: string, args: Record<string, unknown>): Promise<T> => {
     const { data, error } = await sb.rpc(fn, args);

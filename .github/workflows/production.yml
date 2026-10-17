@@ -20,8 +20,12 @@
 #   daily 06:10 UTC — the full run again, because production can drift between deploys
 #                    (a row that changes how a page paints, a policy pasted by hand).
 #
-# No secrets: everything here is what a guest can see. The scheduled runs stop automatically after
-# 60 days without a push (GitHub's rule) — a dormant repo is not a monitored one, and that is fine.
+# Everything verify:prod checks is what a guest can see, and it has no secrets. ONE step has two
+# (R14 — the 10/10 audit, F9): the full runs then open the crew console's sections on the deployed
+# site as a dedicated staff account (scripts/smoke.authed.mjs — read-only, it navigates and watches
+# the wire), because ci.yml's build has no database and cannot. The scheduled runs stop
+# automatically after 60 days without a push (GitHub's rule) — a dormant repo is not a monitored
+# one, and that is fine.
 name: Production
 
 on:
@@ -37,8 +41,16 @@ on:
         type: boolean
         default: false
 
+# Read the code and nothing else (R14 — the 10/10 audit, F21): no workflow here writes to the repository, so none is given
+# the token's write rights.
+permissions:
+  contents: read
+
+# One group per kind of run (R14 — the 10/10 audit, F25). GitHub keeps one PENDING run per group, so with a single group
+# the next half-hourly quick check replaced a push's check of its own deploy while an earlier run was still going — and
+# that push was never checked. A push, the quick schedule, the daily full run and a manual run now queue apart.
 concurrency:
-  group: production
+  group: production-${{ github.event_name }}-${{ github.event.schedule }}
   cancel-in-progress: false
 
 jobs:
@@ -51,9 +63,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      # The Node production runs (R14 — the 10/10 audit, F24): .nvmrc, the same major as package.json's engines, which
+      # Vercel builds and serves with. This said 22 while production ran 24 — the gate checked a different runtime.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
 
@@ -81,3 +95,21 @@ jobs:
       # means in scripts/verify.prod.mjs and this follows.
       - name: verify:prod
         run: npm run verify:prod -- ${{ steps.form.outputs.args }}
+
+      # THE CREW CONSOLE, SIGNED IN, ON THE DEPLOYED SITE (R14 — the 10/10 audit, F9). verify:prod sees what a guest
+      # sees; this opens every section of /crew as a dedicated staff account and fails on any 4xx/5xx from the database or
+      # the app's own API, a "couldn't load" on screen, a console error or an a11y violation. Full runs only (the
+      # half-hourly quick run never signs in), and after verify:prod, so a push is checked on its own deploy.
+      # The account is two repository SECRETS on this step alone (GT3_SMOKE_EMAIL, GT3_SMOKE_PASSWORD); the database's
+      # two public values are the repository VARIABLES the iPhone build already reads. Neither secret set: NOT CHECKED,
+      # and it passes. The account set and a variable not: it fails (scripts/smokeGate.mjs).
+      - name: smoke:authed (the crew console, signed in)
+        if: steps.form.outputs.browser == 'yes'
+        timeout-minutes: 15
+        env:
+          GT3_SMOKE_BASE: https://app.gt3pb.com
+          GT3_SMOKE_EMAIL: ${{ secrets.GT3_SMOKE_EMAIL }}
+          GT3_SMOKE_PASSWORD: ${{ secrets.GT3_SMOKE_PASSWORD }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: npm run smoke:authed

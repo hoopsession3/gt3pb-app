@@ -4,7 +4,6 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Sheet from "@/components/Sheet";
 import { useCrew } from "./useCrew";
-import { writeAcrossSkew } from "@/lib/schemaSkew";
 import { errorMessage } from "@/lib/errorMessage";
 import { type PortfolioStream, streamOwner } from "@/lib/portfolio";
 import { KEPT_WORDS, startingPick, streamChoices, streamNote, streamPatch } from "@/lib/milestonePick";
@@ -55,10 +54,7 @@ export default function MilestoneSheet({ m, streams, streamsErr, linkable, initi
     if (!Object.keys(patch).length) { onClose(); return; }
     setBusy(true); setErr(null);
     try {
-      // Before 0350 is pasted the link is dropped and the milestone keeps the workstream's name,
-      // which 0350 links when it lands (lib/schemaSkew.writeAcrossSkew — that one condition).
-      // arrives-with: 0350
-      const { error } = await writeAcrossSkew((row) => supabase!.from("initiative_milestones").update(row).eq("id", m.id), patch, ["workstream_id"]);
+      const { error } = await supabase.from("initiative_milestones").update(patch).eq("id", m.id);
       if (error) { setErr(`Couldn't save — ${error.message}`); return; }
       onSaved();
       onClose();

@@ -138,7 +138,7 @@ export default function Changelog() {
         // Default: only the newest month expanded — the rest roll up into a one-line summary you tap open.
         const openSet = openM ?? new Set(groups.slice(0, 1).map(([m]) => m));
         const open = openSet.has(mk);
-        const toggle = () => setOpenM(() => { const base = openM ?? new Set(groups.slice(0, 1).map(([m]) => m)); const n = new Set(base); n.has(mk) ? n.delete(mk) : n.add(mk); return n; });
+        const toggle = () => setOpenM(() => { const base = openM ?? new Set(groups.slice(0, 1).map(([m]) => m)); const n = new Set(base); if (n.has(mk)) n.delete(mk); else n.add(mk); return n; });
         // roll-up: the categories present this month, newest-count first, for the collapsed glance
         const byCat = new Map<string, number>();
         for (const e of items) byCat.set(e.category, (byCat.get(e.category) ?? 0) + 1);

@@ -20,10 +20,21 @@
 // repo has already found in columns.audit and in my own grep over `npm test`.
 import { execFileSync } from "node:child_process";
 
-// ── THE CEILING ────────────────────────────────────────────────────────────────────────────────
-// Measured, not remembered: `npx eslint -f json` summed on 2026-10-01 at 963ddb5.
-// LOWER THIS when you clean some up. Raising it needs a reason in the commit message.
-export const LINT_CEILING = 182;   // 189 → 182 on 2026-10-16 (R13 of the 10/10 audit, the performance pass): the craft page's pillars are a render function, not a component declared inside the page (three react-hooks/static-components, app/craft/page); the lanes, a member's open orders, a person's alerts and the banners stopped loading from an effect that set state — the first three read one shared store (lib/shared), the banners load through lib/realtime (four react-hooks/set-state-in-effect: lib/streams, components/useMyOrders, lib/useMyAlerts, lib/broadcasts); measured file by file against ee58632, every other file R13 touched unchanged in count or new and clean (the calendar's chip, a component of the module now, takes its drag ref as dragRef). 192 → 189 on 2026-10-16 (R9 of the customer audit, money): Apliiq's shipping update and product sync read their signed bodies as typed records instead of any (two @typescript-eslint/no-explicit-any, app/api/apliiq/fulfillment and product) and the product sync lost the third — each now finds its row by checked ids in its own query, keys its inbox on the signed body, and a sync says only what it carries; measured file by file against fcfe6f1, every other file R9 touched unchanged in count or new and clean. 194 → 192 on 2026-10-16 (R8 of the customer audit): Apliiq's shipped notice names the order it found once, typed, instead of casting it to any at each use (two @typescript-eslint/no-explicit-any, app/api/apliiq/fulfillment) — the route now gives an event back when its work is not done, and adds a shipment once per order and tracking number; measured file by file against b89f654, every other file R8 touched unchanged in count or new and clean. 195 → 194 on 2026-10-16 (R7 and R7b of the customer audit): Today's greeting and date read the time through a small store (lib/visibleNow, useSyncExternalStore) instead of setting it from an effect (react-hooks/set-state-in-effect, components/today/TodayHome) — and read it again when the app comes back to the front, so a phone left open overnight stops saying "Evening" and yesterday's date; measured file by file against 018b5f8, every other file R7 and R7b touched unchanged or new and clean. 199 → 195 on 2026-10-14 (R5 of the customer audit, a Limited Reserve is paid to hold): the reserve card read the reserve a signed-out tap was for out of a ref while drawing the sign-in sheet (react-hooks/refs, three reads) and loaded its list from an effect that set state (react-hooks/set-state-in-effect) — it keeps that reserve in state now and opens its pay step from it, and reads its list through useAsyncData, with no effect of its own (components/Reserves); measured file by file against c13a11c, every other file the round touched unchanged or new and clean. 200 → 199 on 2026-10-13 (R4 of the customer audit, the Daily Stack): the old stack's flag toggle wrote a ternary as a statement (@typescript-eslint/no-unused-expressions, components/GenerateDay:176) and went with it; the new stack — components/DailyStack, lib/dailyStack — is clean, and Today's file is unchanged in count. 201 → 200 on 2026-10-12 (R1a, C4 of the customer audit): the order funnel's two Sundays are a lazy useState now — the server's two replace them when the one picked closes while the page is open — instead of a useMemo over Date.now() while rendering (react-hooks/purity, components/OrderFunnel); measured file by file against ec54904, every other file R1a touched unchanged. 207 → 201 on 2026-10-12, at integration of releases 1 and 2 — measured file by file against 94be7e2, the last shipped: six had come out that no round counted. The Command board's four (an `any` in its to-do mapper and three dependency warnings on its milestone memo), gone with release 1's My Day round; Money's report loader, which set its loading state inside an effect (react-hooks/set-state-in-effect, components/Reports), gone with release 1's Money round; and the portfolio's unescaped quote ("why it isn't a 10"), which left OsRegistry with the audit sheet (release 2's Monday audit). 208 → 207 on 2026-10-12 (the Catalog round, at integration with Live Ops): the menu's expander went, and with it the effect that copied every read of the list into an open row's draft (react-hooks/set-state-in-effect, components/MenuManager:89) — a drink's page judges a newer row while rendering, and keeps what is typed. 209 → 208 on 2026-10-12 (the Live Ops round): the Pass's card on Live Ops counted its orders by copying a read into state from an effect (react-hooks/set-state-in-effect, app/crew/page.tsx ServicePulse); the Pass's row reads through useAsyncData (components/crew/LiveOpsRows PassRow), and says when the count did not answer — measured file by file against 9695df5 (the crew page 30 → 29, every other file the round touched unchanged or new and clean). 210 → 209 on 2026-10-12 (release 1 · the rhythm's clock): a goal's "quiet 9d" chip on Command stopped reading Date.now() while drawing — it counts business days to the day lib/useEtDay keeps, by lib/rhythm's one quiet rule (react-hooks/purity, components/Goals). 216 → 210 on 2026-10-11 (wave 2 · alerts): the push function's subscription lookup and send list are typed (two @typescript-eslint/no-explicit-any, and the `let targets: any[]`), and its three catches lost the unused `_e` they never read (@typescript-eslint/no-unused-vars) — supabase/functions/push/index.ts reads its rules from ./policy.ts now. 217 → 216 on 2026-10-11 (one charge per checkout): the checkout key holder reads the key a reload left behind through one function, instead of writing its ref twice while rendering (react-hooks/refs, components/useIdemKey). 218 → 217 on 2026-10-11 (the App Store pass): the profile sheet reads the phone's notification answer as it opens instead of copying it into state from an effect (react-hooks/set-state-in-effect) — and shows no alerts button where the phone has nothing to ask. 221 → 218 on 2026-10-10 (the customer pages): the route map went — Find Us's circuit and the driver's run drew CARTO's "API key required" tiles — and its three problems with it. 223 → 221 on 2026-10-10 (the Command fold): the twelve's paragraph of method went, and its two unescaped apostrophes with it (react/no-unescaped-entities). 224 → 223 on 2026-10-09 (One home): the GTM card went — its briefing lives in Command, its intake in Quick actions › File — and the effect that set its open state went with it (react-hooks/set-state-in-effect). 225 → 224 on 2026-10-08 (the navigation round): the playbook's links to the system map and the partner one-pager are <Link>s now, moving within the app (@next/next/no-html-link-for-pages) — with the footer's Privacy and Terms and the driver run's, so Back keeps the name of where it came from (lib/appHistory). 232 → 225 on 2026-10-06 (the settings round): what a phone keeps for itself is read while rendering through one small store (lib/devicePref) instead of copied into state by an effect — the theme in AppShell (lib/theme), the display prefs in DisplayToggle, the pass's mute in the Kitchen (lib/passSound) — and so is the phone's notification permission (components/DeviceAlerts, which replaced the crew page's EnableAlerts): four react-hooks/set-state-in-effect. The calendar's Outlook bar reads its status through useAsyncData and the ?outlook= word through lib/urlParam, not two effects of its own (two more); and the audit panel's lead lost an unescaped apostrophe when it moved into Settings (react/no-unescaped-entities). 234 → 232 on 2026-10-05 (the gesture round): the sheet reads where to portal through useSyncExternalStore instead of setting it in an effect (react-hooks/set-state-in-effect), and the swipe back stops writing a ref while rendering (react-hooks/refs) — the touch engine hands its handlers the latest props as Effect Events. The sheet's open/closing/closed phase stays in its effect on purpose: following the prop while rendering lost a close on the menu (components/Sheet, "IN AN EFFECT, ON PURPOSE"). 235 → 234 on 2026-10-05 (the form audit, venues): components/crew/VendorPicker went, and its unused OpSection import with it (@typescript-eslint/no-unused-vars) — the venue pick that replaced it reads the book through useSyncExternalStore (components/useVenues), not a setState in an effect. 240 → 235 on 2026-10-05 (the form audit, receiving): the COGS calculator unpacks one empty board instead of four fresh [] per render, so its memos (by id, by name, per drink, per batch) stop re-running on every render — five react-hooks/exhaustive-deps. 243 → 240 on 2026-10-04 (the form audit, things): the pack-out plan and the discount-code list memoize what they loaded (three react-hooks/exhaustive-deps), and a shop product's editor starts its draft again from a reload while rendering instead of in an effect (react-hooks/set-state-in-effect) — less the one the Apliiq lookup adds by showing the matched mockup (@next/next/no-img-element, as the row above it already does). 245 → 243 on 2026-10-04: Find Us stopped copying its first read into state from an effect (it draws the read itself) and the live-ping chip knows itself on its first render (two react-hooks/set-state-in-effect) — both were part of the page's layout shift. 253 → 245 on 2026-10-04 (the form audit, people): the offer letters board memoizes what it loaded, once per load (two react-hooks/exhaustive-deps on its approvals and events), and lost an unused import; the run-of-show memoizes its blocks (two exhaustive-deps); the operator agreement and the invite form lost an unused import each, and the invite form an unescaped apostrophe. 255 → 253 on 2026-10-04: the cup checkout and the order funnel stopped seeding the customer's name from an effect (react-hooks/set-state-in-effect) — a field starts from what we know at render now (components/useCustomerKnown.useKnownField). 256 → 255 on 2026-10-04: My Day stopped setting a clock in an effect (react-hooks/set-state-in-effect) — the clock was for the greeting, and the greeting went when Ryan asked what on the app was unnecessary. 257 → 256 on 2026-10-04: the spend panel's list header ("This month's expenses", an unescaped apostrophe — react/no-unescaped-entities) went when the panel became the month in words; capture moved to components/LogPurchase. 258 → 257 on 2026-10-04: the Live truck panel stopped reading Date.now() during render — its grace is lib/road's now (react-hooks/purity). 259 → 258 on 2026-10-03: the brew sheet lost the effect that synced its coffee box to its gallon box (one number now, three ways of saying it). 261 → 259 on 2026-10-02: lib/errorMessage.ts replaced sixty copies of one expression
+// ── THE CEILINGS ──────────────────────────────────────────────────────────────────────────────
+// Measured, not remembered: `npx eslint -f json`, summed. LOWER one when you clean some up; raising one needs a reason in
+// the commit message.
+//
+// TWO, NOT ONE (R14, 2026-10-17 — the 10/10 audit, F25). The ceiling was a single total of errors and warnings, so a fixed
+// warning bought room for a new ERROR — a hook called conditionally could ride in on an unused variable cleaned up the
+// same day. Errors and warnings each have their own now, and neither may rise.
+//   182 total on 2026-10-16 (R13) → R14: 130 errors, 51 warnings. The one rules-of-hooks error was a plain function
+//   named use… (Studio's takeOption) and an unused ternary was a statement (Changelog).
+export const CEILING = { errors: 130, warnings: 51 };
+/** @deprecated the single total; kept so a reader of the old name still gets the sum. */
+export const LINT_CEILING = CEILING.errors + CEILING.warnings;
+
+// RULES HELD AT ZERO (R14). Every hit of these is a bug, never debt: a ceiling would let one in.
+export const ZERO = ["react-hooks/rules-of-hooks"];
 
 export function countFrom(json) {
   // Returns null rather than 0 when the shape is not what eslint produces. The difference between
@@ -32,11 +43,34 @@ export function countFrom(json) {
   try { results = JSON.parse(json); } catch { return null; }
   if (!Array.isArray(results)) return null;
   let errors = 0, warnings = 0;
+  const byRule = {};
   for (const r of results) {
     if (typeof r?.errorCount !== "number" || typeof r?.warningCount !== "number") return null;
     errors += r.errorCount; warnings += r.warningCount;
+    for (const m of Array.isArray(r.messages) ? r.messages : []) {
+      const k = m?.ruleId ?? "(no rule)";
+      byRule[k] = (byRule[k] ?? 0) + 1;
+    }
   }
-  return { total: errors + warnings, errors, warnings, files: results };
+  return { total: errors + warnings, errors, warnings, files: results, byRule };
+}
+
+/** What the gate says about a count: each line it prints, and whether it passes. A count below a ceiling FAILS too — a
+ *  ceiling left above the real count quietly buys room for new problems. Pure (scripts/r14.test.mjs). */
+export function verdict(c, ceiling = CEILING, zero = ZERO) {
+  const lines = [], bad = [];
+  for (const kind of ["errors", "warnings"]) {
+    const got = c[kind], max = ceiling[kind];
+    if (got > max) bad.push(`${got - max} new ${kind} since the ceiling was set (${got} > ${max}). Fix them, or raise CEILING.${kind} WITH a reason in the commit message.`);
+    else if (got < max) bad.push(`${max - got} fewer ${kind} than the ceiling — good, now LOWER CEILING.${kind} to ${got}.`);
+  }
+  for (const rule of zero) {
+    const n = c.byRule?.[rule] ?? 0;
+    if (n) bad.push(`${n} × ${rule} — held at zero: every one is a bug.`);
+  }
+  lines.push(`LINT RATCHET: ${c.errors} error(s) (ceiling ${ceiling.errors}), ${c.warnings} warning(s) (ceiling ${ceiling.warnings}); ${zero.join(", ")} held at 0.`);
+  for (const b of bad) lines.push(`  ✗ ${b}`);
+  return { ok: bad.length === 0, lines };
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop())) {
@@ -70,16 +104,10 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     }
   }
 
-  console.log(`LINT RATCHET: ${c.total} problem(s) — ${c.errors} error(s), ${c.warnings} warning(s). Ceiling ${LINT_CEILING}.`);
-  if (c.total > LINT_CEILING) {
-    console.log(`\n  ✗ ${c.total - LINT_CEILING} new problem(s) since the ceiling was set.`);
-    console.log(`    Fix them, or raise LINT_CEILING in this file WITH a reason in the commit message.`);
-    console.log(`    scripts/lint.ratchet.mjs --list  names the worst files.`);
-    process.exit(1);
-  }
-  if (c.total < LINT_CEILING) {
-    console.log(`\n  ✗ ${LINT_CEILING - c.total} fewer than the ceiling — good, now LOWER it to ${c.total}.`);
-    console.log(`    A ceiling left above the real count quietly buys room for ${LINT_CEILING - c.total} new problems.`);
+  const v = verdict(c);
+  for (const l of v.lines) console.log(l);
+  if (!v.ok) {
+    console.log("    scripts/lint.ratchet.mjs --list  names the worst files.");
     process.exit(1);
   }
 }

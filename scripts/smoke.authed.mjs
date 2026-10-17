@@ -43,7 +43,13 @@
 //
 // Absent credentials → NOT CHECKED and exit 0. It must never report a pass on evidence it does not
 // have; that is the same rule scripts/columns.audit.mjs follows and the same failure this whole
-// file exists to catch.
+// file exists to catch. The account set and the database's two public values NOT set → it fails
+// (R14, scripts/smokeGate.mjs): somebody asked for the check, and passing would answer nothing.
+//
+// WHERE IT RUNS FOR REAL (R14). CI's build has no database by design — scripts/smoke.ui.mjs measures
+// the guest app — so in ci.yml this says NOT CHECKED, and the Production workflow runs it after each
+// deploy and daily against the deployed site (GT3_SMOKE_BASE), with the account as two repository
+// secrets on that one step. A person runs it the same way, or against a local build with .env.local.
 //
 // READ-ONLY. It navigates and observes. It never clicks, submits, or writes.
 //
@@ -70,6 +76,7 @@
 import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createRequire } from "node:module";
+import { smokeGate } from "./smokeGate.mjs";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -143,15 +150,25 @@ export function ownerSectionsIn(src) {
   }
 }
 
-if (!EMAIL || !PASSWORD) {
-  console.log("AUTHED CREW CONSOLE: NOT CHECKED — no GT3_SMOKE_EMAIL / GT3_SMOKE_PASSWORD in the environment.");
-  console.log(`  ${SECTIONS.length} sections of the crew console are waiting to be opened by a signed-in user.`);
-  console.log("  Set both on a dedicated staff account (see this file's header) and re-run. Never commit them.");
-  process.exit(0);
-}
-if (!SUPA_URL || !SUPA_ANON) {
-  console.log("AUTHED CREW CONSOLE: NOT CHECKED — NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY missing, so no session can be minted.");
-  process.exit(0);
+// No account: nobody asked, and it says so and passes. An account with no database to sign in to (or half an account):
+// somebody asked and it cannot answer, and that FAILS (R14 — the 10/10 audit, F9). It used to say NOT CHECKED and pass
+// there too, and CI handed it the account with no database for as long as the secrets would have been set. scripts/smokeGate.mjs.
+{
+  const gate = smokeGate(process.env);
+  if (gate.verdict === "not-checked") {
+    console.log("AUTHED CREW CONSOLE: NOT CHECKED — no GT3_SMOKE_EMAIL / GT3_SMOKE_PASSWORD in the environment.");
+    console.log(`  ${SECTIONS.length} sections of the crew console are waiting to be opened by a signed-in user.`);
+    console.log("  Set both on a dedicated staff account (see this file's header) and re-run. Never commit them.");
+    // CI's build has no database by design (scripts/smoke.ui.mjs measures the guest app), so the console is opened signed
+    // in after each deploy instead, on the real site: .github/workflows/production.yml.
+    if (process.env.GITHUB_ACTIONS) console.log("  On GitHub: the Production workflow opens the console signed in on the deployed site, once its two secrets are set.");
+    process.exit(0);
+  }
+  if (gate.verdict === "broken") {
+    console.log(`AUTHED CREW CONSOLE: FAILED — the account is meant to be checked, and ${gate.missing.join(", ")} ${gate.missing.length === 1 ? "is" : "are"} not set, so no session can be minted and nothing would be.`);
+    console.log("  Set the missing names (values never printed), or unset the account to skip the check on purpose.");
+    process.exit(1);
+  }
 }
 
 const PORT = 3211;

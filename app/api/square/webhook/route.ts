@@ -5,6 +5,7 @@ import { raiseAlert, raiseAlertOnce } from "@/lib/serverAlerts";
 import { moneyPlain } from "@/lib/money";
 import { squareSignatureOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 export const runtime = "nodejs"; // needs node crypto + raw body
 
@@ -17,7 +18,16 @@ async function post(req: Request) {
   // SQUARE_WEBHOOK_URL must be set and EXACTLY match the endpoint registered in Square,
   // because the HMAC is computed over (notificationUrl + rawBody). No req.url fallback —
   // behind a proxy that won't match and would silently reject every event.
+  // SAID, NOT ONLY REFUSED (R14, 2026-10-16 — the 10/10 audit's operations pass, F15). A webhook with no key or address
+  // refused every event with a bare 503, and a signature that failed — a rotated key, a changed address — refused every
+  // event with a bare 401: Square retried for days and then stopped, and no one heard. Each is said in the platform's log,
+  // and the crew is told once while it lasts (raiseAlertOnce: one open alert, however many events Square sends).
   if (!supabaseAdmin || !SQUARE_WEBHOOK_SIGNATURE_KEY || !SQUARE_WEBHOOK_URL) {
+    const missing = [!SQUARE_WEBHOOK_SIGNATURE_KEY && "SQUARE_WEBHOOK_SIGNATURE_KEY", !SQUARE_WEBHOOK_URL && "SQUARE_WEBHOOK_URL", !supabaseAdmin && "SUPABASE_SERVICE_ROLE_KEY"].filter(Boolean).join(", ");
+    console.error(`[square-webhook] not set up (${missing}) — Square's event refused`);
+    if (supabaseAdmin) await raiseAlertOnce({ severity: "critical", category: "money", kind: "webhook_off", subjectId: "square",
+      title: "Square's webhook isn't set up — its events are refused",
+      body: `Square sent an event (a refund, a dispute, a subscription change) and it was refused: ${missing} is not set in Vercel. Set it to what Square's Webhooks page shows, then redeploy; Square retries what it sent.`, link: "/crew?s=money&a=pay" });
     return NextResponse.json({ ok: false }, { status: 503 });
   }
 
@@ -25,6 +35,13 @@ async function post(req: Request) {
   // lib/webhookSignature (2026-10-11): this compare counted characters and then bytes, so a forged header with one
   // non-ASCII character threw — a 500, filed as a crash and an alert — instead of the 401 a forgery gets.
   if (!squareSignatureOk(raw, req.headers.get("x-square-hmacsha256-signature"), SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL)) {
+    console.warn("[square-webhook] a signature didn't match — refused (a forgery, or the key or the address changed)");
+    // Only what reads like Square's own event tells the crew: a stranger's post with no signature is a forgery's 401 alone.
+    if (req.headers.get("x-square-hmacsha256-signature") && /"merchant_id"/.test(raw) && /"event_id"/.test(raw)) {
+      await raiseAlertOnce({ severity: "critical", category: "money", kind: "webhook_signature", subjectId: "square",
+        title: "Square's webhook signatures aren't matching — its events are refused",
+        body: "An event shaped like Square's arrived and its signature didn't match. If the webhook's signature key was rotated or its address changed in Square, set SQUARE_WEBHOOK_SIGNATURE_KEY and SQUARE_WEBHOOK_URL in Vercel to what Square's Webhooks page shows, then redeploy — until then every refund, dispute and subscription change is refused.", link: "/crew?s=money&a=pay" });
+    }
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
@@ -251,8 +268,11 @@ async function post(req: Request) {
       if (eventId) { try { const noted = await supabaseAdmin.from("webhook_events").update({ error: err.message || "processing failed" }).eq("id", eventId); if (noted.error) console.warn(`square webhook: ${eventId} failed, and the failure wasn't noted — ${noted.error.message}`); } catch { /* best-effort */ } }
       return NextResponse.json({ ok: false }, { status: 500 });
     }
-  } catch {
-    if (eventId) { try { const noted = await supabaseAdmin.from("webhook_events").update({ error: "processing threw" }).eq("id", eventId); if (noted.error) console.warn(`square webhook: ${eventId} threw, and it wasn't noted — ${noted.error.message}`); } catch { /* best-effort */ } }
+  } catch (e) {
+    // What threw is kept with the event and said in the log (R14 — F15): "processing threw" alone told nobody what to fix.
+    const why = errorMessage(e, 300);
+    console.error(`[square-webhook] ${eventId ?? "an event"} (${type}) threw — ${why}`);
+    if (eventId) { try { const noted = await supabaseAdmin.from("webhook_events").update({ error: `processing threw: ${why}` }).eq("id", eventId); if (noted.error) console.warn(`square webhook: ${eventId} threw, and it wasn't noted — ${noted.error.message}`); } catch { /* best-effort */ } }
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 

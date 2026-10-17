@@ -16,7 +16,6 @@ import { chargeOnce, claimKey, placeOnce, seenBefore, type Answer, type Say, typ
 import { checkoutClaims } from "@/lib/checkoutClaims";
 import { money } from "@/lib/money";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
-import { writeAcrossSkew } from "@/lib/schemaSkew";
 import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
 import { etToday } from "@/lib/dates";
 
@@ -71,7 +70,6 @@ async function post(req: Request) {
   // A key the claims have seen (lib/chargeOnce, R5) is answered now, with what its first request said — before the drop's
   // cutoff or the price is asked again. The pack's own words for "paid, not saved" and "couldn't confirm": it is picked
   // up at the truck, so that is where it is sorted out.
-  // arrives-with: 0371 — before it is pasted the checkout runs without claims, as it did before them.
   const now = () => Date.now();
   const say: Say = {
     paidNotRecorded: (c) => {
@@ -194,7 +192,7 @@ async function post(req: Request) {
   const db = supabaseAdmin;   // checked at the top; the closure below runs after the charge
   const recordPack = async (paymentId: string | null, paid: boolean): Promise<Answer> => {
     try {
-      // Idempotency at the ORDER row, the line behind the claim (and the only dedupe while 0371 is unpasted): Square
+      // Idempotency at the ORDER row, the line behind the claim: Square
       // answers a repeated key with the SAME paymentId, and a pay-at-pickup retry carries the same key. Unique indexes
       // on drop_orders.payment_id and idempotency_key back both.
       // scoped-by: payment_id and idempotency_key each carry a UNIQUE index (verified in production); payment_id is issued
@@ -209,8 +207,6 @@ async function post(req: Request) {
       const customerId = (await db.rpc("resolve_customer", { p_user_id: user.id, p_phone: phone || null, p_email: null, p_name: name })).data as string | null;
       // The VALIDATED code rides the order row (0268) — coupon redemptions become a query, not a tally. The stop rides it
       // too (0397); none named, the database links the day's first.
-      // arrives-with: 0397 — until it is pasted the stop_id column is not there: the pack is written without it
-      // (lib/schemaSkew), never refused after the card was charged, and 0397's backfill links it to its day's stop.
       const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate, stop_id: atStop?.id ?? null, benefit_code: acceptedCode(benefits, (body as { code?: string }).code) };
       let made: { id: string } | null = null;
       const insertPack = async (r: Record<string, unknown>) => {
@@ -218,8 +214,8 @@ async function post(req: Request) {
         made = (res.data as { id: string } | null) ?? null;
         return res;
       };
-      let { error: insErr } = await writeAcrossSkew(insertPack, row, ["stop_id"]);
-      if (insErr) ({ error: insErr } = await writeAcrossSkew(insertPack, row, ["stop_id"])); // retry once
+      let { error: insErr } = await insertPack(row);
+      if (insErr) ({ error: insErr } = await insertPack(row)); // retry once
       const inserted = made as { id: string } | null;
       if (insErr) {
         // A concurrent request can still lose this exact race (both can pass the check above before either insert

@@ -321,7 +321,7 @@ ok("and said what changed, twice", Number((await q1(`select count(*) as c from p
 
   // ── 0334 ───────────────────────────────────────────────────────────────────────────────────
   await db.exec(readFileSync(join(ROOT, "supabase/migrations/0334_submitted_meant_they_gave_us_an_id.sql"), "utf8"));
-  ok("0334 applies against a real Postgres", true);
+  // 0334 applies against a real Postgres — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
   ok("0334: the row that could not prove it is now needs_fulfillment, not cancelled or refunded",
     (await q1(`select status from public.shop_orders where id='${lie}'`)).status === "needs_fulfillment");
@@ -393,7 +393,7 @@ ok("and said what changed, twice", Number((await q1(`select count(*) as c from p
 // proves the claim is atomic, that it refuses the cases it must, and that it cannot wedge an order.
 {
   await db.exec(readFileSync(join(ROOT, "supabase/migrations/0335_the_order_the_app_could_not_send.sql"), "utf8"));
-  ok("0335 applies against a real Postgres", true);
+  // 0335 applies against a real Postgres — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
   const claim = async (id, stale, tenant = T) => (await q1(
     `select public.claim_shop_order_for_submit('${id}', ${tenant ? `'${tenant}'` : "null"}${stale != null ? `, ${stale}` : ""}) as v`)).v;

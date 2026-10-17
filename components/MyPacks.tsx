@@ -14,7 +14,6 @@ import { packRoad } from "@/lib/packRoad";
 import Icon from "@/components/Icon";
 import { useConfirm } from "./ConfirmSheet";
 import { isSettled } from "@/lib/settled";
-import { isMissingRelation } from "@/lib/schemaSkew";
 
 // YOUR PACK — the customer's own reservations, right on /reserve. Reserving is only half the
 // product: coming back should show what you've got coming, live (staff checking you off at the
@@ -55,6 +54,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
   const { user } = useAuth();
   const { toast } = useApp();
   const [rows, setRows] = useState<MyPack[]>([]);
+  const [unread, setUnread] = useState(false);
   const rowsRef = useRef<MyPack[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
@@ -118,10 +118,11 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
     const read = (cols: string) => supabase!.from("drop_orders").select(cols)
       .eq("user_id", user.id).is("canceled_at", null).gte("drop_date", floor)
       .order("drop_date").order("created_at");
-    // arrives-with: 0397 — the stop rides the pack (drop_orders.stop_id → stops). Until it is pasted the link is not there
-    // (lib/schemaSkew): the packs are read without their stops, as before, never as none.
-    let { data, error } = await read("*, stop:stops(name, starts_at, ends_at, address, location_text, canceled_at, cancel_reason)");
-    if (error && isMissingRelation(error)) ({ data, error } = await read("*"));
+    // The stop rides the pack (0397: drop_orders.stop_id → stops).
+    const { data, error } = await read("*, stop:stops(name, starts_at, ends_at, address, location_text, canceled_at, cancel_reason)");
+    // A read that failed is not "no packs" (R14): what was here stays, and with nothing here it says it couldn't check.
+    if (error) { setUnread(true); return; }
+    setUnread(false);
     const next = (data as unknown as MyPack[] | null) ?? [];
     // The realtime money moment: a pack flipping to PAID while you watch gets the settle buzz.
     // Paid at the window counts: the crew's tap is the moment the money settled (0341).
@@ -159,6 +160,7 @@ export default function MyPacks({ onChange, refreshKey, collapsible }: { onChang
     load();
   };
 
+  if (user && rows.length === 0 && unread) return <p className="load-failed" role="status">Couldn&apos;t check your packs just now — pull to refresh, or check again in a minute.</p>;
   if (!user || rows.length === 0) return null;
   // Grouped by PICKUP DAY — three packs for one Saturday read as one plan ("Sat · 3 packs · 18
   // bottles"), not three look-alike rows. Tap a row for the mix + the self-service moves.

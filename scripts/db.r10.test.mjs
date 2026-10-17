@@ -105,7 +105,7 @@ const hit = async (bucket, ms, max) => (await as("service", `select public.rate_
 
 for (const sql of [M419, M420]) await db.exec(sql);
 for (const sql of [M419, M420]) await db.exec(sql);   // a second run changes nothing
-ok("0419 and 0420 load on the schema to 0418, and load again", true);
+// 0419 and 0420 load on the schema to 0418, and load again — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
 // ── 0419 · a limit counts what it lets in ─────────────────────────────────────────────────────────────────────────
 {

@@ -30,9 +30,16 @@ on:
     branches: ["main", "claude/**"]
   pull_request:
 
+# Read the code and nothing else (R14 — the 10/10 audit, F21): no workflow here writes to the repository, so none is given
+# the token's write rights.
+permissions:
+  contents: read
+
+# A newer push to a branch stops the older run — but never on main (R14 — the 10/10 audit, F20): every push to main is
+# deployed by Vercel, so every one is verified to the end; cancelling the first left a shipped commit unchecked.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   verify:
@@ -42,17 +49,13 @@ jobs:
     # for a reason no commit made. Move to 26.04 on purpose, in its own change, with Playwright alongside.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      # Absent on a fork, and absent until somebody sets them. scripts/smoke.authed.mjs prints
-      # "NOT CHECKED" and exits 0 in that case rather than passing silently, which is the right
-      # design — so this is safe to wire up before the secrets exist.
-      GT3_SMOKE_EMAIL: ${{ secrets.GT3_SMOKE_EMAIL }}
-      GT3_SMOKE_PASSWORD: ${{ secrets.GT3_SMOKE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      # The Node production runs (R14 — the 10/10 audit, F24): .nvmrc, the same major as package.json's engines, which
+      # Vercel builds and serves with. This said 22 while production ran 24 — the gate checked a different runtime.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
 
@@ -61,10 +64,10 @@ jobs:
       - name: Install Chromium for the UI smoke
         run: npx playwright install --with-deps chromium
 
-      # Separate from verify because `npm run lint` reports 261 problems and exits 1, so it can
-      # never be a pass/fail step as it stands — and nothing enforced it at all, while commit
-      # messages kept quoting "lint 261 (baseline)" as though something did. The count may fall
-      # freely and may not rise.
+      # Separate from verify because `npm run lint` exits 1 while any lint debt is left, so it cannot be a pass/fail step
+      # as it stands. scripts/lint.ratchet.mjs holds it instead: errors and warnings each have a ceiling that may fall and
+      # may not rise (two since R14 — one total let a new error ride in on a fixed warning), and the rules whose every
+      # hit is a bug are held at zero.
       - name: Lint ratchet
         run: node scripts/lint.ratchet.mjs
 
@@ -74,5 +77,11 @@ jobs:
       # The last two links (2026-10-06, the iPhone round) build the iPhone app's copy of the screens
       # and open it on three iPhones in Chromium (scripts/smoke.native.mjs); what needs a Mac is in
       # ios.yml.
+      #
+      # NO SECRETS HERE (R14 — the 10/10 audit, F9 and F21). The signed-in smoke's account used to sit on this job, where
+      # it could never be used — this build has no database by design (smoke:ui measures the guest app), so smoke:authed
+      # could only say NOT CHECKED — while `npm ci`'s lifecycle scripts and the browser install could read a staff
+      # account's password. smoke:authed says NOT CHECKED here, and opens the console signed in for real in the
+      # Production workflow, against the deployed site, after each deploy and daily.
       - name: verify (test && audit && build && smoke:ui && smoke:authed && build:app && smoke:native)
         run: npm run verify

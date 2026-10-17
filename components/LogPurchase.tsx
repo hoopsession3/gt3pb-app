@@ -16,7 +16,6 @@ import { rankSuppliers, supplierNamed, readVendorBook, type Supplier, type Vendo
 import { resolveSupplier, type VendorMatch } from "@/lib/vendorLink";
 import { follow } from "@/lib/pickFill";
 import { isStocked, orderShelves, unitCost, shelfQty, roundedLot, perUnitWords, qtyWords, type Shelf, type LotSeen } from "@/lib/receiving";
-import { isMissingFunction } from "@/lib/schemaSkew";
 import { useAsyncData } from "@/lib/useAsyncData";
 import VendorResolve from "./VendorResolve";
 import { useUnsaved } from "./Sheet";
@@ -209,18 +208,12 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
     let onShelf = "";
     let shelfMissed = false;
     if (shelf && qty) {
-      // arrives-with: 0347 — before it is pasted, PostgREST has no receive_lot in this shape, and the
-      // step says so instead of reaching for 0293's, which would replace a hand-counted shelf.
       const { error: recvErr } = await supabase.rpc("receive_lot", {
         p_market: market, p_item: shelf.name, p_qty: qty, p_unit: shelf.unit, p_unit_cost_cents: perUnit,
         p_expense_id: (data as { id: string }).id, p_received_on: spentOn, p_vendor_id: settled.id,
       });
       shelfMissed = !!recvErr;
-      onShelf = recvErr
-        ? (isMissingFunction(recvErr)
-            ? ` It isn't on ${shelf.name} yet — receiving onto a shelf arrives with the next database update.`
-            : ` It isn't on ${shelf.name} — ${recvErr.message}.`)
-        : ` Added ${qtyWords(qty, shelf.unit)} to ${shelf.name}.`;
+      onShelf = recvErr ? ` It isn't on ${shelf.name} — ${recvErr.message}.` : ` Added ${qtyWords(qty, shelf.unit)} to ${shelf.name}.`;
     }
     if (file) {
       const why = await attachReceipt(supabase, data as { id: string; market: string }, file);

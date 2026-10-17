@@ -165,7 +165,6 @@ export async function payReserve(o: {
   const qty = Number(o.qty);
   if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return refuse(400, `Pick how many — between 1 and ${MAX_QTY}.`);
   const r = o.reserve;
-  if (r && !("stop_id" in r)) return refuse(503, "Reserving with a card isn't switched on yet — check back shortly.", { off: true });
   if (!r || (r.status !== "live" && r.status !== "sold_out")) return refuse(404, "That reserve isn't on offer right now.", { gone: true });
   if (!r.stop_id || !r.stop) return refuse(409, "This reserve opens once its pickup is set — check back soon.");
   if (r.stop.canceled_at) return refuse(409, "Its pickup was called off — check back for the new one.");
@@ -185,7 +184,7 @@ export async function payReserve(o: {
   //     is given back — nothing was taken under it.
   const hold = await steps.hold({ userId: o.userId, reserveId: r.id, qty, key: o.key });
   if (!hold.ok) {
-    await claimed.claims?.release(o.key);
+    await claimed.claims.release(o.key);
     return hold.answer;
   }
   // The hold prices the bottles from the reserve it locked. A price raised since the page drew it is not charged.
@@ -193,7 +192,7 @@ export async function payReserve(o: {
   const raisedNow = aboveShown(charge, shown);
   if (raisedNow) {
     if (!hold.again) await steps.release(hold.id, "price changed", 0);
-    await claimed.claims?.release(o.key);
+    await claimed.claims.release(o.key);
     return { status: 409, body: raisedNow };
   }
 
@@ -368,8 +367,8 @@ const TOOK = new Set(["COMPLETED", "APPROVED", "PENDING"]);
 
 export async function settleByHand(o: {
   steps: ReserveSteps;
-  /** The checkout claims (lib/checkoutClaims), to say the key is settled; null before 0371. */
-  claims: ClaimStore | null;
+  /** The checkout claims (lib/checkoutClaims), to say the key is settled. */
+  claims: ClaimStore;
   now: () => number;
   claimId: string; outcome: "paid" | "not_charged";
   /** The checkout claim under the claim's key, as read just now (with when it was claimed) — null when there is none. */
@@ -403,7 +402,7 @@ export async function settleByHand(o: {
   // The key, settled: what every retry of it hears from now on. Moved from the claim as it was read; moved on since — a
   // retry found its request dead (started → unknown) — it is moved from where it is now, unless its own request finished.
   const keyHears = async (answer: Answer, paymentId: string | null) => {
-    if (!o.claims || !key || !k || k.state === "done") return;
+    if (!key || !k || k.state === "done") return;
     const to = { state: "done" as const, answer, paymentId, note: "settled by hand" }, at = new Date(o.now()).toISOString();
     if (await o.claims.move(key, to, at, k)) return;
     const fresh = await o.claims.read(key);

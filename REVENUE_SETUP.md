@@ -56,16 +56,15 @@ Members subscribe to a **coffee pack — 6, 12, or 18 cups — on a cadence.** T
 | `NEXT_PUBLIC_SUB_PRICE_6` / `_12` / `_18` | e.g. `$36` / `$66` / `$90` | display labels on the pack tiles (optional) |
 
 These are **in addition to** the live payment keys you're already adding:
-`NEXT_PUBLIC_SQUARE_APP_ID`, `NEXT_PUBLIC_SQUARE_LOCATION_ID`,
-`NEXT_PUBLIC_SQUARE_ENV=production`, `SQUARE_ACCESS_TOKEN`.
+`NEXT_PUBLIC_SQUARE_APP_ID`, `NEXT_PUBLIC_SQUARE_LOCATION_ID`, `SQUARE_ACCESS_TOKEN`. (Sandbox or production follows
+the app ID's own prefix — `sandbox-…` or `sq0idp-…`; the old `NEXT_PUBLIC_SQUARE_ENV` is retired and read nowhere.)
 
 ### d) Redeploy
 Vercel redeploys on the next push, or hit **Redeploy**. Until `NEXT_PUBLIC_SUBSCRIPTIONS_ON=1`
 the member sees an honest "opening soon" line — no broken button.
 
-> Prove it in **sandbox** first (`NEXT_PUBLIC_SQUARE_ENV=sandbox` + sandbox plan +
-> sandbox webhook) before flipping to production, so the HMAC check and renewals are
-> verified end-to-end.
+> Prove it in **sandbox** first (a `sandbox-…` app ID and token + sandbox plan + sandbox webhook) before flipping to
+> production, so the HMAC check and renewals are verified end-to-end.
 
 ---
 

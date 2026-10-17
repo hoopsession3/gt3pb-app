@@ -4,7 +4,6 @@ import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
-import { isMissingColumn } from "@/lib/schemaSkew";
 import { isSeedSlug, nameFrom } from "@/lib/drinks";
 import type { TargetProduct } from "@/lib/benefitText";
 
@@ -22,12 +21,8 @@ import type { TargetProduct } from "@/lib/benefitText";
 export function useBenefitProducts() {
   const loader = useCallback(async (): Promise<TargetProduct[]> => {
     if (!supabase) return [];
-    // arrives-with: 0393 — until cup_orderable is pasted the read without it, and the code list's ten are the cups.
     type Row = { slug: string; name: string | null; price_cents: number | null; active: boolean | null; cup_orderable?: boolean | null };
-    const full = await supabase.from("products").select("slug, name, price_cents, active, sort, cup_orderable").order("sort");
-    const r: { data: unknown; error: { message: string } | null } = full.error && isMissingColumn(full.error)
-      ? await supabase.from("products").select("slug, name, price_cents, active, sort").order("sort")
-      : full;
+    const r = await supabase.from("products").select("slug, name, price_cents, active, sort, cup_orderable").order("sort");
     if (r.error) throw new Error(r.error.message);
     return ((r.data as Row[] | null) ?? []).map((p) => ({
       slug: p.slug,

@@ -93,7 +93,7 @@ const list = (who, bucket) => as(who, `select name from storage.objects where bu
 
 await db.exec(M421);
 await db.exec(M421);   // a second run changes nothing
-ok("0421 loads on the schema to 0420, and loads again", true);
+// 0421 loads on the schema to 0420, and loads again — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
 // ── storage: a file is listed by those who own it ─────────────────────────────────────────────────────────────────
 {

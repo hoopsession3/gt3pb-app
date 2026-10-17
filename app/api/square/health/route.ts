@@ -13,14 +13,16 @@ async function get(req: Request) {
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const appId = process.env.NEXT_PUBLIC_SQUARE_APP_ID || "";
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID || "";
-  const env = process.env.NEXT_PUBLIC_SQUARE_ENV || "sandbox";
 
   const appEnv = appId.startsWith("sandbox-") ? "sandbox" : appId.startsWith("sq0idp-") ? "production" : appId ? "unknown" : "missing";
   const checks: { name: string; ok: boolean; note: string }[] = [
     { name: "Server token", ok: Boolean(token), note: token ? "present" : "SQUARE_ACCESS_TOKEN is not set in the host env" },
     { name: "App ID", ok: Boolean(appId), note: appId ? `${appEnv} app` : "NEXT_PUBLIC_SQUARE_APP_ID is not set" },
     { name: "Location ID", ok: Boolean(locationId), note: locationId || "NEXT_PUBLIC_SQUARE_LOCATION_ID is not set" },
-    { name: "Environment", ok: appEnv === env || appEnv === "missing", note: appEnv === env ? env : `app ID looks ${appEnv} but NEXT_PUBLIC_SQUARE_ENV is ${env} — the card form loads the ${env} SDK` },
+    // One side, from the app ID (R14 — the 10/10 audit, F5): the card form (lib/square) and the charges (lib/squareServer)
+    // both follow its prefix. NEXT_PUBLIC_SQUARE_ENV is retired — this check read it, and called a production app red
+    // whenever the retired variable was unset.
+    { name: "Environment", ok: appEnv === "sandbox" || appEnv === "production" || appEnv === "missing", note: appEnv === "unknown" ? "the app ID is neither a sandbox- nor a production (sq0idp-) ID — check it in Square's developer dashboard" : appEnv === "missing" ? "follows the app ID, once it is set" : `${appEnv} — the card form and the charges both follow the app ID` },
   ];
 
   if (token) {

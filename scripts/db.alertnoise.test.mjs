@@ -117,7 +117,7 @@ ok("0255: and every one of them is critical", (await q1(
 // it gets fixed.
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0258_alert_autoexpire.sql"), "utf8"));
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0327_an_alert_that_cries_wolf.sql"), "utf8"));
-ok("0327 applies against a real Postgres", true);
+// 0327 applies against a real Postgres — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 ok("0327 records itself", (await q1(
   `select count(*)::int n from public.schema_migrations where version = '0327_an_alert_that_cries_wolf'`)).n === 1);
 
@@ -137,7 +137,7 @@ ok("…and no amount of age lets the sweep reach them: critical is exempt, so th
 
 // ── 0333: THE FIX APPLIED TO THE FIX'S OWN OUTPUT ──────────────────────────────────────────────
 await db.exec(readFileSync(join(ROOT, "supabase/migrations/0333_the_fix_shipped_and_the_flood_stayed.sql"), "utf8"));
-ok("0333 applies against a real Postgres", true);
+// 0333 applies against a real Postgres — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 ok("0333: the three become ONE open line — 0327's contract, applied to what 0327 left behind",
   (await stale()) === 1, await stale());
 ok("0333: …carrying the count of all three, not resetting to one", Number((await q1(
@@ -295,7 +295,7 @@ ok("0327: a healthy heartbeat raises nothing — the check still has to be able 
   // ── 0336 ───────────────────────────────────────────────────────────────────────────────────
   await db.exec(`delete from public.alerts where kind='order_stale' or title like '%pass%' or title like '%counter%'`);
   await db.exec(readFileSync(join(ROOT, "supabase/migrations/0336_the_guard_that_matched_on_a_sentence.sql"), "utf8"));
-  ok("0336 applies against a real Postgres", true);
+  // 0336 applies against a real Postgres — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
   await db.exec(`select public.alert_stale_orders(10)`);
   await db.exec(`select public.alert_stale_orders(10)`);
@@ -470,7 +470,7 @@ ok("0327: a healthy heartbeat raises nothing — the check still has to be able 
   const pushesBefore = await pushes();
   await db.exec(readFileSync(join(ROOT, "supabase/migrations/0340_three_things_the_inbox_still_said.sql"), "utf8"));
   counted = true;
-  ok("0340 applies against a real Postgres", true);
+  // 0340 applies against a real Postgres — a throw above fails this file; a milestone, not counted as a check (R14, F25).
   ok("0340: applying it pushed nobody's phone", (await pushes()) === pushesBefore, (await pushes()) - pushesBefore);
 
   const retired = (await hb())[0];
@@ -630,7 +630,7 @@ ok("0327: a healthy heartbeat raises nothing — the check still has to be able 
   const sql369 = readFileSync(join(ROOT, "supabase/migrations/0369_the_pass_alert_rings_until_the_pass_is_clear.sql"), "utf8");
   const pApply = await pushes();
   await db.exec(sql369);
-  ok("0369 applies against a real Postgres", true);
+  // 0369 applies against a real Postgres — a throw above fails this file; a milestone, not counted as a check (R14, F25).
   const left = await lines();
   ok("0369: applying it closes the line the cleared pass left open — the producer runs once, as its restatement",
     (await open()).length === 0 && left.length === 1 && left[0].ack_at !== null, left);

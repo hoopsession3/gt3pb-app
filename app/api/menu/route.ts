@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { SQUARE_BASE, squareHeaders, squareDeadline } from "@/lib/squareServer";
 import { createClient } from "@supabase/supabase-js";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { type MenuRow } from "@/lib/drinks";
 import { readMenuRows } from "@/lib/drinksRead";
 import { route } from "@/lib/apiRoute";
+import { errorMessage } from "@/lib/errorMessage";
 
 // public: the menu — the same drinks and prices printed at the window.
 //
@@ -41,7 +43,6 @@ async function get() {
   // 2) Square catalog — prices only, for the code list's drinks
   const token = process.env.SQUARE_ACCESS_TOKEN;
   if (!token) return NextResponse.json({ prices: {}, items: null });
-  const base = process.env.NEXT_PUBLIC_SQUARE_ENV === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com";
   // Square has no concept of our slugs, so its items are matched back to one by DISPLAY NAME. For 7
   // of 10 items the lowercased name happens to equal the slug (rise, flow, dusk, tide, forge, hunt,
   // wild), which used to mask this bug: kingme ("KING ME"), maple ("SALTED MAPLE LATTE"), and aide
@@ -51,7 +52,9 @@ async function get() {
   const nameToSlug: Record<string, DrinkId> = {};
   for (const slug of Object.keys(DRINKS) as DrinkId[]) nameToSlug[DRINKS[slug].n.toLowerCase()] = slug;
   try {
-    const res = await fetch(`${base}/v2/catalog/list?types=ITEM`, { headers: { Authorization: `Bearer ${token}`, "Square-Version": "2025-01-23" }, next: { revalidate: 60 } });
+    // The side the app ID names, with the house's Square version and deadline (R14 — F5: this read the retired
+    // NEXT_PUBLIC_SQUARE_ENV and asked the sandbox whenever it was unset).
+    const res = await fetch(`${SQUARE_BASE}/v2/catalog/list?types=ITEM`, { headers: squareHeaders(token), next: { revalidate: 60 }, signal: squareDeadline() });
     const data = await res.json();
     const prices: Record<string, number> = {};
     for (const obj of data?.objects ?? []) {
@@ -61,7 +64,8 @@ async function get() {
       if (slug && typeof amount === "number") prices[slug] = amount;
     }
     return NextResponse.json({ prices, items: null, source: "square" });
-  } catch {
+  } catch (e) {
+    console.warn(`menu: Square's catalog didn't answer — the code list's prices stand: ${errorMessage(e)}`);
     return NextResponse.json({ prices: {}, items: null });
   }
 }

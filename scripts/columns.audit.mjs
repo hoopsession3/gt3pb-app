@@ -222,6 +222,25 @@ export function arrivingRelations(pending = pendingMigrations()) {
   return out;
 }
 
+/**
+ * MARKERS FOR MIGRATIONS ALREADY APPLIED (R14, 2026-10-16 — the 10/10 audit's operations pass, F10). A marker was
+ * demanded while its migration was pending and nothing retired it once it was pasted: 53 markers in 36 files named 22
+ * migrations production had applied, each guarding a fallback no database would take again — dead branches the tests
+ * pinned in place. Every `// arrives-with: NNNN` whose migration is not pending is named here, to be retired with the
+ * fallback it guards. `pending` null (the paste file unreadable) checks nothing.
+ */
+export function staleMarkers(files, pending = pendingMigrations()) {
+  if (!pending) return [];
+  const out = [];
+  for (const [rel, src] of files) {
+    for (const m of src.matchAll(/\/\/\s*arrives-with:\s*0*(\d{3,4})\b/g)) {
+      const num = Number(m[1]);
+      if (!pending.has(num)) out.push(`${rel}  arrives-with: ${String(num).padStart(4, "0")}`);
+    }
+  }
+  return out;
+}
+
 /** Does this file declare that it survives the column being absent? `// arrives-with: 0337` */
 export function declaresArrival(src, num) {
   return new RegExp(`//\\s*arrives-with:\\s*0*${num}\\b`).test(src);
@@ -367,6 +386,15 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     console.log(`  ${need.size} relations and ${nCols} columns are waiting to be checked (${selects} selects read, ${skipped} parts skipped as computed).`);
     console.log(`  Refresh it: npm run schema:snapshot`);
     process.exit(0);
+  }
+
+  // Markers for migrations already applied fail first: the fallback each guards is dead (staleMarkers above).
+  const stale = staleMarkers(walk(ROOT).map((f) => [f.replace(ROOT + "/", "").replace(/^\.\//, ""), f]).filter(([rel]) => /^(app|components|lib)\//.test(rel)).map(([rel, f]) => [rel, readFileSync(f, "utf8")]));
+  if (stale.length) {
+    for (const m of stale) console.log(`    ${m}  — applied`);
+    console.log(`\n  ✗ ${stale.length} arrives-with marker(s) name a migration production has applied. Retire each fallback it`);
+    console.log(`    guards (the read or write without the column, the "isn't switched on yet" answer) and the marker with it.`);
+    process.exit(1);
   }
 
   const schema = JSON.parse(readFileSync(SNAPSHOT, "utf8"));

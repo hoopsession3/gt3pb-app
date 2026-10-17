@@ -6,14 +6,32 @@ import type { Claim, ClaimStore, StoreFailure } from "./chargeOnce";
 // THE TABLE UNDER lib/chargeOnce — public.checkout_claims (0371), read and written by the server alone,
 // with the service role (the table has RLS on, no policy, and no grant to anon or authenticated).
 //
-// arrives-with: 0371 — until it is pasted every read and claim here reports the table missing, and
-// lib/chargeOnce runs the checkout without claims, as it ran before them (Square's own key the only
-// dedupe), rather than refusing every order until somebody opens the SQL editor. Only that error is
-// forgiven (lib/schemaSkew.isMissingTable). Any other failure to read or to claim refuses the charge:
-// a payment whose claim cannot be written is a payment that could be taken twice.
+// Any failure to read or to claim refuses the charge: a payment whose claim cannot be written is a payment that could be
+// taken twice. THE TABLE MISSING TOO (R14, 2026-10-16 — the 10/10 audit's operations pass, F4). Until 0371 was pasted, a
+// missing table ran the checkout without claims — Square's own key the only dedupe — rather than refusing every order
+// until somebody opened the SQL editor. 0371 is applied, so a missing table now means something else is wrong — a restore,
+// a branch, PostgREST's schema cache not knowing the table — and the guard switched itself off without a word. It refuses
+// like any other failure, says so in the platform's log on every refusal, and tells the crew (once every ten minutes from
+// each server): the fix is usually PostgREST's reload — NOTIFY pgrst, 'reload schema'.
 
 type Err = { code?: string | null; message?: string | null } | null | undefined;
-const failure = (e: Err): StoreFailure => ({ ok: false, missing: isMissingTable(e), error: String(e?.message || e?.code || "failed") });
+let toldAt = 0;
+const TELL_EVERY_MS = 10 * 60_000;
+function failure(e: Err): StoreFailure {
+  const missing = isMissingTable(e);
+  const error = String(e?.message || e?.code || "failed");
+  if (missing) {
+    console.error(`[charge-once-off] checkout_claims did not answer as a table (${error.slice(0, 160)}) — every card charge is refused until it does`);
+    if (Date.now() - toldAt > TELL_EVERY_MS) {
+      toldAt = Date.now();
+      // Through lib/serverAlerts, loaded when it is needed: this file stays loadable on its own (the tests compile it
+      // without the server's clients).
+      void import("./serverAlerts").then((m) => m.raiseAlert({ severity: "critical", category: "money", title: "Checkout can't take payments — its claims table isn't answering",
+        body: "Every charge is being refused, safely (nothing is charged), because the table that keeps one charge per checkout (checkout_claims, 0371) did not answer as a table. Usually PostgREST's schema cache: run NOTIFY pgrst, 'reload schema'; in Supabase › SQL editor. If the project was restored or branched, check that 0371 is there." }), () => {});
+    }
+  }
+  return { ok: false, missing, error };
+}
 
 export function checkoutClaims(db: SupabaseClient): ClaimStore {
   return {

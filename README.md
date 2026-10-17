@@ -6,7 +6,8 @@ on Vercel, Supabase-backed, Square for payments. Live at **app.gt3pb.com**.
 ## Status — LIVE
 
 Shipped and running in production: customer storefront + membership, the crew/admin console,
-Supabase data (RLS-enforced), Square checkout, push (OneSignal) and email (Resend), 12 AI agents.
+Supabase data (RLS-enforced), Square checkout, push (the app's own web push through `public/sw.js`, and the iPhone
+app's alerts once APNs is set up) and email (Resend), and the AI helpers under `app/api/agents`.
 The old "phase 0–7" runbook is retired — the platform is past validation and in daily use.
 
 ## Design System v1 — THE build standard
@@ -29,17 +30,20 @@ Kiosk signage (`/display`) is the one intentional exemption (a rotating billboar
 ```bash
 npm install
 npm run dev                # http://localhost:3000
-npm run verify             # unit/db suite → next build → UI smoke (all 18 routes). Green before any ship.
+npm run verify             # the whole gate — CI runs exactly this. Green before any ship.
 npm run smoke:ui           # the browser smoke on its own
 npm test                   # unit + PGlite DB-contract suites
 ```
 
-`npm run verify` is the pre-ship gate: it must print `183 / 11 / 60 / 23 / 65` for the suites and
-`UI SMOKE: N passed, 0 failed`. Never push red.
+`npm run verify` is the pre-ship gate: `test && audit && build && smoke:ui && smoke:authed && build:app -- --smoke &&
+smoke:native` (package.json is the one definition; `.github/workflows/ci.yml` runs it by name). It stops at the first
+link that fails and the log names it. Never push red. The lint ratchet (`node scripts/lint.ratchet.mjs`) runs beside it
+in CI. Every setting the app reads is listed in `lib/envSchema.ts`.
 
 ## Architecture
 
-- `app/` — one route per screen (18 routes); `layout.tsx` shell, `manifest.ts`, `api/` route handlers (59).
+- `app/` — one folder per screen; `layout.tsx` shell, `manifest.ts`, `api/` the route handlers (each wrapped by
+  `lib/apiRoute`).
 - `components/kit.tsx` — the design-system primitives; `AppShell` / `OperatorNav` (crew shell) / `BottomNav`.
 - `components/FindUs.tsx` — the customer "where are you?" road: stops **and** events on the `field_ops`
   spine in one `is_public` query (`/truck` and `/events` both render it).
@@ -48,7 +52,7 @@ npm test                   # unit + PGlite DB-contract suites
   **order_items** (per-drink sales), **webhook_events** (idempotent Square inbox). See `lib/architecture.ts`.
 - `scripts/` — PGlite DB-contract tests (`db.*.test.mjs`) + the Playwright UI smoke (`smoke.ui.mjs`).
 - `app/globals.css` — tokens + the `/* KIT */` block (the primitives) + legacy component styles.
-- `next.config.ts` — security headers + CSP (Square / OneSignal / Supabase allowances).
+- `next.config.ts` — security headers + CSP (Square and Supabase allowances; nothing allowed that is not used).
 
 ## Brand lock
 

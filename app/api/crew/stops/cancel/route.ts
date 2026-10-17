@@ -3,7 +3,6 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { staffFromRequest, callerClient } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
-import { isMissingColumn, isMissingFunction } from "@/lib/schemaSkew";
 import { isUuid } from "@/lib/uuid";
 import { cupWords, packWords, crewWords, type CanceledStop, type CupHow } from "@/lib/stopCancel";
 import { orderNo } from "@/lib/activeOrder";
@@ -33,14 +32,12 @@ async function post(req: Request) {
 
   const { data, error } = await sb.rpc("cancel_stop", { p_stop: id, p_reason: reason || null });
   if (error) {
-    if (isMissingFunction(error)) return NextResponse.json({ error: "Canceling isn't switched on yet." }, { status: 503 });
     if (error.code === "42501") return NextResponse.json({ error: "Only an owner or an admin can cancel a visit." }, { status: 403 });
     return NextResponse.json({ error: "Couldn't cancel it — try again." }, { status: 500 });
   }
   const res = data as { day: string | null; cups: number; packs: number; other_stop_that_day?: boolean; already: boolean } | null;
   if (!res) return NextResponse.json({ error: "That visit isn't on the schedule." }, { status: 404 });
 
-  // arrives-with: 0391 — read only after cancel_stop answered, which is there only once 0391 is.
   // scoped-by: the stop id is the one cancel_stop just accepted from an owner or admin, by their own token.
   const { data: stopRow } = await supabaseAdmin.from("stops").select("name, starts_at, cancel_reason").eq("id", id).maybeSingle();
   const stop = (stopRow as CanceledStop | null) ?? { name: null, starts_at: null, cancel_reason: reason || null };
@@ -80,25 +77,20 @@ async function post(req: Request) {
   // theirs is off (cancel_stop counts the same packs).
   type PackRow = { user_id: string | null; phone: string | null; size: number; paid: boolean };
   let packs: PackRow[] = [];
+  let packsUnread = false;
   if (!res.already && res.packs > 0 && res.day) {
     const cols = "user_id, phone, size, paid";
-    // arrives-with: 0397 — before it is pasted this read is refused, and cancel_stop (0391) counts packs only when no
-    // other stop is left that day, so every pack that day is this stop's: the day's packs, as before.
     // scoped-by: stop_id = the stop an owner or admin just canceled through cancel_stop's own check.
     const atStop = await supabaseAdmin.from("drop_orders").select(cols).eq("stop_id", id).is("canceled_at", null).eq("picked_up", false);
-    if (atStop.error && isMissingColumn(atStop.error)) {
-      // scoped-by: drop_date = the canceled stop's own day, and cancel_stop counted them (no other stop that day).
-      const { data: dayRows } = await supabaseAdmin.from("drop_orders").select(cols)
-        .eq("drop_date", res.day).is("canceled_at", null).eq("picked_up", false);
-      packs = (dayRows ?? []) as PackRow[];
-    } else {
-      packs = (atStop.data ?? []) as PackRow[];
-      if (!res.other_stop_that_day) {
-        // scoped-by: drop_date = the canceled stop's own day, no other stop left on it, and linked to no stop.
-        const { data: loose } = await supabaseAdmin.from("drop_orders").select(cols)
-          .eq("drop_date", res.day).is("stop_id", null).is("canceled_at", null).eq("picked_up", false);
-        packs = packs.concat((loose ?? []) as PackRow[]);
-      }
+    // A read that failed is not "no packs at it" (R14): the crew is told to reach those customers themselves.
+    if (atStop.error) packsUnread = true;
+    packs = (atStop.data ?? []) as PackRow[];
+    if (!res.other_stop_that_day) {
+      // scoped-by: drop_date = the canceled stop's own day, no other stop left on it, and linked to no stop.
+      const loose = await supabaseAdmin.from("drop_orders").select(cols)
+        .eq("drop_date", res.day).is("stop_id", null).is("canceled_at", null).eq("picked_up", false);
+      if (loose.error) packsUnread = true;
+      packs = packs.concat((loose.data ?? []) as PackRow[]);
     }
     for (const p of packs) {
       await notifyCustomer({ phone: p.phone, email: await accountEmail(p.user_id), subject: "GT3 — your pickup day changed", message: packWords(stop, { size: p.size, paid: p.paid }) });
@@ -109,8 +101,9 @@ async function post(req: Request) {
   // and never lists them (R9) — and the cups the database would not void, to void on the Pass.
   const refunds = cups.filter((c) => cupHow(c) === "online" || cupHow(c) === "card_reader").length;
   const line = crewWords(stop, { cups: cups.length, told, refunds, packs: packs.length, stuck });
-  await raiseAlert({ severity: refunds || stuck.length ? "critical" : "important", category: refunds ? "money" : "order", kind: "stop_canceled",
-    subjectId: id, title: line.title, body: line.body, link: "/crew?s=now" });
+  const unread = packsUnread ? ` Its packs couldn't be read just now (${res.packs} on it) — their customers were not told; reach them from the pack board.` : "";
+  await raiseAlert({ severity: refunds || stuck.length || packsUnread ? "critical" : "important", category: refunds ? "money" : "order", kind: "stop_canceled",
+    subjectId: id, title: line.title, body: line.body + unread, link: "/crew?s=now" });
   return NextResponse.json({ ok: true, cups: cups.length, told, paid: refunds, packs: packs.length, stuck: stuck.length });
 }
 

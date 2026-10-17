@@ -61,7 +61,8 @@ export type Claim = {
 /** What the route says — and says again, word for word, to every retry of the same key. */
 export type Answer = { status: number; body: Record<string, unknown> };
 
-/** A store call that could not be made: the table is not there yet (0371 unpasted), or it failed. */
+/** A store call that could not be made: the table did not answer (`missing`: PostgREST does not know it — a restore, a
+ *  branch, a schema cache that has not caught up), or the call failed. Either refuses the charge. */
 export type StoreFailure = { ok: false; missing: boolean; error: string };
 
 export type ClaimRow = { channel: string; card: boolean; amountCents: number };
@@ -170,13 +171,15 @@ export async function answerFor(
  * that went in must hear "order in", not "sold out" or "closed" because the world moved on while the
  * first answer was lost.
  *
- * `{ claims: null }` — 0371 is not pasted yet: the checkout runs without claims, as it did before.
+ * A store that cannot be read refuses the checkout (cannotStart: nothing charged, safe to tap again) — the table missing
+ * included, since 0371 is applied (R14 — the 10/10 audit's operations pass, F4): a charge whose claim cannot be written is
+ * a charge that could be taken twice. lib/checkoutClaims says it in the platform's log and tells the crew.
  */
 export async function seenBefore(
   store: ClaimStore, key: string, card: boolean, now: () => number, stopped: (s: Stopped) => Promise<void>, say: Say = {},
-): Promise<{ answer: Answer } | { claims: ClaimStore | null }> {
+): Promise<{ answer: Answer } | { claims: ClaimStore }> {
   const r = await store.read(key);
-  if (!r.ok) return r.missing ? { claims: null } : { answer: cannotStart(card) };
+  if (!r.ok) return { answer: cannotStart(card) };
   if (!r.claim) return { claims: store };
   return { answer: await answerFor(store, key, r.claim, now, stopped, say) };
 }
@@ -191,8 +194,8 @@ export async function seenBefore(
  *
  * Every other answer is said as a check says it (the re-audit of R7b): the page's Pay is waiting on this very check, so
  * nothing here says "tap Pay", and a store that would not answer is "we couldn't check", never cannotStart's "nothing
- * was charged" — it was a payment's outcome that could not be read. `{ claims: null }` (0371 not pasted) cannot be
- * checked: the crew can.
+ * was charged" — it was a payment's outcome that could not be read. A claims table PostgREST does not know cannot be
+ * checked from here: the crew can.
  */
 export async function checkOnly(
   store: ClaimStore, key: string, card: boolean, now: () => number, stopped: (s: Stopped) => Promise<void>, channel = "cups", say: Say = {},
@@ -232,11 +235,10 @@ export async function checkOnly(
 
 /** Claim the key — the last step before the money. The unique key decides between two taps. */
 export async function claimKey(
-  claims: ClaimStore | null, key: string, row: ClaimRow, now: () => number, stopped: (s: Stopped) => Promise<void>, say: Say = {},
-): Promise<{ answer: Answer } | { claims: ClaimStore | null }> {
-  if (!claims) return { claims: null };
+  claims: ClaimStore, key: string, row: ClaimRow, now: () => number, stopped: (s: Stopped) => Promise<void>, say: Say = {},
+): Promise<{ answer: Answer } | { claims: ClaimStore }> {
   const c = await claims.claim(key, row, iso(now()));
-  if (!c.ok) return c.missing ? { claims: null } : { answer: cannotStart(row.card) };
+  if (!c.ok) return { answer: cannotStart(row.card) };
   if (c.claimed) return { claims };
   // Somebody holds it: the other tap of a double tap, most likely. Say what it would say.
   const r = await claims.read(key);
@@ -247,12 +249,12 @@ export async function claimKey(
 /**
  * Charge a claimed key, once. `charge` THROWS when Square's answer does not say whether the card was
  * charged (lib/squareServer); `record` writes the order and answers, and does not throw; `unknown`
- * tells the crew and answers the page. With no claims (0371 not pasted) the same steps run unrecorded.
+ * tells the crew and answers the page.
  * `record` is handed the charge's own answer beside its payment id — what else Square said about it (the
  * card it was paid with, for the receipt: R3b, 0395) — so nothing outside reaches into the charge for it.
  */
 export async function chargeOnce<R extends ChargeResult = ChargeResult>(o: {
-  claims: ClaimStore | null; key: string; now: () => number;
+  claims: ClaimStore; key: string; now: () => number;
   charge: () => Promise<R>;
   record: (paymentId: string | null, charged: Extract<R, { ok: true }>) => Promise<Answer>;
   unknown: (e: unknown) => Promise<Answer>;
@@ -261,30 +263,29 @@ export async function chargeOnce<R extends ChargeResult = ChargeResult>(o: {
   try {
     result = await o.charge();
   } catch (e) {
-    await o.claims?.move(o.key, { state: "unknown", note: errorMessage(e, 300) }, iso(o.now()));
+    await o.claims.move(o.key, { state: "unknown", note: errorMessage(e, 300) }, iso(o.now()));
     return o.unknown(e);
   }
   const said: ChargeResult = result;
   if (!said.ok) {
     const answer = declined(said.error);
-    await o.claims?.move(o.key, { state: "done", answer }, iso(o.now()));
+    await o.claims.move(o.key, { state: "done", answer }, iso(o.now()));
     return answer;
   }
   // The money is taken. Said BEFORE the order is written, so a request that dies writing it leaves a
   // claim that says "paid" — and the retry that finds it answers paid, not "we couldn't confirm".
-  await o.claims?.move(o.key, { state: "charged", paymentId: said.paymentId }, iso(o.now()));
+  await o.claims.move(o.key, { state: "charged", paymentId: said.paymentId }, iso(o.now()));
   const answer = await o.record(said.paymentId, result as Extract<R, { ok: true }>);
-  await o.claims?.move(o.key, { state: "done", answer, paymentId: said.paymentId }, iso(o.now()));
+  await o.claims.move(o.key, { state: "done", answer, paymentId: said.paymentId }, iso(o.now()));
   return answer;
 }
 
 /** Place a pay-at-pickup order under a claimed key, once. A refused insert gives the key back. */
 export async function placeOnce(o: {
-  claims: ClaimStore | null; key: string; now: () => number;
+  claims: ClaimStore; key: string; now: () => number;
   place: () => Promise<Answer>;
 }): Promise<Answer> {
   const answer = await o.place();
-  if (!o.claims) return answer;
   if (answer.status >= 200 && answer.status < 300) await o.claims.move(o.key, { state: "done", answer }, iso(o.now()));
   else await o.claims.release(o.key);
   return answer;

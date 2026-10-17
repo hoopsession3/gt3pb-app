@@ -126,7 +126,7 @@ const age = (id, by) => db.query(`update public.alerts set created_at = created_
   const sql372 = MIG(F372);
   const p0 = await pushes();
   await db.exec(sql372);
-  ok("0372 applies to the whole schema", true);
+  // 0372 applies to the whole schema — a throw above fails this file; a milestone, not counted as a check (R14, F25).
   const two = await lines("refund_needed", ORDER_A);
   const kept = two.filter((l) => l.ack_at === null);
   ok("0372: the two lines already open become one — the newest stays open, carrying both counts",
@@ -302,7 +302,7 @@ let serverTask = null;   // the server's own task alert, read again in the 0374 
   // A critical raised before the escalation existed, half an hour ago and never marked: live, so it may ring once.
   await db.exec(`delete from public.alerts where severity = 'critical'`);
   await db.exec(sql373);
-  ok("0373 applies to the whole schema", true);
+  // 0373 applies to the whole schema — a throw above fails this file; a milestone, not counted as a check (R14, F25).
   const trig = await q(`select tgname, pg_get_triggerdef(oid) d from pg_trigger where tgrelid = 'public.alerts'::regclass and tgname in ('alerts_push_fanout', 'alerts_push_escalation') order by tgname`);
   const callOf = (d) => (/EXECUTE FUNCTION .*$/.exec(d) ?? [""])[0];
   ok("0373: the escalation goes through 0157's door — the same function, with the same arguments, read from the fan-out itself",
@@ -388,7 +388,7 @@ let serverTask = null;   // the server's own task alert, read again in the 0374 
   const sql374 = MIG(F374);
   await db.exec(`delete from public.alerts where kind = 'device_test'`);
   await db.exec(sql374);
-  ok("0374 applies to the whole schema", true);
+  // 0374 applies to the whole schema — a throw above fails this file; a milestone, not counted as a check (R14, F25).
   const ring = (uid) => as(uid, `select public.ring_my_devices() as n`);
   const tests = (uid) => q(`select id, severity, category, title, link, target_user_id, created_by, tenant_id, ack_at, ack_by, created_at
     from public.alerts where kind = 'device_test' and target_user_id = $1 order by created_at, id`, [uid]);

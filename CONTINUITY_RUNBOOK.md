@@ -27,6 +27,21 @@
 
 1. Supabase Dashboard → Backups → confirm last daily backup timestamp.
 2. **Restore to a NEW project** (never over prod): Backups → Restore → new project.
+   **Then, before anything else, silence the copy** (R14, 2026-10-17 — the 10/10 audit, F19). The copy carries
+   production's scheduled jobs and the triggers that hand an alert to the push function — and that function's address
+   is PRODUCTION's (0157 wrote it in). Left running, the drill's watchdogs and reminders push to real phones. In the
+   drill project's SQL editor (never production's):
+   ```sql
+   -- every scheduled job off
+   select cron.unschedule(jobid) from cron.job;
+   -- every trigger that calls out over HTTP off (0157's, 0373's, 0394's, 0399's and the dashboard's webhooks alike)
+   do $$ declare r record; begin
+     for r in select t.tgrelid::regclass as tbl, t.tgname
+                from pg_trigger t join pg_proc p on p.oid = t.tgfoid join pg_namespace n on n.oid = p.pronamespace
+               where not t.tgisinternal and n.nspname = 'supabase_functions' and p.proname = 'http_request'
+     loop execute format('alter table %s disable trigger %I', r.tbl, r.tgname); end loop;
+   end $$;
+   ```
 3. Point a local checkout at the restored project (`NEXT_PUBLIC_SUPABASE_URL/ANON_KEY` in `.env.local`), `npm run dev`, sign in, confirm orders/customers/calendar render.
 4. Delete the drill project. Log the drill in Settings → Audit & maintenance.
    ☐ First drill performed: ____ (date, by)
@@ -37,10 +52,24 @@ Lost/stolen owner phone: (1) from any browser, Supabase → Auth → revoke the 
 
 ## 5 · If the app is down on a truck day
 
-- The app self-reports server errors and the watchdog raises a critical alert within 10 minutes (round 30k). Check email/Teams.
+- **What tells you, and how fast** (corrected R14, 2026-10-17 — this line used to promise a critical alert within 10
+  minutes; nothing does that):
+  - **GitHub Actions › Production** checks `/api/health` every 30 minutes and goes red when the app does not answer.
+    GitHub sends a red scheduled run as a notification (Settings → Notifications → Actions — make sure email is on).
+    That is the only check from outside today; GitHub can delay or skip a scheduled run under load.
+  - If that check itself stops (GitHub pauses schedules after 60 days without a push), the database raises **"The
+    uptime check went quiet"** after 90 minutes — *important*, so it pushes to the crew's phones and does not email.
+  - A route that throws files itself and a new kind of error raises an alert — while the database is up.
+  - Nothing pages a person. An outside monitor that calls or texts is one of the owner's open decisions.
+- **What to look at first:** `https://app.gt3pb.com/api/health` (which build, and whether the database answers) — then
+  status.vercel.com · status.supabase.com · issquareup.com (Square).
 - Square's own Point of Sale app on the phone takes cards independently of our app — the register survives our outage. ☐ Square POS installed on truck phone as fallback
 - Menu QR fallback: print the menu (one page, prices) and keep it in the truck bin. ☐ printed
-- Vercel/Supabase status pages: status.vercel.com · status.supabase.com.
+- **Square is down:** a card checkout says so on its own screen. Pay at pickup (crew → Settings → Payments & checkout)
+  keeps orders coming in, to be paid in person.
+- **Pushes are not arriving:** every alert is still in the console's bell (/crew) — the push is only the doorbell. A
+  critical's email goes out through the same push function, so it is down with it: open /crew. The function is
+  deployed by hand from `supabase/functions/push` (its file says how); Supabase → Edge Functions → push → Logs says why.
 
 ## 6 · If a batch is suspect (recall, 0261)
 
@@ -49,3 +78,21 @@ Lost/stolen owner phone: (1) from any browser, Supabase → Auth → revoke the 
 ## 7 · Who to call
 
 Developer of record: this assistant, via Ryan's Claude session (the repo's commit trail is the handbook). Accountant: ____ · Insurance broker: ____ · Counsel: ____ ← fill these in; blind-spot audit #7–#10 explains why each exists.
+
+## 8 · Roll back a bad deploy (R14, 2026-10-17 — the 10/10 audit, F23)
+
+1. **Vercel → gt3pb-app → Deployments → the last good Production deployment → ⋯ → Instant Rollback.** Seconds, no
+   rebuild. On the Hobby plan Vercel can roll back only to the deployment just before the current one; Pro can go
+   further back. Open tabs reload onto the build that is serving (the app asks `/api/health?from=app-build` which
+   build it is).
+2. **Then undo the commit on `main`** (a `git revert`, through the same Edits session that pushes), so the next push
+   does not ship it again. Check that the fixed push really became production (Deployments → *Current*); if Vercel
+   held it after the rollback, promote it (⋯ → Promote).
+3. **The database does not roll back with the code.** Look at what was pasted since the good deploy (`/api/migrations`
+   lists the applied numbers). Most migrations only add, and the older code runs on them; one that takes a grant away or
+   tightens a row rule can break it — then the way back is a new migration, written, reviewed and pasted like any
+   other, never an edit of an applied file.
+4. **The iPhone app** is its own build: a web rollback changes the API under it, not its screens. A bad build is
+   stopped in App Store Connect (pause the phased release, or expire the TestFlight build).
+5. **The push function** is deployed by hand: redeploy the last good `supabase/functions/push` from git history.
+6. Write down what happened (date, what broke, what rolled back) in Settings → Audit & maintenance.

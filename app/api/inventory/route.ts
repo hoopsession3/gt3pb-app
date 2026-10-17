@@ -6,7 +6,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { route } from "@/lib/apiRoute";
-import { isMissingColumn } from "@/lib/schemaSkew";
 
 async function get(req: Request) {
   if (!(await staffFromRequest(req))) return Response.json({ enabled: false, items: [], error: "unauthorized" }, { status: 401 });
@@ -28,12 +27,11 @@ async function get(req: Request) {
 
   // WHO EACH SHELF IS BOUGHT FROM, AS A LINK (0347: inventory_items.vendor_id). Read from the table, not
   // the view: inventory_status is `select i.*` and Postgres fixed its columns when it was created, so a
-  // column added since is not in it. Any other failure is said (linkError), not shown as unlinked.
-  // arrives-with: 0347 — until it is pasted the link is not there, and every shelf reads as its typed name.
+  // column added since is not in it. A failure is said (linkError), not shown as unlinked.
   const links = await sb.from("inventory_items").select("id, vendor_id");
   const linkOf = new Map<string, string | null>();
   if (!links.error) for (const l of (links.data ?? []) as { id: string; vendor_id: string | null }[]) linkOf.set(l.id, l.vendor_id);
-  const linkError = links.error && !isMissingColumn(links.error) ? links.error.message : undefined;
+  const linkError = links.error ? links.error.message : undefined;
 
   const num = (v: any) => (typeof v === "number" ? v : v == null ? null : Number(v));
   const items = (data ?? []).map((r: any) => ({

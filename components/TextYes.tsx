@@ -34,8 +34,7 @@ export default function TextYes({ phone, checked, onChange }: { phone: string; c
   useEffect(() => {
     if (!on || !supabase || !user) return;
     let live = true;
-    // arrives-with: 0398 — until it is pasted the table is not there: the read errs, no yes is found, and the box is shown
-    // (this screen appears only once texts are switched on, which waits for 0398).
+    // A read that fails finds no yes, and the box is shown (0398).
     supabase.from("text_consents").select("phone, yes_at, stop_at").eq("user_id", user.id)
       .then(({ data }) => { if (live) setYesFor(((data ?? []) as Row[]).filter(stands).map((r) => r.phone)); });
     return () => { live = false; };

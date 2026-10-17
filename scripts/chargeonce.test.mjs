@@ -110,14 +110,14 @@ const realFetch = globalThis.fetch;
 {
   let got = null;
   const card = { brand: "Visa", last4: "4242" };
-  const a = await C.chargeOnce({ claims: null, key: "k-record-0001", now: () => 0,
+  const a = await C.chargeOnce({ claims: memoryClaims(), key: "k-record-0001", now: () => 0,
     charge: async () => ({ ok: true, paymentId: "pay-1", card }),
     record: async (paymentId, charged) => { got = { paymentId, charged }; return { status: 200, body: { ok: true } }; },
     unknown: async () => ({ status: 502, body: {} }) });
   ok("chargeOnce: record gets the payment id and the charge's whole answer — the card with it, nothing re-asked of Square",
     a.status === 200 && got?.paymentId === "pay-1" && got?.charged?.card === card && got?.charged?.ok === true, got);
   let called = false;
-  await C.chargeOnce({ claims: null, key: "k-record-0002", now: () => 0,
+  await C.chargeOnce({ claims: memoryClaims(), key: "k-record-0002", now: () => 0,
     charge: async () => ({ ok: false, error: "Card declined." }),
     record: async () => { called = true; return { status: 200, body: {} }; },
     unknown: async () => ({ status: 502, body: {} }) });
@@ -141,8 +141,10 @@ const realFetch = globalThis.fetch;
     firstClaim > at("orderingNow(") && firstClaim > at("pay_at_pickup") && firstClaim > at("readStopMenu(") && secondClaim > firstClaim && firstClaim < at("placeOnce(") && secondClaim < at("chargeOnce(") && at("claimKey(", secondClaim + 1) === -1);
   ok("route: pay at pickup's insert is placed under its claim", at("placeOnce(") < at("await insertOrder(orderRow)") && at("await insertOrder(orderRow)") < secondClaim);
   ok("route: Square is called in one place, inside chargeOnce", (r.match(/chargeCard\(/g) || []).length === 1 && /charge: \(\) => chargeCard\(/.test(r) && at("charge: () => chargeCard(") > at("chargeOnce("));
-  ok("route: the store it claims in is the table's (lib/checkoutClaims), and the route says how it survives the table not being there yet",
-    /seenBefore\(checkoutClaims\(supabaseAdmin\), idemKey, paying, now, stopped\)/.test(r) && /\/\/ arrives-with: 0371/.test(readFileSync(join(ROOT, "app/api/checkout/route.ts"), "utf8")));
+  ok("route: the store it claims in is the table's (lib/checkoutClaims) — and a table that does not answer refuses, the missing one too (R14)",
+    /seenBefore\(checkoutClaims\(supabaseAdmin\), idemKey, paying, now, stopped\)/.test(r) && !/arrives-with: 0371/.test(readFileSync(join(ROOT, "app/api/checkout/route.ts"), "utf8"))
+    && /if \(!r\.ok\) return \{ answer: cannotStart\(card\) \};/.test(readFileSync(join(ROOT, "lib/chargeOnce.ts"), "utf8"))
+    && /\[charge-once-off\]/.test(readFileSync(join(ROOT, "lib/checkoutClaims.ts"), "utf8")));
   ok("route: an unknown charge answers the page with \"pending\" and tells the crew, naming the key",
     /unknown: async \(e\) => \{[\s\S]*?title: "Checkout charge status unknown — check Square"[\s\S]*?\$\{idemKey\}[\s\S]*?status: 502, body: \{ \.\.\.couldNotConfirm\(true\)\.body \}/.test(r)
     && C.couldNotConfirm(true).body.pending === true);

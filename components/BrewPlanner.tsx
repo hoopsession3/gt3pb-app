@@ -15,7 +15,7 @@ import { edited } from "@/lib/formGuard";
 import BrewSteps from "@/components/BrewSteps";
 import CookNeedList, { type CookIngredient } from "@/components/CookNeedList";
 import ProgressRing from "@/components/ProgressRing";
-import { isMissingColumn, writeAcrossSkew } from "@/lib/schemaSkew";
+import { isMissingColumn } from "@/lib/schemaSkew";
 import PersonPick, { usePersonMe, type PersonValue } from "@/components/PersonPick";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -135,20 +135,13 @@ export default function BrewPlanner() {
       .select("id, name, capacity_gal, filter_type").is("archived_at", null).order("sort");
   }, []);
 
-  // 0349 adds brew_batches.coffee_lot_id. Until it is pasted the batches are asked for again without
-  // it, and the board knows (linkable: false): the lot pick is still offered and the batch keeps the
-  // lot's name, and nothing promises a link or a draw the database cannot make yet. The same narrow
-  // forgiveness as vesselsRead — that one condition; every other error still throws.
+  // The batches with their lot's link (0349: brew_batches.coffee_lot_id) — linkable: the board can link a lot and draw it.
+  // (Before 0349 was pasted they were asked for again without it, and nothing promised a link; R14 took that path out.)
   const batchesRead = useCallback(async () => {
-    // arrives-with: 0349
     const full = await supabase!.from("brew_batches")
       .select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled, market, consumption_logged_at, coffee_lot_id")
       .order("created_at", { ascending: false });
-    if (!full.error || !isMissingColumn(full.error)) return { ...full, linkable: true };
-    const prior = await supabase!.from("brew_batches")
-      .select("id, recipe_id, recipe_name, batch_gal, brew_date, ready_at, event_id, stop_id, status, og, signal_score, target_spec, extraction_hours, brew_started_at, vessel, coffee_lot, brewer, taste_notes, created_at, needed_by, latest_start_at, drop_date, hold_hours, scaled, market, consumption_logged_at")
-      .order("created_at", { ascending: false });
-    return { ...prior, linkable: false };
+    return { ...full, linkable: true };
   }, []);
 
   const loader = useCallback(async (): Promise<BrewBoard> => {
@@ -286,11 +279,8 @@ export default function BrewPlanner() {
     const lot = extras?.lot ? { coffee_lot: extras.lot.text.trim() || null, coffee_lot_id: extras.lot.id } : {};
     const brewer = extras?.brewer?.name.trim() || b.brewer || null;
     setNow(Date.now());
-    // arrives-with: 0344
-    // arrives-with: 0349
-    const { error } = await writeAcrossSkew((row) => supabase!.from("brew_batches").update(row).eq("id", b.id),
-      { status: "brewing", brew_started_at: startIso, ready_at: readyIso, ...lot, brewer, ...(extras?.brewer ? { brewer_id: extras.brewer.id } : {}), alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false } as Record<string, unknown>,
-      ["brewer_id", "coffee_lot_id"]);
+    const { error } = await supabase.from("brew_batches").update(
+      { status: "brewing", brew_started_at: startIso, ready_at: readyIso, ...lot, brewer, ...(extras?.brewer ? { brewer_id: extras.brewer.id } : {}), alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false }).eq("id", b.id);
     if (error) { setMutErr(error.message); return false; }
     reload();
     return true;
@@ -689,16 +679,14 @@ function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }
   const save = async () => {
     if (!supabase || busy) return;
     setBusy(true); setErr(null);
-    // arrives-with: 0344
-    // arrives-with: 0349
-    const { error } = await writeAcrossSkew((row) => supabase!.from("brew_batches").update(row).eq("id", batch.id), {
+    const { error } = await supabase.from("brew_batches").update({
       status: f.status, og: f.og?.trim() || null, signal_score: f.signal_score,
       coffee_lot: lot.text.trim() || null, brewer: brewer.name.trim() || null, taste_notes: f.taste_notes?.trim() || null,
       ...(brewerSet || brewer.id ? { brewer_id: brewer.id } : {}),
       ...(lotSet || lot.id ? { coffee_lot_id: lot.id } : {}),
       event_id: targets[0]?.startsWith("e:") ? targets[0].slice(2) : null,  // first selection = primary (back-schedule)
       stop_id: targets[0]?.startsWith("s:") ? targets[0].slice(2) : null,
-    } as Record<string, unknown>, ["brewer_id", "coffee_lot_id"]);
+    }).eq("id", batch.id);
     if (error) { setErr(error.message); setBusy(false); return; }
     // Re-sync the links to the chosen set (clear + insert) — and say it if they did not take (R12b, F4): the sheet closed
     // on a batch that served nothing, or still served what it no longer should.

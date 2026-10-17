@@ -10,6 +10,20 @@
 // so it runs identically on the nodejs and edge runtimes and never drags app imports into Next's
 // instrumentation bundle. Telemetry never throws — every path is fail-silent by contract.
 
+import { notSet } from "./lib/envSchema";
+
+// WHAT THIS SERVER STARTED WITHOUT (R14, 2026-10-16 — the 10/10 audit's operations pass, F14). A secret missing in
+// production turned its feature off without a word: no service-role key, and no order saved, no alert raised, no error
+// filed — said nowhere but /api/health's 503. Next calls register() once as each server instance starts: the core and
+// feature settings it has no value for are named in the platform's log, one line, names only (lib/envSchema says what
+// each is for). Never a value.
+export function register() {
+  try {
+    const missing = notSet(process.env);
+    if (missing.length) console.warn(`[env] not set: ${missing.map((e) => `${e.name}${e.need === "core" ? " (core)" : ""}`).join(", ")} — lib/envSchema says what each is for`);
+  } catch { /* telemetry never throws */ }
+}
+
 type ReqInfo = { path?: string; method?: string };
 type ErrCtx = { routerKind?: string; routeType?: string };
 

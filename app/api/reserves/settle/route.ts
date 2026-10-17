@@ -5,7 +5,6 @@ import { findPaymentByReference, getPayment } from "@/lib/squareServer";
 import { settleByHand } from "@/lib/reservePay";
 import { reserveSteps } from "@/lib/reserveSteps";
 import { checkoutClaims } from "@/lib/checkoutClaims";
-import { isMissingTable } from "@/lib/schemaSkew";
 import { isUuid } from "@/lib/uuid";
 import { route } from "@/lib/apiRoute";
 import type { Claim } from "@/lib/chargeOnce";
@@ -30,20 +29,20 @@ async function post(req: Request) {
   if (raw && !PAYMENT_ID.test(raw)) return NextResponse.json({ error: "That doesn't look like a Square payment ID — copy it again from the payment's page." }, { status: 400 });
 
   const db = supabaseAdmin;
-  // arrives-with: 0400 — until it is pasted a claim has no key and nothing is ever pending: the read answers with an
-  // error, and the claim is said not to be here (404) — there is nothing to settle.
+  // A read that failed is not "that claim isn't here" (R14): it says it couldn't read, and the crew tries again.
   // scoped-by: one claim by its id, for an owner or an admin (adminFromRequest above) — its key, its bottles and their price.
-  const { data: c } = await db.from("reserve_claims").select("idempotency_key, qty, reserve:reserves(price_cents)").eq("id", id).maybeSingle();
+  const { data: c, error: cErr } = await db.from("reserve_claims").select("idempotency_key, qty, reserve:reserves(price_cents)").eq("id", id).maybeSingle();
+  if (cErr) return NextResponse.json({ error: "Couldn't read that claim just now — try again." }, { status: 503 });
   const claim = c as { idempotency_key: string | null; qty: number; reserve: { price_cents: number } | null } | null;
   if (!claim) return NextResponse.json({ error: "That claim isn't here.", gone: true }, { status: 404 });
   // What the checkout itself kept under the claim's key (0371): where it got to, the amount it went to charge, and
   // Square's payment when it heard of one. A failed read is not "nothing kept" — that would let a paid claim be marked
-  // Not charged — so it refuses; only a table not there yet (0371 unpasted) reads as none.
+  // Not charged — so it refuses (a table PostgREST does not know included, since 0371 is applied: R14).
   let checkout: (Pick<Claim, "state" | "amount_cents" | "payment_id" | "updated_at"> & { created_at: string | null }) | null = null;
   if (claim.idempotency_key) {
     // scoped-by: checkout_claims.idempotency_key is UNIQUE (0371) and the key is this claim's own.
     const k = await db.from("checkout_claims").select("state, amount_cents, payment_id, created_at, updated_at").eq("idempotency_key", claim.idempotency_key).maybeSingle();
-    if (k.error && !isMissingTable(k.error)) return NextResponse.json({ error: "Couldn't read its checkout just now — try again." }, { status: 503 });
+    if (k.error) return NextResponse.json({ error: "Couldn't read its checkout just now — try again." }, { status: 503 });
     checkout = (k.data as typeof checkout) ?? null;
   }
   const token = process.env.SQUARE_ACCESS_TOKEN;

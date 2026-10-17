@@ -99,8 +99,7 @@ function TicketView({ t, shared = false }: { t: string; shared?: boolean }) {
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const confirm = useConfirm();
-  // arrives-with: 0395 — until it is pasted the view is not there (PGRST202), and the page says it can't open the order.
-  // A shared link (0413) reads order_shared — only after 0413 is there is a shared link to open.
+  // The ticket (0395, order_ticket); a shared link (0413) reads order_shared.
   const ticket = useAsyncData<Ticket>(async () => {
     if (!supabase) throw new Error("We couldn't open this order just now — try again in a minute.");
     const { data, error: e } = shared
@@ -185,7 +184,6 @@ function TicketView({ t, shared = false }: { t: string; shared?: boolean }) {
   };
   // Take it back while it is In (0396, cancel_by_ticket): the member's rule, by the ticket — not once it is being made,
   // and not once paid at the window, which is the crew's to cancel there. It says what happened in the order's words.
-  // arrives-with: 0396 — until it is pasted the function is not there, and the answer is the "try again" line.
   const canCancel = !shared && tk.status === "new" && !tk.at_window;
   const cancel = async () => {
     if (busy) return;

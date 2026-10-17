@@ -44,8 +44,7 @@ export default function RemindMe({ stopId, opensAt, stopName, where, t }: { stop
   // An answer from the phone that never comes (its half failed to load) is no answer: after 3 seconds, no button.
   const [waited, setWaited] = useState(false);
   useEffect(() => { const id = setTimeout(() => setWaited(true), 3000); return () => clearTimeout(id); }, []);
-  // Is one kept for this stop? Read from the member's own rows; a read that fails (0394 not pasted yet) draws no button.
-  // arrives-with: 0394 — cup_reminders and its two functions.
+  // Is one kept for this stop? Read from the member's own rows (0394); a read that fails draws no button.
   useEffect(() => {
     if (!supabase || !user) return;
     let alive = true;

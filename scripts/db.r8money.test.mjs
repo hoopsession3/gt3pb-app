@@ -77,7 +77,7 @@ const sumDays = (s) => (s?.by_day ?? []).reduce((a, d) => a + Number(d.cents), 0
 
 await db.exec(SQL);
 await db.exec(SQL);   // a second run changes nothing
-ok("0415 loads on the schema to 0414, and loads again", true);
+// 0415 loads on the schema to 0414, and loads again — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
 // ── after 0415: once, in Packs, on the day it moved ───────────────────────────────────────────────────────────────────
 {

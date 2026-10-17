@@ -9,10 +9,9 @@ import { chargeCard, refundPayment, safeIdemKey } from "@/lib/squareServer";
 import { packPick, offeredDays, requestedDay, packCents } from "@/lib/packOrder";
 import { packIsOpen, PICKUP_STOPS_READ, type PackStop } from "@/lib/pickupDay";
 import { changePack, diffFor, type After, type Money, type Tell, type Who } from "@/lib/packChange";
-import { packChangeStore, packChangeMissing } from "@/lib/packChangeStore";
+import { packChangeStore } from "@/lib/packChangeStore";
 import { isUuid } from "@/lib/uuid";
 import { route } from "@/lib/apiRoute";
-import { isMissingColumn } from "@/lib/schemaSkew";
 import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
 
 // A minute at most (R10b — the 10/10 audit; reserves/pay's rule): a claim still "started" two minutes on is taken for a
@@ -74,7 +73,6 @@ async function post(req: Request) {
       const out = await changePack({ store, money, tell, now: Date.now, key, order: id, user: user.id, ...a });
       return NextResponse.json(out.body, { status: out.status });
     } catch (e) {
-      if (packChangeMissing(e as { code?: string; message?: string })) return notOn();
       // A step could not be written. If the change had begun, the next request with this key finishes it or tells the
       // crew (lib/packChange); the page keeps its key and card token for exactly that.
       return NextResponse.json({ pending: true, error: "Couldn't confirm your change — tap again in a moment. Nothing is charged twice." }, { status: 502 });
@@ -84,11 +82,11 @@ async function post(req: Request) {
   // ONE KEY, ONE CHANGE — asked first. A retry of a change already begun hears what became of it, before the day's
   // cutoff or the pack is checked again: the world may have moved on while the first answer was lost.
   if (!quote && typeof body.idempotencyKey === "string") {
-    // arrives-with: 0388 — until it is pasted the read errors, and the route says changing a pack isn't switched on yet.
     // scoped-by: the key is the caller's page's own (8–45 characters, unguessable); pack_change_begin answers a key only
     // for the pack and the member it was begun for.
     const { data: seen, error } = await sb.from("drop_order_changes").select("key").eq("key", key).maybeSingle();
-    if (error && packChangeMissing(error)) return notOn();
+    // A read that failed is not "never begun" (R14): a change begun under this key may be waiting on its answer.
+    if (error) return NextResponse.json({ pending: true, error: "Couldn't check on your change just now — tap again in a moment. Nothing is charged twice." }, { status: 503 });
     if (seen) return run({ after: EMPTY_AFTER, who: { name: said(body.name, 80), phone: said(body.phone, 40) }, newTotal: 0, payNow: false, expectedDiff: 0 });
   }
 
@@ -115,15 +113,12 @@ async function post(req: Request) {
   }
   if (Date.now() > cutoff.getTime()) return NextResponse.json({ error: "That drop has closed — pick the next pickup day." }, { status: 400 });
 
-  // arrives-with: 0397 — stop_id is read here. Until it is pasted the column is not there (lib/schemaSkew): the pack is
-  // read without it, as before, and its own drop is judged by its day.
   // scoped-by: order.user_id !== user.id, below, 404s anything that is not the caller's
-  const withStop = await sb.from("drop_orders")
+  const read = await sb.from("drop_orders")
     .select("id, user_id, drop_date, stop_id, total_cents, paid, benefit_code, canceled_at, picked_up, stage, collected_at").eq("id", id).maybeSingle();
-  const order = (withStop.error && isMissingColumn(withStop.error)
-    // scoped-by: the same row, read again without the column 0397 adds — the 404 below decides, as above
-    ? (await sb.from("drop_orders").select("id, user_id, drop_date, total_cents, paid, benefit_code, canceled_at, picked_up, stage, collected_at").eq("id", id).maybeSingle()).data
-    : withStop.data) as ChangedPack | null;
+  // A read that failed is not "not found" (R14): it says so, and nothing changes.
+  if (read.error) return NextResponse.json({ error: "Couldn't read that pack just now — try again." }, { status: 503 });
+  const order = read.data as ChangedPack | null;
   if (!order || order.user_id !== user.id) return NextResponse.json({ error: "Order not found." }, { status: 404 });
   if (order.canceled_at) return NextResponse.json({ error: "That pack was canceled." }, { status: 409 });
   if (order.collected_at) return NextResponse.json({ error: "This pack was paid at the window — the crew can change it." }, { status: 409 });

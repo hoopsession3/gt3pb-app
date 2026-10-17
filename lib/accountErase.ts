@@ -10,9 +10,11 @@
 //
 // Every step is handed in: app/api/account/erase gives the real ones; scripts/accounterase.test.mjs stands in for them.
 //
-// arrives-with: 0404 — until it is pasted there is no queue: claim answers null, and what was read before the delete (the
-// Square profile, the Apple token, the photos — a billing membership still refuses the delete there, as 0353 did) is done
-// directly, each failure alerted as before. The commit that records 0404 applied takes this out.
+// THE QUEUE'S SAFETY NET (0404 is applied; R14 kept this on purpose). When the queue cannot be claimed — claim answers
+// null: the call failed, or PostgREST does not know the function — what was read before the delete (the Square profile,
+// the Apple token, the photos) is done directly, each failure handed to the crew. The account is already gone by then, so
+// these are the only record of what is left outside the database; done twice (by this and by the queue later), each step
+// is harmless.
 
 import { errorMessage } from "./errorMessage";
 
@@ -26,12 +28,12 @@ export type EraseSteps = {
   /** A mark for this deletion's own rows, written on the account (app_metadata.erasure_ticket). */
   newTicket(): string;
   markTicket(userId: string, ticket: string): Promise<boolean>;
-  /** What lies outside the database for the account, read before it goes — done directly when there is no queue yet
-   *  (arrives-with: 0404). */
+  /** What lies outside the database for the account, read before it goes — done directly when the queue cannot be
+   *  claimed (the safety net above). */
   outside(userId: string): Promise<Followup[]>;
   /** Delete the account: 0353's erasure and 0404's queue, in one transaction. */
   deleteAccount(userId: string): Promise<{ ok: true } | { ok: false; error: string }>;
-  /** This deletion's rows (0404 claim_erasure_followups) — null when there is no queue (0404 not pasted yet). */
+  /** This deletion's rows (0404 claim_erasure_followups) — null when the queue could not be claimed. */
   claim(ticket: string): Promise<Followup[] | null>;
   /** One step outside the database: Square, Apple or storage. */
   run(f: Followup): Promise<{ ok: boolean; error?: string }>;
@@ -63,7 +65,7 @@ export async function eraseAccount(userId: string, steps: EraseSteps): Promise<E
 
   // 2 · read before the account goes
   const apple = await steps.hasApple(userId);
-  const before = await steps.outside(userId);   // arrives-with: 0404
+  const before = await steps.outside(userId);   // the safety net, read while the account is still here
   const ticket = steps.newTicket();
   if (!(await steps.markTicket(userId, ticket))) return { status: 503, body: { error: ERASE_WORDS.busy } };
 

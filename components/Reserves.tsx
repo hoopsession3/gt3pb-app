@@ -8,7 +8,6 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { authedFetch } from "@/lib/authedFetch";
-import { isMissingColumn, isMissingRelation } from "@/lib/schemaSkew";
 import { reserveClosesAt, reserveOpen, reservePickupWords, type ReserveStop } from "@/lib/reservePickup";
 import { closesWords } from "@/lib/pickupDay";
 import Sheet from "./Sheet";
@@ -49,10 +48,8 @@ export default function Reserves() {
 
   const board = useAsyncData<Board>(async () => {
     if (!supabase) return { reserves: [], claims: [] };
-    // arrives-with: 0400 — until it is pasted a reserve has no pickup (reserves.stop_id): it is read without one and shows
-    // as opening soon, never as payable.
-    let res = await supabase.from("reserves").select("*, stop:stops(name, starts_at, ends_at, canceled_at)").in("status", ["live", "sold_out"]).order("sort");
-    if (res.error && (isMissingRelation(res.error) || isMissingColumn(res.error))) res = await supabase.from("reserves").select("*").in("status", ["live", "sold_out"]).order("sort");
+    // Each with its pickup (0400: reserves.stop_id).
+    const res = await supabase.from("reserves").select("*, stop:stops(name, starts_at, ends_at, canceled_at)").in("status", ["live", "sold_out"]).order("sort");
     // A failed read is not "no live drops today" (the false-empty bug class): it is an error, said as one.
     if (res.error) throw new Error(res.error.message);
     const nowMs = Date.now();

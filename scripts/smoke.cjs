@@ -47,7 +47,7 @@ ok("paperwork excluded from items", !tS.items.some(i=>/paperwork/i.test(i.label)
 const vS = L.computeSpace(pack, tp, "vehicle");
 ok("vehicle smaller usable than trailer", vS.usableCuft < tS.usableCuft, {veh:vS.usableCuft, trl:tS.usableCuft});
 ok("vehicle same used cuft", vS.usedCuft === tS.usedCuft, {veh:vS.usedCuft, trl:tS.usedCuft});
-ok("vehicle over when trailer ok-ish", true); // informational
+ok("vehicle at least as tight as the trailer", ["ok","warn","over"].indexOf(vS.cuftLevel) >= ["ok","warn","over"].indexOf(tS.cuftLevel), {veh:vS.cuftLevel, trl:tS.cuftLevel}); // R14 (F25): was ok(…, true)
 
 // --- empty load ---
 const eS = L.computeSpace([], tp, "trailer");
@@ -356,7 +356,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
     const api = rd("app/api/delivery/checkout/route.ts"), fn = rd("components/OrderFunnel.tsx"), ik = rd("components/useIdemKey.ts");
     ok("delivery: the server refuses a closed Sunday with the Sundays on offer, before any charge; the page shows them, the coming one picked",
-      /const slot = pickedSlot\(b\.deliveryDate, slotNow, b\.retry === true && !seen\.claims\);\s*if \(!slot\) return NextResponse\.json\(\{ error: SUNDAY_CLOSED, slotClosed: true, choices: deliverySlotChoices\(slotNow\) \}, \{ status: 409 \}\);/.test(api)
+      /const slot = pickedSlot\(b\.deliveryDate, slotNow\);\s*if \(!slot\) return NextResponse\.json\(\{ error: SUNDAY_CLOSED, slotClosed: true, choices: deliverySlotChoices\(slotNow\) \}, \{ status: 409 \}\);/.test(api)
       && api.indexOf("pickedSlot(") < api.indexOf("chargeCard(") && !/\?\? choices\[0\];/.test(api)
       && /const \[choices, setChoices\] = useState\(\(\) => deliverySlotChoices\(Date\.now\(\)\)\);/.test(fn)
       && /setChoices\(data\.choices as typeof choices\);\s*setWhen\(0\);/.test(fn) && /retry: attempt\.retry === true,/.test(fn)
@@ -6128,15 +6128,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   {
     const m356 = read("supabase/migrations/0356_the_weekly_run_comes_from_the_program.sql");
     const officeRoute = code(read("app/api/office/route.ts")), crewOffice = code(read("components/OfficeOrders.tsx"));
-    ok("office run: the booking asks the database for the date, window and cutoff in the market's time, and keeps the old answer only while 0356 is unpasted",
-      /await supabaseAdmin\.rpc\("office_next_delivery", \{ p_market: market \}\);/.test(officeRoute)
-      && /if \(next\.error && !isMissingFunction\(next\.error\)\) \{ console\.warn\(`\[office\] office_next_delivery: \$\{next\.error\.message\}`\); return NextResponse\.json/.test(officeRoute));
+    ok("office run: the booking asks the database for the date, window and cutoff in the market's time — a failure refuses (0356 is applied: R14 took the old answer out)",
+      /await supabaseAdmin\.rpc\("office_next_delivery", \{ p_market: market \}\);/.test(officeRoute) && !/isMissingFunction/.test(officeRoute)
+      && /if \(next\.error\) \{ console\.warn\(`\[office\] office_next_delivery: \$\{next\.error\.message\}`\); return NextResponse\.json/.test(officeRoute));
     ok("office run: a weekly booking's deliveries come from its program (book_office_standing), never a second hand-made order for the same day",
       /await supabaseAdmin\.rpc\("book_office_standing", \{ p_account: businessId \}\);/.test(officeRoute)
       && /if \(!orderId\) \{\s*const \{ data: order, error \} = await supabaseAdmin\.from\("business_orders"\)\.insert\(/.test(officeRoute));
-    ok("office run: the crew's button makes the week ahead from the programs (generate_office_deliveries), the one-Monday call only as the pre-0356 fallback",
-      /let res = await supabase\.rpc\("generate_office_deliveries"\);/.test(crewOffice)
-      && /if \(res\.error && isMissingFunction\(res\.error\)\) \{/.test(crewOffice));
+    ok("office run: the crew's button makes the week ahead from the programs (generate_office_deliveries) — the one-Monday call went with 0356 applied (R14)",
+      /const res = await supabase\.rpc\("generate_office_deliveries"\);/.test(crewOffice) && !/generate_office_route/.test(crewOffice)
+      && /toast\(res\.error \? `Couldn't generate the route — \$\{refusalText\(res\.error\) \?\? res\.error\.message\}`/.test(crewOffice));
     ok("office run: no screen or alert of the office route hard-codes the window — it is the order's, read by windowHours",
       ![officeRoute, crewOffice].some((s) => /5–8 AM/.test(s)) && /\{windowHours\(o\.delivery_window\)\}/.test(crewOffice) && /windowHours\(windowCode\)/.test(officeRoute));
     ok("office run: one delivery per program date by construction, cutoffs in the market's time, a schedule that logs and alerts",
@@ -6223,8 +6223,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── the report, the sheet, the wiring ──
   const rep = read("components/Reports.tsx");
-  ok("sales: the cash taken at the window is said on its own — the part of revenue that is in a till — and only once the column exists",
-    /\/\/ arrives-with: 0341\n\s*const \[o, p\] = await Promise\.all\(\[/.test(rep) && /\.eq\("collected_via", "cash"\)\.neq\("status", "void"\)/.test(rep)
+  ok("sales: the cash taken at the window is said on its own — the part of revenue that is in a till — and a read that fails draws no line",
+    /const \[o, p\] = await Promise\.all\(\[/.test(rep) && !/arrives-with/.test(rep) && /\.eq\("collected_via", "cash"\)\.neq\("status", "void"\)/.test(rep)
     && /\.eq\("collected_via", "cash"\)\.is\("canceled_at", null\)/.test(rep) && /if \(o\.error \|\| p\.error\) \{ setCash\(null\); return; \}/.test(rep));
   const sheet = read("components/CollectSheet.tsx"), css = read("app/globals.css");
   ok("collect sheet: two answers as the house choice card, the third quiet but a full 44px target",
@@ -7477,7 +7477,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<button type="button" className="btn-ter mt-1" onClick=\{\(\) => setStepsFor\(b\)\}>/.test(bp) && !/btn-sec btn-sm btn-wide mt-2" onClick=\{\(\) => setStepsFor/.test(bp)
     && /<select className="brew-status flex-none w-auto! max-w-44"/.test(bp));
   ok("brew: Start brew names the brewer from the crew, and writes the id the alarms read",
-    /<PersonPick label="Brewer"/.test(bp) && /\.\.\.\(extras\?\.brewer \? \{ brewer_id: extras\.brewer\.id \} : \{\}\)/.test(bp) && /arrives-with: 0344/.test(read("components/BrewPlanner.tsx")));
+    /<PersonPick label="Brewer"/.test(bp) && /\.\.\.\(extras\?\.brewer \? \{ brewer_id: extras\.brewer\.id \} : \{\}\)/.test(bp) && !/arrives-with: 03/.test(read("components/BrewPlanner.tsx")) && !/writeAcrossSkew/.test(bp));
   ok("brew: the batch log moves the id when the brewer is changed, and leaves it when not",
     /\.\.\.\(brewerSet \|\| brewer\.id \? \{ brewer_id: brewer\.id \} : \{\}\)/.test(bp));
   ok("brew: a start or a log that fails says so — the sheet stays open", /if \(error\) \{ setMutErr\(error\.message\); return false; \}/.test(bp) && /if \(await startBrew\(starting, extras\)\) setStarting\(null\)/.test(bp) && /if \(error\) \{ setErr\(error\.message\); setBusy\(false\); return; \}/.test(bp));
@@ -7608,8 +7608,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const office = code(read("app/api/office/route.ts"));
   ok("office route: the account and the order are filed under the ZIP's market",
     /standing_gallons: q\.gallons, market,/.test(office) && /billing_terms: billing, standing, market,/.test(office));
-  ok("office route: the account keeps its access notes, across the 0346 skew",
-    /access_instructions: access \|\| null,/.test(office) && /arrives-with: 0346/.test(read("app/api/office/route.ts")) && (office.match(/\["access_instructions"\]\)/g) || []).length === 2);
+  ok("office route: the account keeps its access notes — written with the account (0346 is applied: R14 took the skew out)",
+    /access_instructions: access \|\| null,/.test(office) && !/arrives-with|writeAcrossSkew/.test(read("app/api/office/route.ts"))
+    && /await supabaseAdmin\.from\("business_accounts"\)\.update\(acctRow\)\.eq\("id", existing\.id\)/.test(office) && /await supabaseAdmin\.from\("business_accounts"\)\.insert\(acctRow\)\.select\("id"\)\.single\(\)/.test(office));
 }
 
 // ── THE FORM AUDIT, PART 3: PEOPLE (2026-10-04) ──────────────────────────────────────────────────
@@ -8085,10 +8086,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── a shelf's city, and its count ──
   const il = code(read("components/InventoryLibrary.tsx"));
   ok("inventory: a new shelf starts in its person's city and is filed there",
-    /setDraft\(blankDraft\(homeMarket\(profile\) \?\? FOUNDING_MARKET\)\)/.test(il) && /\.insert\(r\), \{ \.\.\.row, qty: count, market: draft\.market \} as Record<string, unknown>, \["vendor_id"\]\)/.test(il));
+    /setDraft\(blankDraft\(homeMarket\(profile\) \?\? FOUNDING_MARKET\)\)/.test(il) && /\.insert\(\{ \.\.\.row, qty: count, market: draft\.market \}\)/.test(il));
   ok("inventory: a changed count on a shelf is a correction through set_on_hand, on that shelf's city",
     /supabase\.rpc\("set_on_hand", \{\s*p_item: row\.name, p_want: count, p_market: toMarket\(editingItem\.market\)/.test(il)
-    && /\(count != null && Number\.isFinite\(count\) \? \{ \.\.\.row, qty: count \} : row\) as Record<string, unknown>, \["vendor_id"\]\)/.test(il) && !/qty: draft\.qty/.test(il));
+    && /\.update\(count != null && Number\.isFinite\(count\) \? \{ \.\.\.row, qty: count \} : row\)\.eq\("id", editing as string\)/.test(il) && !/qty: draft\.qty/.test(il));
   ok("inventory: the register shows what the shelf holds (the ledger's balance) and flags low by it",
     /const onHandOf = \(r: InvItem\): number \| null => r\.onHand \?\? r\.qty;/.test(il) && /className=\{`gl-item\$\{isLow\(it\) \? " low" : ""\}`\}/.test(il));
   ok("inventory: the register's read says whose shelf each row is",
@@ -8159,8 +8160,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("purchase sheet: a delivery that did not land makes the toast an error — the purchase logged, the shelf not",
     /shelfMissed = !!recvErr;/.test(lp) && (lp.match(/\$\{onShelf\}\$\{added\}`, shelfMissed \? "error" : undefined\)/g) || []).length === 2);
   ok("purchase sheet: what landed is said in the shelf's own words", /: ` Added \$\{qtyWords\(qty, shelf\.unit\)\} to \$\{shelf\.name\}\.`;/.test(lp));
-  ok("purchase sheet: before 0347 the shelf step says it arrives with the next update — never 0293's receive_lot",
-    /isMissingFunction\(recvErr\)/.test(lp) && /receiving onto a shelf arrives with the next database update/.test(lp) && /arrives-with: 0347/.test(read("components/LogPurchase.tsx")));
+  ok("purchase sheet: the shelf step is 0347's receive_lot, and a failure says why — the skew's own words went with 0347 applied (R14)",
+    /onShelf = recvErr \? ` It isn't on \$\{shelf\.name\} — \$\{recvErr\.message\}\.` : ` Added \$\{qtyWords\(qty, shelf\.unit\)\} to \$\{shelf\.name\}\.`;/.test(lp)
+    && !/isMissingFunction|arrives with the next database update/.test(lp) && /p_vendor_id: settled\.id/.test(lp));
   ok("purchase sheet: shelves belong to the city they were read for — the last city's are never offered, nor a pick among them carried over",
     /return \{ market, shelves:/.test(lp) && /const shelvesHere = shelfRead\.data && shelfRead\.data\.market === market \? shelfRead\.data : null;/.test(lp)
     && /const shelf = stocked \? shelfChoices\.find\(\(x\) => x\.id === shelfId\) \?\? null : null;/.test(lp));
@@ -8185,12 +8187,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /onClick=\{\(\) => save\(\)\}/.test(il) && !/onClick=\{save\}/.test(il));
   ok("register: a name typed before links is kept, and linked only when asked — never behind another edit",
     /`\$\{draft\.vendor\.trim\(\)\} \(typed\)`/.test(il) && /was typed before suppliers were links/.test(il) && /className="gl-act" onClick=\{linkTyped\}/.test(il) && /if \(!picked && draft\.naming && supplier\.name\) \{/.test(il));
-  ok("register: the link is written with the name, and survives the gap before 0347",
-    /vendor_id: supplier\.id,/.test(il) && (il.match(/\["vendor_id"\]\)/g) || []).length === 2 && /arrives-with: 0347/.test(read("components/InventoryLibrary.tsx")));
+  ok("register: the link is written with the name (0347 is applied: R14 took the skew out)",
+    /vendor_id: supplier\.id,/.test(il) && !/\["vendor_id"\]\)|writeAcrossSkew|arrives-with/.test(read("components/InventoryLibrary.tsx")));
   const api = code(read("app/api/inventory/route.ts"));
   ok("register: the link is read from the table (the view's columns were fixed at its creation), and a failed read is said",
     /sb\.from\("inventory_items"\)\.select\("id, vendor_id"\)/.test(api) && /vendorId: linkOf\.get\(r\.id\) \?\? null,/.test(api)
-    && /links\.error && !isMissingColumn\(links\.error\) \? links\.error\.message : undefined/.test(api) && /resp\.linkError/.test(il));
+    && /const linkError = links\.error \? links\.error\.message : undefined;/.test(api) && /resp\.linkError/.test(il));
   const vl = code(read("lib/vendorLink.ts"));
   ok("one supplier resolver: approved, kind supplier, the city it was named in", /export function resolveSupplier\(name: string, market: string, source: string, decision\?: ResolveDecision\)/.test(vl));
   ok("0347 is tested against a real Postgres, and in the db suite", /node scripts\/db\.receive\.test\.mjs/.test(read("package.json")));
@@ -8483,15 +8485,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<CoffeeLotPick label="Coffee lot — the bag this batch is made from" value=\{lot\} onChange=\{setLot\}/.test(bp) && /const id = defaultLot\(lotBoard\.lots, batch\.market, lotBoard\.use\);/.test(bp)
     && !/placeholder="e\.g\. Colombia single-origin · roasted 6\/20"/.test(bp) && /await onStart\(\{ lot, brewer \}\)/.test(bp));
   ok("brew lots: what the batch already says comes before any default", /if \(batch\.coffee_lot_id \|\| batch\.coffee_lot\?\.trim\(\)\) return lotOf\(batch\);/.test(bp));
-  ok("brew lots: a start writes the link and the words together, and before 0349 the link alone is dropped",
+  ok("brew lots: a start writes the link and the words together (0349 is applied: R14 took the skew out)",
     /const lot = extras\?\.lot \? \{ coffee_lot: extras\.lot\.text\.trim\(\) \|\| null, coffee_lot_id: extras\.lot\.id \} : \{\};/.test(bp)
-    && /\["brewer_id", "coffee_lot_id"\]\);\s+if \(error\) \{ setMutErr\(error\.message\); return false; \}/.test(bp) && /arrives-with: 0349/.test(read("components/BrewPlanner.tsx")));
+    && /alerted_hold_expired: false \}\)\.eq\("id", b\.id\);\s+if \(error\) \{ setMutErr\(error\.message\); return false; \}/.test(bp) && !/arrives-with: 03|writeAcrossSkew/.test(read("components/BrewPlanner.tsx")));
   ok("brew lots: the batch log keeps the record's lot — no default — and moves the link only when it is changed",
     /<CoffeeLotPick label="Coffee lot" value=\{lot\} onChange=\{pickLot\}[^>]*allowNone noneLabel="Not recorded"/.test(bp) && /\.\.\.\(lotSet \|\| lot\.id \? \{ coffee_lot_id: lot\.id \} : \{\}\)/.test(bp)
     && /coffee_lot: lot\.text\.trim\(\) \|\| null/.test(bp) && /useState<LotValue>\(\(\) => lotOf\(batch\)\)/.test(bp));
-  ok("brew lots: the board asks for the link and, before 0349, asks again without it and knows",
-    /coffee_lot_id"\)\s*\.order\("created_at", \{ ascending: false \}\);\s*if \(!full\.error \|\| !isMissingColumn\(full\.error\)\) return \{ \.\.\.full, linkable: true \};/.test(bp)
-    && /return \{ \.\.\.prior, linkable: false \};/.test(bp) && /linkable: b\.linkable/.test(bp));
+  ok("brew lots: the board asks for the link (0349 is applied — the read without it went, R14)",
+    /coffee_lot_id"\)\s*\.order\("created_at", \{ ascending: false \}\);\s*return \{ \.\.\.full, linkable: true \};/.test(bp)
+    && !/return \{ \.\.\.prior, linkable: false \};/.test(bp) && /linkable: b\.linkable/.test(bp));
   ok("brew lots: the deliveries are read with their supplier, and a failed read is said in the pick — not thrown, not 'none'",
     /\.from\("inventory_lots"\)\.select\("id, market, item_name, lot_code, received_on, qty_received, unit, created_at, vendors\(name\)"\)/.test(bp)
     && /const firstErr = \[r, b, e, v, st, ii\]\.find/.test(bp) && /lotsErr: lt\.error \? lt\.error\.message : null/.test(bp)
@@ -8501,8 +8503,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /lotNote\(picked, use\.get\(picked\.id\), \{ needGrams, today, linkable, logged, others \}\)/.test(pick) && /<p className="lp-note">\{note\}<\/p>/.test(pick));
   ok("brew lots: the pick's line says a failed read — only when it failed — and picking a lot writes that lot's words",
     /const note = failed \? `Couldn't load the deliveries — \$\{failed\}/.test(pick) && /onChange\(\{ id: v, text: l \? lotLabel\(l\) : value\.text \}\);/.test(pick));
-  ok("brew lots: a log save, like a start, drops the link alone before 0349 — and says nothing about the coffee's gap until then",
-    /\} as Record<string, unknown>, \["brewer_id", "coffee_lot_id"\]\);\s+if \(error\) \{ setErr\(error\.message\)/.test(bp)
+  ok("brew lots: a log save, like a start, writes the link with the words — and the coffee's gap is said once the link can be",
+    /\}\)\.eq\("id", batch\.id\);\s+if \(error\) \{ setErr\(error\.message\)/.test(bp)
     && /const gap = lotBoard\.linkable \? logResult\.gaps\.find\(\(g: any\) => isCoffee\(g\.ingredient\)\) : undefined;/.test(bp));
   ok("brew lots: the production log names a lot on file by its own words — linked, or kept as its words before 0349 — and typed words as before",
     /\(b\.coffee_lot_id \|\| lotBoard\.names\.has\(b\.coffee_lot\) \? ` · \$\{b\.coffee_lot\}` : ` · lot \$\{b\.coffee_lot\}`\)/.test(bp)
@@ -8604,10 +8606,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── the board ──
   const cb = code(read("components/CommandBoard.tsx")), cbRaw = read("components/CommandBoard.tsx");
   const ms = code(read("components/MilestoneSheet.tsx")), msRaw = read("components/MilestoneSheet.tsx");
-  ok("workstream: the milestones are read with the link, across the window before 0350 — that one condition, and the board knows",
-    /\/\/ arrives-with: 0350\n\s+const full = await supabase!\.from\("initiative_milestones"\)\.select\("id, initiative_id, title, due_on, done, workstream, workstream_id, sort"\)/.test(cbRaw)
-    && /if \(!full\.error \|\| !isMissingColumn\(full\.error\)\) return \{ \.\.\.full, linkable: true \};/.test(cb)
-    && /return \{ \.\.\.prior, linkable: false \};/.test(cb) && /linkable: mil\.linkable,/.test(cb) && /milesRead\(\),/.test(cb));
+  ok("workstream: the milestones are read with the link (0350 is applied — the read without it went, R14)",
+    /const full = await supabase!\.from\("initiative_milestones"\)\.select\("id, initiative_id, title, due_on, done, workstream, workstream_id, sort"\)/.test(cbRaw)
+    && /return \{ \.\.\.full, linkable: true \};/.test(cb) && !/arrives-with/.test(cbRaw)
+    && !/return \{ \.\.\.prior, linkable: false \};/.test(cb) && /linkable: mil\.linkable,/.test(cb) && /milesRead\(\),/.test(cb));
   ok("workstream: the portfolio is read beside the goals, and a failed read is said in the pick — not thrown",
     /supabase\.from\("os_workstreams"\)\.select\("id, name, owner, owner_user_id, status, blocker, sort"\)\.order\("sort"\)/.test(cb)
     && /const firstErr = \[ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone\]\.find/.test(cb)
@@ -8623,10 +8625,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<option value=\{KEPT_WORDS\}>\{`“\$\{words\}” — links to nothing`\}<\/option>/.test(ms)
     && !/content · events · delivery/.test(ms + cb) && !/setWs\(/.test(ms + cb) && /\{note && <p className="lp-note">\{note\}<\/p>\}/.test(ms)
     && /useState\(\(\) => startingPick\(m, streams\)\)/.test(ms) && /streamPatch\(pick, m, streams, linkable\)/.test(ms));
-  ok("workstream: a save waits, says why it failed and keeps the sheet open; before 0350 it drops the link alone",
+  ok("workstream: a save waits, says why it failed and keeps the sheet open; the link is written with it (0350 applied)",
     /if \(error\) \{ setErr\(`Couldn't save — \$\{error\.message\}`\); return; \}\s+onSaved\(\);\s+onClose\(\);/.test(ms)
-    && /writeAcrossSkew\(\(row\) => supabase!\.from\("initiative_milestones"\)\.update\(row\)\.eq\("id", m\.id\), patch, \["workstream_id"\]\)/.test(ms)
-    && /\/\/ arrives-with: 0350\n\s+const \{ error \} = await writeAcrossSkew/.test(msRaw)
+    && /const \{ error \} = await supabase\.from\("initiative_milestones"\)\.update\(patch\)\.eq\("id", m\.id\);/.test(ms)
+    && !/writeAcrossSkew|arrives-with/.test(msRaw)
     && /\{busy \? "Saving…" : "Save"\}/.test(ms) && /role="alert">\{err\}/.test(ms));
   ok("workstream: the sheet is loaded when a milestone is opened, not with the board — and saving reloads the board",
     /const MilestoneSheet = dynamic\(\(\) => import\("\.\/MilestoneSheet"\), \{ ssr: false \}\);/.test(cb) && /onDelete=\{\(\) => deleteMile\(manage\)\}\s+onSaved=\{reload\}/.test(cb)
@@ -10796,7 +10798,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("your gt3: the crew answers a request where the route is — take it, done with what the client reads, or declined with why",
     /supabase\.rpc\("office_request_set", \{ p_request: r\.id, p_status: status, p_resolution: resolution \}\)/.test(crew3)
     && /if \(status === "declined" && !resolution\) \{ toast\("Say why — the client reads it", "error"\); return; \}/.test(crew3)
-    && /if \(reqs\.error && !isMissingTable\(reqs\.error\)\) throw new Error\(reqs\.error\.message\);/.test(crew3) && /useRealtimeTable\("company_requests", reload\);/.test(crew3)
+    && /if \(reqs\.error\) throw new Error\(reqs\.error\.message\);/.test(crew3) && !/isMissingTable/.test(crew3) && /useRealtimeTable\("company_requests", reload\);/.test(crew3)
     && /\{clientChanges\(o\)\.length > 0 && <div className="oo-addr text-gold2">Client: \{clientChanges\(o\)\.join\(" · "\)\}<\/div>\}/.test(crew3));
 }
 
@@ -11889,7 +11891,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       nt = routeOf("app/api/notes/inbound/route.ts");
     const first = (src, check) => src.indexOf(check) > 0 && (src.indexOf("supabaseAdmin.from(") < 0 || src.indexOf(check) < src.indexOf("supabaseAdmin.from("));
     ok("webhooks: Square — squareSignatureOk over the registered URL and the raw body, 401 on a miss, before the first read or write",
-      /if \(!squareSignatureOk\(raw, req\.headers\.get\("x-square-hmacsha256-signature"\), SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL\)\) \{\s*return NextResponse\.json\(\{ ok: false \}, \{ status: 401 \}\);/.test(sq)
+      // R14 (F15): the refusal is said in the log, and to the crew when it reads like Square's own event — nothing read or
+      // written in between, and the 401 the same.
+      /if \(!squareSignatureOk\(raw, req\.headers\.get\("x-square-hmacsha256-signature"\), SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL\)\) \{\n(?:(?!\.from\()[\s\S]){0,1600}?\n    return NextResponse\.json\(\{ ok: false \}, \{ status: 401 \}\);\n  \}/.test(sq)
       && first(sq, "squareSignatureOk(raw"));
     ok("webhooks: Resend — svixSignatureOk, 401 on a miss, before the first read or write",
       /return svixSignatureOk\(raw, \{ id: h\.get\("svix-id"\), timestamp: h\.get\("svix-timestamp"\), signature: h\.get\("svix-signature"\) \},\s*process\.env\.RESEND_WEBHOOK_SECRET\);/.test(rs)
@@ -13908,7 +13912,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(!\(webPush \|\| appPush\)\) return calendar;/.test(rm) && /url: `\$\{publicOrigin\(\)\}\/menu`/.test(rm));
   ok("remind me: the phone is asked first; the database keeps it (keep_cup_reminder) and takes it back (drop_cup_reminder); a refusal is said in its words",
     /if \(!\(await ask\(\)\)\) return;\s+const \{ error \} = await supabase\.rpc\("keep_cup_reminder", \{ p_stop: stopId, p_at: opensAt \}\);\s+if \(error\) \{ toast\(error\.message, "error"\); return; \}/.test(rm)
-    && /supabase\.rpc\("drop_cup_reminder", \{ p_stop: stopId \}\)/.test(rm) && /\/\/ arrives-with: 0394/.test(rm));
+    && /supabase\.rpc\("drop_cup_reminder", \{ p_stop: stopId \}\)/.test(rm) && !/arrives-with/.test(rm));
   ok("remind me: the push function sends a reminder marked sent to that member's devices only, saying the stop's name and nothing else",
     /table === "cup_reminders" && type === "UPDATE"/.test(fn) && /if \(!record\.fired_at \|\| \(old_record && old_record\.fired_at\)\) return new Response\("skip: not a reminder going out"\);/.test(fn)
     && /targets = await subsFor\(\(q\) => q\.eq\("user_id", record\.user_id\)\);/.test(fn) && /shown = reminderShown\(s\?\.name \?\? null, record\.stop_id\);/.test(fn));
@@ -13996,9 +14000,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("checkout: the order's id is made here, so the answer says its number; both answers carry the number and the ticket",
     /const orderId = await orderIdForToday\(supabaseAdmin, randomUUID\);/.test(api) && (api.match(/const orderRow = \{ id: orderId, items,/g) || []).length === 2
     && /recorded: true, no: orderNo\(orderId\), ticket, \.\.\.promise \}/.test(api) && (api.match(/no: orderNo\(orderId\), ticket/g) || []).length === 2);
-  ok("checkout: the receipt's lines and the card's last four go beside the order after it is in — never in the insert, so a database without 0395 still takes the order",
+  ok("checkout: the receipt's lines and the card's last four go beside the order after it is in — never in the insert, so a write that fails there never costs the order",
     /\.update\(card\?\.last4 \? \{ lines: receiptLines, card_brand: card\.brand, card_last4: card\.last4 \} : \{ lines: receiptLines \}\)\s*\.eq\("id", orderId\)\.select\("ticket"\)\.maybeSingle\(\)/.test(api)
-    && !/orderRow = \{[^}]*(ticket|lines|card_last4)/.test(api) && /arrives-with: 0395/.test(rd("app/api/checkout/route.ts")));
+    && !/orderRow = \{[^}]*(ticket|lines|card_last4)/.test(api) && !/arrives-with/.test(rd("app/api/checkout/route.ts")));
   ok("checkout: the card is the brand and the last four Square answered with — four digits or nothing",
     /card: paidCard\(data\?\.payment\?\.card_details\?\.card\)/.test(sq) && /\^\\d\{4\}\$/.test(sq) && /record: \(paymentId, charged\) => recordPaid\(paymentId, charged\.card \?\? null\),/.test(api) && /const ticket = await ticketFor\(paidWith\);/.test(api));
   ok("confirmation: says the order's number and, with a ticket, leads to it — the phone keeps it",
@@ -14174,7 +14178,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const canCancel = !shared && tk\.status === "new" && !tk\.at_window;/.test(pg) && /fetch\(apiUrl\("\/api\/orders\/ticket-cancel"\)/.test(pg)
     && /rpc\("cancel_by_ticket", \{ p_ticket: ticket \}\)/.test(rd("app/api/orders/ticket-cancel/route.ts"))
     && /confirmLabel: "Cancel order", cancelLabel: "Keep order", danger: true/.test(pg) && /const words = cancelWords\(res && \(res\.ok \|\| res\.outcome\) \? res : null\);/.test(pg)
-    && /arrives-with: 0396/.test(rd("app/order/page.tsx")));
+    && !/arrives-with/.test(rd("app/order/page.tsx")));
   ok("the ticket: the destructive way out sits apart, under the card",
     /\{canCancel && <div className="mt-3 flex justify-center"><button type="button" className="btn-del" disabled=\{busy\}/.test(pg));
   // A canceled ticket said "Nothing was charged." beside "Not charged" above "Nothing charged $0", and kept Running late,
@@ -14248,7 +14252,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/setDate\(cur\.getDate\(\) - 3\)/.test(mv) && !/packDayCutoff/.test(ch));
   ok("Move: the day to move to is a stop on it — the one named, else the day's first still taking packs — and the stop moves with the day",
     /const target = onDay\.find\(\(st\) => st\.id === stopId\) \?\? onDay\.find\(\(st\) => packIsOpen\(toDate, st\)\) \?\? onDay\[0\] \?\? null;/.test(mv)
-    && /\{ drop_date: toDate, stop_id: target\?\.id \?\? null \}, \["stop_id"\]\);/.test(mv));
+    && /\.update\(\{ drop_date: toDate, stop_id: target\?\.id \?\? null \}\)\.eq\("id", id\)\.eq\("user_id", user\.id\);/.test(mv));
   ok("reserve: the pack records the stop the customer picked on that day, and its drop closes by that stop",
     /const atStop = onDay\.find\(\(st\) => st\.id === body\.stopId\) \?\? onDay\.find\(\(st\) => packIsOpen\(requested, st\)\) \?\? onDay\[0\] \?\? null;/.test(rs) && /const cutoff = atStop \? packClosesAt\(requested, atStop\) : offered\.get\(requested\);/.test(rs)
     && /drop_date: dropDate, stop_id: atStop\?\.id \?\? null, /.test(rs));
@@ -14270,16 +14274,18 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("skew: a link between two tables not there yet is told apart from any other error (PGRST200, or its sentence — nothing else)",
     sk.isMissingRelation({ code: "PGRST200" }) && sk.isMissingRelation({ message: "Could not find a relationship between 'drop_orders' and 'stops' in the schema cache" })
     && !sk.isMissingRelation({ code: "42501", message: "permission denied for table stops" }) && !sk.isMissingRelation(null));
-  ok("skew: the pack is written without its stop until 0397 is pasted — never refused after the card was charged",
-    /let \{ error: insErr \} = await writeAcrossSkew\(insertPack, row, \["stop_id"\]\);/.test(rs));
-  ok("skew: My packs reads the packs without their stops until then, never as none",
-    /if \(error && isMissingRelation\(error\)\) \(\{ data, error \} = await read\("\*"\)\);/.test(mp));
-  ok("skew: Move, Change and the cancel's reason read the pack without its stop until then",
-    [mv, ch, cx].every((t) => /withStop\.error && isMissingColumn\(withStop\.error\)/.test(t)));
+  // 0397 is applied (R14): the pack is written and read with its stop, and a read that fails says so — never "not found".
+  ok("0397 applied: the pack is written with its stop — the skew's retry without it went",
+    /let \{ error: insErr \} = await insertPack\(row\);/.test(rs) && !/writeAcrossSkew/.test(rs));
+  ok("0397 applied: My packs reads the packs with their stops, and a read that fails keeps what was there and says it couldn't check",
+    /if \(error\) \{ setUnread\(true\); return; \}/.test(mp) && !/isMissingRelation/.test(mp) && /Couldn&apos;t check your packs just now/.test(mp));
+  ok("0397 applied: Move, Change and the cancel's reason read the pack with its stop — and Move and Change refuse a failed read instead of 'not found'",
+    [mv, ch, cx].every((t) => !/isMissingColumn/.test(t)) && [mv, ch].every((t) => /if \(read\.error\) return NextResponse\.json\(\{ error: "Couldn't read that pack just now — try again\." \}, \{ status: 503 \}\);/.test(t)));
   const sc = code(rd("app/api/crew/stops/cancel/route.ts"));
   ok("a stop called off tells its own packs — and the day's unlinked ones only when no other stop is left that day — not another stop's",
     /\.eq\("stop_id", id\)\.is\("canceled_at", null\)\.eq\("picked_up", false\);/.test(sc) && /if \(!res\.other_stop_that_day\) \{/.test(sc)
-    && /\.eq\("drop_date", res\.day\)\.is\("stop_id", null\)/.test(sc) && /if \(atStop\.error && isMissingColumn\(atStop\.error\)\) \{/.test(sc));
+    && /\.eq\("drop_date", res\.day\)\.is\("stop_id", null\)/.test(sc) && /if \(atStop\.error\) packsUnread = true;/.test(sc) && !/isMissingColumn/.test(sc)
+    && /Its packs couldn't be read just now/.test(sc));
 }
 
 // ── A MERCH RECEIPT (2026-10-13, R5 — "A merch receipt") ────────────────────────────────────────────────────────────
@@ -14615,7 +14621,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("routes: the pay route is cut off at a minute — inside the two minutes a checkout claim is given before it is taken for dead",
     /export const maxDuration = 60;/.test(pr) && /export const IN_FLIGHT_MS = 120_000;/.test(rd("lib/chargeOnce.ts")));
   ok("routes: a payment settled by hand is checked — its checkout read (a failed read refuses), a pasted id shaped like one and asked of Square",
-    /const PAYMENT_ID = \/\^\[A-Za-z0-9_-\]\{8,64\}\$\/;/.test(rd("app/api/reserves/settle/route.ts")) && /if \(k\.error && !isMissingTable\(k\.error\)\) return/.test(sr)
+    /const PAYMENT_ID = \/\^\[A-Za-z0-9_-\]\{8,64\}\$\/;/.test(rd("app/api/reserves/settle/route.ts")) && /if \(k\.error\) return/.test(sr) && /if \(cErr\) return/.test(sr)
     && /typedPaymentId: raw \|\| null,/.test(sr) && /lookup: token \? \(paymentId\) => getPayment\(\{ token, paymentId \}\) : null,/.test(sr)
     && /\.select\("state, amount_cents, payment_id, created_at, updated_at"\)/.test(sr));
   const rc = code(rd("components/crew/ReserveClaims.tsx")), dop = code(rd("components/DropOps.tsx")), cp = code(rd("app/crew/page.tsx"));
@@ -14635,8 +14641,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const refundUntil = ready && r\.open && r\.closes \? closesWords\(new Date\(r\.closes\)\) : null;/.test(rv)
     && /\{refundUntil && \(mine\.length === 0 \? !why : mine\.some\(\(c\) => c\.state === "paid"\)\) && \(/.test(rv)
     && /<>Yours once it&rsquo;s paid — cancel<\/> : "Cancel"\} for a full refund until \{refundUntil\}\./.test(rv));
-  ok("the crew: a reserve names its pickup once 0400 is here — a stop on the schedule, or none yet (opening soon)",
-    /\{"stop_id" in r && \(/.test(cp) && /onChange=\{\(e\) => update\(r\.id, \{ stop_id: e\.target\.value \|\| null \}\)\}/.test(cp) && /<option value="">None yet — opening soon<\/option>/.test(cp));
+  ok("the crew: a reserve names its pickup — a stop on the schedule, or none yet (opening soon); 0400 is applied, so always",
+    !/\{"stop_id" in r && \(/.test(cp) && /onChange=\{\(e\) => update\(r\.id, \{ stop_id: e\.target\.value \|\| null \}\)\}/.test(cp) && /<option value="">None yet — opening soon<\/option>/.test(cp));
   const sql = rd("supabase/migrations/0400_a_limited_reserve_is_paid_to_hold.sql");
   ok("0400: the members' hold is gone; the hold, the settle and the release are the server's alone",
     /revoke execute on function public\.claim_reserve\(uuid, integer\) from public, anon, authenticated;/.test(sql)
@@ -15685,6 +15691,72 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const W = require("../.smoke/wrote.js");
   ok("R13 failures: wrote still says it and answers false (the report is beside it, never instead of it)",
     W.wrote({ error: { code: "42703", message: "column x does not exist" } }, () => {}, "Couldn't save") === false);
+}
+
+// ── R14 · WHAT RUNS IT, AND WHAT IT SAYS WHEN IT CAN'T (2026-10-17, the 10/10 audit's operations pass) ──────────────────
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+  const walk = (dir) => fs.readdirSync(path.join(__dirname, "..", dir), { withFileTypes: true }).flatMap((d) => d.isDirectory() ? walk(`${dir}/${d.name}`) : /\.(ts|tsx)$/.test(d.name) ? [`${dir}/${d.name}`] : []);
+  const appCode = [...walk("app"), ...walk("components"), ...walk("lib")];
+  // F4 — the charge-once guard fails closed: a table that does not answer refuses the charge, says so, and tells the crew
+  const cc = rd("lib/checkoutClaims.ts"), co = rd("lib/chargeOnce.ts");
+  ok("R14 charge-once: a claims table that does not answer refuses every charge — said in the log each time, the crew told (throttled)",
+    /console\.error\(`\[charge-once-off\] checkout_claims did not answer as a table/.test(cc) && /if \(Date\.now\(\) - toldAt > TELL_EVERY_MS\) \{/.test(cc)
+      && /m\.raiseAlert\(\{ severity: "critical", category: "money", title: "Checkout can't take payments/.test(cc)
+      && /if \(!r\.ok\) return r\.missing \? cannotCheck : tryAgain;/.test(co) && /if \(!c\.ok\) return c\.missing \? cannotCheck : tryAgain;/.test(co)
+      && !appCode.some((f) => /claims: null/.test(rd(f))));
+  // F10 — every fallback kept for a migration that was not yet pasted is gone, and the audit retires the next one
+  ok("R14 skew: no screen, route or helper keeps a path for a migration that is applied — and the columns audit says so when one is left",
+    !appCode.some((f) => /arrives-with: 0\d{3}/.test(rd(f))) && /export function staleMarkers\(files, pending = pendingMigrations\(\)\)/.test(rd("scripts/columns.audit.mjs")));
+  // F5 — the retired Square switch is read nowhere
+  ok("R14 square: NEXT_PUBLIC_SQUARE_ENV is read nowhere — the app ID's own prefix picks sandbox or production, the menu and the health check included",
+    !appCode.some((f) => /process\.env\.NEXT_PUBLIC_SQUARE_ENV|env\[["']NEXT_PUBLIC_SQUARE_ENV["']\]/.test(rd(f))) && !/NEXT_PUBLIC_SQUARE_ENV/.test(rd(".github/workflows/ios.yml")));
+  // F14 — every setting in one list, held both ways, and a server start names what it has not got
+  const pkg = JSON.parse(rd("package.json"));
+  ok("R14 env: one list of every setting (lib/envSchema), audited both ways in npm run audit, and each server start names the core and feature ones not set — names only",
+    /export const ENV: readonly EnvEntry\[\] = \[/.test(rd("lib/envSchema.ts")) && /&& node scripts\/env\.audit\.mjs &&/.test(pkg.scripts.audit)
+      && /import \{ notSet \} from "\.\/lib\/envSchema";/.test(rd("instrumentation.ts")) && /export function register\(\) \{\s+try \{\s+const missing = notSet\(process\.env\);/.test(rd("instrumentation.ts")));
+  // F15 — Square's webhook says a refusal, and keeps what threw
+  const wh = rd("app/api/square/webhook/route.ts");
+  ok("R14 webhook: a webhook not set up, or a signature that stops matching, is said in the log and to the crew once while it lasts; what threw is kept with the event",
+    /console\.error\(`\[square-webhook\] not set up \(\$\{missing\}\) — Square's event refused`\);/.test(wh) && /kind: "webhook_off", subjectId: "square"/.test(wh)
+      && /if \(req\.headers\.get\("x-square-hmacsha256-signature"\) && \/"merchant_id"\/\.test\(raw\) && \/"event_id"\/\.test\(raw\)\) \{/.test(wh) && /kind: "webhook_signature", subjectId: "square"/.test(wh)
+      && /update\(\{ error: `processing threw: \$\{why\}` \}\)/.test(wh));
+  // F9 — the signed-in smoke: a gate that cannot run when asked fails; it runs for real after each deploy
+  const sa = rd("scripts/smoke.authed.mjs"), ci = rd(".github/workflows/ci.yml"), pr = rd(".github/workflows/production.yml"), ios = rd(".github/workflows/ios.yml");
+  ok("R14 signed-in smoke: the account set and no database to sign in to FAILS (scripts/smokeGate) — it no longer says NOT CHECKED and passes",
+    /import \{ smokeGate \} from "\.\/smokeGate\.mjs";/.test(sa) && /if \(gate\.verdict === "broken"\) \{[\s\S]{0,400}process\.exit\(1\);/.test(sa) && /if \(gate\.verdict === "not-checked"\) \{[\s\S]{0,900}process\.exit\(0\);/.test(sa));
+  ok("R14 signed-in smoke: it runs on the deployed site after each deploy and daily (the Production workflow's full runs), its account on that one step",
+    /- name: smoke:authed \(the crew console, signed in\)\n\s+if: steps\.form\.outputs\.browser == 'yes'\n\s+timeout-minutes: 15\n\s+env:\n\s+GT3_SMOKE_BASE: https:\/\/app\.gt3pb\.com\n\s+GT3_SMOKE_EMAIL: \$\{\{ secrets\.GT3_SMOKE_EMAIL \}\}\n\s+GT3_SMOKE_PASSWORD: \$\{\{ secrets\.GT3_SMOKE_PASSWORD \}\}/.test(pr)
+      && /run: npm run smoke:authed$/m.test(pr));
+  // F21 — the token reads and nothing more; a secret is on the step that uses it, never the job
+  ok("R14 workflows: every workflow's token reads the code and nothing else, and no secret sits on a job — each is on the one step that uses it",
+    [ci, pr, ios].every((w) => /\npermissions:\n  contents: read\n/.test(w)) && !/secrets\./.test(ci)
+      && [pr, ios].every((w) => w.split("\n").filter((l) => /\$\{\{ secrets\./.test(l)).every((l) => /^ {10}[A-Z0-9_]+: \$\{\{ secrets\.[A-Z0-9_]+ \}\}$/.test(l))));
+  // F20/F25 — a push to main is checked to the end; each kind of production run queues apart
+  ok("R14 queues: a newer push cancels an older CI run except on main, and the production checks queue by kind (a push's check is never the pending run a schedule replaces)",
+    /cancel-in-progress: \$\{\{ github\.ref != 'refs\/heads\/main' \}\}/.test(ci) && /group: production-\$\{\{ github\.event_name \}\}-\$\{\{ github\.event\.schedule \}\}/.test(pr));
+  // F24 — one Node: the one production runs
+  const nvm = rd(".nvmrc").trim();
+  ok("R14 node: CI, the production checks and the iPhone build all run the Node in .nvmrc — the major package.json's engines gives Vercel",
+    /^\d+$/.test(nvm) && pkg.engines?.node === `${nvm}.x` && [ci, pr, ios].every((w) => !/node-version: \d/.test(w) && /node-version-file: \.nvmrc/.test(w))
+      && /^\^\d+/.test(pkg.devDependencies["@types/node"]) && pkg.devDependencies["@types/node"].replace(/^\^/, "").split(".")[0] === nvm);
+  ok("R14 deps: what the app never imports is not shipped (web-push is the push function's own), and types are build-time only",
+    !pkg.dependencies["web-push"] && !Object.keys(pkg.dependencies).some((d) => d.startsWith("@types/")) && pkg.devDependencies["eslint-config-next"] === pkg.dependencies.next.replace(/^\^/, ""));
+  // F25 — gates that are what they say
+  const lr = rd("scripts/lint.ratchet.mjs");
+  ok("R14 lint: errors and warnings each have a ceiling, and rules-of-hooks is held at zero — a fixed warning no longer buys a new error",
+    /export const CEILING = \{ errors: \d+, warnings: \d+ \};/.test(lr) && /export const ZERO = \["react-hooks\/rules-of-hooks"\];/.test(lr) && /const v = verdict\(c\);/.test(lr));
+  const tests = fs.readdirSync(__dirname).filter((f) => /\.(mjs|cjs)$/.test(f)).map((f) => [f, fs.readFileSync(path.join(__dirname, f), "utf8")]);
+  const literal = new RegExp("\\bok\\(\\s*([\"'`])[^\"'`]*\\1\\s*,\\s*true\\s*[,)]");
+  ok("R14 tests: no check passes by being written true — a milestone that cannot fail is a comment, not a count",
+    tests.every(([, t]) => !literal.test(t)), tests.filter(([, t]) => literal.test(t)).map(([f]) => f));
+  // F23 — the runbooks say what is true
+  const rb = rd("CONTINUITY_RUNBOOK.md"), rm = rd("README.md"), dv = rd("gt3pb-deploy-v1.md");
+  ok("R14 runbooks: how fast an outage is heard is what the system does (no 10-minute promise), a restore drill is silenced first, and a bad deploy has a way back",
+    !/within 10 minutes/.test(rb) && /## 8 · Roll back a bad deploy/.test(rb) && /select cron\.unschedule\(jobid\) from cron\.job;/.test(rb) && /p\.proname = 'http_request'/.test(rb)
+      && !/OneSignal|18 routes|\(59\)/.test(rm) && /A record of the v1 cut \(2026-07\), not today's checklist/.test(dv));
 }
 
 Promise.all(PENDING).then(() => {

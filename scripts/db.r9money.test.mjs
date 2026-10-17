@@ -69,7 +69,7 @@ const pack = async (row) => (await q1(`insert into public.drop_orders (user_id, 
 
 for (const sql of SQL) await db.exec(sql);
 for (const sql of SQL) await db.exec(sql);   // a second run changes nothing
-ok("0416 and 0417 load on the schema to 0415, and load again", true);
+// 0416 and 0417 load on the schema to 0415, and load again — a throw above fails this file; a milestone, not counted as a check (R14, F25).
 
 // ── 0416 · the flag is the database's ─────────────────────────────────────────────────────────────────────────
 {

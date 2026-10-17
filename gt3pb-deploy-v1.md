@@ -1,5 +1,15 @@
 # GT3PB — Go to Production (v1)
 
+> **A record of the v1 cut (2026-07), not today's checklist** (R14, 2026-10-17 — the 10/10 audit, F23). Where it is
+> still the way: the Square steps in §3 and Pay at pickup. Where today's answer lives instead:
+> - **Which migrations production has:** `GET https://app.gt3pb.com/api/migrations` (the ledger), checked after every
+>   deploy by the Production workflow (`npm run verify:prod`); what is written but not applied is
+>   `npm run migrations:pending` (it writes `supabase/APPLY_ALL_PENDING.sql`, the one file to paste). The table in §2
+>   stops at 0138; the ledger is past 0420.
+> - **Every setting the app reads, and what is off without it:** `lib/envSchema.ts` — each server start logs the ones
+>   not set (names only).
+> - **Undoing a bad deploy:** `CONTINUITY_RUNBOOK.md` → *Roll back*.
+
 The order-ahead pivot + event lifecycle + editable copy + backend hardening **already shipped**
 (merged to `main`, live on Vercel). This file now tracks the **crew-console follow-up** on
 `claude/event-prep-ai` and keeps the migration ledger current.
@@ -21,8 +31,8 @@ The order-ahead pivot + event lifecycle + editable copy + backend hardening **al
 - No asset or migration steps for this cut — it's code only.
 
 ## 2. Migration ledger — confirm PROD is current
-The set has grown to **0138**; make sure the production Supabase project has the whole set applied,
-in order (Vercel does NOT run migrations — `supabase db push` or your runner):
+The set had grown to **0138** at this cut (production is past 0420 now — `/api/migrations`); the production Supabase
+project needs the whole set applied, in order (Vercel does NOT run migrations — they are pasted in the SQL editor):
 
 | # | File | What |
 |---|---|---|
@@ -86,7 +96,6 @@ checkout switches itself on the moment the 4 keys are live.
 5. In **Vercel → the project → Settings → Environment Variables** (Production scope), add:
    - `NEXT_PUBLIC_SQUARE_APP_ID` = the Application ID (`sq0idp-…`)
    - `NEXT_PUBLIC_SQUARE_LOCATION_ID` = the Location ID (`L…`)
-   - `NEXT_PUBLIC_SQUARE_ENV` = `production`
    - `SQUARE_ACCESS_TOKEN` = the Access token (`EAAA…`) — **server-only, do NOT prefix NEXT_PUBLIC**
 6. **Redeploy** (Deployments → ⋯ → Redeploy) so the new env is picked up.
 7. Verify on the live app: open a drink → add → checkout — a **card field** now appears. Run one
@@ -111,6 +120,8 @@ secondary "pay in person" option (toggle it off to force card-only).
 The live URL, migration-ledger confirmation, and any step that failed.
 
 ## NOT in this release (Ryan's Square-side follow-ups — do NOT attempt here)
-- In-app refund (Square Refunds API).
+- In-app refund (Square Refunds API). *Since shipped for reserves:* a reserve's cancel and change refund through
+  `lib/squareServer.ts` `refundPayment`; a cup order's refund is still done in the Square dashboard (the crew is
+  alerted to do it).
 - À-la-carte $7/$8/$9 → $10/$8 repricing (menu + Square Catalog). Until done, walk-up and
   order-ahead price differently — expected.

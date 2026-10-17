@@ -103,7 +103,7 @@ async function post(req: Request) {
       const { data } = await admin.auth.admin.getUserById(id);
       return !!data.user?.identities?.some((i) => i.provider === "apple");
     },
-    // arrives-with: 0404 — read before the account goes, and done directly while there is no queue (lib/accountErase).
+    // Read before the account goes, and done directly when the queue cannot be claimed (lib/accountErase's safety net).
     outside: async (id) => {
       const out: Followup[] = [];
       const { data: prof } = await admin.from("profiles").select("square_customer_id").eq("id", id).maybeSingle();
@@ -125,8 +125,9 @@ async function post(req: Request) {
     },
     claim: async (ticket) => {
       const { data, error } = await admin.rpc("claim_erasure_followups", { p_ticket: ticket, p_limit: 20 });
-      // arrives-with: 0404 — no such function yet: no queue, so the steps read before the delete are done directly
-      if (error && (error.code === "PGRST202" || /could not find the function|does not exist/i.test(error.message))) return null;
+      // Any failure to claim — not only a function PostgREST does not know: the steps read before the delete are done
+      // directly (R14; a refused claim answered [] and left the deleted account's card in Square with nobody told).
+      if (error) { console.error(`erase: couldn't claim the follow-ups for ${ticket} — doing them directly: ${error.message}`); return null; }
       return (Array.isArray(data) ? data : []) as Followup[];
     },
     run,
@@ -144,7 +145,7 @@ async function post(req: Request) {
         if (!r.error) return;
         console.error(`erase: follow-up ${f.id} couldn't go to the crew by the queue — telling them directly: ${r.error.message}`);
       }
-      // arrives-with: 0404 — the old way, and now the way when the queue cannot: the crew is told what is left, directly
+      // When the queue cannot: the crew is told what is left, directly
       if (f.kind === "square_customer") {
         await raiseAlert({ severity: "important", category: "money", title: "Remove a deleted account's Square profile",
           body: `Someone deleted their GT3 account. Their Square customer profile ${f.ref} could not be removed automatically and still holds their saved card — delete it in Square › Customers.` });

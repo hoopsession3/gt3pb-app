@@ -74,7 +74,6 @@ async function post(req: Request) {
   // first is still out hears "still confirming", and an answer Square never gave stays "we couldn't confirm" — the crew
   // told, nothing under that key sent to Square again. It was a bare 502, "Checkout service unavailable", with nobody
   // told, whether Square's answer was lost or the order failed to save after the card was charged.
-  // arrives-with: 0371 — before it is pasted the checkout runs without claims, as it did before them.
   const idemKey = safeIdemKey(body.idempotencyKey);
   const now = () => Date.now();
   const say: Say = {
