@@ -22,6 +22,7 @@ import FoldCard from "@/components/crew/FoldCard";
 import { dueLead, type PickupFeed } from "@/lib/dueNext";
 import ReserveClaims from "./crew/ReserveClaims";
 import Said from "./Said";
+import { keyed } from "@/lib/dbTypes";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -119,7 +120,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
     const firstErr = [r, b, h, u].find((x) => x.error)?.error;
     if (firstErr) throw new Error(firstErr.message);
     return {
-      rows: (r.data as DropOrder[]) ?? [],
+      rows: (r.data as unknown as DropOrder[]) ?? [],   // mix is jsonb to the database; its shape is the app's (Mix)
       batches: (b.data as PlannedBatch[]) ?? [],
       history: brief || !histOpen ? null : (h.data as DropOrder[]) ?? [],
       upcoming: (u.data as DropOrder[]) ?? [],
@@ -147,7 +148,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
   // reload contradicted it. A write that did not land says so.
   const toggle = async (id: string, key: "picked_up" | "bottles_returned", val: boolean) => {
     if (!supabase) return;
-    const { error } = await supabase.from("drop_orders").update({ [key]: val }).eq("id", id);
+    const { error } = await supabase.from("drop_orders").update(keyed(key, val)).eq("id", id);
     if (error) toast(`Didn't save — ${error.message}`, "error");
     reload();
   };

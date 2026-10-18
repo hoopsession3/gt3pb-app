@@ -242,6 +242,8 @@ import { scrollMotion } from "@/lib/motion";
 import { rovingKeys, rovingTab } from "@/components/roving";
 import { eventTotals, type EventTotals } from "@/lib/eventTotals";
 import Said from "@/components/Said";
+import type { TablesUpdate } from "@/lib/database.types";
+import { keyed } from "@/lib/dbTypes";
 
 // The sections' names have one home now (lib/routeTitles): this heading, the guide, and the title bar's
 // title and its ‹ read the same words (2026-10-08, the navigation round).
@@ -516,7 +518,7 @@ function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: 
     if (!supabase || busy) return;
     if (status === "changes" && !note.trim()) { toast("Add a quick note on what to change", "error"); return; }
     setBusy(true);
-    const patch: Record<string, unknown> = { status };
+    const patch: TablesUpdate<"content_items"> = { status };
     if (caption !== (item?.caption ?? "")) patch.caption = caption;           // revise inline
     if (status === "changes") patch.review_note = note.trim();
     // Approved — or changes asked for — only once the post says so (R12b, F4): the maker was told either way.
@@ -853,7 +855,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
     // Who the @s reach — the people picked from the list, and a hand-typed first name that names
     // exactly one person (lib/mentions). Said under the box before Send, so a typo is seen in time.
     const mentionIds = resolveMentions(sent, staff, picked).ids;
-    const { error } = await supabase.from("comments").insert({ [subject.col]: subject.id, body: sent, author_id: meId, mentions: mentionIds });
+    const { error } = await supabase.from("comments").insert({ ...keyed(subject.col, subject.id), body: sent, author_id: meId, mentions: mentionIds });
     setSending(false);
     if (error) { toast(`Error: ${error.message}`, "error"); return; }
     setText(""); setPicked({});
@@ -1045,7 +1047,6 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
 function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop_id"; ownerId: string; isAdmin: boolean }) {
   // crew_brief + dress_code now live on the staff-only sibling (event_ops / stop_ops, 0181), keyed
   // by the parent id — off the world-readable events/stops row.
-  const opsTable = ownerCol === "stop_id" ? "stop_ops" : "event_ops";
   const [dress, setDress] = useState("");
   const [brief, setBrief] = useState("");
   const [edit, setEdit] = useState(false);
@@ -1055,13 +1056,12 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
   const briefState = useAsyncData<{ dress: string; brief: string }>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
     // A failed read is a failure, not "No brief yet" (R12b, F4) — the editor would have saved blanks over the brief.
-    const { data, error } = await supabase.from(opsTable).select("dress_code, crew_brief").eq(ownerCol, ownerId).maybeSingle();
+    const { data, error } = ownerCol === "stop_id"
+      ? await supabase.from("stop_ops").select("dress_code, crew_brief").eq("stop_id", ownerId).maybeSingle()
+      : await supabase.from("event_ops").select("dress_code, crew_brief").eq("event_id", ownerId).maybeSingle();
     if (error) throw new Error(error.message);
-    return {
-      dress: (data as { dress_code?: string | null } | null)?.dress_code ?? "",
-      brief: (data as { crew_brief?: string | null } | null)?.crew_brief ?? "",
-    };
-  }, [opsTable, ownerCol, ownerId]);
+    return { dress: data?.dress_code ?? "", brief: data?.crew_brief ?? "" };
+  }, [ownerCol, ownerId]);
   // Seed the editable copy from the fetch/reload — Cancel and realtime both flow back through here.
   // During render, not by an effect (R17, lib/useChanged): a fresh load seeds the copy before anything is drawn.
   if (useChanged(briefState.data) && briefState.data) { setDress(briefState.data.dress); setBrief(briefState.data.brief); }
@@ -1072,7 +1072,10 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
     // Upsert the staff-only ops row (create it on first save; the parent may have none yet).
     // The editor closes on a brief that landed (R12b, F4): it closed whatever the save answered, and the crew found no
     // brief on the day.
-    const ok = wrote(await supabase.from(opsTable).upsert({ [ownerCol]: ownerId, dress_code: dress.trim() || null, crew_brief: brief.trim() || null }, { onConflict: ownerCol }), toast, "Couldn't save the brief");
+    const said = { dress_code: dress.trim() || null, crew_brief: brief.trim() || null };
+    const ok = wrote(ownerCol === "stop_id"
+      ? await supabase.from("stop_ops").upsert({ stop_id: ownerId, ...said }, { onConflict: "stop_id" })
+      : await supabase.from("event_ops").upsert({ event_id: ownerId, ...said }, { onConflict: "event_id" }), toast, "Couldn't save the brief");
     setSaving(false);
     if (ok) { setEdit(false); toast("Brief saved"); }
   };
@@ -2061,7 +2064,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   };
   const addCrew = async (uid: string) => {
     if (!supabase || !uid) return;
-    const { error } = await supabase.from("event_staff").insert({ [ownerCol]: target.id, user_id: uid });
+    const { error } = await supabase.from("event_staff").insert({ ...keyed(ownerCol, target.id), user_id: uid });
     if (error) toast(error.code === "23505" ? "Already on crew" : `Error: ${error.message}`, "error"); else load();
   };
   const removeCrew = async (id: string) => { if (supabase) { if (wrote(await supabase.from("event_staff").delete().eq("id", id), toast, "Couldn't take them off the crew")) load(); } };
@@ -2091,7 +2094,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       if (!wrote(await supabase.from("event_approvals").delete().eq(ownerCol, target.id).eq("approver_id", user.id), toast, "Couldn't withdraw the approval")) return;
       toast("Approval withdrawn");
     } else {
-      const { error } = await supabase.from("event_approvals").insert({ [ownerCol]: target.id, approver_id: user.id });
+      const { error } = await supabase.from("event_approvals").insert({ ...keyed(ownerCol, target.id), approver_id: user.id });
       toast(error ? `Error: ${error.message}` : "Prep approved", error ? "error" : undefined);
     }
     load();
@@ -4335,7 +4338,7 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
   today: string;
   open: boolean;
   onToggle: () => void;
-  onUpdate: (patch: Partial<EventRow>) => void;
+  onUpdate: (patch: TablesUpdate<"events">) => void;   // the events row's own columns (lib/database.types)
   onRemove: () => void;
   onSetLive: (live: boolean) => void;
   onArchive: () => void;
@@ -4599,7 +4602,7 @@ function EventsAdmin() {
       setEconMap((m) => { const next = { ...m }; if (was) next[id] = was; else delete next[id]; return next; });
   };
 
-  const update = async (id: string, patch: Partial<EventRow>) => {
+  const update = async (id: string, patch: TablesUpdate<"events">) => {
     const { error } = await supabase!.from("events").update(patch).eq("id", id);
     toast(error ? `Error: ${error.message}` : "Event updated", error ? "error" : undefined);
     if (!error) load();

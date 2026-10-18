@@ -41,7 +41,7 @@ export default function CogsCalculator() {
     if (firstErr) throw new Error(firstErr.message);
     return {
       inv: (i.data as InvCost[]) ?? [], products: (p.data as ProductRow[]) ?? [],
-      components: (comp.data as Component[]) ?? [], recipes: (r.data as BrewRecipeRow[]) ?? [],
+      components: (comp.data as Component[]) ?? [], recipes: (r.data as unknown as BrewRecipeRow[]) ?? [],   // ingredients is jsonb; its shape is BrewIngredient[]
     };
   }, []);
   const board = useAsyncData(loader, []);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { Json, TablesInsert } from "@/lib/database.types";
 import { callerFromRequest, SIGN_IN_UNCHECKED } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { accountEmail } from "@/lib/notify";
@@ -214,7 +215,7 @@ async function post(req: Request) {
       // Its lines, checked (R8): the insert's answer was thrown away, and a paid order whose lines didn't save had none —
       // "Send to printer" refused it ("no line items to send") and a resent receipt said "(no items on this order)", while
       // the customer had been told it was recorded. Tried twice; still refused, the crew is told what they were.
-      const itemRows = lineItems.map((l) => ({ order_id: orderId, product_id: l.product_id, title: l.title, variant: l.variant, qty: l.qty, unit_cents: l.unit_cents, cost_cents: l.cost_cents }));
+      const itemRows: TablesInsert<"shop_order_items">[] = lineItems.map((l) => ({ order_id: orderId, product_id: l.product_id, title: l.title, variant: (l.variant ?? null) as Json, qty: l.qty, unit_cents: l.unit_cents, cost_cents: l.cost_cents }));
       let { error: itemsErr } = await db.from("shop_order_items").insert(itemRows);
       if (itemsErr) ({ error: itemsErr } = await db.from("shop_order_items").insert(itemRows));
       if (itemsErr) {

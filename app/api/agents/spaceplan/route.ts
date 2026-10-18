@@ -59,9 +59,9 @@ async function post(req: Request) {
   if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
   const eventId: string | undefined = body.event_id;
   const stopId: string | undefined = body.stop_id;
-  if (!eventId && !stopId) return NextResponse.json({ ok: false, error: "event_id or stop_id required" }, { status: 400 });
   const ownerCol = eventId ? "event_id" : "stop_id";
   const ownerId = eventId || stopId;
+  if (!ownerId) return NextResponse.json({ ok: false, error: "event_id or stop_id required" }, { status: 400 });
 
   const [{ data: tp }, { data: tasks }, { data: assetRows }, ownerRes] = await Promise.all([
     supabaseAdmin.from("trailer_profile").select("*").eq("tenant_id", tenant).eq("id", 1).maybeSingle(),
@@ -69,7 +69,7 @@ async function post(req: Request) {
     supabaseAdmin.from("assets").select("name, len_in, width_in, height_in").eq("tenant_id", tenant).not("len_in", "is", null),
     eventId
       ? supabaseAdmin.from("events").select("title, rig").eq("tenant_id", tenant).eq("id", eventId).maybeSingle()
-      : supabaseAdmin.from("stops").select("name, rig").eq("id", stopId).maybeSingle(),
+      : supabaseAdmin.from("stops").select("name, rig").eq("id", ownerId).maybeSingle(),
   ]);
   if (!tp) return NextResponse.json({ ok: false, error: "trailer profile not set up" }, { status: 404 });
 

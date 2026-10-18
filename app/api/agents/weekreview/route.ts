@@ -30,7 +30,7 @@ export const maxDuration = 60;
 // strategy session, the transcript and the card on Plan count too.
 const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-async function sum(table: string, filter: (q: any) => any): Promise<number> {
+async function sum(table: "orders" | "drop_orders" | "delivery_orders" | "business_orders", filter: (q: any) => any): Promise<number> {
   try {
     // scoped-by: revenue() below is the only caller, and both of its filters (win, onDay) begin with
     // .eq("tenant_id", tenant) — the caller's tenant, resolved and refused when absent in post().

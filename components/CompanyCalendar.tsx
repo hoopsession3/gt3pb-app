@@ -38,6 +38,7 @@ import { wrote } from "@/lib/wrote";
 import { useAppStable } from "./AppProvider";
 import { useClientValue } from "@/lib/clientPage";
 import { useLatestRead } from "@/lib/useLatestRead";
+import { anyTable } from "@/lib/dbTypes";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, click-through to source.
@@ -301,12 +302,12 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     }
     // A move that did not take is said, and the calendar reads again where it really is (R12b, F4).
     if (kind === "task") { const r = await updateTask("event", id, { dueISO: val }); if (r.error) toast(`Couldn't move it — ${r.error}`, "error"); }   // ONE write path (lib/tasks)
-    else wrote(await supabase.from(cfg.table).update({ [cfg.dateCol]: val }).eq("id", id), toast, "Couldn't move it");
+    else wrote(await anyTable(supabase, cfg.table).update({ [cfg.dateCol]: val }).eq("id", id), toast, "Couldn't move it");
     reload();
   };
   const unschedule = async (kind: EditKind, id: string) => {
     if (!supabase || readOnly || (kind !== "todo" && kind !== "content")) return;
-    wrote(await supabase.from(SRC[kind].table).update({ [SRC[kind].dateCol]: null }).eq("id", id), toast, "Couldn't take it off the calendar");
+    wrote(await anyTable(supabase, SRC[kind].table).update({ [SRC[kind].dateCol]: null }).eq("id", id), toast, "Couldn't take it off the calendar");
     reload();
   };
   // Business-rhythm rollups deep-link to the lane page that owns them.
@@ -899,7 +900,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
   const [loadFailed, setLoadFailed] = useState(false);
   useEffect(() => {
     if (!supabase) return;
-    supabase.from(cfg.table).select(sel).eq("id", id).maybeSingle().then(({ data, error }) => {
+    anyTable(supabase, cfg.table).select(sel).eq("id", id).maybeSingle().then(({ data, error }) => {
       if (error) { setLoadFailed(true); setF(null); return; }
       setLoadFailed(false); setF(data ?? {}); setLoaded(data ?? {});
     });
@@ -937,7 +938,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
       else if (kind === "pipe") patch.stage = f.stage || "lead";
       if (kind === "meeting" && !patch.met_on) delete patch.met_on;   // met_on is NOT NULL — clearing keeps the old date
       // The editor closes on a save that landed (R12b, F4): it closed on a refusal too, the change gone without a word.
-      if (!wrote(await supabase.from(cfg.table).update(patch).eq("id", id), toast, "Couldn't save it")) { setSaving(false); return; }
+      if (!wrote(await anyTable(supabase, cfg.table).update(patch).eq("id", id), toast, "Couldn't save it")) { setSaving(false); return; }
     }
     setSaving(false); onSaved();
   };

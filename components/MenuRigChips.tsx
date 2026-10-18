@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { MENU_SLUG_FLAGS } from "@/lib/packlist";
 import Icon from "@/components/Icon";
 import { useLatestRead } from "@/lib/useLatestRead";
+import { keyed } from "@/lib/dbTypes";
 
 // MENU & RIG CHIPS — the ONE editor for the menu/rig/site flags that events and stops share
 // (menu_*, rig, power_available, water_available). The July 2026 redundancy audit found two
@@ -112,7 +113,7 @@ export default function MenuRigChips({ value, onPatch, variant, ownerType, owner
     setPicked(next); // optimistic — reload on error
     const res = on
       ? await supabase.from("event_menu_items").delete().eq(ownerCol, ownerId).eq("product_slug", slug)
-      : await supabase.from("event_menu_items").insert({ [ownerCol]: ownerId, product_slug: slug });
+      : await supabase.from("event_menu_items").insert({ ...keyed(ownerCol, ownerId), product_slug: slug });
     if (res.error) { loadPicked(); return; }
     // Keep the legacy boolean in step so old readers (economics, inventory, agent routes, and
     // packListFor's fallback) agree with the relation. Off only when NO picked slug still maps.

@@ -36,6 +36,7 @@ import Said from "./Said";
 import { rovingKeys, rovingTab } from "./roving";
 import { segTabId, tabPanel } from "./controls";
 import { useLatestRead } from "@/lib/useLatestRead";
+import type { TablesInsert } from "@/lib/database.types";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -720,7 +721,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
             primary columns so the calendar + campaign flows keep working unchanged. */}
         <select className="insp-in" value="" onChange={async (e) => {
           const v = e.target.value; if (!v || !supabase) return;
-          const row: Record<string, string> = { content_id: id };
+          const row: TablesInsert<"content_links"> = { content_id: id };
           if (v.startsWith("e:")) row.event_id = v.slice(2);
           else if (v.startsWith("s:")) row.stop_id = v.slice(2);
           else if (v.startsWith("p:")) row.play_key = v.slice(2);

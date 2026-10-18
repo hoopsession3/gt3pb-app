@@ -19,9 +19,10 @@ import { recoverFromCrash } from "@/components/ErrorReporter";
 // attempts is fatal (the reload did NOT fix it, so it was never skew), and everything else is fatal
 // as before. The decision is a pure function in lib/deploySkew so it is unit-tested.
 // TRY AGAIN READS AGAIN (R11, 2026-10-16). reset() re-drew the children the boundary already had, so a screen whose read
-// had failed threw the same error straight back; Next 16.2's unstable_retry fetches the segment again first, which is what
-// "Try again" says. reset() stays the fallback for a Next without it.
-export default function Error({ error, reset, unstable_retry }: { error: Error & { digest?: string }; reset: () => void; unstable_retry?: () => void }) {
+// had failed threw the same error straight back; retry() fetches the segment again first, which is what "Try again" says.
+// reset() stays the fallback for a Next without it. R31: Next 16.2 called it `unstable_retry`; 16.3 made it `retry` and
+// 16.4 gives only that — after R30's upgrade this screen fell back to reset() and drew the same error again.
+export default function Error({ error, reset, retry }: { error: Error & { digest?: string }; reset: () => void; retry?: () => void }) {
   useEffect(() => {
     console.error(error);
 
@@ -36,7 +37,7 @@ export default function Error({ error, reset, unstable_retry }: { error: Error &
     recoverFromCrash(error);
   }, [error]);
   const reload = () => { if (typeof window !== "undefined") window.location.reload(); };
-  const retry = () => (unstable_retry ?? reset)();
+  const again = () => (retry ?? reset)();
   return (
     <section className="screen" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, textAlign: "center", padding: 24 }}>
       <div className="h-title">Something went sideways</div>
@@ -47,7 +48,7 @@ export default function Error({ error, reset, unstable_retry }: { error: Error &
       </div>
       <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
         {/* the kit's (2026-10-09): .act-btn was styled nowhere, so the screen a crash lands on drew the browser's grey buttons */}
-        <button type="button" className="btn-pri" onClick={retry}>Try again</button>
+        <button type="button" className="btn-pri" onClick={again}>Try again</button>
         <button type="button" className="btn-sec" onClick={reload}>Reload</button>
       </div>
       {error.digest && (

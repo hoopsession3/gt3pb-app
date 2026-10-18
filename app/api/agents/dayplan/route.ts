@@ -70,7 +70,7 @@ async function post(req: Request) {
   if (body.summarize) {
     const ev2 = eventId
       ? (await supabaseAdmin.from("events").select("title, day_label, location_text").eq("tenant_id", tenant).eq("id", eventId).maybeSingle()).data
-      : (await supabaseAdmin.from("stops").select("name, location_text, address, starts_at").eq("id", stopId).maybeSingle()).data;
+      : (await supabaseAdmin.from("stops").select("name, location_text, address, starts_at").eq("id", ownerId).maybeSingle()).data;
     const { data: slots } = await supabaseAdmin.from("event_schedule_items")
       .select("start_time, end_time, title, kind, location, address").eq(ownerCol, ownerId).eq("day_index", dayIndex).order("sort");
     const list = (slots ?? []).filter((s: any) => s.start_time || s.title);
@@ -124,7 +124,7 @@ async function post(req: Request) {
       .eq("tenant_id", tenant).eq("id", eventId).maybeSingle()).data;
     ofDays = e?.plan_days ?? 1;
   } else {
-    const s = (await supabaseAdmin.from("stops").select("name, location_text, address, starts_at, notes, menu_tier, plan_days").eq("id", stopId).maybeSingle()).data as any;
+    const s = (await supabaseAdmin.from("stops").select("name, location_text, address, starts_at, notes, menu_tier, plan_days").eq("id", ownerId).maybeSingle()).data as any;
     if (s) { e = { title: s.name, day: s.starts_at ? String(s.starts_at).slice(0, 10) : null, location_text: s.location_text, address: s.address, notes: s.notes, menu_tier: s.menu_tier, kind: "truck stop (on-the-ground ops)" }; ofDays = s.plan_days ?? 1; }
   }
   if (!e) return NextResponse.json({ ok: false, error: `${eventId ? "event" : "stop"} not found` }, { status: 404 });

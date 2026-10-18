@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "./database.types";
 
 // Service-role Supabase client — SERVER ONLY. Bypasses RLS, so it must never be
 // imported into client code. Used by the Square webhook (to write the read-only
@@ -6,7 +7,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const supabaseAdmin: SupabaseClient | null =
+export const supabaseAdmin: SupabaseClient<Database> | null =
   url && serviceKey
-    ? createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+    ? createClient<Database>(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
     : null;

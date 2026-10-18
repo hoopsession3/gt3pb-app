@@ -42,10 +42,10 @@ export default function ChiefOfStaff() {
     if (!supabase) return;
     const key = `${ref.kind}:${ref.id}`;
     setDoneRefs((s) => new Set(s).add(key));
-    const table = ref.kind === "task" ? "event_tasks" : "todos";
     const done_at = new Date().toISOString();
-    const patch = ref.kind === "task" ? { done: true, done_by: user?.id ?? null, done_at } : { done: true, done_at };
-    const { error } = await supabase.from(table).update(patch).eq("id", ref.id).eq("done", false);
+    const { error } = ref.kind === "task"
+      ? await supabase.from("event_tasks").update({ done: true, done_by: user?.id ?? null, done_at }).eq("id", ref.id).eq("done", false)
+      : await supabase.from("todos").update({ done: true, done_at }).eq("id", ref.id).eq("done", false);
     if (error) setDoneRefs((s) => { const n = new Set(s); n.delete(key); return n; });
   };
 

@@ -162,7 +162,7 @@ async function post(req: Request) {
     // owner date anchors any "N days before" due dates the AI proposed
     let ownerDate: string | null = null;
     if (eventId) { const { data: e } = await supabaseAdmin.from("events").select("day").eq("tenant_id", tenant).eq("id", eventId).maybeSingle(); ownerDate = (e as any)?.day ?? null; }
-    else { const { data: st } = await supabaseAdmin.from("stops").select("starts_at").eq("id", stopId).maybeSingle(); ownerDate = (st as any)?.starts_at ? String((st as any).starts_at).slice(0, 10) : null; }
+    else { const { data: st } = await supabaseAdmin.from("stops").select("starts_at").eq("id", ownerId).maybeSingle(); ownerDate = (st as any)?.starts_at ? String((st as any).starts_at).slice(0, 10) : null; }
     const dueFrom = (offset: any): string | null => {
       if (!ownerDate || typeof offset !== "number" || offset < 1) return null; // only advance-prep items get a deadline
       const d = new Date(`${ownerDate}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - Math.round(offset));
@@ -199,10 +199,10 @@ async function post(req: Request) {
     const { data: sched } = await supabaseAdmin.from("event_schedule_items").select("day_index, start_time, title, location").eq("tenant_id", tenant).eq("event_id", eventId).order("day_index").order("sort");
     runOfShow = (sched ?? []).map((s: any) => `D${s.day_index} ${s.start_time ?? ""} ${s.title}${s.location ? ` @ ${s.location}` : ""}`);
   } else {
-    const { data: s } = await supabaseAdmin.from("stops").select("name, location_text, address, note, notes, starts_at, menu_tier, status").eq("id", stopId).maybeSingle();
+    const { data: s } = await supabaseAdmin.from("stops").select("name, location_text, address, note, notes, starts_at, menu_tier, status").eq("id", ownerId).maybeSingle();
     if (!s) return NextResponse.json({ ok: false, error: "stop not found" }, { status: 404 });
     target = s; kind = "truck stop (on-the-ground ops)";
-    const { data: stopSched } = await supabaseAdmin.from("event_schedule_items").select("day_index, start_time, title, location").eq("tenant_id", tenant).eq("stop_id", stopId).order("day_index").order("sort");
+    const { data: stopSched } = await supabaseAdmin.from("event_schedule_items").select("day_index, start_time, title, location").eq("tenant_id", tenant).eq("stop_id", ownerId).order("day_index").order("sort");
     runOfShow = (stopSched ?? []).map((s: any) => `D${s.day_index} ${s.start_time ?? ""} ${s.title}${s.location ? ` @ ${s.location}` : ""}`);
   }
 

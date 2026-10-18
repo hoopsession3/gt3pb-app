@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { TablesUpdate } from "@/lib/database.types";
 import { raiseAlertOnce } from "@/lib/serverAlerts";
 import { svixSignatureOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
@@ -51,7 +52,7 @@ async function post(req: Request) {
 
   // One column per outcome rather than a status string, so a delivery followed by a complaint keeps
   // BOTH facts — v_customer_message_outcome decides which one to lead with.
-  const patch: Record<string, string | null> = {};
+  const patch: TablesUpdate<"customer_messages"> = {};
   if (type === "email.delivered") patch.delivered_at = at;
   else if (type === "email.bounced") {
     patch.bounced_at = at;

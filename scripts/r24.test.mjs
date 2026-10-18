@@ -100,7 +100,7 @@ const ours = (url) => LS.answerInFragmentOnly(url);
     at.href === "https://app.example.test/order?x=1&type=magiclink", at.href);
   const sup = src("lib/supabase.ts");
   ok("lib/supabase reads an address with lib/linkSignin's rule, imported before the client is made",
-    sup.includes("detectSessionInUrl: (url) => answerInFragmentOnly(url),") && sup.indexOf('import { answerInFragmentOnly } from "./linkSignin";') < sup.indexOf("createClient(url"));
+    sup.includes("detectSessionInUrl: (url) => answerInFragmentOnly(url),") && sup.indexOf('import { answerInFragmentOnly } from "./linkSignin";') < sup.indexOf("createClient<Database>(url"));
 }
 
 // ── (2) an ask lasts an hour, and one sign-in ──────────────────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { TablesUpdate } from "@/lib/database.types";
 import { verifyApliiq, firstSeen, forgetSeen, bodyKey } from "@/lib/apliiq";
 import { integrationTenant } from "@/lib/tenantScope";
 import { route } from "@/lib/apiRoute";
@@ -50,7 +51,7 @@ async function post(req: Request) {
   const vs = p?.variants, sizes = p?.Sizes, imgs = p?.images;
   const variants = Array.isArray(vs) ? vs : Array.isArray(sizes) ? sizes : null;
   // What this update carries, and nothing it doesn't.
-  const given: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const given: TablesUpdate<"shop_products"> = { updated_at: new Date().toISOString() };
   if (name) given.title = name;
   if (blurb != null && String(blurb).trim()) given.blurb = String(blurb).slice(0, 2000);
   if (price != null) given.price_cents = price;

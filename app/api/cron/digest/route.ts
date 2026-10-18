@@ -22,13 +22,13 @@ const since7d = () => new Date(Date.now() - 7 * 864e5).toISOString();
 const since60d = () => new Date(Date.now() - 60 * 864e5).toISOString();   // payment-id lookback for the walk-up dedupe
 const day6 = () => addDays(etToday(), -6);   // an office order counts on its delivery day: the last seven business days
 
-async function sum(table: string, filter: (q: any) => any, col = "total_cents"): Promise<number> {
+async function sum(table: "orders" | "drop_orders" | "delivery_orders" | "business_orders", filter: (q: any) => any, col = "total_cents"): Promise<number> {
   try {
     const { data } = await filter(supabaseAdmin!.from(table).select(col));
     return (data ?? []).reduce((s: number, r: any) => s + (Number(r[col]) || 0), 0);
   } catch { return 0; }
 }
-async function count(table: string, filter: (q: any) => any): Promise<number> {
+async function count(table: "incident_log" | "alerts", filter: (q: any) => any): Promise<number> {
   try {
     const { count: c } = await filter(supabaseAdmin!.from(table).select("id", { count: "exact", head: true }));
     return c ?? 0;

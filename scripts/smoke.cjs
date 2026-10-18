@@ -6161,7 +6161,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /await supabaseAdmin\.rpc\("book_office_standing", \{ p_account: businessId \}\);/.test(officeRoute)
       // R15 (0422): the one-off is written with the form's key, and a repeat of the key answers with the first booking;
       // R18: 0422 is applied, so a refusal is said — never retried without the key.
-      && /if \(!orderId\) \{\s*const row: Record<string, unknown> = \{/.test(officeRoute)
+      && /if \(!orderId\) \{\s*const row: TablesInsert<"business_orders"> = \{/.test(officeRoute)
       && /const made = await supabaseAdmin\.from\("business_orders"\)\.insert\(key \? \{ \.\.\.row, idempotency_key: key \} : row\)\.select\("id"\)\.single\(\);/.test(officeRoute)
       && !/isMissingColumn/.test(officeRoute));
     ok("office run: the crew's button makes the week ahead from the programs (generate_office_deliveries) — the one-Monday call went with 0356 applied (R14)",
@@ -6724,8 +6724,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const cos = code(read("components/ChiefOfStaff.tsx"));
   ok("my day (H): the Chief of Staff's Done stamps done_at (and done_by on an event task) like lib/tasks completeTask — and still only closes what is open",
     /const done_at = new Date\(\)\.toISOString\(\);/.test(cos)
-    && /ref\.kind === "task" \? \{ done: true, done_by: user\?\.id \?\? null, done_at \} : \{ done: true, done_at \}/.test(cos)
-    && /\.update\(patch\)\.eq\("id", ref\.id\)\.eq\("done", false\)/.test(cos) && !/\{ done: true \}/.test(cos)
+    && /\? await supabase\.from\("event_tasks"\)\.update\(\{ done: true, done_by: user\?\.id \?\? null, done_at \}\)\.eq\("id", ref\.id\)\.eq\("done", false\)/.test(cos)
+    && /: await supabase\.from\("todos"\)\.update\(\{ done: true, done_at \}\)\.eq\("id", ref\.id\)\.eq\("done", false\)/.test(cos) && !/\{ done: true \}/.test(cos)
     && /update\(\{ done: true, done_by: userId \?\? null, done_at \}\)/.test(code(read("lib/tasks.ts"))));
 
   // G — the rhythm (stops, drop, porches, brews) is on the app's refresh, and reads one day: the market's.
@@ -11416,7 +11416,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /ev: \{ h: "ev-sub-h", row: "k-chips" \},/.test(mr) && (mr.match(/<div className=\{c\.row\}>/g) || []).length === 3
     && (mr.match(/<button type="button" className="k-chip" onClick=\{\(\) => cycleTri\(/g) || []).length === 2 && !/\.(ev-chip|menued-tog|menued-site)\b/.test(g));
   ok("recipes: no button draws the browser's grey face — the crash screen's Try again and Reload are the kit's (.act-btn was styled nowhere), the delivery loop's entries are chips, and the audit reads every button for it",
-    /<button type="button" className="btn-pri" onClick=\{retry\}>Try again<\/button>\s*<button type="button" className="btn-sec" onClick=\{reload\}>Reload<\/button>/.test(read("app/error.tsx"))
+    /<button type="button" className="btn-pri" onClick=\{again\}>Try again<\/button>\s*<button type="button" className="btn-sec" onClick=\{reload\}>Reload<\/button>/.test(read("app/error.tsx"))
     && /<button key=\{t\.id\} type="button" className="k-chip sm min-w-11"/.test(read("components/DeliveryOps.tsx"))
     && /export function greyButtonsIn\(root, styled\)/.test(audit) && /const grey = greyButtonsIn\(root, /.test(audit));
   ok("recipes: Studio's calendar's Week · Month is the segmented control, and its bar wraps — on a phone Today ran past the edge",
@@ -15043,7 +15043,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const LS = require("../.smoke/linkSignin.js"), supa = rd("lib/supabase.ts"), ap = strip(rd("components/AuthProvider.tsx"));
     ok("R9 doors: a session that arrives in an address on a device that asked for none is said — whose account, and a way out (lib/linkSignin)",
       LS.carriesSession("#access_token=a&refresh_token=b&type=magiclink") && !LS.carriesSession("#access_token=a&type=recovery") && !LS.carriesSession("#code=1")
-      && supa.indexOf('from "./linkSignin";') > 0 && supa.indexOf('from "./linkSignin";') < supa.indexOf("createClient(url")
+      && supa.indexOf('from "./linkSignin";') > 0 && supa.indexOf('from "./linkSignin";') < supa.indexOf("createClient<Database>(url")
       && (rd("components/AuthProvider.tsx").match(/markSigninAsked\(\);   \/\//g) || []).length === 3 && /onKeep=\{\(\) => \{ setLinkNotice\(null\);/.test(ap)
       // R18 review: the same notice, and a password join's "choose your password" after it when both are asked.
       && /if \(!takeSigninAsked\(\)\) \{ setLinkNotice\(u\.email \?\? "another account"\); noticePending\.current = true; \}/.test(ap)
@@ -15441,15 +15441,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const ge = rd("app/global-error.tsx"), er = strip(rd("app/error.tsx")), rep = strip(rd("components/ErrorReporter.tsx"));
   ok("R11 crash: a crash in the root layout has a screen of its own — its own document, the house's colours, reported and healed as a page's is",
     /^"use client";/.test(ge) && /<html lang="en">/.test(ge) && /<style>\{CSS\}<\/style>/.test(ge) && /<title>GT3 Performance Bar<\/title>/.test(ge)
-      && /recoverFromCrash\(error, \{ where: "app" \}\);/.test(ge) && /onClick=\{\(\) => unstable_retry\(\)\}/.test(ge) && /button\{min-height:44px;/.test(ge)
+      && /recoverFromCrash\(error, \{ where: "app" \}\);/.test(ge) && /const again = \(\) => \(retry \?\? reset \?\? reload\)\(\);/.test(ge) && /onClick=\{again\}>Try again</.test(ge) && !/unstable_retry/.test(strip(ge)) && /button\{min-height:44px;/.test(ge)
       && /onClick=\{back\}>Back<\/button>/.test(ge) && /if \(window\.history\.length > 1\) window\.history\.back\(\); else window\.location\.assign\("\/"\);/.test(ge)
       && /env\(safe-area-inset-top,0px\)/.test(ge) && !/style=\{\{/.test(ge));
   ok("R11 crash: the page's crash screen and the last one decide the same way — classify, report, heal — in one place",
     /recoverFromCrash\(error\);/.test(er) && !/classifyCrash|readSkewMemory/.test(er)
       && rep.indexOf("classifyCrash(message, readSkewMemory(raw), Date.now())") > 0 && rep.indexOf("classifyCrash(message") < rep.indexOf("reportClientError({\n      message: `${opts.where")
       && /fatal: plan\.fatal && opts\.fatal !== false,/.test(rep));
-  ok("R11 crash: Try again reads the screen again (unstable_retry), and the words promise nothing the screen can't keep",
-    /const retry = \(\) => \(unstable_retry \?\? reset\)\(\);/.test(er) && /onClick=\{retry\}>Try again</.test(er)
+  ok("R11 crash: Try again reads the screen again (retry — Next 16.3+, R31), and the words promise nothing the screen can't keep",
+    /const again = \(\) => \(retry \?\? reset\)\(\);/.test(er) && /onClick=\{again\}>Try again</.test(er) && !/unstable_retry/.test(er)
       && !/Your work is saved|nothing was lost/i.test(er) && /\{error\.digest \? "send us the code below" : "let us know"\}/.test(rd("app/error.tsx")));
   // one piece fails alone
   const fe = strip(rd("components/Fence.tsx")), sh = rd("components/AppShell.tsx");

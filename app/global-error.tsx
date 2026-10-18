@@ -28,12 +28,16 @@ button[data-kind=sec]{border:1px solid rgba(245,241,232,.5);background:transpare
 code{margin-top:10px;font-size:13px;color:rgba(245,241,232,.7);letter-spacing:.4px}
 `;
 
-export default function GlobalError({ error, unstable_retry }: { error: Error & { digest?: string }; unstable_retry: () => void }) {
+// TRY AGAIN, BY THE NAME NEXT GIVES IT (R31). Next 16.3 made 16.2's `unstable_retry` stable as `retry`, and 16.4 passes
+// only `retry` (and `reset`): after R30's upgrade this screen's Try again called a prop that was never given and threw.
+// It asks `retry` (fetch again, then draw), then `reset`, and a fresh load when the Next it runs on gives neither.
+export default function GlobalError({ error, retry, reset }: { error: Error & { digest?: string }; retry?: () => void; reset?: () => void }) {
   useEffect(() => {
     console.error(error);
     recoverFromCrash(error, { where: "app" });
   }, [error]);
   const reload = () => window.location.reload();
+  const again = () => (retry ?? reset ?? reload)();
   // A way off a screen that crashes every time it is drawn: in the iPhone app there is no browser around the page to go
   // back with. Where this screen was reached from, or the front door when it was the first.
   // A page load on purpose: the whole tree threw, and the router is part of what threw.
@@ -52,7 +56,7 @@ export default function GlobalError({ error, unstable_retry }: { error: Error & 
           <h1>Something went sideways</h1>
           <p>A hiccup on our end — not you. Try again, and if it keeps happening, {error.digest ? "send us the code below" : "let us know"}.</p>
           <div role="group" aria-label="What to do">
-            <button type="button" data-kind="pri" onClick={() => unstable_retry()}>Try again</button>
+            <button type="button" data-kind="pri" onClick={again}>Try again</button>
             <button type="button" data-kind="sec" onClick={reload}>Reload</button>
             <button type="button" data-kind="sec" onClick={back}>Back</button>
           </div>

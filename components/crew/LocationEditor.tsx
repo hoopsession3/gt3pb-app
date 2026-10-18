@@ -22,6 +22,7 @@ import { dateLine } from "@/lib/eventRecord";
 import { vendorKindLabel } from "@/lib/vendorKind";
 import { useLongPress, type MenuItem } from "@/components/LongPress";
 import Button from "../Button";
+import { anyTable } from "@/lib/dbTypes";
 
 // LOCATION EDITOR — the address / pin / vendor-link row for a stop or a vendor place.
 //
@@ -104,7 +105,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
 
   // every update carries a WHERE (id) — safe with the safeupdate guard
   const patch = async (p: Record<string, unknown>, msg = "Saved") => {
-    const { error } = await supabase!.from(table).update(p).eq("id", row.id);
+    const { error } = await anyTable(supabase!, table).update(p).eq("id", row.id);   // a stop's or a venue's (lib/dbTypes)
     toast(error ? `Error: ${error.message}` : msg, error ? "error" : undefined);
     if (!error) onChanged();
   };

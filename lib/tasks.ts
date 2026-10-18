@@ -1,6 +1,8 @@
 "use client";
 
 import { supabase } from "./supabase";
+import type { TablesInsert } from "./database.types";
+import { anyTable, keyed } from "./dbTypes";
 
 // THE task write path. Work lives in two tables — event_tasks (the rich per-event/goal/note engine)
 // and todos (free-form delegated tasks) — unified at read by the all_tasks view (0210) and My Day's
@@ -57,7 +59,7 @@ export type TaskParent =
 const PARENT_COLUMN = { event: "event_id", stop: "stop_id", goal: "goal_id", note: "meeting_note_id" } as const;
 
 /** The column a parent writes to. Exported because the crew console reads back by the same key. */
-export function parentColumn(p: TaskParent): string {
+export function parentColumn(p: TaskParent): (typeof PARENT_COLUMN)[keyof typeof PARENT_COLUMN] {
   return PARENT_COLUMN[Object.keys(p)[0] as keyof typeof PARENT_COLUMN];
 }
 
@@ -84,9 +86,9 @@ export type NewEventTask = {
 export type CreatedTask = { id: string; label: string; assignee: string | null };
 
 /** One row's worth of columns — the single place a NewEventTask becomes event_tasks' shape. */
-function taskRow(t: NewEventTask): Record<string, unknown> {
-  const row: Record<string, unknown> = {
-    [parentColumn(t.parent)]: Object.values(t.parent)[0],
+function taskRow(t: NewEventTask): TablesInsert<"event_tasks"> {
+  const row: TablesInsert<"event_tasks"> = {
+    ...keyed(parentColumn(t.parent), Object.values(t.parent)[0] as string),
     label: t.label.trim().slice(0, 300),
     kind: t.kind ?? "task",
     sort: t.sort ?? 0,
@@ -189,7 +191,8 @@ export async function updateTask(source: TaskSource, id: string, patch: TaskPatc
     if (patch.targetQty !== undefined) row.target_qty = patch.targetQty;
   } else if (patch.category !== undefined) row.category = patch.category;
   if (Object.keys(row).length === 0) return {};
-  const { error } = await supabase.from(source === "event" ? "event_tasks" : "todos").update(row).eq("id", id);
+  // The table is chosen by the task's kind (lib/dbTypes anyTable): a pick-list task or a to-do, the row built for it.
+  const { error } = await anyTable(supabase, source === "event" ? "event_tasks" : "todos").update(row).eq("id", id);
   return { error: error?.message };
 }
 

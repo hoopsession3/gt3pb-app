@@ -9,11 +9,11 @@ export const runtime = "nodejs";
 
 // Live status for the architecture map. Owner-only. Returns ONLY booleans/status strings derived
 // from env presence + table existence — never any secret value. Keys match component.key in the manifest.
-const TABLES: Record<string, string> = {
+const TABLES = {
   studio: "content_items", brandkit: "brand_kit", brandassets: "brand_assets",
   compliance: "compliance_rules", notes: "meeting_notes", alerts: "alerts",
   audit: "audit_log", inventory: "inventory_items", events: "event_tasks",
-};
+} as const;
 
 async function get(req: Request) {
   if (!(await ownerFromRequest(req))) return NextResponse.json({ ok: false, error: "owners only" }, { status: 403 });

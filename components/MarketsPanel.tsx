@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
 import Icon from "./Icon";
 import Field from "./Field";
+import type { ArgsOf } from "@/lib/dbTypes";
 
 // MARKETS — the readiness engine, finally on a screen.
 //
@@ -104,7 +105,8 @@ export default function MarketsPanel() {
   const state = useAsyncData<Data>(loader, []);
   const reload = state.reload;
 
-  const call = async (fn: string, args: Record<string, unknown>, ok: string) => {
+  // Each of the market's switches, and what it takes — checked at every call below (lib/dbTypes ArgsOf).
+  const call = async <F extends "set_market_live" | "set_market_opens_on" | "set_market_offer_disclaimer">(fn: F, args: ArgsOf<F>, ok: string) => {
     if (!supabase || busy) return;
     setBusy(true);
     const { error } = await supabase.rpc(fn, args);

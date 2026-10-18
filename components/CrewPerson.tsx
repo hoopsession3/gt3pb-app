@@ -10,6 +10,7 @@ import Sheet, { CloseButton } from "./Sheet";
 import Icon from "./Icon";
 import { sendLetter } from "./AddTeammate";
 import { haptic } from "@/lib/haptics";
+import type { ArgsOf } from "@/lib/dbTypes";
 
 // ONE PERSON, ONE PLACE (0311).
 //
@@ -131,7 +132,7 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
     setLetter(l.sent ? `Sent to ${l.to}.` : `Couldn't send${l.detail ? ` — ${l.detail}` : ""}.`);
   };
 
-  const call = async (fn: "set_member_market" | "set_market_lead", args: Record<string, string | null>, ok: string) => {
+  const call = async <F extends "set_member_market" | "set_market_lead">(fn: F, args: ArgsOf<F>, ok: string) => {
     if (!supabase || busy) return;
     setBusy(true);
     const { error } = await supabase.rpc(fn, args);

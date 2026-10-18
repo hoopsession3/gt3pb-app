@@ -15,6 +15,7 @@ import { derivedStopStatus } from "@/lib/stopRecord";
 import { archiveOwner } from "@/lib/wrap";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { haptic } from "@/lib/haptics";
+import { anyTable } from "@/lib/dbTypes";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
 // place · status), reachable in two taps from anywhere a stop or event shows (calendar,
@@ -169,7 +170,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
       if (pin !== undefined) { patch.lat = pin?.lat ?? null; patch.lng = pin?.lng ?? null; }
       await geocodeIfNoCoords(patch);
     }
-    const { error } = await supabase.from(table).update(patch).eq("id", id);
+    const { error } = await anyTable(supabase, table).update(patch).eq("id", id);   // an event's or a stop's (lib/dbTypes)
     setSaving(false);
     if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
     toast(isEvent ? "Event saved" : "Stop saved — guests see the new time");
@@ -199,7 +200,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
     const next = f.published_at ? null : new Date().toISOString();
     if (next) haptic("toggleOn"); else haptic("toggleOff");
     set("published_at", next);
-    const { error } = await supabase.from(table).update({ published_at: next }).eq("id", id);
+    const { error } = await anyTable(supabase, table).update({ published_at: next }).eq("id", id);
     if (error) { set("published_at", f.published_at ?? null); toast(`Couldn't ${next ? "publish" : "hide"} — ${error.message}`, "error"); return; }
     toast(next ? "Published — live to guests" : "Hidden from guests");
     onChanged?.();

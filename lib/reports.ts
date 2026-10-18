@@ -89,5 +89,5 @@ export async function fetchEventPnl(): Promise<EventPnlRow[]> {
     const e = (data as { error?: string } | null)?.error;
     throw new Error(e ? refusal("The P&L", e) : "The P&L came back empty.");
   }
-  return data as EventPnlRow[];
+  return data as unknown as EventPnlRow[];   // the function answers json rows; their shape is EventPnlRow
 }

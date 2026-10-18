@@ -105,7 +105,7 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
     // Integrity and hours come from the two views rather than being recomputed here, so the screen
     // and the database can never disagree about whether a signature still matches its terms.
     const [a, integ, hrs] = await Promise.all([
-      (mine
+      (mine && meId
         ? supabase.from("operator_agreements")
             .select("id, market, operator_name, operator_email, operator_user_id, status, tier, stage, supply_funding, operator_pct, royalty_pct, market_pct, package, notes, created_at, updated_at, supply_sourcing, supply_price_basis, equity_eligible, equity_scope, covers, scope_basis, scope_until, hours_basis, hours_note, signed_name, signed_at, countersigned_name, countersigned_at, version, supersedes_id")
             .eq("operator_user_id", meId)

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { TablesUpdate } from "@/lib/database.types";
 import { verifyApliiq, firstSeen, forgetSeen } from "@/lib/apliiq";
 import { accountEmail } from "@/lib/notify";
 import { tellCustomer } from "@/lib/customerMessage";
@@ -108,7 +109,7 @@ async function post(req: Request) {
   });
   // Shipped — never walked back from delivered. At the printer, so no send is waiting on a check any more; Apliiq's id
   // is kept when the order had none.
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), apliiq_submit_unknown_at: null, apliiq_submit_started_at: null };
+  const patch: TablesUpdate<"shop_orders"> = { updated_at: new Date().toISOString(), apliiq_submit_unknown_at: null, apliiq_submit_started_at: null };
   if (order.status !== "delivered") patch.status = "shipped";
   if (!order.apliiq_order_id && theirId) patch.apliiq_order_id = theirId;
   // scoped-by: orderId came from the shop_orders lookup above, which filters on tenant_id

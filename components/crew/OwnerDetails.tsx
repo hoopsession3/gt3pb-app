@@ -21,6 +21,7 @@ import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
 import Said from "@/components/Said";
 import { useChanged } from "@/lib/useChanged";
+import { anyTable } from "@/lib/dbTypes";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -169,7 +170,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     const sel = isEvent ? "title, day, location_text, vendor_id, market, stage, default_buffer_min, completed_at" : "name, starts_at, ends_at, location_text, address, lat, lng, vendor_id, market, status, default_buffer_min, completed_at, order_ahead_enabled, pickup_enabled, order_ahead_lead_min";
     const [{ data }, { data: ops }] = await Promise.all([
       supabase.from(table).select(sel).eq("id", ownerId).maybeSingle(),
-      supabase.from(opsTable).select("recap").eq(opsKey, ownerId).maybeSingle(),
+      anyTable(supabase, opsTable).select("recap").eq(opsKey, ownerId).maybeSingle(),   // event_ops or stop_ops (lib/dbTypes)
     ]);
     const d = (data as unknown as Record<string, unknown>) ?? {};
     return { d, recap: (ops as { recap?: string | null } | null)?.recap ?? null };
@@ -284,7 +285,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
         if (q) { const g = await geocode(q).catch(() => null); if (g) { patch.lat = g.lat; patch.lng = g.lng; } }
       }
     }
-    const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
+    const { error } = await anyTable(supabase, table).update(patch).eq("id", ownerId);   // an event's or a stop's
     if (error) { setSaving(false); toast(`Couldn't save — ${error.message}`, "error"); return; }
     // Re-sync the local draft with the server row BEFORE leaving edit mode — a skipped
     // stage/status write (guard just above) must not leave the read-only view showing a

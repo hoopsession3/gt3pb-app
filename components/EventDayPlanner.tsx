@@ -17,6 +17,7 @@ import Button from "./Button";
 import { wrote } from "@/lib/wrote";
 import { useAppStable } from "./AppProvider";
 import { useChanged } from "@/lib/useChanged";
+import { keyed } from "@/lib/dbTypes";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -155,7 +156,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
     const nextSort = (dayItems[dayItems.length - 1]?.sort ?? 0) + 1;
     // Every block's write is read (R12b, F4): a block that did not save simply was not there, with nothing said.
     wrote(await supabase.from("event_schedule_items").insert({
-      [ownerCol]: eventId, day_index: active, day_date: dayDate(active),
+      ...keyed(ownerCol, eventId), day_index: active, day_date: dayDate(active),
       title: patch.title ?? "New block", kind: patch.kind ?? "other",
       start_time: patch.start_time ?? null, end_time: patch.end_time ?? null,
       location: patch.location ?? null, address: patch.address ?? null, details: patch.details ?? null, who: patch.who ?? null,

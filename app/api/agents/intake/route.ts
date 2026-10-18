@@ -187,7 +187,7 @@ async function post(req: Request) {
         const due = (maint ?? []).filter((m: any) => m.next_due_on).sort((x: any, y: any) => x.next_due_on.localeCompare(y.next_due_on));
         knownAsset = {
           id: a.id, name: a.name, make_model: a.make_model, manual_url: a.manual_url, notes: a.notes,
-          next_due: due[0] ? { summary: due[0].summary, on: due[0].next_due_on, overdue: due[0].next_due_on < today } : null,
+          next_due: due[0]?.next_due_on ? { summary: due[0].summary, on: due[0].next_due_on, overdue: due[0].next_due_on < today } : null,
           how_tos: (maint ?? []).filter((m: any) => m.how_to).map((m: any) => ({ summary: m.summary, how_to: m.how_to })).slice(0, 4),
         };
       }

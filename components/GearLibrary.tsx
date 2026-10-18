@@ -85,6 +85,7 @@ export default function GearLibrary() {
   const cancel = () => { setEditing(null); setErr(null); };
 
   const save = async () => {
+    if (!editing) return;   // nothing open to save (the form is drawn only while one is)
     if (!supabase || !draft.name.trim()) { setErr("Name is required"); return; }
     setBusy(true); setErr(null);
     const row = {

@@ -15,17 +15,26 @@ const isProd = process.env.NODE_ENV === "production";
 // reports to its own Sentry. Missing any of these silently kills the card form (window.Square never
 // appears). The full squarecdn wildcard + worker/child blob: cover it.
 const SQ = "https://web.squarecdn.com https://sandbox.web.squarecdn.com https://*.squarecdn.com https://js.squareup.com";
+// THE APP'S OWN DATABASE, AND NO OTHER (R31 — the 10/10 audit, security F4). The pages talk to one Supabase project —
+// its rest, auth, realtime, storage and functions all at that project's own address — but connect-src let a page reach
+// any *.supabase.co project: a script slipped into a page could post what it read to a stranger's project as easily as
+// to this one. Read from the build's own NEXT_PUBLIC_SUPABASE_URL (the web's and the iPhone app's builds both have it);
+// a build without it — CI's, which has no database — keeps the wildcard it had.
+const DB_HOST = (() => { try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").host; } catch { return ""; } })();
+const DB = DB_HOST ? `https://${DB_HOST} wss://${DB_HOST}` : "https://*.supabase.co wss://*.supabase.co";
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} ${SQ}`,
   "style-src 'self' 'unsafe-inline' https://web.squarecdn.com https://*.squarecdn.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://*.squarecdn.com",
-  "connect-src 'self' https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com https://web.squarecdn.com https://*.squarecdn.com https://o160250.ingest.sentry.io https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org",
+  `connect-src 'self' https://connect.squareup.com https://connect.squareupsandbox.com https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com https://web.squarecdn.com https://*.squarecdn.com https://o160250.ingest.sentry.io ${DB} https://nominatim.openstreetmap.org`,
   `frame-src 'self' ${SQ} https://connect.squareup.com https://connect.squareupsandbox.com`,
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
   "manifest-src 'self'",
+  // No plugins (R31 — security F4): default-src 'self' let an <object> or <embed> load from this origin; nothing here uses one.
+  "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",

@@ -27,6 +27,7 @@ import { fullestName } from "@/lib/customerKnown";
 import { readParam, dropParam } from "@/lib/urlParam";
 import { usePersonFacts, withFacts } from "@/lib/personFacts";
 import Said from "./Said";
+import type { ArgsOf } from "@/lib/dbTypes";
 
 // OFFER LETTERS (0281) — the owner's side of hiring someone.
 //
@@ -188,7 +189,8 @@ export default function OfferLetters() {
   const myApproval = openApprovals.find((a) => a.approver_id === user?.id);
   const awaitingMe = open?.status === "in_review" && myApproval && !myApproval.decision;
 
-  const rpc = async (fn: string, args: Record<string, unknown>, ok: string) => {
+  // A letter's two steps, and what each takes — checked at every call below (lib/dbTypes ArgsOf).
+  const rpc = async <F extends "decide_on_offer" | "submit_offer_for_review">(fn: F, args: ArgsOf<F>, ok: string) => {
     if (!supabase) return;
     setBusy(true);
     const { error } = await supabase.rpc(fn, args);

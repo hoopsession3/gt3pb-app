@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { Json } from "@/lib/database.types";
 import { raiseAlertOnce } from "@/lib/serverAlerts";
 import { stripeSignatureOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
@@ -51,7 +52,7 @@ async function post(req: Request) {
     // below is idempotent either way, so re-running is always safe.
     if (evt.id) {
       const { error: inboxErr } = await supabaseAdmin.from("webhook_events")
-        .insert({ id: evt.id, provider: "stripe", type: evt.type, payload: evt as unknown as Record<string, unknown> });
+        .insert({ id: evt.id, provider: "stripe", type: evt.type, payload: evt as unknown as Json });
       if (inboxErr && (inboxErr as { code?: string }).code === "23505") {
         const { data: seen } = await supabaseAdmin.from("webhook_events").select("processed_at").eq("id", evt.id).maybeSingle();
         if (seen?.processed_at) return NextResponse.json({ ok: true, replay: true });

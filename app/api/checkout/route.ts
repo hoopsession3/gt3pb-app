@@ -8,6 +8,7 @@ import { orderIdForToday } from "@/lib/orderNumber";
 import { squarePriceMap } from "@/lib/squareCatalog";
 import { priceCups, priceChangedWords, tipCentsFor } from "@/lib/cupPrice";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { TablesInsert } from "@/lib/database.types";
 import { callerFromRequest, SIGN_IN_UNCHECKED } from "@/lib/apiAuth";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { raiseAlert } from "@/lib/serverAlerts";
@@ -235,7 +236,7 @@ async function post(req: Request) {
   // ready_from or tip_cents went in without them (lib/schemaSkew.writeAcrossSkew) — both have long been in production, so
   // the only thing left that could trip that path was a stale schema cache, and then a paid order lost its tip with
   // nothing said. The row goes in whole or not at all; a refusal is the checkout's own (it alerts and answers).
-  const insertOrder = (row: Record<string, unknown>) =>
+  const insertOrder = (row: TablesInsert<"orders">) =>
     supabaseAdmin!.from("orders").insert(promise.readyFrom ? { ...row, ready_from: promise.readyFrom } : row);
 
   // Pay-at-pickup is the owner's dial (live_status.pay_at_pickup, 0147) — server-authoritative now

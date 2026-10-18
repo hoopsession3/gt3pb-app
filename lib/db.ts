@@ -173,10 +173,10 @@ export interface EventRow {
   county?: string | null;
   archived_at?: string | null; // set when filed out of the operator's active workspace (0032)
   vendor_id?: string | null;   // linked canonical vendor/venue (0034)
-  category?: string | null;    // company-calendar bucket: event | admin | ops (0065)
-  plan_days?: number | null;   // how many days the day-planner / run-of-show spans (0067)
-  stage?: string | null;       // lifecycle: lead | confirmed | prep | live | done (0075)
-  market?: string | null;      // the city it is in (0275)
+  category?: string;           // company-calendar bucket: event | admin | ops (0065) — never null in the table
+  plan_days?: number;          // how many days the day-planner / run-of-show spans (0067) — never null
+  stage?: string;              // lifecycle: lead | confirmed | prep | live | done (0075) — never null
+  market?: string;             // the city it is in (0275) — never null
 }
 
 // Per-event execution checklist (0025) — pack-list items + ad-hoc tasks, role-scoped.

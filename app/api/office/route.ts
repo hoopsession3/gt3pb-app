@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { TablesInsert } from "@/lib/database.types";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { OFFICE, officeQuote, nextMondayKey, mondayLabel, windowHours } from "@/lib/office";
@@ -110,7 +111,7 @@ async function post(req: Request) {
   let businessId: string | null = null;
   if (standing) {
     const companyNorm = company.replace(/\s+/g, " ");
-    const acctRow: Record<string, unknown> = {
+    const acctRow: TablesInsert<"business_accounts"> = {
       user_id: userId, company: companyNorm, contact_name: contact || null, contact_phone: phone || null,
       contact_email: userEmail, address_street: street, address_city: city, address_zip: zip,
       headcount, billing_terms: billing, standing_active: true, standing_gallons: q.gallons, market,
@@ -144,7 +145,7 @@ async function post(req: Request) {
     orderId = first.order_id; dateKey = first.delivery_date; windowCode = first.delivery_window; totalCents = first.total_cents; cutoffAt = first.cutoff_at;
   }
   if (!orderId) {
-    const row: Record<string, unknown> = {
+    const row: TablesInsert<"business_orders"> = {
       business_id: businessId, user_id: userId, company,
       contact_name: contact || null, contact_phone: phone || null,
       address_street: street, address_city: city, address_zip: zip,

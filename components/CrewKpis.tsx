@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import type { Database } from "@/lib/database.types";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection, type OpSection } from "@/components/OperatorNav";
 import { goPlanTab, isPlanTab } from "@/lib/planNav";
@@ -82,7 +83,8 @@ function KpiStrip({ tiles, label }: { tiles: KpiTile[]; label: string }) {
   );
 }
 
-const head = (db: Sb, table: string) => db.from(table).select("id", { count: "exact", head: true });
+// A count of a table's rows, nothing read: the table named at each tile, so its filters are checked against its columns.
+const head = <T extends keyof Database["public"]["Tables"]>(db: Sb, table: T) => db.from(table).select("id", { count: "exact", head: true });
 
 // ── Team ── who's on the roster, at a glance
 const TEAM_TILES: KpiTile[] = [

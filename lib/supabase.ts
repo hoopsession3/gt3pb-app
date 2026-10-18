@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { answerInFragmentOnly } from "./linkSignin";
 import { dbDeadlineFor, withDeadline } from "./deadline";
 import { reportFailingAnswers } from "./failureReport";
+import type { Database } from "./database.types";
 
 // Browser Supabase client. Returns null until the env keys are set, so importing
 // this never crashes the build/UI — callers gate on `supabaseEnabled`.
@@ -11,8 +12,8 @@ const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export const supabaseEnabled = Boolean(url && anon);
 
-export const supabase: SupabaseClient | null = supabaseEnabled
-  ? createClient(url as string, anon as string, {
+export const supabase: SupabaseClient<Database> | null = supabaseEnabled
+  ? createClient<Database>(url as string, anon as string, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,

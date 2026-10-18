@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { TablesInsert } from "@/lib/database.types";
 import { callerFromRequest, SIGN_IN_UNCHECKED } from "@/lib/apiAuth";
 import { cardTryRefusal, callerAddress } from "@/lib/cardGuard";
 import { raiseAlert } from "@/lib/serverAlerts";
@@ -213,7 +214,7 @@ async function post(req: Request) {
       // too (0397); none named, the database links the day's first.
       const row = { user_id: user.id, customer_id: customerId, name, phone, size, glass, mix, total_cents: amount, paid, payment_id: paymentId, idempotency_key: idemKey, drop_date: dropDate, stop_id: atStop?.id ?? null, benefit_code: acceptedCode(benefits, (body as { code?: string }).code) };
       let made: { id: string } | null = null;
-      const insertPack = async (r: Record<string, unknown>) => {
+      const insertPack = async (r: TablesInsert<"drop_orders">) => {
         const res = await db.from("drop_orders").insert(r).select("id").single();
         made = (res.data as { id: string } | null) ?? null;
         return res;
