@@ -20,6 +20,11 @@ import { Segmented } from "@/components/controls";
 import { signOutHere } from "@/lib/pushRelease";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 import { APP_BUILD, isNativeApp } from "@/lib/native";
+// Two-step sign-in, an owner's or admin's (R28, 0433), rides in this sheet's own chunk, which loads when the sheet is
+// opened (components/AccountPill): a lazy chunk of its own here regrouped every route's first download into one more
+// chunk (+0.92 KB gzipped on every route, measured — the same modules, split differently), for a few kilobytes of an
+// already-lazy sheet.
+import TwoStepSetup from "./TwoStepSetup";
 
 // THE account popout — a MENU, reachable from the avatar on every page.
 //
@@ -148,7 +153,7 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   onEditProfile: () => void;
   onShowCard: () => void;
 }) {
-  const { user, profile, profileStatus, signOut, refreshProfile } = useAuth();
+  const { user, profile, profileStatus, signOut, refreshProfile, leader } = useAuth();
   const { toast, reorder, nameOf } = useApp();
   const router = useRouter();
   const pathname = usePathname();
@@ -181,9 +186,19 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
   // privacy and Help open in place the same way, with a way back.
   const [deleting, setDeleting] = useState(false);
   const [view, setView] = useState<"menu" | "settings" | "help">("menu");
+  // Two-step sign-in (R28 — the 10/10 audit, security F6): an owner's or admin's, its own view under this header, with a
+  // way back to Settings & privacy.
+  const [twoStep, setTwoStep] = useState(false);
   // Focus follows the swap (the tapped row is gone from the page): a sub-view lands on its way back, and the way back
   // lands on the row that opened it — for VoiceOver and a keyboard, as a pushed screen does.
   const backRef = useRef<HTMLButtonElement>(null);
+  // Into two-step, focus is on its way back; back from it, on its row again (as Back from a view lands on the row that
+  // opened it).
+  const wasTwoStep = useRef(false);
+  useEffect(() => {
+    if (twoStep) { wasTwoStep.current = true; backRef.current?.focus(); return; }
+    if (wasTwoStep.current) { wasTwoStep.current = false; document.querySelector<HTMLElement>('[data-acs-row="two-step"]')?.focus(); }
+  }, [twoStep]);
   const cameFrom = useRef<string | null>(null);
   useEffect(() => {
     if (view === "menu") { if (cameFrom.current) document.querySelector<HTMLElement>(`[data-acs-row="${cameFrom.current}"]`)?.focus(); }
@@ -236,6 +251,15 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
     );
   }
 
+  if (twoStep) {
+    return (
+      <Sheet open onClose={onClose} label="Two-step sign-in" header={head("Two-step sign-in")} className="acs-sheet">
+        <button ref={backRef} type="button" className="btn-ter mb-1" aria-label="Back to Settings & privacy" onClick={() => setTwoStep(false)}><span aria-hidden="true">‹</span> Settings &amp; privacy</button>
+        <TwoStepSetup />
+      </Sheet>
+    );
+  }
+
   if (view !== "menu") {
     const back = <button ref={backRef} type="button" className="btn-ter mb-1" aria-label="Back to Your account" onClick={() => setView("menu")}><span aria-hidden="true">‹</span> Your account</button>;
     return (
@@ -256,6 +280,9 @@ export default function AccountSheet({ onClose, onEditProfile, onShowCard }: {
               : <Row title="Link Sign in with Apple" sub="Continue with Apple opens this account" onClick={() => open("gt3-link-apple")} />)}
             {/* App Store Review Guideline 5.1.1(v): deleting the account is in the account — Settings & privacy, the
                 second level, on the web and in the app alike. */}
+            {/* An owner's or admin's second step (R28, 0433): an authenticator's code for the money, the books, customers
+                and the crew's roles. */}
+            {staff && leader && <Row title="Two-step sign-in" sub="An authenticator's code for owner and admin tools" row="two-step" onClick={() => setTwoStep(true)} />}
             <Row title="Delete account" sub="Your profile and details, for good" onClick={() => setDeleting(true)} />
           </div>
         ) : (

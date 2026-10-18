@@ -12493,10 +12493,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{profile\?\.role === "owner" && <ChiefOfStaff \/>\}/.test(cmd) && (crew.match(/<ChiefOfStaff \/>/g) || []).length === 1 && !/isOwner && <ChiefOfStaff/.test(crew));
   const chief = code(rd("app/api/agents/chief/route.ts")), auth = rd("lib/apiAuth.ts");
   const ownerFns = fs.readdirSync(path.join(__dirname, "..", "supabase/migrations")).filter((f) => /create or replace function public\.is_owner\(\)/.test(rd(`supabase/migrations/${f}`)));
-  ok("briefing: …which is exactly the route's check — ownerFromRequest first, is_owner(), and is_owner() is profiles.role = 'owner' (0023, never redefined)",
+  // R28 (0433): is_owner() is 0023's and two-step's — an owner with an authenticator is an owner on a sign-in that gave its
+  // code. The card follows: the profile it reads is drawn as an event manager's while that code waits (lib/roles
+  // drawnWhileCodeWaits), and a sign-in that owes it shows the code's prompt, not the console.
+  ok("briefing: …which is exactly the route's check — ownerFromRequest first, is_owner(), and is_owner() is profiles.role = 'owner' (0023) on a sign-in two-step is satisfied with (0433, its last definition)",
     /async function post\(req: Request\) \{\s*if \(!\(await ownerFromRequest\(req\)\)\) return/.test(chief) && !/staffFromRequest|leadershipFromRequest/.test(chief)
       && /export async function ownerFromRequest\(req: Request\): Promise<boolean> \{\s*const r = await askAsCaller\(req, "is_owner"\);/.test(auth) && /r = await sb\.rpc\(fn\);/.test(auth)
-      && ownerFns.join() === "0023_roles.sql" && /select coalesce\(\(select role = 'owner' from public\.profiles where id = auth\.uid\(\)\), false\);/.test(rd("supabase/migrations/0023_roles.sql")), ownerFns);
+      && ownerFns.join() === "0023_roles.sql,0433_two_step_for_the_owners_and_admins.sql" && /select coalesce\(\(select role = 'owner' from public\.profiles where id = auth\.uid\(\)\), false\);/.test(rd("supabase/migrations/0023_roles.sql"))
+      && /select coalesce\(\(select role = 'owner' from public\.profiles where id = auth\.uid\(\)\), false\) and public\.two_step_ok\(\);/.test(rd("supabase/migrations/0433_two_step_for_the_owners_and_admins.sql"))
+      && /const drawn = useMemo\(\(\) => drawnWhileCodeWaits\(profile, waitingForCode\), \[profile, waitingForCode\]\);/.test(rd("components/AuthProvider.tsx")), ownerFns);
   ok("briefing: the card still says why if the server refuses anyway (a role changed while the page was open)",
     /if \(r\.status === 401 \|\| r\.status === 403\) setErr\("The Chief of Staff briefing is owner-only\. Ask an owner to run it for you\."\);/.test(rd("components/ChiefOfStaff.tsx")));
 }
@@ -12603,8 +12608,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const isAdminDefs = fs.readdirSync(path.join(__dirname, "..", "supabase/migrations")).filter((f) => /create or replace function public\.is_admin\(\)/.test(rd(`supabase/migrations/${f}`)));
   const lastDef = (fn) => fs.readdirSync(path.join(__dirname, "..", "supabase/migrations")).sort().filter((f) => new RegExp(`create or replace function public\\.${fn}\\(`).test(rd(`supabase/migrations/${f}`))).pop();
   const guarded = (fn) => { const f = lastDef(fn); const body = (noSql(rd(`supabase/migrations/${f}`)).split(new RegExp(`create or replace function public\\.${fn}\\(`))[1] || "").split("$$;")[0]; return /if not public\.is_admin\(\) then raise exception 'not authorized'; end if;/.test(body); };
-  ok("roles: is_admin() is owner or admin, or the legacy flag (0035, last defined there) — and go live, go offline, the map dot and make it live each ask it",
-    isAdminDefs.sort().pop() === "0035_admin_guard_fix.sql" && /where id = auth\.uid\(\) and \(role in \('admin','owner'\) or is_admin = true\)/.test(is035)
+  ok("roles: is_admin() is owner or admin, or the legacy flag (0035), on a sign-in two-step is satisfied with (0433, last defined there) — and go live, go offline, the map dot and make it live each ask it",
+    [...isAdminDefs].sort().pop() === "0433_two_step_for_the_owners_and_admins.sql" && /where id = auth\.uid\(\) and \(role in \('admin','owner'\) or is_admin = true\)/.test(is035)
+      && /where id = auth\.uid\(\) and \(role in \('admin','owner'\) or is_admin = true\)\s*\) and public\.two_step_ok\(\);/.test(rd("supabase/migrations/0433_two_step_for_the_owners_and_admins.sql"))
       && ["admin_set_live", "admin_set_offline", "admin_set_truck_pos", "admin_set_event_live"].every(guarded)
       && lastDef("admin_set_live") === "0124_set_live_where.sql" && lastDef("admin_set_event_live") === "0024_event_object.sql",
     { isAdminDefs, live: lastDef("admin_set_live"), offline: lastDef("admin_set_offline"), pos: lastDef("admin_set_truck_pos") });
@@ -14785,8 +14791,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R7b guest bar: Canceled until the order's page has been seen, a day at most",
     /const CANCELED_SAID_MS = 24 \* 60 \* 60 \* 1000;/.test(rd("components/GuestOrderBar.tsx")) && /if \(o\?\.recentlyCanceled && !voidSeen\) \{/.test(rd("components/GuestOrderBar.tsx"))
     && /useEffect\(\(\) => \{ if \(voided && !shared\) markVoidSeen\(t\); \}, \[voided, t, shared\]\);/.test(rd("app/order/page.tsx")));
-  ok("R7b access: the account sheet and the duplicate-order sheet are named; Ask us is a log; Bold and Roomy reach sheets and bars",
-    (rd("components/AccountSheet.tsx").match(/<Sheet open onClose=\{onClose\} (dismissible=\{!deleteBusy\} )?label=/g) || []).length === 4 && /label="Already on the books"/.test(of)
+  ok("R7b access: the account sheet and the duplicate-order sheet are named — each of the account sheet's five views, two-step's (R28) among them; Ask us is a log; Bold and Roomy reach sheets and bars",
+    (rd("components/AccountSheet.tsx").match(/<Sheet open onClose=\{onClose\} (dismissible=\{!deleteBusy\} )?label=/g) || []).length === 5 && /label="Already on the books"/.test(of)
     && /<div role="log" aria-live="polite" aria-label="Conversation">/.test(rd("components/Concierge.tsx"))
     && /:is\(\.app\.rd-bold,html\[data-phone-bold\] \.app\) :is\(\.body,\.sheet2,\.cartbar,\.toast,\.orderbar-wrap\)\{font-weight:600\}/.test(rd("app/globals.css")));
   // ── the re-audit of R7b (2026-10-16): two fresh reviews of R7b's own diff, every finding fixed and pinned here ──

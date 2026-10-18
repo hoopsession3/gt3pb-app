@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { markSigninAsked, takeSigninAsked } from "@/lib/linkSignin";
 import { isNativeApp, nativePlatform } from "@/lib/native";
 import { claimsOf, provedWithin, PROVED_FOR_S } from "@/lib/freshProof";
+// The provider, imported here as well as by the sheet that opens this (R28, measured): without it, every route's shared
+// download regrouped into one chunk more (+0.92 KB gzipped) — the same modules, split differently.
 import { useAuth } from "./AuthProvider";
 import Said from "./Said";
 

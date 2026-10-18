@@ -466,6 +466,15 @@ function ownerSession() {
   };
 }
 const SESSION = ownerSession();
+// THE OWNER, AGAIN, WITH CLAIMS OF ITS OWN (R28): a session for the same owner whose token says more — the second step
+// (aal) and how they signed in (amr) — signed in base64url as a real one is, so Supabase's client reads its claims.
+const ownersOwn = new Set();
+function ownerSessionWith(claims, user = OWNER) {
+  const exp = Math.floor(Date.now() / 1000) + 86400;
+  const token = `${b64url({ alg: "HS256", typ: "JWT" })}.${b64url({ sub: OWNER_ID, role: "authenticated", aud: "authenticated", exp, email: OWNER.email, ...claims })}.${b64url({ smoke: "not a signature" })}`;
+  ownersOwn.add(`Bearer ${token}`);
+  return { access_token: token, token_type: "bearer", expires_in: 86400, expires_at: exp, refresh_token: "smoke-refresh-not-a-token", user };
+}
 
 // `seed` gives a table rows of its own (block 7 needs an event, an error and an offer letter on screen);
 // every other table stays empty.
@@ -473,7 +482,8 @@ function standIn(writes, seed = {}) {
   return (route) => {
     const req = route.request();
     const url = new URL(req.url());
-    const asOwner = (req.headers().authorization ?? "") === `Bearer ${SESSION.access_token}`;
+    // The owner's session — or another of the owner's own (R28: the same owner on a sign-in with or without its code).
+    const asOwner = (req.headers().authorization ?? "") === `Bearer ${SESSION.access_token}` || ownersOwn.has(req.headers().authorization ?? "");
     const answer = (status, body, extra = {}) => route.fulfill({
       status,
       headers: { "content-type": "application/json", "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, PATCH, DELETE, HEAD, OPTIONS", "access-control-expose-headers": "content-range", ...extra },
@@ -576,7 +586,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   // `owner` signs the made-up owner in; `theme` sets the crew's look; `guide` leaves the first-run guide
   // unseen; `seed` puts rows in the stand-in's tables; `shell: false` opens the app's pages in a plain
   // browser — no native side at all, the test run lib/native's isNativeApp() tells apart.
-  async function phoneContext(phone, { owner = false, theme = null, guide = false, seed = {}, shell = true } = {}) {
+  async function phoneContext(phone, { owner = false, theme = null, guide = false, seed = {}, shell = true, session = SESSION } = {}) {
     // A screen that is not a phone (5i: a laptop, an iPad in a browser) is opened as itself — no iPhone, and touch only
     // if it has it. An iPad in the app (1b) is the app's: its own web view's words, a finger, 2×.
     const ctx = await browser.newContext({
@@ -601,7 +611,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
           if (look) localStorage.setItem("gt3-theme", look);
           if (seenGuide) localStorage.setItem("gt3-guide-seen", "1");
         } catch { /* storage refused */ }
-      }, [`sb-${BACKEND_HOST.split(".")[0]}-auth-token`, SESSION, theme, !guide]);
+      }, [`sb-${BACKEND_HOST.split(".")[0]}-auth-token`, session, theme, !guide]);
     }
     await ctx.route((url) => url.origin === API_ORIGIN, async (route) => {
       const req = route.request();
@@ -2188,6 +2198,137 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("delete account: Done takes the signed-out phone home", ["/", "/menu"].includes(new URL(page.url()).pathname), page.url());
     ok("delete account: no errors (said in full)", errors.length === 0, errors.join(" | "));
     await ctx.close();
+  }
+
+  // ── 6h · TWO-STEP FOR THE OWNERS AND ADMINS (R28, 2026-10-18 — the 10/10 audit, security F6; 0433) ──
+  // An owner with an authenticator, on a sign-in that hasn't given its code, opens the console: the code is asked for
+  // before the console draws, checked against the account's authenticator (Supabase's challenge, then verify), and the
+  // console opens. Then an owner with none sets one up in Settings & privacy: the QR code and the key, the first code,
+  // and it is on. Supabase's MFA is stood in: the same owner's sessions with and without the code, its factors, and what
+  // each call was asked.
+  {
+    const FACTOR = { id: "f0000000-0000-4000-8000-0000000000f1", friendly_name: "GT3", factor_type: "totp", status: "verified", created_at: "2026-10-18T00:00:00Z", updated_at: "2026-10-18T00:00:00Z" };
+    const withFactor = { ...OWNER, factors: [FACTOR] };
+    const now = Math.floor(Date.now() / 1000);
+    const aal1 = ownerSessionWith({ aal: "aal1", amr: [{ method: "otp", timestamp: now - 3600 }] }, withFactor);
+    const aal2 = ownerSessionWith({ aal: "aal2", amr: [{ method: "totp", timestamp: now }, { method: "otp", timestamp: now - 3600 }] }, withFactor);
+    const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS" };
+    const mfaStandIn = async (page, user, { enrolled = true } = {}) => {
+      const sent = { challenge: 0, verify: null, enroll: null, factorVerified: null };
+      let me = user;
+      await page.route((u) => u.host === BACKEND_HOST && u.pathname.startsWith("/auth/v1/"), async (route) => {
+        const req = route.request(), u = new URL(req.url());
+        if (req.method() === "OPTIONS") return route.fallback();
+        const json = (body) => route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json" }, body: JSON.stringify(body) });
+        if (u.pathname === "/auth/v1/user") return json(me);
+        if (u.pathname === "/auth/v1/factors" && req.method() === "POST") {
+          sent.enroll = req.postDataJSON();
+          me = { ...me, factors: [...(me.factors ?? []), { ...FACTOR, id: "f0000000-0000-4000-8000-0000000000f2", status: "unverified" }] };
+          return json({ id: "f0000000-0000-4000-8000-0000000000f2", type: "totp", friendly_name: sent.enroll?.friendly_name,
+            totp: { qr_code: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><path d="M0 0h3v3H0zM5 0h3v3H5zM0 5h3v3H0z"/></svg>', secret: "JBSWY3DPEHPK3PXP", uri: "otpauth://totp/GT3%20Performance%20Bar:owner%40smoke.test?secret=JBSWY3DPEHPK3PXP&issuer=GT3%20Performance%20Bar" } });
+        }
+        const m = u.pathname.match(/^\/auth\/v1\/factors\/([0-9a-f-]+)\/(challenge|verify)$/);
+        if (m && m[2] === "challenge") { sent.challenge++; return json({ id: "c0000000-0000-4000-8000-0000000000c1", type: "totp", expires_at: Math.floor(Date.now() / 1000) + 300 }); }
+        if (m && m[2] === "verify") {
+          sent.verify = { factor: m[1], ...req.postDataJSON() };
+          me = { ...me, factors: (me.factors ?? []).map((f) => (f.id === m[1] ? { ...f, status: "verified" } : f)) };
+          sent.factorVerified = m[1];
+          return json({ ...aal2, user: me });
+        }
+        return route.fallback();
+      });
+      void enrolled;
+      return sent;
+    };
+
+    // 1 — the code, asked as the console opens
+    const ctx = await phoneContext(MAIN, { owner: true, session: aal1 });
+    const page = await ctx.newPage();
+    await insetsOn(page, MAIN.top, MAIN.bottom);
+    const errors = watch(page);
+    const sent = await mfaStandIn(page, withFactor);
+    await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
+    const asked = await page.waitForSelector("#ts-code", { timeout: 8000 }).then(() => true, () => false);
+    const drawnFirst = await page.locator("section.screen.admin").count();
+    const focused = await page.evaluate(() => document.activeElement?.id ?? null);
+    if (SHOTS && asked) await page.screenshot({ path: shotPath(MAIN, "two-step--code") }).catch(() => {});
+    ok("two-step: an owner with an authenticator, on a sign-in without its code, is asked for it before the console draws — the caret in the field",
+      asked && drawnFirst === 0 && focused === "ts-code", JSON.stringify({ asked, drawnFirst, focused }));
+    await page.fill("#ts-code", "123456").catch(() => {});
+    await page.getByRole("button", { name: "Continue" }).click().catch(() => {});
+    const opened = await page.waitForSelector("section.screen.admin", { timeout: 8000 }).then(() => true, () => false);
+    const stored = await page.evaluate((key) => { try { return JSON.parse(localStorage.getItem(key) ?? "null")?.access_token ?? null; } catch { return null; } }, `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
+    ok("two-step: the code is checked with the account's authenticator — challenged, then verified with the six digits — and the console opens on a sign-in that gave it",
+      opened && sent.challenge === 1 && sent.verify?.factor === FACTOR.id && sent.verify?.code === "123456" && stored === aal2.access_token,
+      JSON.stringify({ opened, challenge: sent.challenge, verify: sent.verify, stored: stored === aal2.access_token }));
+    ok("two-step: no errors (the code)", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+
+    // 2 — "Not now": the console with the crew's tools — and the whole app with it: ⌘K and the bar are drawn outside the
+    // console (components/AppShell), and an owner's panel the database answers empty would read as an all-clear — and a
+    // line that asks again; the code given, the owner's tools are back
+    const ctx2 = await phoneContext(MAIN, { owner: true, session: aal1 });
+    const page2 = await ctx2.newPage();
+    const errors2 = watch(page2);
+    await mfaStandIn(page2, withFactor);
+    const jumpTo = async () => {
+      await page2.evaluate(() => window.dispatchEvent(new Event("gt3-open-cmdk")));
+      await page2.waitForSelector("#cmdk-list", { timeout: 5000 }).catch(() => {});
+      const offered = await page2.$$eval('#cmdk-list [role="option"] span', (els) => els.map((e) => e.textContent.trim())).catch(() => []);
+      await page2.keyboard.press("Escape").catch(() => {});
+      await page2.waitForSelector("#cmdk-list", { state: "detached", timeout: 3000 }).catch(() => {});
+      return offered;
+    };
+    await page2.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
+    await page2.waitForSelector("#ts-code", { timeout: 8000 }).catch(() => {});
+    await page2.getByRole("button", { name: /^Not now/ }).click().catch(() => {});
+    const later = await page2.waitForSelector("section.screen.admin", { timeout: 8000 }).then(() => true, () => false);
+    const line = await page2.getByText("The owner and admin tools are waiting for your two-step code.").count();
+    const waiting = await jumpTo();
+    ok("two-step: while the code waits, the app draws the crew's tools — ⌘K offers My Day, and no Money, Catalog, Customers or Team (each would read empty)",
+      waiting.includes("My Day") && !["Money", "Catalog", "Customers", "Team"].some((s) => waiting.includes(s)), JSON.stringify(waiting));
+    await page2.getByRole("button", { name: "Enter it" }).click().catch(() => {});
+    const again = await page2.waitForSelector("#ts-code", { timeout: 5000 }).then(() => true, () => false);
+    ok("two-step: Not now opens the console with a line that asks again, and Enter it asks again", later && line === 1 && again, JSON.stringify({ later, line, again }));
+    await page2.fill("#ts-code", "123456").catch(() => {});
+    await page2.getByRole("button", { name: "Continue" }).click().catch(() => {});
+    await page2.waitForSelector("section.screen.admin", { timeout: 8000 }).catch(() => {});
+    const given = await jumpTo();
+    ok("two-step: …and once it is given, Money and the owner's tools are offered again", given.includes("Money") && given.includes("Team"), JSON.stringify(given));
+    ok("two-step: no errors (Not now)", errors2.length === 0, errors2.join(" | "));
+    await ctx2.close();
+
+    // 3 — setting one up, in Settings & privacy
+    const plain = ownerSessionWith({ aal: "aal1", amr: [{ method: "otp", timestamp: now - 60 }] }, OWNER);
+    const ctx3 = await phoneContext(MAIN, { owner: true, session: plain });
+    const page3 = await ctx3.newPage();
+    await insetsOn(page3, MAIN.top, MAIN.bottom);
+    const errors3 = watch(page3);
+    const sent3 = await mfaStandIn(page3, OWNER, { enrolled: false });
+    await page3.goto(`${BASE}/book`, { waitUntil: "load" });
+    await page3.waitForTimeout(400); await page3.evaluate(SETTLE);
+    await page3.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
+    const settings3 = page3.getByRole("button", { name: /^Settings & privacy/ }).first();
+    if (await settings3.waitFor({ timeout: 5000 }).then(() => true, () => false)) await settings3.click();
+    const row = page3.getByRole("button", { name: /^Two-step sign-in/ }).first();
+    const hasRow = await row.waitFor({ timeout: 5000 }).then(() => true, () => false);
+    if (hasRow) await row.click();
+    const off = await page3.waitForSelector("text=Two-step sign-in is off.", { timeout: 8000 }).then(() => true, () => false);
+    await page3.getByRole("button", { name: "Set up two-step sign-in" }).click().catch(() => {});
+    const qr = await page3.waitForSelector('img[alt="A QR code for your authenticator app"]', { timeout: 8000 }).then(() => true, () => false);
+    const key = await page3.getByText("JBSW Y3DP EHPK 3PXP").count();
+    const link = await page3.locator('a[href^="otpauth://"]').count();
+    if (SHOTS && qr) await page3.screenshot({ path: shotPath(MAIN, "two-step--setup") }).catch(() => {});
+    await page3.fill("#ts-code", "654321").catch(() => {});
+    await page3.getByRole("button", { name: "Turn it on" }).click().catch(() => {});
+    const on = await page3.waitForSelector("text=Two-step sign-in is on.", { timeout: 8000 }).then(() => true, () => false);
+    ok("two-step: Settings & privacy has it for an owner — off, then set up: the QR code, the key in fours, and the iPhone's own link to an authenticator",
+      hasRow && off && qr && key === 1 && link === 1 && sent3.enroll?.factor_type === "totp" && sent3.enroll?.issuer === "GT3 Performance Bar",
+      JSON.stringify({ hasRow, off, qr, key, link, enroll: sent3.enroll }));
+    ok("two-step: its first code turns it on — that authenticator, those digits — and it says so",
+      on && sent3.verify?.factor === "f0000000-0000-4000-8000-0000000000f2" && sent3.verify?.code === "654321", JSON.stringify({ on, verify: sent3.verify }));
+    ok("two-step: no errors (setting it up)", errors3.length === 0, errors3.join(" | "));
+    await ctx3.close();
   }
 
   // ── 6g · MONEY ANSWERS THREE QUESTIONS (2026-10-15, release 3 of the Plan & Money audit; Ryan: "Yes, build it", "Yes,

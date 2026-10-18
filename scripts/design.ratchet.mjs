@@ -735,8 +735,8 @@ export const WEIGHT = {
   "/3mpire":                   { js: 288, css: 90, chunks: 15 },
   "/craft":                    { js: 273, css: 90, chunks: 15 },
   "/book":                     { js: 274, css: 90, chunks: 15 },
-  "/academy":                  { js: 326, css: 90, chunks: 16 },
-  "/office":                   { js: 282, css: 90, chunks: 15 },
+  "/academy":                  { js: 327, css: 90, chunks: 16 },
+  "/office":                   { js: 283, css: 90, chunks: 15 },
   "/scan":                     { js: 274, css: 90, chunks: 15 },
   "/architecture":             { js: 283, css: 90, chunks: 15 },
   "/playbook":                 { js: 281, css: 90, chunks: 15 },
@@ -886,6 +886,14 @@ export const WEIGHT = {
 // sign-in that came of it (takeSigninAsked; API F23). Crossed the rounding line upward on / (279.34 → 279.57 KB),
 // /delivery (295.27 → 295.50), /3mpire (287.39 → 287.62), /primal (273.44 → 273.67), /privacy and /terms (269.32 →
 // 269.55), recorded.
+// 2026-10-18 (R28 of the 10/10 audit): every route's script +156 to +159 bytes (gzip). Built R27 (88ee11e) and this commit
+// and gzipped what each route's HTML references (/privacy 276 104 → 276 261, / 286 364 → 286 520, /academy 334 275 →
+// 334 432). In the shell, with the sign-in's provider — every screen reads the profile from it, so it cannot wait for a
+// lazy import: an owner's or admin's "Not now" to their two-step code, held there, draws them as the crew while it holds
+// (components/AuthProvider, lib/codeWait; security F6). Crossed the rounding line upward on /academy (326.44 → 326.59 KB)
+// and /office (282.48 → 282.63), recorded. Not the first cut, measured too: the two-step setup as a lazy chunk of its own
+// from the account sheet, and the delete step without its import of that provider, each regrouped every route's shared
+// download into one chunk more (+0.92 KB, the same modules split differently) — both undone, and said where they are.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

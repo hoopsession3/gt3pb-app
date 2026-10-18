@@ -10,6 +10,7 @@ import { keepProfile, keptProfile, offlineFailure, storedSessionUser } from "@/l
 import { setQueueOwner } from "@/components/offline";
 import { writeViewerHint } from "@/lib/viewerHint";
 import type { Role } from "@/lib/roles";
+import { drawnWhileCodeWaits, leaderAsStored } from "@/lib/codeWait";
 import { publicOrigin } from "@/lib/native";
 import { takeReturn } from "@/lib/returnTo";
 import { markSigninAsked, takeSigninAsked, OPENED_WITH_SESSION } from "@/lib/linkSignin";
@@ -111,6 +112,11 @@ interface AuthCtx {
   // Whose profile to read again: the signed-in person's, or — right after a sign-in this provider has not heard about
   // yet (components/AppleSignIn) — the one named.
   refreshProfile: (uid?: string) => Promise<void>;
+  // TWO-STEP (R28, 0433): `profile` is drawn as an event manager's while an owner's or admin's code waits ("Not now" —
+  // lib/codeWait drawnWhileCodeWaits); `leader` is the role as stored, for the ask itself and Settings & privacy's row.
+  leader: boolean;
+  waitingForCode: boolean;
+  waitForCode: (on: boolean) => void;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -130,6 +136,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [linkNotice, setLinkNotice] = useState<string | null>(null);
   const linkSeen = useRef(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  // Whose two-step code waits ("Not now", R28): a new person signed in, or a code given anywhere, ends it (below).
+  const [codeWait, setCodeWait] = useState<string | null>(null);
   // WHY THIS EXISTS. `profile === null` meant three different things — not fetched yet, the fetch
   // failed, and this person genuinely has no profile row — and roleOf(null) returns "member". So
   // every staff gate in the app read all three as "you are a customer". app/crew renders
@@ -303,6 +311,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (heldFor && (u || event === "SIGNED_OUT")) { heldFor = null; if (retry) clearInterval(retry); retry = undefined; }
       const same = !!u && lastUid.current === u.id;
       lastUid.current = u?.id ?? null;
+      if (!same || event === "MFA_CHALLENGE_VERIFIED") setCodeWait(null);   // R28: a new sign-in asks again; a code given is given
       // The same person, unchanged, keeps the same object (R11): every effect keyed on it ran again on every return.
       setUser((prev) => (prev && u && prev.id === u.id && JSON.stringify(prev) === JSON.stringify(u) ? prev : u));
       writeViewerHint(!!u);
@@ -514,7 +523,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   // Memoize the context value so incidental provider re-renders don't re-render the whole admin
   // subtree (which churns the Studio realtime channel). supabaseEnabled is a module constant.
-  const value = useMemo(() => ({ ready, enabled: supabaseEnabled, user, profile, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, resendConfirm, updatePassword, signOut, refreshProfile }), [ready, user, profile, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, resendConfirm, updatePassword, signOut, refreshProfile]);
+  const leader = leaderAsStored(profile);
+  const waitingForCode = leader && !!user && codeWait === user.id;
+  const drawn = useMemo(() => drawnWhileCodeWaits(profile, waitingForCode), [profile, waitingForCode]);
+  const waitForCode = useCallback((on: boolean) => setCodeWait(on ? user?.id ?? null : null), [user]);
+  const value = useMemo(() => ({ ready, enabled: supabaseEnabled, user, profile: drawn, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, resendConfirm, updatePassword, signOut, refreshProfile, leader, waitingForCode, waitForCode }), [ready, user, drawn, profileStatus, sendCode, verifyCode, signInWithUrl, signInWithPassword, signUp, resetPassword, resendConfirm, updatePassword, signOut, refreshProfile, leader, waitingForCode, waitForCode]);
 
   return (
     <Ctx.Provider value={value}>

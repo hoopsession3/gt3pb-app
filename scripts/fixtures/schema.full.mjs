@@ -49,6 +49,11 @@ export const SUPABASE_STANDINS = `
     created_at timestamptz default now());
   create table auth.refresh_tokens (id bigserial primary key, token text, user_id varchar(255), revoked boolean default false,
     session_id uuid references auth.sessions(id) on delete cascade, created_at timestamptz default now());
+  -- An account's second steps as GoTrue keeps them (0433 asks for a verified one): an authenticator app's, set up
+  -- ('unverified') and then proven with its first code ('verified'). GoTrue's own columns are enums; text reads the same.
+  create table auth.mfa_factors (id uuid primary key default gen_random_uuid(), user_id uuid not null references auth.users(id) on delete cascade,
+    friendly_name text, factor_type text not null default 'totp', status text not null default 'unverified',
+    created_at timestamptz default now(), updated_at timestamptz default now());
   -- pgcrypto in extensions, as Supabase keeps it (0423's set_password_by_hand: a bcrypt hash GoTrue reads).
   create extension if not exists pgcrypto schema extensions;
   create or replace function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;

@@ -6,12 +6,15 @@
 //
 // THE MODEL. Production's own text wherever it decides anything:
 //   · is_staff(), is_admin(), current_tenant() and effective_tenant() are read out of the migrations — the LAST file
-//     that defines each (printed below), as production holds it — and run as written;
+//     that defines each (printed below), as production holds it — and run as written; and two_step_ok(), which is_admin()
+//     asks since 0433 (R28), from its file too;
 //   · public.orders is 0005's table, executed from its file, with the tenant_id 0040 gives it and 0018's
 //     status_changed_at and trigger (executed from its file);
 //   · the function before 0368 is 0023's, cut from its file;
 //   · Supabase's default grants: a new function in public is executable by anon, authenticated and service_role.
-// STUBBED: auth.uid() reads a setting (test.uid), as every db test here does; profiles holds only role, is_admin and
+// STUBBED: auth.uid() reads a setting (test.uid), as every db test here does, and auth.jwt() an empty claim set (an aal1
+// sign-in); auth.mfa_factors and two_step_settings are GoTrue's and 0433's shapes, empty — nobody here has an
+// authenticator, and no business requires one, so two_step_ok() says yes as production's does for them; profiles holds only role, is_admin and
 // tenant_id; tenants only ids; changelog and the migration ledger are the shapes the other db tests use; the realtime
 // publication is empty (0005 adds orders to it). NOT MODELED: 0134's tenant stamp and restrictive policy (a SECURITY
 // DEFINER function is not under row-level security — the reason for the tenant test), 0155's and 0232's triggers
@@ -49,7 +52,7 @@ function latestDef(name) {
   }
   return found;
 }
-const defs = Object.fromEntries(["is_admin", "is_staff", "current_tenant", "effective_tenant"].map((n) => [n, latestDef(n)]));
+const defs = Object.fromEntries(["two_step_ok", "is_admin", "is_staff", "current_tenant", "effective_tenant"].map((n) => [n, latestDef(n)]));
 ok("production's definitions were found in the migrations", Object.values(defs).every((d) => d && /\$\$;$/.test(d.text)), defs);
 console.log(Object.entries(defs).map(([n, d]) => `${n}() from ${d?.file}`).join(" · "));
 
@@ -65,6 +68,9 @@ await db.exec(`
   grant usage on schema public to anon, authenticated, service_role;
   create or replace function auth.uid() returns uuid language sql stable as $$
     select nullif(coalesce(current_setting('test.uid', true), ''), '')::uuid $$;
+  create or replace function auth.jwt() returns jsonb language sql stable as $$ select '{}'::jsonb $$;
+  create table auth.mfa_factors (id uuid primary key default gen_random_uuid(), user_id uuid not null, factor_type text not null default 'totp',
+    status text not null default 'unverified');
 
   create table public.tenants (id uuid primary key);
   insert into public.tenants (id) values ('${T1}'), ('${T2}');
@@ -74,6 +80,7 @@ await db.exec(`
     ('${SERVER}', 'server', false, '${T1}'), ('${MEMBER}', 'member', false, '${T1}'),
     ('${LEGACY}', 'member', true, '${T1}'), ('${OTHER}', 'server', false, '${T2}');
   create publication supabase_realtime;
+  create table public.two_step_settings (tenant_id uuid primary key references public.tenants(id), required boolean not null default false);
 
   create table public.changelog (id uuid primary key default gen_random_uuid(), title text,
     category text, area text, summary text, shipped_on date, highlight boolean default false);
@@ -88,7 +95,7 @@ await db.exec(`
     on conflict (version) do update set applied_count = public.schema_migrations.applied_count + 1
     returning * into r; return r; end $$;
 `);
-for (const n of ["is_admin", "is_staff", "current_tenant", "effective_tenant"]) await db.exec(defs[n].text);
+for (const n of ["two_step_ok", "is_admin", "is_staff", "current_tenant", "effective_tenant"]) await db.exec(defs[n].text);
 await db.exec(readFileSync(join(MIG, "0005_orders.sql"), "utf8"));
 await db.exec(`alter table public.orders add column if not exists tenant_id uuid references public.tenants(id) default '${T1}'`);   // 0040
 await db.exec(readFileSync(join(MIG, "0018_order_timestamps.sql"), "utf8"));

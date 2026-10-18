@@ -41,6 +41,7 @@ import { archiveOwner, setEventLive } from "@/lib/wrap";
 import { downloadCsv } from "@/lib/csv";
 import { brewStartOverdue } from "@/lib/brewMath";
 import { useWorkStreams, streamOfCategory } from "@/lib/streams";
+import { useTwoStep } from "@/lib/twoStep";
 import { refreshLive, useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useChanged } from "@/lib/useChanged";
@@ -98,6 +99,8 @@ const MarketsPanel = dynamic(() => import("@/components/MarketsPanel"), { loadin
 const CopilotDirectory = dynamic(() => import("@/components/CopilotDirectory"), { loading: () => <PourFill label="Loading…" /> });
 // The Guide's Start here page (2026-10-08) — loaded when the Guide opens on it, not with the console.
 const CrewStart = dynamic(() => import("@/components/CrewStart"), { loading: () => <PourFill label="Loading…" /> });
+// An owner's or admin's two-step code (R28, 0433) — loaded only when one is owed.
+const TwoStepPrompt = dynamic(() => import("@/components/TwoStepPrompt"), { loading: () => <PourFill label="Loading…" /> });
 const AiSpend = dynamic(() => import("@/components/AiSpend"), { loading: () => <PourFill label="Loading…" /> });
 const BroadcastEditor = dynamic(() => import("@/components/BroadcastEditor"), { loading: () => <PourFill label="Loading…" /> });
 const MaintenanceLog = dynamic(() => import("@/components/MaintenanceLog"), { loading: () => <PourFill label="Loading…" /> });
@@ -5490,7 +5493,7 @@ const neverChanges = () => () => {};
 const closedOnServer = () => false;
 
 export default function AdminPage() {
-  const { ready, enabled, user, profile, profileStatus, refreshProfile } = useAuth();
+  const { ready, enabled, user, profile, profileStatus, refreshProfile, leader, waitingForCode, waitForCode } = useAuth();
   const { section, setSection, groupId: navGroupId, setGroupId } = useOperatorSection();
   const router = useRouter();
   const streams = useWorkStreams();
@@ -5502,6 +5505,10 @@ export default function AdminPage() {
   const isAdmin = role === "admin" || isOwner;
   const canManage = isAdmin || role === "event_manager";
   const canPrep = canManage || role === "operator" || role === "contractor";
+  // TWO-STEP FOR THE OWNERS AND ADMINS (R28 — the 10/10 audit, security F6; 0433): an owner or admin with an
+  // authenticator gives its code before the console reads anything — once a sign-in (lib/twoStep, TwoStepPrompt). Asked of
+  // the role as stored (`leader`): while "Not now" holds, `profile` — and so `role` above — is drawn as an event manager's.
+  const twoStep = useTwoStep(leader && profileStatus === "ready", user?.id ?? null, { waiting: waitingForCode, wait: waitForCode });
   const allowed = sectionsForRole(role);
   // Fallback for a section this role can't open is My Day (home), not Live Ops — a server tapping
   // a prep deep-link should land somewhere that explains itself, and the URL/localStorage must not
@@ -5764,6 +5771,10 @@ export default function AdminPage() {
       </section>
     );
   }
+  // An owner or admin who owes this sign-in their two-step code gives it first (R28) — or sets one up, where their
+  // business requires it; "Not now" opens the console with the crew's tools.
+  if (twoStep.need === "checking") return <section className="screen" />;
+  if (twoStep.need === "code" || twoStep.need === "setup") return <TwoStepPrompt need={twoStep.need} onDone={twoStep.done} onLater={twoStep.later} />;
 
   // The lane the section is in (a section can live in two lanes — prep is Service's and Events' — so
   // the tapped tab, tracked as groupId, wins the ambiguity): its sections are the toggle under the
@@ -5818,6 +5829,13 @@ export default function AdminPage() {
         </div>
       </div>
       {guide && <SectionGuide allowed={allowed} current={sec} start={guide === "start"} onGo={setSection} onClose={() => setGuide(null)} />}
+      {/* "Not now" on the two-step code (R28): the owner's and admin's tools wait for it, and this asks again. */}
+      {twoStep.deferred && (
+        <p className="dp-hint" role="note">
+          The owner and admin tools are waiting for your two-step code.{" "}
+          <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={twoStep.ask}>Enter it</button>
+        </p>
+      )}
       {inboxOpen && (
         <Sheet open onClose={() => setInboxOpen(false)} label="Inbox" header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}><Icon name="bell" /> Inbox</b><CloseButton onClick={() => setInboxOpen(false)} /></div>}>
           <AlertsInbox userId={user?.id ?? null} title="Flags & pings for you" onNavigate={() => setInboxOpen(false)} />
