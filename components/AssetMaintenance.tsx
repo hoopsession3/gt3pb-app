@@ -9,7 +9,7 @@ import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { money } from "@/lib/money";
 import { useConfirm } from "@/components/ConfirmSheet";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { governing, cadenceDays, logDone } from "@/lib/upkeep";
 import { addDays, localToday } from "@/lib/dates";
@@ -42,7 +42,7 @@ const fmt = (s: string | null) => s ? new Date(`${s}T00:00:00`).toLocaleDateStri
 
 export default function AssetMaintenance() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);
   const [logFor, setLogFor] = useState<{ asset: Asset; from: Log | null } | null>(null);

@@ -7,7 +7,7 @@ import Link from "next/link";
 import Gt3Mark from "./Gt3Mark";
 import Icon from "./Icon";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { APP_BUILD, isNativeApp } from "@/lib/native";
 import { STAMP_GOAL } from "@/lib/loyalty";
 import { nextOnEnter } from "@/lib/formKeys";
@@ -67,7 +67,7 @@ const PERKS = ["A stamp on every cup", "Order ahead, skip the line", "First tast
 
 export default function SignIn({ context, compact = false, start }: Props = {}) {
   const { sendCode, verifyCode, signInWithPassword, signUp, resetPassword, resendConfirm, updatePassword } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // In the iPhone app the emailed link can only open Safari, so the app never mentions it, and the form offers Sign in
   // with Apple. The page is drawn ahead of time with no phone (false); the app's first paint keeps that, then draws
   // what the phone has — read as React reads an outside value, so the two never split a hydration (React #418).

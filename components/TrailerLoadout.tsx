@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAuth, roleOf } from "@/components/AuthProvider";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { SectionHeader } from "@/components/kit";
 import { computeLoadout, towChecks, towChecklist, computeSpace, rigToBox, type TrailerProfile, type Loadout, type SpaceRig, type SpacePlan, type AssetDim } from "@/lib/loadout";
 import { localToday } from "@/lib/dates";
@@ -35,7 +35,7 @@ type Board = { tp: TrailerProfile | null; assets: AssetDim[]; events: EvRow[]; s
 
 export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | "stop"; id: string } } = {}) {
   const { profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const isOwner = roleOf(profile) === "owner";
   const [labels, setLabels] = useState<string[]>([]);
   const [rig, setRig] = useState<SpaceRig>("trailer");

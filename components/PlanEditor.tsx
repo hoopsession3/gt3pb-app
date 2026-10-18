@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
 import { SectionHeader, InfoRow } from "@/components/kit";
@@ -20,7 +20,7 @@ type Plan = { key: string; label: string; price_cents: number; period_days: numb
 
 export default function PlanEditor() {
   const prompt = usePrompt();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const loader = useCallback(async (): Promise<Plan[]> => {
     if (!supabase) return [];
     const { data, error } = await supabase.from("subscription_plans").select("*").order("price_cents");

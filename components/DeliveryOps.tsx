@@ -15,7 +15,7 @@ import { money } from "@/lib/money";
 import { usePrompt } from "@/components/PromptSheet";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import Link from "next/link";
 import { OPEN_PANEL_EVENT } from "@/lib/anchors";
 import { useMinute } from "@/lib/useMinute";
@@ -62,7 +62,7 @@ const missed = (o: DOrder) => o.status === "held_for_pickup" || o.status === "is
 /** onDue: the day of the next run (null: none scheduled), for Live Ops' Due next to put the runs in order.
  *  onRows: the run and what it carries from earlier, as this card read them, for Due next's one list (2026-10-11). */
 export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | null) => void; onRows?: (feed: PorchFeed) => void } = {}) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const confirm = useConfirm();
   const now = useMinute();
   const [rows, setRows] = useState<DOrder[]>([]);

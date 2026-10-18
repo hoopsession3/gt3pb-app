@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { sharedStore } from "@/lib/shared";
 import { sameJson } from "@/lib/sharedCore";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useConfirm } from "./ConfirmSheet";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
@@ -74,7 +74,7 @@ export type Eta = "on_way" | "outside" | "late";
  *  now says so instead of saying nothing. */
 export function useOrderActions(o: Order | null, reload: () => void) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [etaBusy, setEtaBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
 

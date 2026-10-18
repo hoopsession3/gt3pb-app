@@ -16,7 +16,13 @@ import { route, isJsonObject } from "@/lib/apiRoute";
 //     its refund flag is the database's, one per cup (0416 void_stop_orders; no money moves here);
 //   · each pack picked up at it (0397), and the day's packs linked to no stop when no other stop is left that day — told
 //     to move it or cancel it (theirs to choose).
-// A second call voids what is still open — a first call that died part way left it — and tells nobody twice.
+// A second call voids what is still open — a first call that died part way left it — and tells nobody twice: each
+// message is keyed by what happened (R22, lib/notify onceKey), so a retry tells whoever the first call didn't reach.
+
+/** A few at a time (R22): one by one, thirty customers waited on thirty answers in a row — up to ten seconds each. */
+async function eachFew<T>(rows: readonly T[], send: (row: T) => Promise<void>): Promise<void> {
+  for (let i = 0; i < rows.length; i += 4) await Promise.all(rows.slice(i, i + 4).map(send));
+}
 
 async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Canceling isn't switched on yet." }, { status: 503 });
@@ -59,28 +65,32 @@ async function post(req: Request) {
   } else {
     return NextResponse.json({ error: "The visit is canceled, but its cup orders couldn't be — try again." }, { status: 500 });
   }
-  // A retry with nothing left to void and nobody left to tell: done before.
-  if (res.already && !cups.length && !stuck.length) return NextResponse.json({ ok: true, already: true, cups: 0, packs: 0 });
+  // A retry with nothing left to void (R22): its packs are told again below — keyed, so only whoever the first call
+  // didn't reach hears it — and nothing new is raised to the crew.
+  const retryOnly = res.already && !cups.length && !stuck.length;
 
   // Told: a member, by email here and on their phone by the push function (the void, R3b). A guest has no address with
   // us — their order's page (the ticket, 0395) says it was called off, and why. The crew's toast counts which is which.
+  // Keyed as every "canceled" for an order is (the Pass's void, the member's own cancel): one each, however it is told.
   let told = 0;
-  for (const c of cups) {
+  await eachFew(cups, async (c) => {
     const email = await accountEmail(c.user_id);
     if (email) {
-      await notifyCustomer({ email, subject: "GT3 — your order is canceled", message: cupWords(stop, { cups: c.items?.length || 1, how: cupHow(c) }) });
+      await notifyCustomer({ email, subject: "GT3 — your order is canceled", message: cupWords(stop, { cups: c.items?.length || 1, how: cupHow(c) }), key: `order-canceled:${c.id}` });
     }
     if (c.user_id) told++;
-  }
+  });
 
   // The packs picked up at it (0397: a pack knows its stop) and, when no other stop is left that day, the day's packs
   // linked to none: told to move or cancel. Only those — another stop that day goes on, and its customers are not told
   // theirs is off (cancel_stop counts the same packs).
-  type PackRow = { user_id: string | null; phone: string | null; size: number; paid: boolean };
+  type PackRow = { id: string; user_id: string | null; phone: string | null; size: number; paid: boolean };
   let packs: PackRow[] = [];
   let packsUnread = false;
-  if (!res.already && res.packs > 0 && res.day) {
-    const cols = "user_id, phone, size, paid";
+  // On a retry too (R22): a first call that died before its packs were told left them never told — the customer at a
+  // stop that wasn't there. Keyed, a pack told before is not told again.
+  if (res.packs > 0 && res.day) {
+    const cols = "id, user_id, phone, size, paid";
     // scoped-by: stop_id = the stop an owner or admin just canceled through cancel_stop's own check.
     const atStop = await supabaseAdmin.from("drop_orders").select(cols).eq("stop_id", id).is("canceled_at", null).eq("picked_up", false);
     // A read that failed is not "no packs at it" (R14): the crew is told to reach those customers themselves.
@@ -93,10 +103,13 @@ async function post(req: Request) {
       if (loose.error) packsUnread = true;
       packs = packs.concat((loose.data ?? []) as PackRow[]);
     }
-    for (const p of packs) {
-      await notifyCustomer({ phone: p.phone, email: await accountEmail(p.user_id), subject: "GT3 — your pickup day changed", message: packWords(stop, { size: p.size, paid: p.paid }) });
-    }
+    await eachFew(packs, async (p) => {
+      await notifyCustomer({ phone: p.phone, email: await accountEmail(p.user_id), subject: "GT3 — your pickup day changed", message: packWords(stop, { size: p.size, paid: p.paid }), key: `stop-canceled:${id}:pack:${p.id}` });
+    });
   }
+  // A retry whose packs couldn't be read goes on to the crew's line below (the R22 review): "Already canceled" would hide
+  // that the packs a first call died before telling may never hear.
+  if (retryOnly && !packsUnread) return NextResponse.json({ ok: true, already: true, cups: 0, packs: packs.length });
 
   // The crew's one line: who was told, how many cards to refund — each has its own flag (above), so the line counts them
   // and never lists them (R9) — and the cups the database would not void, to void on the Pass.

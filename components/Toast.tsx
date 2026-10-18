@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useApp, useToastState } from "./AppProvider";
+import { useAppStable, useToastState } from "./AppProvider";
 
 // THE TOAST (R12 — the 10/10 audit, F3). What it says is said to a screen reader as it shows (AppProvider → the app's
 // one pair of live regions, components/Announcer), so this is not a live region of its own: it used to flip between
@@ -10,7 +10,7 @@ import { useApp, useToastState } from "./AppProvider";
 // had faded. A finger on it or focus in it stops its clock; one with something to do (Undo, Open) has a way to close it
 // too, and focus that was in it when it went goes back where it came from.
 export default function Toast() {
-  const { hideToast, holdToast } = useApp();
+  const { hideToast, holdToast } = useAppStable();
   const { toastMsg, toastShown, toastVariant, toastAction } = useToastState();
   const isErr = toastVariant === "error";
   const ref = useRef<HTMLDivElement>(null);

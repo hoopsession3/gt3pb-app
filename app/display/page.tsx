@@ -6,7 +6,7 @@ import { useSiteCopy } from "@/lib/copy";
 import { CUP_MARKETS } from "@/lib/markets";
 import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAvailability } from "@/lib/availability";
 import { pickForDisplay, type CleanReview } from "@/lib/reviews";
 import { CONNECT_APP, SCAN_TO_ORDER } from "@/lib/connect";
@@ -36,7 +36,7 @@ export default function DisplayPage() {
   // reloads. A drink taken off in the Catalog leaves the board; one 86'd says so in place of its price (realtime).
   // The board hangs in the truck: a stop with its own menu (stop_menu, 0393) shows what it pours, as the app does — the
   // rest leave the board. Its words are the menu's: the 86 and each section's subtitle are the same page copy.
-  const { menu, refreshMenu, priceCents } = useApp();
+  const { menu, refreshMenu, priceCents } = useAppStable();
   const t = useSiteCopy();
   const { market } = useViewerMarket(CUP_MARKETS);
   // The board's own city (0408: an 86 at one truck is that city's): the same market its stop menu is read for.

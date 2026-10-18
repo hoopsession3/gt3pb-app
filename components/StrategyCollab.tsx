@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { raiseAlertClient } from "@/lib/clientAlerts";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { GTM_PLAYS, type GtmPlay } from "@/lib/strategy";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -22,7 +22,7 @@ import AsyncSection from "./AsyncSection";
 type C = { id: string; body: string; author_id: string | null; created_at: string };
 type Staff = { id: string; display_name: string | null; role: string | null };
 export function StrategyThread({ k, label, link = "/playbook" }: { k: string; label: string; link?: string }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const [text, setText] = useState("");
   // Both reads swallowed their error and coalesced to [], so a failed load rendered as a thread with
@@ -87,7 +87,7 @@ export function StrategyThread({ k, label, link = "/playbook" }: { k: string; la
 type Decision = { id: string; key: string; decision: string; why: string | null; author_name: string | null; created_at: string; note_id?: string | null; follow_up_task_id?: string | null };
 type LedgerData = { rows: Decision[]; noteTitle: Record<string, string>; task: Record<string, { label: string; done: boolean }> };
 export function DecisionLog({ canWrite }: { canWrite: boolean }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const [adding, setAdding] = useState(false);
   const [f, setF] = useState({ key: "", decision: "", why: "" });
@@ -177,7 +177,7 @@ const COACH: Record<number, string> = {
   6: "Read it once out loud. Then save the draft and open the discussion.",
 };
 export function PlayBuilder({ prefill, onDone }: { prefill?: GtmPlay | null; onDone: () => void }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const [step, setStep] = useState(0);
   const [f, setF] = useState({

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { createTodo, updateTask } from "@/lib/tasks";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
@@ -28,7 +28,7 @@ export default function AssignTaskSheet({
   onCreated?: () => void;
 }) {
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const crew = useCrew();  // was a hand-rolled profiles fetch; identical result, one shared read
   const [title, setTitle] = useState(defaultTitle);
   const [assignee, setAssignee] = useState("");

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -43,7 +43,7 @@ const dayLabel = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString
 const BLANK: Draft = { title: "", category: "feature", area: "", summary: "", shipped_on: today(), highlight: false };
 
 export default function Changelog() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const isAdmin = !!(profile?.is_admin);
   const [filter, setFilter] = useState<string>("all");   // "all" | "highlight" | a category key

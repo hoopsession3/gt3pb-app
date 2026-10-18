@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import InlineCreate from "./InlineCreate";
 import { SectionHeader } from "@/components/kit";
@@ -35,7 +35,7 @@ const ST: Record<Status, { t: string; c: string }> = {
 
 export function useLaunchReadiness(): Launch {
   const { profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const isAdmin = !!profile?.is_admin;
   const [inits, setInits] = useState<Init[]>([]);
   const [checks, setChecks] = useState<Check[]>([]);

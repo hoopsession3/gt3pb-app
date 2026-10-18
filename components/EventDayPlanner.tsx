@@ -15,7 +15,7 @@ import { follow } from "@/lib/pickFill";
 import { edited } from "@/lib/formGuard";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useChanged } from "@/lib/useChanged";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
@@ -92,7 +92,7 @@ export default function EventDayPlanner({ ownerType = "event", eventId, title, e
   ownerType?: "event" | "stop"; eventId: string; title: string; eventDay: string | null; planDays: number; initialDay?: number; onPlanDays: (n: number) => void; onClose: () => void;
 }) {
   const ownerCol = ownerType === "stop" ? "stop_id" : "event_id"; // event_schedule_items belongs to one owner
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const days = Math.max(1, planDays || 1);
   const [active, setActive] = useState(Math.min(Math.max(1, initialDay), Math.max(1, planDays || 1)));
   const [editing, setEditing] = useState<Item | "new" | null>(null);

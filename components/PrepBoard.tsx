@@ -16,7 +16,7 @@ import { localToday } from "@/lib/dates";
 import { useCrew, crewLabel } from "./useCrew";
 import { rovingKeys, rovingTab } from "./roving";
 import { wrote } from "@/lib/wrote";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task, ROLLED UP into
 // collapsible groups by the INITIATIVE it's assigned to (0201/0237) — falling back to its event/stop
@@ -51,7 +51,7 @@ const dueLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString
 
 export default function PrepBoard() {
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [filter, setFilter] = useState<Filter>("all");
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { openRecord } = useRecord();

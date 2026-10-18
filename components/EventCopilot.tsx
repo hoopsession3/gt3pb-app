@@ -5,7 +5,7 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useOperatorSection } from "./OperatorNav";
 import VenuePick from "./VenuePickLazy";
@@ -21,7 +21,7 @@ import { Segmented } from "@/components/controls";
 type Draft = { kind: "event" | "stop"; title: string; date: string | null; venue: string | null; order_ahead: boolean; pickup: boolean; notes: string | null; clarify: string };
 
 export default function EventCopilot() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
   const isStaff = roleOf(profile) !== "member";

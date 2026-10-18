@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import Icon from "@/components/Icon";
 import { parseDollars } from "@/lib/wrap";
 import { money, moneyPlain } from "@/lib/money";
@@ -74,7 +74,7 @@ const SHOWN = 6;
 
 export default function LogPurchase({ onDone }: { onDone?: () => void }) {
   const { user, profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const fileRef = useRef<HTMLInputElement>(null);
   const [cats, setCats] = useState<SpendCategory[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);

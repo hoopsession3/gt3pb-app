@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { haptic } from "@/lib/haptics";
@@ -27,7 +27,7 @@ import { rovingKeys, rovingTab } from "@/components/roving";
 const LEADS = [0, 2, 4, 8].map((h) => [h, leadLabel(h)] as const);
 
 export default function CupOrderingDial() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const loader = useCallback(async (): Promise<number> => {
     if (!supabase) throw new Error("Supabase client not configured");
     const { data, error } = await supabase.from("live_status").select("preorder_lead_h").eq("id", 1).maybeSingle();

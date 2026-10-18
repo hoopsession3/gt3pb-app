@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/money";
@@ -37,7 +37,7 @@ let notifySeq = 0;
 
 // Listens on Supabase realtime (RLS-scoped) and surfaces notifications. Renders nothing.
 export default function Notifications() {
-  const { toast, nameOf } = useApp();
+  const { toast, nameOf } = useAppStable();
   // The Catalog's names (R2), read through a ref so the realtime channel is not re-opened when the menu lands.
   const nameRef = useRef(nameOf);
   useEffect(() => { nameRef.current = nameOf; }, [nameOf]);

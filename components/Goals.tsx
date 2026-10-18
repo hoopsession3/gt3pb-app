@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth, roleOf, LEADERSHIP_ROLES } from "./AuthProvider";
 import { useWorkStreams } from "@/lib/streams";
 import { METRIC_SOURCES, computeMetric } from "@/lib/goalMetrics";
@@ -43,7 +43,7 @@ type Move = { id: string; goal_id: string; label: string; done: boolean; assigne
 type Board = { rows: Goal[]; inits: Move[] };
 
 export default function Goals() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const streams = useWorkStreams();
   const [live, setLive] = useState<Record<string, number>>({});   // metric_source → live value

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import Watermark from "@/components/Watermark";
 import { Masthead, SectionHeader, ClosingBeat, Columns, Column } from "@/components/kit";
@@ -50,7 +50,7 @@ const OfficeAskSheet = dynamic(() => import("@/components/OfficeAskSheet"), { ss
 // page reads the tables the way it did, and offers no per-delivery change it could not save.
 export default function OfficeScreen() {
   const { ready, user, enabled } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const router = useRouter();
   const [home, setHome] = useState<OfficeHome | null>(null);
   const [loaded, setLoaded] = useState(false);

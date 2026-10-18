@@ -138,6 +138,8 @@ async function post(req: Request) {
         orderId: o.id,
         email,
         kind: "shipped",
+        // Once per shipment (R22, lib/notify onceKey): Apliiq tells its webhook again on a retry; the customer hears once.
+        key: `shipped:${o.id}:${tracking || "no-tracking"}`,
         ...shippedNotice({
           id: o.id,
           items: (items ?? []) as { title: string; qty: number }[],

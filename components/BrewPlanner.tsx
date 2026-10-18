@@ -20,7 +20,7 @@ import PersonPick, { usePersonMe, type PersonValue } from "@/components/PersonPi
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { Columns, Column } from "@/components/kit";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
@@ -102,7 +102,7 @@ const remain = (target: string | null, now: number) => {
 
 export default function BrewPlanner() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [plan, setPlan] = useState<Recipe | null>(null);
   // Set by PrepDetail's "Plan a brew for this event/stop" (localStorage bridge, same pattern as
   // gt3-plan-tab) — carries the target into the sheet BrewSheet opens next, then clears itself.

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { canOf } from "@/lib/roles";
 import { useConfirm } from "./ConfirmSheet";
@@ -72,7 +72,7 @@ const when = (r: Rec) => {
 };
 
 export default function StopRecord({ stopId, onClose }: { stopId: string; onClose: () => void }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // Same rule as the event record (lib/roles canOf): staff write the note; only an admin changes the
   // stop itself (0003); the venue and the route are Plan's, which is a manager's screen.
   const { profile } = useAuth();

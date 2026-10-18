@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { authedFetch } from "@/lib/authedFetch";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { DecisionLog } from "./StrategyCollab";
 import { SectionHeader } from "@/components/kit";
 import Sheet, { CloseButton } from "@/components/Sheet";
@@ -43,7 +43,7 @@ const latestLine = (l: NonNullable<Latest>, today: string) => {
 
 export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boolean; onOpenNotes: () => void }) {
   const { setSection } = useOperatorSection();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [busy, setBusy] = useState<"review" | "session" | null>(null);
   // OPEN THAT NOTE (2026-10-12): every way out of this card to Notes names a note — the latest review or session it
   // shows, the one an assembler just wrote or found standing, the one a transcript was filed on — and Notes opened at

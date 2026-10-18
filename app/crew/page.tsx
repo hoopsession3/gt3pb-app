@@ -3,7 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Children, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type Dispatch, type ReactNode, type SetStateAction } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { SectionHeader, InfoRow, Columns, Column } from "@/components/kit";
 import FoldCard from "@/components/crew/FoldCard";
 import { Segmented, IconButton, tabPanel } from "@/components/controls";
@@ -496,7 +496,7 @@ function postIdFromLink(link: string | null | undefined): string | null {
 // Pop-out sheet to approve or revise a post right from the notification. Edit the caption, approve
 // (saves the edit), or request changes with a note. Acting notifies the creator and clears the alert.
 function ContentApprovalSheet({ contentId, meName, meId, onClose, onActioned }: { contentId: string; meName: string; meId: string | null; onClose: () => void; onActioned: () => void }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   type Post = { id: string; title: string; caption: string | null; hashtags: string[] | null; status: string; kind: string; channel: string; created_by: string | null };
   const [item, setItem] = useState<Post | null>(null);
   const [caption, setCaption] = useState("");
@@ -571,7 +571,7 @@ function DropSheet({ onClose }: { onClose: () => void }) {
 function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: { userId: string | null; compact?: boolean; title?: string; onNavigate?: () => void }) {
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const meName = profile?.display_name?.trim() || "Me";
   // One source of truth for "what needs me" — the same hook drives My Day's flags and the nav
   // badge, so the three counters that used to disagree now agree by construction. Ack semantics
@@ -808,7 +808,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
   meId: string | null;
   meName: string;
 }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [comments, setComments] = useState<Comment[]>([]);
   const [cmtFailed, setCmtFailed] = useState(false);
   const [staff, setStaff] = useState<{ id: string; display_name: string | null; role?: string | null }[]>([]);
@@ -936,7 +936,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
 // true stored value untouched.
 function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; ownerId: string }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   type Inc = { id: string; problem: string; severity: string; resolved: boolean; created_at: string; symptom: string | null };
   const [rows, setRows] = useState<Inc[]>([]);
   const [incFailed, setIncFailed] = useState(false);
@@ -995,7 +995,7 @@ function IncidentLog({ ownerCol, ownerId }: { ownerCol: "event_id" | "stop_id"; 
 // the chips themselves are the shared MenuRigChips (one option set with Plan › Events).
 function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onChanged: () => void }) {
   const table = ownerType === "event" ? "events" : "stops";
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [f, setF] = useState<MenuRigValue | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -1046,7 +1046,7 @@ function DayBrief({ ownerCol, ownerId, isAdmin }: { ownerCol: "event_id" | "stop
   const [brief, setBrief] = useState("");
   const [edit, setEdit] = useState(false);
   const [saving, setSaving] = useState(false);
-  const { toast } = useApp();
+  const { toast } = useAppStable();
 
   const briefState = useAsyncData<{ dress: string; brief: string }>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
@@ -1234,7 +1234,7 @@ function MyDay({ userId, canGoLive, canBrew }: { userId: string | null; canGoLiv
 
 function MyTasks({ userId, anchor = true }: { userId: string | null; anchor?: boolean }) {
   const { openTask } = useTaskSheet();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [tasks, setTasks] = useState<MyTaskRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   // A FAILED READ IS NOT AN EMPTY PLATE (2026-10-04). This read .data straight through PostgREST's
@@ -1389,7 +1389,7 @@ function PrepCard({ title, when, location, live, r, onOpen }: { title: string; w
 // AGENT #2 — prep/readiness. On-demand: asks Claude if stock covers the next two weeks of events,
 // shows the verdict, and (when there's a real gap) raises it on the alert spine.
 function ReadinessAgent() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<{ headline: string; severity: string; gaps: { item: string; detail: string }[] } | null>(null);
   const run = async () => {
@@ -1435,7 +1435,7 @@ type InspRule = { id: string; label: string; kind: string; critical: boolean; li
 type InspResult = { place: string; researched: boolean; summary: string; checklist: string[]; confidence: string; proposed: InspRule[]; tasksAdded: number };
 
 function InspectionPrep() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [state, setState] = useState("");
   const [county, setCounty] = useState("");
   const [events, setEvents] = useState<{ id: string; title: string | null; day: string | null; day_label: string | null }[]>([]);
@@ -1771,7 +1771,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   const confirm = useConfirm();
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { user, profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { setSection } = useOperatorSection();
   const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
   const isEvent = target.kind === "event";
@@ -2624,7 +2624,7 @@ const NOTE_VIS = ["private", "team", "collab"] as const;
 function MeetingNotes() {
   const confirm = useConfirm();
   const { user, profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const isAdmin = roleOf(profile) === "admin" || roleOf(profile) === "owner";
   const meId = user?.id ?? null;
   const meName = profile?.display_name?.trim() || "Me";
@@ -2923,7 +2923,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
   const confirm = useConfirm();
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine
   const { user, profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [items, setItems] = useState<EventTask[]>([]);
   const [newItem, setNewItem] = useState("");
   const [assignFor, setAssignFor] = useState<EventTask | null>(null);
@@ -3361,7 +3361,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
 // a no-op (you were already there). PipelinePanel's Won stage is the one home.
 function Bookings() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const [reqs, setReqs] = useState<BookingRequest[]>([]);
   const [promoting, setPromoting] = useState<string | null>(null);
@@ -3525,7 +3525,7 @@ function Bookings() {
 // ───────────────────────── reserves (limited drops) ─────────────────────────
 function ReservesAdmin() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // Which card is correcting Left by hand (lib/reserveStock.setLeft) — Stock is the usual box.
   const [fixingLeft, setFixingLeft] = useState<string | null>(null);
   const reservesState = useAsyncData<Reserve[]>(async () => {
@@ -3779,7 +3779,7 @@ const initials = (name: string | null) =>
 
 function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; isSelf: boolean; ownerCount: number; onPatch: (id: string, role: string) => void; onSaved: () => void }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [name, setName] = useState(m.display_name ?? "");
   const role = rawRole(m);
   const meta = ROLE_META[role];
@@ -3971,7 +3971,7 @@ type NextEvent = {
 // event, not live yet, with its "Make it live"; nothing otherwise. Its "Next event" row went with the move: the next
 // event is Readiness' and Plan's, where it already was.
 function EventHUD() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const now = useMinute();   // the clock, read as the screen renders (R16: the purity rule)
   const { openRecord } = useRecord();
   const [ev, setEv] = useState<EventRow | null | undefined>(undefined);
@@ -4186,7 +4186,7 @@ function EventEconomics({ e, econRow, catalog, onSave }: {
 // — editing a live number happens where it lives: price in Menu & products, cost in the recipes.
 type LiveEcon = ProductEcon & { price_live?: boolean; cost_live?: boolean };
 function ProductCatalog() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // Both halves in ONE read: the line's live number, and the drinks it is the average OF. Fetched
   // together so the explanation can never be from a different moment than the thing it explains.
   const catalogState = useAsyncData<{ rows: LiveEcon[]; drinks: EconDrink[] }>(async () => {
@@ -4546,7 +4546,7 @@ function EventCard({ e, today, open, onToggle, onUpdate, onRemove, onSetLive, on
 
 function EventsAdmin() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { setSection } = useOperatorSection();
   const openPrep = (id: string) => { try { localStorage.setItem(prepHandoffKey, prepHandoffValue("event", id)); } catch { /* ignore */ } setSection("prep"); };
   const [openId, setOpenId] = useState<string | null>(null); // single-open accordion
@@ -4755,7 +4755,7 @@ function SubInterest() {
 // ───────────────────────── order history (review past orders) ─────────────────────────
 function OrdersHistory() {
   const [q, setQ] = useState("");
-  const { nameOf } = useApp(); // the Catalog's names (R2): what the Pass printed
+  const { nameOf } = useAppStable(); // the Catalog's names (R2): what the Pass printed
   const ordersState = useAsyncData<Order[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
     // A FAILED READ IS NOT "NO COMPLETED ORDERS YET" (2026-10-12): the error went unread, null became [], and the
@@ -4835,7 +4835,7 @@ type VendorSug = { kind: "stop" | "event"; id: string; name: string; sub: string
 
 // A vendor's places (0226) — list, add, set primary, archive. Rendered under the open vendor row.
 function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; vendorName: string }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [nm, setNm] = useState("");
   const [addr, setAddr] = useState("");
   const locsState = useAsyncData<VendorLocation[]>(async () => {
@@ -4898,7 +4898,7 @@ function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; ven
 
 function VendorsAdmin() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { profile } = useAuth();
   const isAdmin = ["owner", "admin"].includes(roleOf(profile));
   const [openId, setOpenId] = useState<string | null>(null);

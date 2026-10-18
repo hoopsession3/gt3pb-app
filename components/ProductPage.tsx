@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useId, useMemo, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -63,7 +63,7 @@ export default function ProductPage({ p, gone, cities = NO_CITIES, onCityBack, o
   onSaved: (row: CatalogProduct) => void;
   onDeleted: () => void;
 }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const confirm = useConfirm();
   const timings = useOptions("menu_timing");
 

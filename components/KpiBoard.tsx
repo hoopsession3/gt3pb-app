@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -156,7 +156,7 @@ function rowsOf({ snaps, live }: BoardData): Row[] {
 
 export default function KpiBoard() {
   const { user, profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const isAdmin = !!profile?.is_admin || ["owner", "admin"].includes(String((profile as any)?.role ?? ""));
   const [entry, setEntry] = useState<Record<string, string>>({});
   const [logging, setLogging] = useState(false);

@@ -742,7 +742,7 @@ export const WEIGHT = {
   "/playbook":                 { js: 281, css: 90, chunks: 15 },
   "/driver":                   { js: 280, css: 90, chunks: 15 },
   "/agreement":                { js: 275, css: 90, chunks: 15 },
-  "/offer":                    { js: 284, css: 90, chunks: 15 },
+  "/offer":                    { js: 285, css: 90, chunks: 15 },
   "/built/gt3-built-k7m9x4q2": { js: 271, css: 90, chunks: 15 },
   "/display":                  { js: 272, css: 90, chunks: 15 },
   "/shop":                     { js: 304, css: 90, chunks: 17 },
@@ -872,6 +872,12 @@ export const WEIGHT = {
 // photo carry none of it (it went into /shop and /3mpire at first: +364 and +338, taken back out). Crossed the rounding
 // line upward on /craft (272.41 → 272.55 KB) and /agreement (274.44 → 274.59), recorded.
 
+// 2026-10-18 (R22 of the 10/10 audit): every route's script +54 to +64 bytes (gzip). Built R21 (ccc35f2) and this commit and
+// gzipped what each route's HTML references (/offer 291 305 → 291 369, /menu 280 486 → 280 543, /privacy 275 732 →
+// 275 788). In the shell: what the screens read that a drink in the cart never changes — the toast, the menu, the prices —
+// is held apart from the cart (components/AppProvider useAppStable, +243 bytes raw), so the 148 places that read only
+// those no longer draw again on every change to the cart (performance F19); the three other shell chunks moved +12 to +18
+// raw, the new chunk names they carry. Crossed the rounding line upward on /offer (284.48 → 284.54 KB), recorded.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

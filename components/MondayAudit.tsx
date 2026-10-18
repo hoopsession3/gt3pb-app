@@ -6,7 +6,7 @@ import { Segmented, type SegOption } from "@/components/controls";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useCrew } from "./useCrew";
 import PersonPick, { type PersonHow, type PersonValue } from "./PersonPick";
 import { supabase } from "@/lib/supabase";
@@ -76,7 +76,7 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
 }) {
   const confirm = useConfirm();
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const crew = useCrew();
   const me = user?.id ?? null;
   // The day the walk opened: what this week, a draft's week and the next action's seven days count from.

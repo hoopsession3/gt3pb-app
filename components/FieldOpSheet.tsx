@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { geocode } from "@/lib/geocode";
 import VenuePick, { type VenueHow } from "@/components/VenuePickLazy";
@@ -77,7 +77,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
   walker?: ReactNode;
 }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const locSugs = useLocationSuggestions(); // datalist under Where/Address — the venues repeat
   const isEvent = kind === "event";
   const table = isEvent ? "events" : "stops";

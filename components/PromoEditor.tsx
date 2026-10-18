@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { SectionHeader } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -18,7 +18,7 @@ import { useChanged } from "@/lib/useChanged";
 type Promo = { id: string; active: boolean; headline: string; body: string | null; cta_label: string | null; cta_href: string | null };
 
 export default function PromoEditor() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const [d, setD] = useState<Promo>({ id: "", active: false, headline: "", body: "", cta_label: "Build your pack →", cta_href: "/delivery" });
   const [busy, setBusy] = useState(false);

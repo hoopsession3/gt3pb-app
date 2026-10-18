@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -75,7 +75,7 @@ const VERDICT_WORDS: Record<LaunchVerdict, string | null> = { "no-go": "readines
 
 export default function CommandBoard() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const isAdmin = !!profile?.is_admin;
   const { openTask } = useTaskSheet(); // the ONE task editor, on the spine

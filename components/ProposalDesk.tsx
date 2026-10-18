@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -36,7 +36,7 @@ const NEXT_VERB: Record<string, string> = { in_review: "Send for review", sent: 
 const when = (s: string) => new Date(s).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: string; vendorName: string | null; isAdmin: boolean }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const [strategy, setStrategy] = useState("");
   const [dirty, setDirty] = useState(false);

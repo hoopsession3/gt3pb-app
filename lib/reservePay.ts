@@ -93,7 +93,8 @@ export type CrewLine = {
 /** Who is told: the crew (an alert), the member (their email; a text where they said yes — lib/notify). Best-effort. */
 export type Tell = {
   crew(a: CrewLine): Promise<void>;
-  customer(c: { userId: string | null; subject: string; message: string }): Promise<void>;
+  /** `key` names what happened (lib/notify onceKey, R22): told twice — a retried pay, a cancel pressed again — is one message. */
+  customer(c: { userId: string | null; subject: string; message: string; key: string }): Promise<void>;
 };
 
 export type RefundResult = { ok: true; refundId: string | null; status: string } | { ok: false; error: string };
@@ -199,7 +200,7 @@ export async function payReserve(o: {
   const pickup = reservePickupWords(r.stop);
   const closes = reserveClosesAt(r.stop);
   const told = async (paid: number) => {
-    await tell.customer({ userId: o.userId, subject: `GT3 — ${r.name} is yours`,
+    await tell.customer({ userId: o.userId, subject: `GT3 — ${r.name} is yours`, key: `reserve-held:${hold.id}`,
       message: `GT3: ${what(hold.qty, r.name)} is yours${paid > 0 ? ` — ${money(paid)} paid ✓` : ""}. Pick it up ${pickup}.${closes ? ` Cancel for a full refund until ${closesWords(closes)}.` : ""}` });
     await tell.crew({ severity: "important", category: "order", kind: "reservation_new", subjectId: hold.id, link: RESERVES_LINK,
       title: "Limited Reserve sold", body: `${what(hold.qty, r.name)} — ${paid > 0 ? `${money(paid)} paid` : "no charge"}, for pickup ${pickup} (${o.who}).` });
@@ -325,7 +326,7 @@ export async function cancelReserve(o: {
     }
   }
 
-  await tell.customer({ userId: c.user_id, subject: `GT3 — your ${name} reserve is canceled`,
+  await tell.customer({ userId: c.user_id, subject: `GT3 — your ${name} reserve is canceled`, key: `reserve-canceled:${c.id}`,
     message: `GT3: your ${what(c.qty, name)} reserve is canceled${due > 0 ? ` — ${money(due)} is on its way back to your card` : ""}.` });
   await tell.crew({ severity: "fyi", category: "order", subjectId: c.id, link: RESERVES_LINK,
     title: crew ? "Reserve refunded and canceled" : "A member canceled their reserve",

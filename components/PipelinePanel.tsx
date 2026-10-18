@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { resolveVendor, type ResolveDecision, type VendorMatch } from "@/lib/vendorLink";
@@ -177,7 +177,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
   onLog: (line: string) => void; onChanged: () => void; onWire: (id: string | null) => void;
 }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -286,7 +286,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
 export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const confirm = useConfirm();
   const clock = useMinute();   // read as the panel renders (R16: the purity rule)
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);   // expanded opportunity
   // Kept with the opportunity they are for (R17): none open — or another one's notes — is no notes, said while

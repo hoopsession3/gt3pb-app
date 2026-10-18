@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { FLAVORS, dropDateKey, mixSummary, dollars, type GlassPath, type Mix } from "@/lib/orderAhead";
 import { gallonsForBottles, flavorDemand } from "@/lib/brewMath";
@@ -64,7 +64,7 @@ const stageIndex = (s: PackStage | null | undefined) => Math.max(0, PACK_STAGES.
 // onRows: the drop's packs as this card read them, for Due next's one list (2026-10-11, the dispatch round).
 export default function DropOps({ brief = false, onOpen, canPlan = false, onDue, onRows }: { brief?: boolean; onOpen?: () => void; canPlan?: boolean; onDue?: (day: string | null) => void; onRows?: (feed: PickupFeed) => void } = {}) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const me = user?.id ?? null;
   const admin = canOf(profile).admin;

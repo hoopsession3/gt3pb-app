@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { ticketPath, useHeldTickets } from "@/lib/tickets";
@@ -35,7 +35,7 @@ export default function GuestOrderBar() {
 }
 
 function TicketBar({ t, voidSeen }: { t: string; voidSeen: boolean }) {
-  const { nameOf } = useApp();
+  const { nameOf } = useAppStable();
   const seen = useAsyncData<Seen | null>(async () => {
     if (!supabase) return null;
     const { data, error } = await supabase.rpc("order_ticket", { p_ticket: t });

@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { openAddress } from "@/lib/maps";
 import { haptic } from "@/lib/haptics";
 import { etToday } from "@/lib/dates";
@@ -38,7 +38,7 @@ type Board = { rows: Stop[]; date: string | null };
 const startOf = (w: string | null) => (/_(\d{4})_/.exec(w ?? "") ?? [])[1] ?? "0500";
 
 export default function OfficeRun() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [openId, setOpenId] = useState<string | null>(null);
   const [empties, setEmpties] = useState<Record<string, number>>({});
   const [busyId, setBusyId] = useState<string | null>(null);

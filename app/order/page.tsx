@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
 import Button from "@/components/Button";
@@ -95,7 +95,7 @@ function Held() {
 
 function TicketView({ t, shared = false }: { t: string; shared?: boolean }) {
   const router = useRouter();
-  const { nameOf, toast } = useApp();
+  const { nameOf, toast } = useAppStable();
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const confirm = useConfirm();

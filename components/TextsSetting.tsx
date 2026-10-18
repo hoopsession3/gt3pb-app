@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useCustomerKnown } from "./useCustomerKnown";
 import { e164, phoneShown, textsOn } from "@/lib/texts";
 import { haptic } from "@/lib/haptics";
@@ -28,7 +28,7 @@ const stands = (r: Row) => !!r.yes_at && (!r.stop_at || Date.parse(r.yes_at) > D
 
 export default function TextsSetting() {
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const known = useCustomerKnown(!!user);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState(false);

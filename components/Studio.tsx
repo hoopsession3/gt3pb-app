@@ -16,7 +16,7 @@ import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 import { wrote } from "@/lib/wrote";
 import { refusalText } from "@/lib/refusal";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 
 type CLink = { id: string; event_id: string | null; stop_id: string | null; play_key: string | null };
 import BrandCalendar from "./BrandCalendar";
@@ -100,7 +100,7 @@ function VideoThumb({ src }: { src: string }) {
 
 export default function Studio() {
   const { setSection } = useOperatorSection();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const goCompanyCal = () => goPlanTab("calendar", { setSection });
   const { user, profile } = useAuth();
   // The door to the one copy editor is drawn only for those Settings shows it to: an owner or an
@@ -390,9 +390,11 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
   // Real-time co-editing: presence (who's here) + broadcast (live field patches). Subscribes EXACTLY
   // once per piece (deps [id]); identity is read from meRef.current so churn never re-keys the socket.
+  // A PRIVATE room (R22, 0428 — the 10/10 audit, security F12): only whoever can read the piece may join it, hear it or
+  // type into it. As a public channel anyone with the app's public key and the piece's id could do all three.
   useEffect(() => {
     if (!supabase) return;
-    const ch = supabase.channel(`studio-${id}`, { config: { presence: { key: meRef.current.id } } });
+    const ch = supabase.channel(`studio-${id}`, { config: { private: true, presence: { key: meRef.current.id } } });
     ch.on("presence", { event: "sync" }, () => {
       const state = ch.presenceState() as any;
       const list = Object.values(state).flat().map((p: any) => ({ id: p.id, name: p.name }));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
 import Button from "./Button";
@@ -35,7 +35,7 @@ async function asSent(f: File): Promise<{ name: string; media_type: string; data
 }
 
 export default function NoteAttach({ onText, onFiles }: { onText: (t: string) => void; onFiles?: (files: File[]) => void }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [count, setCount] = useState(0);

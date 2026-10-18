@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -83,7 +83,7 @@ export async function sendLetter(body: { kind: "bring_on"; user_id: string } | {
 
 export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string | null; onDone: () => void }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const [open, setOpen] = useState(() => !!promoteFor);
   const [people, setPeople] = useState<Person[]>([]);

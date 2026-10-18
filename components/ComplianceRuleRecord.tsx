@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { canOf } from "@/lib/roles";
 import { localToday } from "@/lib/dates";
@@ -76,7 +76,7 @@ export default function ComplianceRuleRecord({ ruleId, onClose }: { ruleId: stri
 }
 
 function RuleBody({ d, admin, onDone }: { d: Data; admin: boolean; onDone: () => void }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const rule = d.rule!;
   const [against, setAgainst] = useState("");
   const [note, setNote] = useState("");

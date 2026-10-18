@@ -3,7 +3,7 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import InlineCreate from "./InlineCreate";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -33,7 +33,7 @@ const dnice = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocal
 
 export default function ShootPlanner() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [shoots, setShoots] = useState<Shoot[]>([]);
   const [shots, setShots] = useState<Shot[]>([]);
   const [open, setOpen] = useState<string | null>(null);

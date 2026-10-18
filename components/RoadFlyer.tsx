@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { uploadToBucket } from "@/lib/uploads";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { localToday } from "@/lib/dates";
 import Icon from "@/components/Icon";
@@ -85,7 +85,7 @@ const DEFAULT_SUB = "SPECIALTY\nSalted Maple\n\nHYDRATION\nNature Aide · Tide";
 const DEFAULT_DETAILS = "Rise | Cold-extracted ~18 hrs, coconut-finished. No burnt bite.\nFlow | The same base, cacao-infused. Richer, no added sugar.\nDusk | Cinnamon and cardamom. Warm, spiced — same lift.\nNitro | Charged with nitrogen. Creamy, no milk, no ice.\nNature Aide | Coconut water + lime, organic maple, sea salt.";
 
 export default function RoadFlyer() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Sheet, { CloseButton } from "./Sheet";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import Icon, { type IconName } from "./Icon";
 import TextsSetting from "./TextsSetting";
 import { AppAlertsProfile } from "./AppAlerts";
@@ -39,7 +39,7 @@ export default function NotificationsSheet({ onClose }: { onClose: () => void })
 
 function NotificationsBody() {
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // Theirs, as notif_prefs keeps it (own-row RLS, 0177): null until the read answers — a switch drawn before then would
   // say "on" for something they had turned off.
   const [muted, setMuted] = useState<string[] | null>(null);
@@ -122,7 +122,7 @@ function TruckLive() {
  *  is worse than no button. */
 function ThisPhone() {
   const { profile, user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">(() => (typeof Notification === "undefined" ? "unsupported" : Notification.permission));
   // Allowed here, and kept for them (R8, components/usePushKept): "On" only when this phone's row is theirs.
   const { kept, recheck } = usePushKept(!NATIVE_PUSH_ON && perm === "granted", user?.id ?? null);

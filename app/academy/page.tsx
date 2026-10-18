@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { readParam, dropParam } from "@/lib/urlParam";
 import SignIn from "@/components/SignIn";
@@ -67,7 +67,7 @@ const DAY = 86400000;
 
 export default function AcademyPage() {
   const { ready, enabled, user, profile, profileStatus } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const role = toAcademyRole(roleOf(profile));
   const [progress, setProgress] = useState<Record<string, { status: string; best_score: number | null; completed_at: string | null }>>({});
   const [certs, setCerts] = useState<Set<string>>(new Set());
@@ -583,7 +583,7 @@ function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor
   // scrolled away with it (2026-10-08, the navigation round).
   useBackStep("Academy", onBack);
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [rows, setRows] = useState<{ id: string; name: string; role: string; done: number; certs: number; overdue: number }[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);

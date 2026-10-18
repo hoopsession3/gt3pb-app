@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { openAddress, fullRouteUrl } from "@/lib/maps";
 import { haptic } from "@/lib/haptics";
 import { type PerfMix } from "@/lib/delivery";
@@ -43,7 +43,7 @@ const packSummary = (o: DOrder) => [
 ].filter(Boolean).join(" · ");
 
 export default function DriverRun() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [openId, setOpenId] = useState<string | null>(null);
   const [empties, setEmpties] = useState<Record<string, number>>({});
   const [busyId, setBusyId] = useState<string | null>(null); // stop being logged — blocks double-tap → double SMS/update

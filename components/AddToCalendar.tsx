@@ -5,7 +5,7 @@ import { buildIcs, googleCalUrl, withBuffer, type CalEvent } from "@/lib/ics";
 import { addToCalendar } from "@/lib/deviceActions";
 import { APP_BUILD } from "@/lib/native";
 import { appleDevice } from "@/lib/ios";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import Icon from "@/components/Icon";
 import Button from "./Button";
 import { rovingKeys, rovingTab } from "./roving";
@@ -21,7 +21,7 @@ const BUFFERS: { v: number; label: string }[] = [
 // (lib/deviceActions addToCalendar), and it saves to any calendar on the phone.
 
 export default function AddToCalendar({ ev, label = "Add to calendar", defaultBuffer = 0, buffers = true }: { ev: CalEvent | null; label?: string; defaultBuffer?: number; buffers?: boolean }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [open, setOpen] = useState(false);
   const [buffer, setBuffer] = useState(defaultBuffer);
   const ref = useRef<HTMLDivElement>(null);

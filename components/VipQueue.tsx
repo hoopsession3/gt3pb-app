@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { canOf } from "@/lib/roles";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -29,7 +29,7 @@ type Vip = {
 type VipBoard = { rows: Vip[]; signed: Record<string, string> };
 
 export default function VipQueue() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   // Verifying a proof grants Founding (or Founding VIP), and a tier is an admin's or the owner's (0392, A1 of the
   // account audit). The rest of the crew still sees the queue and turns a proof down; the database holds the line.

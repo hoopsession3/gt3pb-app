@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useOperatorSection } from "./OperatorNav";
 import { scrollToAnchor } from "@/lib/anchors";
 import { canOf } from "@/lib/roles";
@@ -39,7 +39,7 @@ const STATUS_WORD: Record<string, string> = { planning: "Planning", active: "Act
 
 export default function InitiativeSheet({ id, onClose, onSaved }: { id: string; onClose: () => void; onSaved?: () => void }) {
   const { profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { setSection } = useOperatorSection();
   const can = canOf(profile);
 

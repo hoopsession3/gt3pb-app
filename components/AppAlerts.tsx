@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { nativePush, onNativePush, type AppAlertState } from "@/lib/nativePush";
 import { nativeDevice } from "@/lib/deviceActions";
 import { appleDevice } from "@/lib/ios";
@@ -56,7 +56,7 @@ const says = (s: AppAlertState | "unknown"): string =>
 
 /** Settings › You › Notifications, in the app: what this iPhone says, and the one tap that asks it. */
 export function AppAlertsRow() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { state, turnOn } = useAppAlerts();
   const ask = async () => {
     const s = await turnOn();
@@ -88,7 +88,7 @@ export function AppAlertsOffLine({ children }: { children: (off: boolean) => Rea
  *  promised "a ping when your order is ready" over an Order updates switch the member had turned off; it says what the
  *  web's row says now). */
 export function AppAlertsProfile() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { state, turnOn } = useAppAlerts();
   if (state === "unknown" || state === "unavailable") return null;
   const ask = async () => {

@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth, roleOf } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
@@ -76,7 +76,7 @@ const STATUS_WORD: Record<Check["status"], string> = {
 
 export default function MarketsPanel() {
   const { profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [busy, setBusy] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);

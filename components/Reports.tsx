@@ -9,7 +9,7 @@ import { Segmented } from "@/components/controls";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { channelRows, costBasisWords, type Channels } from "@/lib/home";
 import AsyncSection from "./AsyncSection";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 
 // Sales actuals — the first reporting dashboard (MONEY tab). Real revenue + per-event actuals +
 // product mix + daily trend, read from one owner-and-admin RPC. On-brand bars, no chart dependency.
@@ -29,7 +29,7 @@ const RANGES = [7, 30, 90];
 export default function Reports() {
   // A product's name is the Catalog's (R2, 2026-10-13: the report kept its own seven-drink list, so KING ME read "KINGME"
   // and a drink added in the Catalog its slug).
-  const { nameOf } = useApp();
+  const { nameOf } = useAppStable();
   const label = (k: string) => (k ? nameOf(k) : "—");
   const [days, setDays] = useState(30);
   const loader = useCallback(() => fetchSalesReport(days), [days]);

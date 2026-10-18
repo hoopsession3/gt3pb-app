@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMinute } from "@/lib/useMinute";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import Icon from "@/components/Icon";
 import FieldOpSheet from "@/components/FieldOpSheet";
 import InputSheet from "@/components/InputSheet";
@@ -71,7 +71,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
   nameOverride?: string | null;
 }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
   const table = kind === "stop" ? "stops" : "vendors";

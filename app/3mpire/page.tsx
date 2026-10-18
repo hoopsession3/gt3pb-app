@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useApp, useAppStable } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
@@ -97,7 +97,7 @@ function useRingFill(fill: number) {
 }
 
 function ReferralCard({ code }: { code: string }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const t = useSiteCopy();
   const [copyLbl, setCopyLbl] = useState(t("account.copy"));
@@ -149,7 +149,7 @@ function ReferralCard({ code }: { code: string }) {
 
 // ───────────────────────── signed-in, profile-driven ─────────────────────────
 function MpireReal() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { profile, profileStatus, user, signOut, refreshProfile } = useAuth();
   const router = useRouter();
   const t = useSiteCopy();
@@ -261,7 +261,7 @@ function MpireReal() {
 
 // ───────────────────────── demo (Supabase not configured) ─────────────────────────
 function MpireDemo() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const router = useRouter();
   const t = useSiteCopy();
   // One demo card (17 stamps: 7 on the card, a free cup ready), said the way a real one is — the ring, the line and the

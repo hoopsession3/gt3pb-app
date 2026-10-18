@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { InfoRow, SectionHeader } from "@/components/kit";
@@ -42,7 +42,7 @@ type Board = { rows: Claim[]; at: number };
 const COLS = "id, reserve_id, qty, state, paid_cents, refunded_cents, created_at, collected_at, reserve:reserves(name, price_cents), customer:customers(name)";
 
 export default function ReserveClaims({ day, reserveId }: { day?: string; reserveId?: string }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { profile } = useAuth();
   const admin = canOf(profile).admin;
   const confirm = useConfirm();

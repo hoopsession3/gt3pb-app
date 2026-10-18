@@ -6,7 +6,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { useOperatorSection, VALID, sectionsForRole, type OpSection } from "./OperatorNav";
 import { useRecord } from "./RecordSheet";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import InitiativeSheet from "./InitiativeSheet";
 import { scrollToAnchor } from "@/lib/anchors";
 import { obligationGo, obligationFor, OBLIGATION_WAYS, type ObligationRow, type Viewer } from "@/lib/obligations";
@@ -186,7 +186,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const { setSection } = useOperatorSection();
   const { user, profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const confirm = useConfirm();
   const admin = canOf(profile).admin;
   // Who is looking decides what is theirs (lib/obligations obligationFor) — read once, as plain values,

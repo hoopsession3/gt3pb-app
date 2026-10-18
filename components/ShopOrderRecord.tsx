@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Sheet, { CloseButton } from "./Sheet";
@@ -86,7 +86,7 @@ const variantLine = (v: unknown): string => {
 export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
   orderId: string; onClose: () => void; onChanged?: () => void;
 }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [busy, setBusy] = useState(false);
   const [resendTo, setResendTo] = useState("");
   const [resending, setResending] = useState(false);

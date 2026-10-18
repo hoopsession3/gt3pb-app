@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useAuth, roleOf } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
@@ -19,7 +19,7 @@ import { wrote } from "@/lib/wrote";
 export default function ProfileSheet({ onClose }: { onClose: () => void }) {
   const { user, profile, refreshProfile } = useAuth();
   const crew = roleOf(profile) !== "member";
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [name, setName] = useState(profile?.display_name ?? "");
   const [title, setTitle] = useState(profile?.title ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");

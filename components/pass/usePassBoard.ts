@@ -15,7 +15,7 @@ import {
   OPEN_CAP, NOWHERE, PASS_FEED_EVENT, type BoardDown, type Here, type Scope, type Held, type HeldKind,
 } from "@/lib/passBoard";
 import type { Order } from "@/lib/db";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useLatestRead } from "@/lib/useLatestRead";
 
 // THE PASS'S BOARD — what it holds and how it stays true (2026-10-11, the KDS program, wave 2: out of app/crew/page.tsx,
@@ -67,7 +67,7 @@ export function usePassBoard() {
   // Ring + buzz + flash when a genuinely new order lands (not on initial seed / own taps).
   // The Catalog's names (R2): what a screen reader hears is what the ticket prints. Through a ref, so the menu landing (a
   // new nameOf) never tears down and reopens the board's realtime feed.
-  const { nameOf } = useApp();
+  const { nameOf } = useAppStable();
   const nameRef = useRef(nameOf);
   useEffect(() => { nameRef.current = nameOf; }, [nameOf]);
   const announceNew = useCallback((row: Order) => {

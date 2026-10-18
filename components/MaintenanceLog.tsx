@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -51,7 +51,7 @@ function nextDue(a: Audit): { due: string; overdue: boolean } | null {
 
 export default function MaintenanceLog() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const [d, setD] = useState<Draft>(BLANK);
   const [composing, setComposing] = useState(false);

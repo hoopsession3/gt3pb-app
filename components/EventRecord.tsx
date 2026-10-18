@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { canOf } from "@/lib/roles";
 import { useConfirm } from "./ConfirmSheet";
@@ -68,7 +68,7 @@ const dayLine = (e: Rec) =>
   [evDate(e), evTime(e) || null, Number(e.plan_days ?? 1) > 1 ? `${e.plan_days} days` : null].filter(Boolean).join(" · ");
 
 export default function EventRecord({ eventId, onClose }: { eventId: string; onClose: () => void }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // WHO CAN DO WHAT HERE (2026-10-04). Today's op on My Day opens this sheet for every role now, and
   // until this it offered everyone every write: a server would get "It happened — wrap it up" and a
   // database refusal. Staff may write the note and what it took (0195, 0339); only an admin changes

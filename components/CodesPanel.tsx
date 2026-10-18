@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { benefitValueText, targetChoices, targetLabel, reachText, reachesNothing, menuPriceOf, KIND_REACH } from "@/lib/benefitText";
 import { useBenefitProducts } from "./useBenefitProducts";
 import { supabase } from "@/lib/supabase";
@@ -36,7 +36,7 @@ type CodeRow = {
 // reach (lib/benefitText) — it was a four-item constant here and another in PerksPanel. null = whole order.
 
 export default function CodesPanel() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [open, setOpen] = useState(false);
 
   // mint form

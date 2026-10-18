@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { fmt12 } from "@/lib/dates";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
@@ -43,7 +43,7 @@ export type NotifPrefsSaved = { userId: string; muted: string[]; qs: string; qe:
 /** The mutes and the quiet window. Settings › You › Notifications, and the inbox gear's sheet — each
  *  door heads it with its own title (the Settings row, the sheet's header), so the line leads here. */
 export function NotifPrefs({ userId }: { userId: string | null }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [muted, setMuted] = useState<string[]>([]);
   const [qs, setQs] = useState<string>("");
   const [qe, setQe] = useState<string>("");

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { Segmented } from "@/components/controls";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { haptic } from "@/lib/haptics";
 import { nextIdem, type IdemState } from "@/lib/idempotency";
@@ -27,7 +27,7 @@ const PROMPTS: Record<string, string> = {
 };
 
 export default function OfficeAskSheet({ companyId, startKind = "extra_delivery", onClose, onSent }: { companyId: string; startKind?: RequestKind; onClose: () => void; onSent: () => void }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [kind, setKind] = useState<RequestKind>(startKind);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { useOperatorSection } from "@/components/OperatorNav";
 import { canOf } from "@/lib/roles";
@@ -69,7 +69,7 @@ export default function VenuePick({
   style?: CSSProperties;
 }) {
   const id = useId();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { profile } = useAuth();
   const { setSection } = useOperatorSection();
   const { book, error, reload } = useVenues();

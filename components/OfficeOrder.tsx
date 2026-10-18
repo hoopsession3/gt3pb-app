@@ -8,7 +8,7 @@ import Icon from "@/components/Icon";
 import AddressField from "@/components/AddressField";
 import { useAuth } from "@/components/AuthProvider";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "@/components/useCustomerKnown";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { authedFetch } from "@/lib/authedFetch";
 import { OFFICE, officeQuote, mondayLabel } from "@/lib/office";
 import { useOfficeSettings } from "./useOfficeSettings";
@@ -25,7 +25,7 @@ import { mintId } from "@/lib/mintId";
 
 export default function OfficeOrder({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // This booking's key (R15, 0422 — the 10/10 audit, API F25): made once when the sheet opens and sent with every tap of
   // Book, so an answer lost on the way back and tapped again finds the first booking instead of making a second.
   const [bookingKey] = useState(mintId);

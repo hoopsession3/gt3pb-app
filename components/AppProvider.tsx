@@ -66,6 +66,19 @@ export function useApp() {
   return v;
 }
 
+// WHAT DOESN'T CHANGE WITH THE CART (R22 — the 10/10 audit, performance F19). The cart, the sheets and the reorder lived in
+// the one value every screen read, so a drink tapped into the cart drew every screen that only wanted to say a toast or
+// name a drink — the Pass's lanes included, on a crew phone that ordered. The toast's controls and the menu are their own
+// value now, changing only when the menu does; the 148 places that read nothing else read this (useAppStable), and only
+// the cart's own screens hear the cart. useApp still answers everything, as it always did.
+export type AppStable = Pick<AppCtx, "toast" | "hideToast" | "holdToast" | "priceCents" | "menu" | "menuRead" | "drinkOf" | "nameOf" | "refreshMenu">;
+const StableCtx = createContext<AppStable | null>(null);
+export function useAppStable(): AppStable {
+  const v = useContext(StableCtx);
+  if (!v) throw new Error("useAppStable must be used within AppProvider");
+  return v;
+}
+
 // WHAT THE TOAST SAYS, APART FROM WHAT THE APP DOES (R13 — the 10/10 audit's performance pass, F19). The toast's words and
 // whether it is up lived in the one context every screen reads (useApp, 149 places), so each toast — up, then down a few
 // seconds later — drew the whole app twice: the chrome, every sheet, and on the Pass every lane. Only the toast itself
@@ -323,11 +336,15 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     else if (Object.keys(before).length && !same) toast("Replaced what was in your order", "info", { action: { label: "Undo", run: () => { setCart(before); setCoOpen(false); } } });
   }, [toast, soldOut, menu, rows, holding]);
 
+  const stable = useMemo<AppStable>(
+    () => ({ toast, hideToast, holdToast, priceCents, menu, menuRead: rows !== null, drinkOf, nameOf, refreshMenu }),
+    [toast, hideToast, holdToast, priceCents, menu, rows, drinkOf, nameOf, refreshMenu]
+  );
   const value = useMemo<AppCtx>(
-    () => ({ toast, hideToast, holdToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, menuRead: rows !== null, drinkOf, nameOf, refreshMenu }),
-    [toast, hideToast, holdToast, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder, priceCents, menu, rows, drinkOf, nameOf, refreshMenu]
+    () => ({ ...stable, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder }),
+    [stable, cart, cartCount, isInCart, qtyOf, bump, inc, dec, checkout, openId, openDrink, closeDrink, coOpen, openCheckout, closeCheckout, payOpen, setPayOpen, reorder]
   );
   const toastState = useMemo<ToastState>(() => ({ toastMsg, toastShown, toastVariant, toastAction }), [toastMsg, toastShown, toastVariant, toastAction]);
 
-  return <Ctx.Provider value={value}><ToastCtx.Provider value={toastState}>{children}</ToastCtx.Provider></Ctx.Provider>;
+  return <StableCtx.Provider value={stable}><Ctx.Provider value={value}><ToastCtx.Provider value={toastState}>{children}</ToastCtx.Provider></Ctx.Provider></StableCtx.Provider>;
 }

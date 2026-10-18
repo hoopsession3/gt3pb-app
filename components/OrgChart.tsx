@@ -7,7 +7,7 @@ import { useRecord } from "./RecordSheet";
 import { useWorkStreams } from "@/lib/streams";
 import { SectionHeader } from "@/components/kit";
 import { useAuth, roleOf } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { ALL_ROLES, roleLabel, type Role } from "@/lib/roles";
 import { crewLabel } from "./useCrew";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -42,7 +42,7 @@ const orgTitle = (p: P) => p.title || (ALL_ROLES.includes(p.role as Role) ? role
 export default function OrgChart({ part = "people", bare = false }: { part?: "people" | "lanes"; bare?: boolean } = {}) {
   const streams = useWorkStreams();
   const { profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const canAssign = ["admin", "owner"].includes(roleOf(profile)); // mirrors the table's write policy
   const assign = async (id: string | undefined, uid: string) => {
     if (!supabase || !id) return;

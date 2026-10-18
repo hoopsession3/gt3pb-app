@@ -6,7 +6,7 @@ import Gt3Mark from "@/components/Gt3Mark";
 import { supabase } from "@/lib/supabase";
 import { haptic } from "@/lib/haptics";
 import { appleIdentity, linkAppleHere, takeFreshApple, FRESH_APPLE, type FreshApple } from "@/lib/appleAuth";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import Said from "./Said";
 
 // AN APPLE SIGN-IN FINDS THE ACCOUNT IT BELONGS TO (2026-10-15, A3 of the account audit; decided by Ryan on 2026-10-13:
@@ -32,7 +32,7 @@ const CODE_LEN = 8;   // Supabase › Authentication › Email › Email OTP len
 type Step = "ask" | "email" | "code" | "linking" | "done" | "stuck";
 
 export default function AppleLink() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("ask");
   const [email, setEmail] = useState("");

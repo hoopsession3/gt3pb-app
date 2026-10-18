@@ -8,7 +8,8 @@
 // this account?" is a question about every foreign key in the schema — so this applies all of them
 // (350 as written, 2026-10-06) to PGlite, with Supabase's own schemas stood in for: auth (users,
 // identities, uid() from a session setting), storage (buckets, objects, the path helpers), cron, net,
-// vault, supabase_functions and the realtime publication. pg_trgm is PGlite's own; pg_cron is not
+// vault, supabase_functions, the realtime publication and Realtime Authorization's messages table (topic() from a
+// session setting). pg_trgm is PGlite's own; pg_cron is not
 // available and nothing here needs it to run.
 //
 // A migration that will not load fails the load with its file name: that is a migration that would
@@ -74,6 +75,16 @@ export const SUPABASE_STANDINS = `
   create view vault.decrypted_secrets as select id, name, secret as decrypted_secret from vault.secrets;
   create or replace function supabase_functions.http_request() returns trigger language plpgsql as $$ begin return new; end $$;
   create publication supabase_realtime;
+  -- Realtime Authorization's table (0428): joining a private channel is a select on realtime.messages, and sending in it
+  -- an insert, each as the caller with the channel's name in realtime.topic() — Realtime runs both and rolls them back.
+  create schema realtime;
+  create table realtime.messages (topic text not null, extension text not null, payload jsonb, event text, private boolean default false,
+    updated_at timestamp not null default now(), inserted_at timestamp not null default now(), id uuid not null default gen_random_uuid(),
+    primary key (id, inserted_at));
+  alter table realtime.messages enable row level security;
+  create or replace function realtime.topic() returns text language sql stable as $$ select nullif(current_setting('realtime.topic', true), '')::text $$;
+  grant usage on schema realtime to anon, authenticated;
+  grant select, insert on realtime.messages to anon, authenticated;
 `;
 
 export function migrationFiles() {

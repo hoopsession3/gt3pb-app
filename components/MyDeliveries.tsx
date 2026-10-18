@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -49,7 +49,7 @@ const mixLine = (p: MyDelivery) => {
 export default function MyDeliveries() {
   const confirm = useConfirm();
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
 

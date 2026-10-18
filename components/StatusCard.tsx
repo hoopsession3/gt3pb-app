@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { saveFile, shareImage } from "@/lib/deviceActions";
 import Sheet, { CloseButton } from "./Sheet";
 import Icon from "@/components/Icon";
@@ -73,7 +73,7 @@ function coverDraw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: numb
 
 export default function StatusCard({ open, onClose, demo }: { open: boolean; onClose: () => void; demo?: { founding?: boolean } }) {
   const { profile, user, refreshProfile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const t = useSiteCopy();  // client-facing strings are owner-editable via the Site Copy editor
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);

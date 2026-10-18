@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useCollectSheet } from "@/components/CollectSheet";
@@ -133,7 +133,7 @@ function LaneHead({ lane, label, n, folded, onFold }: { lane: keyof Lanes; label
 /** The board: the lanes, their tickets, and what the board says about itself. */
 function PassBoard() {
   const confirm = useConfirm();
-  const { toast, nameOf } = useApp();
+  const { toast, nameOf } = useAppStable();
   const { user, profile } = useAuth();
   const me = user?.id ?? null;
   const admin = canOf(profile).admin;

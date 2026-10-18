@@ -12,7 +12,7 @@ import AsyncSection from "./AsyncSection";
 import GoLine from "./GoLine";
 import Icon from "./Icon";
 import { useConfirm } from "./ConfirmSheet";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 
 // GET PAID (2026-10-15, release 3 of the Plan & Money audit). The panel was two links out — "Refunds & disputes —
 // Square Dashboard" and the payment switches — and nothing in it said whether there was a refund, a chargeback or an
@@ -52,7 +52,7 @@ const shortDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { 
 
 export default function GetPaid() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [paying, setPaying] = useState<string | null>(null);
 
   const loader = useCallback(async (): Promise<Board> => {

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -44,7 +44,7 @@ type Board = { rep: Report | null; vendors: { id: string; name: string }[]; item
 
 export default function SpendBudget() {
   const prompt = usePrompt();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [editCat, setEditCat] = useState<string | null>(null); const [editVal, setEditVal] = useState("");
   const [editExpId, setEditExpId] = useState<string | null>(null);
   const [ee, setEe] = useState({ amount: "", cat: "supplies", desc: "", vendor: "" });

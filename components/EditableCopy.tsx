@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ElementType, type ChangeEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { useAuth, roleOf } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { saveCopy } from "@/lib/copy";
 import { useEditMode } from "@/lib/editModeToggle";
 import { useLatest } from "@/lib/useLatest";
@@ -44,7 +44,7 @@ export default function EditableCopy({
   const As = as;
   const shown = displayValue ?? value;
   const { user, profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const isOwner = roleOf(profile) === "owner";
 
   // The owner's switch, read as a store (lib/editModeToggle, R17): it follows the toggle here and in other tabs, off on

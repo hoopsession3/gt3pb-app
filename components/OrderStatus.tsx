@@ -3,7 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import Icon from "@/components/Icon";
 import { readyWords, waitingToOpen } from "@/lib/ordering";
@@ -44,7 +44,7 @@ export default function OrderStatus() {
 }
 
 function OrderBar() {
-  const { nameOf } = useApp(); // the Catalog's names (R2)
+  const { nameOf } = useAppStable(); // the Catalog's names (R2)
   const { orders, stale, reload } = useMyActiveOrders();
   const [etaOpen, setEtaOpen] = useState(false); // chips fold until asked for
   const o = leadOrder(orders);

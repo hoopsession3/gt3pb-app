@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { DIGEST_LABELS, type DigestCadence } from "@/lib/settingsGlance";
@@ -12,7 +12,7 @@ import { DIGEST_LABELS, type DigestCadence } from "@/lib/settingsGlance";
 // The cadences and their words have one home (lib/settingsGlance) — Settings' Founder digest row says them too.
 
 export default function FounderDigest() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [cadence, setCadence] = useState<DigestCadence>("daily");
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);

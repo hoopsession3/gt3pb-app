@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { Segmented } from "@/components/controls";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { supabase } from "@/lib/supabase";
 import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
@@ -52,7 +52,7 @@ function chipDay(key: string, ref: string): string {
 }
 
 export default function OfficeChangeSheet({ delivery: d, place, canChange, canRequest, minGallons, now, startSkip = false, onClose, onChanged }: Props) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [draft, setDraft] = useState<ChangeDraft>(() => ({ ...draftOf(d), skip: draftOf(d).skip || (startSkip && !d.canceled) }));
   const [extra, setExtra] = useState("");
   const [busy, setBusy] = useState(false);

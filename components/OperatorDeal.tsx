@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { SectionHeader } from "@/components/kit";
@@ -92,7 +92,7 @@ type Extra = { integrity: string; hours_total: number; hours_on_interim_work: nu
  */
 export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) {
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);

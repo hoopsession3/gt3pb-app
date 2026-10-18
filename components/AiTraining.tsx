@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { SectionHeader } from "@/components/kit";
 import Icon from "@/components/Icon";
@@ -33,7 +33,7 @@ type Convo = { id: string; agent: string; question: string | null; answer: strin
 
 export default function AiTraining() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const [agent, setAgent] = useState<string>("all");
   const [rows, setRows] = useState<Know[]>([]);

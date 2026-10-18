@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { InfoRow } from "@/components/kit";
 import AddToCalendar from "@/components/AddToCalendar";
@@ -26,7 +26,7 @@ import Icon from "@/components/Icon";
 export { evTime, evDate, evLeadDay, evLeadDate };
 
 export function RsvpRow({ ev }: { ev: EventRow }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const t = useSiteCopy();
   const [going, setGoing] = useState(false);

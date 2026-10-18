@@ -34,7 +34,7 @@ import { useOutlookStatus, outlookLine } from "./OutlookConnect";
 import GoLine from "./GoLine";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useClientValue } from "@/lib/clientPage";
 import { useLatestRead } from "@/lib/useLatestRead";
 
@@ -154,7 +154,7 @@ function CalChip({ it, onOpen, readOnly, dragRef }: { it: Item; onOpen?: () => v
 
 export default function CompanyCalendar({ readOnly = false }: { readOnly?: boolean } = {}) {
   const { setSection } = useOperatorSection();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { openRecord } = useRecord();
   const { profile } = useAuth();
   const role = roleOf(profile);
@@ -871,7 +871,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
   walker?: ReactNode;
 }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // events + stops route to FieldOpSheet (the one quick editor) before reaching here — CalEdit
   // handles every other kind: todo / content / task / brew / goal / lead / pipe / meeting.
   const cfg = SRC[kind];

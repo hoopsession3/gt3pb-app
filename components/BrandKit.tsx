@@ -7,7 +7,7 @@ import { uploadToBucket } from "@/lib/uploads";
 import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { wrote } from "@/lib/wrote";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { brandMaster, brandThumb } from "@/lib/brandThumbs";
 import { APP_BUILD, publicOrigin } from "@/lib/native";
 import { useChanged } from "@/lib/useChanged";
@@ -24,7 +24,7 @@ type Asset = { id: string; label: string; kind: string; url: string; notes: stri
 
 export default function BrandKit({ canEdit }: { canEdit: boolean }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [kit, setKit] = useState<Kit | null>(null);
   const [draft, setDraft] = useState<Kit>(EMPTY);
   const [edit, setEdit] = useState(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { canOf, roleOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
@@ -55,7 +55,7 @@ type UiTier = "member" | "founding" | "founding_vip";
 const TIERS: readonly UiTier[] = ["member", "founding", "founding_vip"];
 
 export function CrmDetail({ c }: { c: Customer }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // Who may change what (0392, A1 of the account audit): a tier — Founding, Founding VIP — is an admin's or the
   // owner's, and points and credit are the owner's (0229). The database refuses anyone else; this only stops the
   // card offering a button that would be refused. Everyone on the crew still sees the tier.

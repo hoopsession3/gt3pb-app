@@ -66,7 +66,8 @@ async function post(req: Request) {
   const tell: Tell = {
     crew: (a) => raiseAlert({ severity: a.severity, category: a.category, kind: a.kind, subjectId: a.subjectId, title: a.title, body: a.body, link: "/crew?s=now" }),
     customer: async (c, words, phone) => {
-      await notifyCustomer({ phone, email: await accountEmail(user.id), subject: `GT3 — your ${c.after.size}-pack is changed`, message: words });
+      // Once per change (R22, lib/notify onceKey): the change's own key, which a retried press carries too.
+      await notifyCustomer({ phone, email: await accountEmail(user.id), subject: `GT3 — your ${c.after.size}-pack is changed`, message: words, key: `pack-changed:${c.key}` });
     },
   };
   const store = packChangeStore(sb);

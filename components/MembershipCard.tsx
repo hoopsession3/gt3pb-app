@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import Gt3Mark from "@/components/Gt3Mark";
 import MemberCard from "@/components/MemberCard";
 import Icon from "@/components/Icon";
@@ -19,7 +19,7 @@ import { APPLE_PASS_SIGNS } from "@/lib/wallet";
 
 export default function MembershipCard() {
   const { profile, user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [qr, setQr] = useState<string>("");
   const [busy, setBusy] = useState<"" | "apple" | "google">("");
   const [flexOpen, setFlexOpen] = useState(false);

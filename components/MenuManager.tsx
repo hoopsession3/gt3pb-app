@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { SectionHeader } from "@/components/kit";
 import { Segmented } from "@/components/controls";
@@ -48,7 +48,7 @@ const without = <T,>(m: Readonly<Record<string, T>>, id: string): Record<string,
 };
 
 export default function MenuManager() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [openId, setOpenId] = useState<string | null>(null);
   // The row as it was when its page opened: if somebody deletes it while the page is open, the page stays, says so,
   // and keeps what was typed, instead of vanishing with it.

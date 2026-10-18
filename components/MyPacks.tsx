@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { mixSummary, dollars, emptyMix, dropForStop, nextDrop, dropDateKey, type Mix, type GlassPath } from "@/lib/orderAhead";
@@ -52,7 +52,7 @@ export const packMix = (p: { mix: Partial<Mix> }): Mix => ({ ...emptyMix(), ...p
 export default function MyPacks({ onChange, refreshKey, collapsible }: { onChange?: (p: MyPack) => void; refreshKey?: string; collapsible?: boolean }) {
   const confirm = useConfirm();
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [rows, setRows] = useState<MyPack[]>([]);
   const [unread, setUnread] = useState(false);
   const rowsRef = useRef<MyPack[]>([]);

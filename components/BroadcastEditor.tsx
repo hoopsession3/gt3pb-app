@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import type { Broadcast } from "@/lib/broadcasts";
 import Icon from "@/components/Icon";
@@ -26,7 +26,7 @@ const AUDIENCES = [["all", "Everyone"], ["members", "Signed-in members"], ["staf
 
 export default function BroadcastEditor() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   // Swallowed error → [] → "no broadcasts", i.e. the announcement you published looks unpublished.
   const [d, setD] = useState<Draft>(BLANK);

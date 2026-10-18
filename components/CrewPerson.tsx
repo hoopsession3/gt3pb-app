@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth, roleOf } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -81,7 +81,7 @@ const initials = (n: string | null) =>
 export default function CrewPerson({ userId, onClose, onChanged }: {
   userId: string; onClose: () => void; onChanged?: () => void;
 }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { profile: me } = useAuth();
   const [busy, setBusy] = useState(false);
   const [showLoyalty, setShowLoyalty] = useState(false);

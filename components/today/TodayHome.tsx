@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useAuth, isStaff, type Profile } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
-import { useApp } from "@/components/AppProvider";
+import { useApp, useAppStable } from "@/components/AppProvider";
 import { Masthead, InfoRow, ClosingBeat } from "@/components/kit";
 import Button from "@/components/Button";
 import Icon from "@/components/Icon";
@@ -92,7 +92,7 @@ function useQuote(items: readonly string[], on: boolean): number | null {
 
 // ── THE ORDER BEING MADE ──────────────────────────────────────────────────────────────────────────────────────
 function MakingCard({ order, more, stale, reload }: { order: Order; more: number; stale: boolean; reload: () => void }) {
-  const { nameOf } = useApp();
+  const { nameOf } = useAppStable();
   const { setEta, etaBusy, cancel, canceling } = useOrderActions(order, reload);
   const paid = isSettled(order);
   const ahead = order.status === "new" && !!order.ready_from && waitingToOpen(order);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import AccountPill from "@/components/AccountPill";
 import EditCopyPill from "@/components/EditCopyPill";
 import EditableCopy from "@/components/EditableCopy";
@@ -17,7 +17,7 @@ import { useStepFocus } from "@/components/useStepFocus";
 // "Book the bar" intake — captures B2B/event requests into Supabase (admins manage them
 // in the back office). Booking Tool v5 stays the rate source of truth; the app never quotes.
 export default function BookScreen() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const t = useSiteCopy();
   const [f, setF] = useState({ event_date: "", headcount: "", location_text: "", notes: "" });
   // Who is asking starts from what we know (lib/customerKnown, 2026-10-04) — a signed-in customer was

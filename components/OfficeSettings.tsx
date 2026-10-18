@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { OFFICE } from "@/lib/office";
 import { moneyPlain } from "@/lib/money";
@@ -9,7 +9,7 @@ import { moneyPlain } from "@/lib/money";
 // Owner editor for office delivery pricing (0189) — the two knobs that used to be hardcoded. Writes
 // the live_status singleton (id=1); the office order flow reads them live via useOfficeSettings.
 export default function OfficeSettings() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [price, setPrice] = useState("");   // dollars/gal
   const [min, setMin] = useState("");
   const [loaded, setLoaded] = useState(false);

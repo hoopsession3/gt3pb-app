@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { COPY_META, copyGroupAnchor, copyGroupRoute, saveCopy, resetCopy } from "@/lib/copy";
 import { SectionHeader } from "@/components/kit";
@@ -15,7 +15,7 @@ import Icon from "@/components/Icon";
 // removes it (back to the default). Public storefronts read the change live (realtime). Gated to
 // admins/owners (RLS enforces it server-side regardless).
 export default function SiteCopyEditor() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const isAdmin = Boolean(profile?.is_admin);
   const [draft, setDraft] = useState<Record<string, string>>({});

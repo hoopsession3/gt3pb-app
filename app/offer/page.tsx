@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
@@ -51,7 +51,7 @@ const daysUntil = (iso?: string | null) => {
 
 export default function OfferPage() {
   const { user, ready } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [letter, setLetter] = useState<Row | null>(null);
   const [busy, setBusy] = useState(false);
   const [countering, setCountering] = useState<string | null>(null);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { canOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
@@ -63,7 +63,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
   const prompt = usePrompt();
   const now = useMinute();
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   // Settling is an owner's or an admin's (0420 settle_office_order, as is_admin() in SQL: the role, or the flag): the
   // rest of the crew sees what is owed, and the buttons that settle it are not theirs.
   const { profile } = useAuth();

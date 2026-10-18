@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useOperatorSection } from "@/components/OperatorNav";
 import { SectionHeader } from "@/components/kit";
@@ -53,7 +53,7 @@ const GoLiveSheet = dynamic(() => import("@/components/crew/GoLiveSheet"), { ssr
 
 export function LiveControl({ compact = false, manage = false }: { compact?: boolean; manage?: boolean }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { setSection } = useOperatorSection();
   // Who can save the cup-ordering dial — the database's own rule (is_admin(): an owner or an admin).
   // Only they get the line to it; a manager who could not save it is not sent to it.

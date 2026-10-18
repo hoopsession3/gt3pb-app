@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { useCustomerKnown, useKnownField, invalidateCustomerKnown } from "./useCustomerKnown";
 import { usePayAtPickup } from "./usePayAtPickup";
@@ -100,7 +100,7 @@ function askedCode(): string {
 }
 
 export default function OrderFunnel({ initialMode, syncUrl = true, initialAudience = "home" }: { initialMode: Mode; syncUrl?: boolean; initialAudience?: "home" | "office" }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   // A guest will be asked to sign in at the details step: its screen is fetched now, so it is there when they arrive.
   useEffect(() => { if (!user) void import("@/components/SignIn").catch(() => {}); }, [user]);

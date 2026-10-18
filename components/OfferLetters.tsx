@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -75,7 +75,7 @@ const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { mont
 
 export default function OfferLetters() {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const isOwner = roleOf(profile) === "owner";
   const [openId, setOpenId] = useState<string | null>(null);

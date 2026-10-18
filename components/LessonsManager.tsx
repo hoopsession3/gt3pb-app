@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
 import { SectionHeader, InfoRow } from "@/components/kit";
@@ -26,7 +26,7 @@ type Board = { pillars: Pillar[]; modules: Module[]; lessons: Lesson[]; products
 const rid = () => Math.random().toString(36).slice(2, 7);
 
 export default function LessonsManager() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [openId, setOpenId] = useState<string | null>(null);
   const [newMod, setNewMod] = useState("");
   const [newTitle, setNewTitle] = useState("");

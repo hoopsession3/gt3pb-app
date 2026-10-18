@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { benefitValueText, targetChoices, targetLabel, reachText, reachesNothing, menuPriceOf, KIND_REACH } from "@/lib/benefitText";
 import { useBenefitProducts } from "./useBenefitProducts";
 import { money } from "@/lib/money";
@@ -44,7 +44,7 @@ type PerkRow = {
 // could not name TIDE, FORGE or KING ME, and could name a bulk latte the checkout never sells.
 
 export default function PerksPanel() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [open, setOpen] = useState(false);
 
   // mint form

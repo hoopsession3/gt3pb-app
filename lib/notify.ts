@@ -55,31 +55,57 @@ export const smsEnabled = (): boolean =>
 // that was read, because nothing connects Resend's later news to the row we wrote.
 export type Sent = { ok: boolean; detail?: string; id?: string };
 
-export async function sendEmail(to: string, subject: string, text: string): Promise<Sent> {
+/**
+ * ── THE SAME MESSAGE, ONCE (R22 — the 10/10 audit, API F11) ─────────────────────────────────────
+ * A key names what happened — "order-ready:<order>", "stop-canceled:<stop>:<order>" — and the same key twice is the same
+ * message: a crew member's double press, a retry after a call that died half way, a provider's webhook told twice. Email:
+ * Resend keeps the key a day (its Idempotency-Key) and answers a repeat with the first send instead of sending again.
+ * A text: claimed once in public.message_sent (0429) just before it goes, marked when it went, let go again if it didn't —
+ * Twilio keeps no such key. A message with no key (a test, a receipt the crew sends again on purpose) goes each time.
+ */
+export function onceKey(key: string | null | undefined): string | null {
+  if (typeof key !== "string" || !key.trim()) return null;
+  return key.trim().replace(/[^\w:.@-]/g, "_").slice(0, 200);
+}
+
+export async function sendEmail(to: string, subject: string, text: string, opts: { key?: string | null } = {}): Promise<Sent> {
   // ADDRESS FIRST, then config — the same order notifyCustomer uses. It checked config first when
   // this was written, so the two disagreed about which of two simultaneous problems to report, in
   // code added ten minutes apart. "No address" is about THIS message and is true whatever the env
   // says; "no key" is the standing condition underneath it.
   if (!to.includes("@")) return { ok: false, detail: "no email address on the order" };
   if (!emailEnabled()) return { ok: false, detail: "no RESEND_API_KEY / NOTIFY_FROM_EMAIL" };
+  const key = onceKey(opts.key);
   try {
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: process.env.NOTIFY_FROM_EMAIL, to: [to], subject: subject.slice(0, 200), text }),
-      // A deadline (R10b): a send that has not been answered in ten seconds is reported failed, not waited on.
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (r.ok) {
-      // Their id, kept. A body that will not parse is not a failed send — the mail is already gone —
-      // so this degrades to "sent, unmatchable" rather than claiming the send failed.
-      const id = await r.json().then((j) => (typeof j?.id === "string" ? j.id : undefined)).catch(() => undefined);
-      return { ok: true, id };
+    for (let tries = 0; ; tries++) {
+      const r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", ...(key ? { "Idempotency-Key": key } : {}) },
+        body: JSON.stringify({ from: process.env.NOTIFY_FROM_EMAIL, to: [to], subject: subject.slice(0, 200), text }),
+        // A deadline (R10b): a send that has not been answered in ten seconds is reported failed, not waited on.
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (r.ok) {
+        // Their id, kept. A body that will not parse is not a failed send — the mail is already gone —
+        // so this degrades to "sent, unmatchable" rather than claiming the send failed. The same key and body again is
+        // answered with the first send's id: one email, which the log (lib/customerMessage) keeps one row for.
+        const id = await r.json().then((j) => (typeof j?.id === "string" ? j.id : undefined)).catch(() => undefined);
+        return { ok: true, id };
+      }
+      // THE SAME KEY, ANSWERED 409 (R22 — the R22 review). The first press is still going: asked again a moment later,
+      // Resend answers with what became of it — never "sent" on the strength of someone else's send. The key with other
+      // words (a refund's amount re-read): not sent, and said — whether the first went is that call's to say.
+      if (r.status === 409 && key) {
+        const name = await r.clone().json().then((j) => (typeof j?.name === "string" ? j.name : ""), () => "");
+        if (name === "concurrent_idempotent_requests" && tries < 2) { await new Promise((ok) => setTimeout(ok, 1000 * (tries + 1))); continue; }
+        if (name === "concurrent_idempotent_requests") return { ok: false, detail: "not confirmed: the same message was still being sent by an earlier call" };
+        if (name === "invalid_idempotent_request") return { ok: false, detail: "not sent: this was asked for once today in other words (the same key) — see that send" };
+      }
+      // Their words, trimmed — not a guess at what went wrong. A wrong explanation sends an operator
+      // to fix the wrong thing, which is worse than no explanation at all.
+      const body = await r.text().catch(() => "");
+      return { ok: false, detail: `Resend ${r.status}: ${body.slice(0, 300) || "(no body)"}` };
     }
-    // Their words, trimmed — not a guess at what went wrong. A wrong explanation sends an operator
-    // to fix the wrong thing, which is worse than no explanation at all.
-    const body = await r.text().catch(() => "");
-    return { ok: false, detail: `Resend ${r.status}: ${body.slice(0, 300) || "(no body)"}` };
   } catch (e) {
     return { ok: false, detail: `could not reach Resend: ${errorMessage(e, 200)}` };
   }
@@ -218,9 +244,59 @@ export async function customerMuted(userId: string | null | undefined, kind: Cus
   }
 }
 
+/** A text's key, claimed once (0429 message_sent): "claimed" — this call sends it; "sent" — it went before; "going" — another
+ *  call claimed it a moment ago and is sending it; "unknown" — the ledger couldn't be asked (not there yet, the database
+ *  down): it sends, as the push function does (a text missed is worse than one doubled).
+ *  A claim never marked sent for two minutes is a call that died on the way (the R22 review: the stop-cancel retry's own
+ *  case): the next call takes it over and sends — if the first had reached Twilio before it died, that one text is
+ *  doubled, the price of never leaving one unsent. */
+const TEXT_IN_FLIGHT_MS = 120_000;
+async function claimText(key: string): Promise<"claimed" | "sent" | "going" | "unknown"> {
+  if (!supabaseAdmin) return "unknown";
+  const k = `text:${key}`;
+  try {
+    // scoped-by: a ledger of keys only — no tenant's data in it, the service role's alone (0429)
+    const { error } = await supabaseAdmin.from("message_sent").insert({ event_key: k });
+    if (!error) return "claimed";
+    if (error.code !== "23505") return "unknown";
+    // scoped-by: the one key just refused as a duplicate
+    const taken = await supabaseAdmin.from("message_sent").update({ claimed_at: new Date().toISOString() })
+      .eq("event_key", k).is("sent_at", null).lt("claimed_at", new Date(Date.now() - TEXT_IN_FLIGHT_MS).toISOString()).select("event_key");
+    if (taken.error) return "unknown";
+    if (taken.data?.length) return "claimed";
+    // scoped-by: the same one key
+    // arrives-with: 0429 — until it is pasted the claim's insert above already failed (no table), so this is never asked
+    const { data: row, error: unread } = await supabaseAdmin.from("message_sent").select("sent_at").eq("event_key", k).maybeSingle();
+    if (unread) return "unknown";
+    return (row as { sent_at?: string | null } | null)?.sent_at ? "sent" : "going";
+  } catch { return "unknown"; }
+}
+/** The claimed text went: marked, so no later call takes it over. */
+async function markTextSent(key: string): Promise<void> {
+  if (!supabaseAdmin) return;
+  try {
+    // scoped-by: the one key this call claimed
+    const { error } = await supabaseAdmin.from("message_sent").update({ sent_at: new Date().toISOString() }).eq("event_key", `text:${key}`);
+    if (error) console.error(`text ${key}: sent, but not marked (${error.code || "no code"}) — a retry two minutes on would text it again`);
+  } catch { /* as above */ }
+}
+/** A claimed text that didn't go is let go again, so a retry can send it. */
+async function releaseText(key: string): Promise<void> {
+  if (!supabaseAdmin) return;
+  try {
+    // scoped-by: the one key this call claimed
+    const { error } = await supabaseAdmin.from("message_sent").delete().eq("event_key", `text:${key}`).is("sent_at", null);
+    // A key left behind is taken over by a retry two minutes on — never a wrong text — and is said.
+    if (error) console.error(`text ${key}: not sent, and its key could not be let go (${error.code || "no code"}) — a retry in two minutes takes it over`);
+  } catch { /* as above */ }
+}
+
 export async function notifyCustomer(opts: {
   phone?: string | null; email?: string | null; subject: string; message: string;
+  /** What happened, named (onceKey): the same key twice is told once, by email and by text. */
+  key?: string | null;
 }): Promise<{ sms: SendResult; email: SendResult; smsDetail?: string; emailDetail?: string; emailId?: string }> {
+  const key = onceKey(opts.key);
   const [sms, mail] = await Promise.all([
     (async (): Promise<[SendResult, string | undefined, undefined]> => {
       if (!opts.phone) return ["no-address", undefined, undefined];
@@ -233,13 +309,17 @@ export async function notifyCustomer(opts: {
       // (the table not there yet, the database down) is no yes: a text not sent is better than one nobody asked for.
       if (!(await textYes(num))) return ["not-asked", undefined, undefined];
       if (quietHours()) return ["quiet", undefined, undefined];
+      const claim = key ? await claimText(key) : "unknown";
+      if (claim === "sent") return ["sent", "sent once already — the same thing, told again", undefined];
+      if (claim === "going") return ["sent", "being sent by another call just now — the same thing, told twice", undefined];
       const r = await sendSMS(num, opts.message);
+      if (claim === "claimed") await (r.ok ? markTextSent(key!) : releaseText(key!));
       return [r.ok ? "sent" : "failed", r.detail, undefined];
     })(),
     (async (): Promise<[SendResult, string | undefined, string | undefined]> => {
       if (!opts.email || !opts.email.includes("@")) return ["no-address", undefined, undefined];
       if (!emailEnabled()) return ["off", undefined, undefined];
-      const r = await sendEmail(opts.email, opts.subject, opts.message);
+      const r = await sendEmail(opts.email, opts.subject, opts.message, { key });
       return [r.ok ? "sent" : "failed", r.detail, r.id];
     })(),
   ]);

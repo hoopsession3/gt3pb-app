@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/components/AuthProvider";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import Button from "@/components/Button";
 import Icon from "@/components/Icon";
 import { useAlertPermission } from "@/components/DeviceAlerts";
@@ -28,7 +28,7 @@ const AddToCalendar = dynamic(() => import("@/components/AddToCalendar"));
 const OPEN_FOR_MS = 15 * 60 * 1000;
 
 export default function RemindMe({ stopId, opensAt, stopName, where, t }: { stopId: string; opensAt: string; stopName?: string | null; where?: string | null; t: (k: string) => string }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user, profile } = useAuth();
   const perm = useAlertPermission();      // the browser's answer ("unsupported" where there is no Notification)
   const app = useAppAlerts();             // the iPhone app's (null half on the web)

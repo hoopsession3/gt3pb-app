@@ -19,7 +19,7 @@ import Sheet, { CloseButton } from "./Sheet";
 import Icon from "./Icon";
 import { SectionHeader } from "./kit";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useOperatorSection, sectionsForRole } from "./OperatorNav";
 import { useTaskSheet } from "./TaskSheet";
 import { loadOwed, useObligationGo, type OwedData, type OwedRow } from "./Owed";
@@ -74,7 +74,7 @@ function mineSub(t: MyTaskRow): string {
 
 export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
   const { user, profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { setSection } = useOperatorSection();
   const { openTask } = useTaskSheet();
   const meId = user?.id ?? null;

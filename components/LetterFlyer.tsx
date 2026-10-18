@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { uploadToBucket } from "@/lib/uploads";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import Icon from "@/components/Icon";
 import { saveFile } from "@/lib/deviceActions";
@@ -284,7 +284,7 @@ function drawStyle(c: Ctx, logo: Img, id: string, F: Fields, W: number, H: numbe
 }
 
 export default function LetterFlyer() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // The style and the size, kept on the phone and read as stores (lib/devicePref, R17): the first of each on the server

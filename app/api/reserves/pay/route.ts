@@ -54,7 +54,7 @@ async function post(req: Request) {
   const tell: Tell = {
     crew: (a) => raiseAlert({ severity: a.severity, category: a.category, kind: a.kind, title: a.title, body: a.body, subjectId: a.subjectId, link: a.link }),
     // Email, best-effort (lib/notify): a reserve carries no phone, so nothing is texted.
-    customer: async (c) => { await notifyCustomer({ email, subject: c.subject, message: c.message }); },
+    customer: async (c) => { await notifyCustomer({ email, subject: c.subject, message: c.message, key: c.key }); },
   };
 
   return reply(await payReserve({

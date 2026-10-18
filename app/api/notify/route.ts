@@ -6,6 +6,7 @@ import { route } from "@/lib/apiRoute";
 import { orderNo } from "@/lib/activeOrder";
 import { orderLine } from "@/lib/orderWords";
 import { money } from "@/lib/money";
+import { etToday } from "@/lib/dates";
 
 // LIFECYCLE PINGS the crew fires from the boards — the customer can't be expected to sit in the
 // app. order_ready: the pass advanced an order to Ready (walk-up/pre-orders carry no phone, so
@@ -55,6 +56,8 @@ async function post(req: Request) {
         email: await accountEmail(o.user_id),
         subject: `GT3 — order ${no} is ready`,
         message: `GT3: ${first ? `${first}, ` : ""}order ${no} is ${orderLine("ready").replace(/^Ready/, "ready")}`,
+        // Once (R22, lib/notify onceKey): the Pass pressed twice, or the call retried, is one email.
+        key: `order-ready:${o.id}`,
       });
       return NextResponse.json({ ok: true, ...sent });
     }
@@ -84,6 +87,8 @@ async function post(req: Request) {
         email: await accountEmail(o.user_id),
         subject: `GT3 — order ${no} was canceled`,
         message: `GT3: ${first ? `${first}, ` : ""}order ${no} was canceled by the crew.${money$}`,
+        // The same key the member's own cancel and a stop called off use for this order: one "canceled" each, however told.
+        key: `order-canceled:${o.id}`,
       });
       return NextResponse.json({ ok: true, ...sent });
     }
@@ -98,6 +103,8 @@ async function post(req: Request) {
       email: await accountEmail(d.user_id),
       subject: "GT3 — delivered",
       message: `GT3: ${first ? `${first}, ` : ""}your bottles are on the porch${Number(d.refill_count) > 0 ? " — we took your empties" : ""}. Fresh 7 days from today.`,
+      // One delivery, one "delivered" — a porch run's order is delivered on its day (the business's day, lib/dates).
+      key: `delivered:${d.id}:${etToday()}`,
     });
     return NextResponse.json({ ok: true, ...sent });
   } catch {

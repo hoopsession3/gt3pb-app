@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -38,7 +38,7 @@ type Shown = Reserve & { stop?: ReserveStop; open: boolean; closes: string | nul
 type Board = { reserves: Shown[]; claims: ReserveClaim[] };
 
 export default function Reserves() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);

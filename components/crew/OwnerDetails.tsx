@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import AddToCalendar from "@/components/AddToCalendar";
@@ -40,7 +40,7 @@ const STOP_SAVES = ["name", "starts_at", "ends_at", "location_text", "address", 
 
 export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }: { ownerType: "event" | "stop"; ownerId: string; isAdmin: boolean; onSaved: (name: string) => void; onRemoved: () => void }) {
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const isEvent = ownerType === "event";
   const table = isEvent ? "events" : "stops";
   // recap now lives on the staff-only sibling (event_ops / stop_ops, 0181), off the public row.

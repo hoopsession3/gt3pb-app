@@ -13639,10 +13639,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && / 1 paid by card — each has its own refund flag in the inbox\.$/.test(SC.crewWords(stop, { cups: 2, refunds: 1, packs: 0 }).body));
   const api = code(rd("app/api/crew/stops/cancel/route.ts")), co = code(rd("app/api/checkout/route.ts")), fu = code(rd("components/FindUs.tsx"));
   const le = code(rd("components/crew/LocationEditor.tsx")), lc = code(rd("components/crew/LiveControl.tsx"));
-  ok("route: crew only; the cancel is the database's, as the caller; then the cups canceled and told, packs only when it counted them",
+  ok("route: crew only; the cancel is the database's, as the caller; then the cups canceled and told, packs whenever it counted them — a retry too, keyed so nobody hears twice (R22)",
     api.indexOf("staffFromRequest(req)") < api.indexOf('sb.rpc("cancel_stop"') && /const sb = callerClient\(req\);/.test(api)
     && api.indexOf('sb.rpc("cancel_stop"') < api.indexOf('sb.rpc("void_stop_orders", { p_stop: id })') && !/\.update\(\{ status: "void" \}\)/.test(api)
-    && /if \(!res\.already && res\.packs > 0 && res\.day\) \{/.test(api) && /if \(res\.already && !cups\.length && !stuck\.length\) return NextResponse\.json/.test(api) && /export const POST = route\("crew\/stops\/cancel", post\);/.test(api));
+    && /const retryOnly = res\.already && !cups\.length && !stuck\.length;/.test(api) && /if \(res\.packs > 0 && res\.day\) \{/.test(api)
+    && /key: `stop-canceled:\$\{id\}:pack:\$\{p\.id\}`/.test(api) && api.indexOf("if (res.packs > 0 && res.day) {") < api.indexOf("if (retryOnly && !packsUnread) return NextResponse.json")
+    && /export const POST = route\("crew\/stops\/cancel", post\);/.test(api));
   ok("checkout: every cup order says which stop it is for", (co.match(/stop_id: ordering\.stop\?\.id \?\? null/g) || []).length === 2);
   ok("Find Us: canceled stops are read beside the road (an error is none), and the next one said above the stop",
     /\.from\("stops"\)\.select\("id, name, starts_at, ends_at, cancel_reason, market"\)\.not\("canceled_at", "is", null\)/.test(fu)

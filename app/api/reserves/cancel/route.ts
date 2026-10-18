@@ -45,7 +45,7 @@ async function post(req: Request) {
   const who = ownerId ? await whoAsked(null, ownerId) : "a member whose account is gone";
   const tell: Tell = {
     crew: (a) => raiseAlert({ severity: a.severity, category: a.category, kind: a.kind, title: a.title, body: a.body, subjectId: a.subjectId, link: a.link }),
-    customer: async (c) => { await notifyCustomer({ email, subject: c.subject, message: c.message }); },
+    customer: async (c) => { await notifyCustomer({ email, subject: c.subject, message: c.message, key: c.key }); },
   };
   const token = process.env.SQUARE_ACCESS_TOKEN;
 

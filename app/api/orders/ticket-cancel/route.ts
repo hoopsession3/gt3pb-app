@@ -62,6 +62,7 @@ async function post(req: Request) {
           message: `Your cup order ${orderNo(row.id)} is canceled.${row.paid
             ? ` You paid ${money(charged)} — your card is being refunded in full; the crew processes it in Square. If you don't see it on your card within a few business days, reach out and we'll sort it.`
             : " Nothing was charged."}`,
+          key: `order-canceled:${row.id}`,   // once (R22): every "canceled" for this order is one message
         });
       }
     } catch { /* the cancel stands; the email is best-effort */ }

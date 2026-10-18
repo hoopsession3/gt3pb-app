@@ -7,7 +7,7 @@ import { setEventLive } from "@/lib/wrap";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useRecord } from "./RecordSheet";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import Button from "./Button";
 
 // THE DAY'S HEADLINE — what today is about, before the plates.
@@ -52,7 +52,7 @@ type Data = { ops: Op[]; dayLabel: string };
 
 export default function DayHeadline({ canGoLive }: { canGoLive: boolean }) {
   const { openRecord } = useRecord();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [arming, setArming] = useState<string | null>(null);
   const loader = useCallback(async (): Promise<Data> => {
     // The event is the crew's wall-clock day (lib/dates localToday). The date rides on the card rather

@@ -119,6 +119,8 @@ async function post(req: Request) {
       email,
       subject: "Your GT3PB order is canceled",
       message: `Your ${info.label} is canceled.${refundLine}`,
+      // Once (R22, lib/notify onceKey): a cup order's key is every "canceled" for it — the Pass's void, a stop called off.
+      key: channel === "cup" ? `order-canceled:${id}` : `${channel}-canceled:${id}`,
     });
   }
 

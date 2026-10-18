@@ -14,7 +14,7 @@ import { SectionHeader } from "./kit";
 import { useOperatorSection, type OpSection } from "./OperatorNav";
 import { goToDest } from "./CrewKpis";
 import { useConfirm } from "./ConfirmSheet";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 
 // NEEDS ATTENTION, ON MONEY (2026-10-15, release 3 of the Plan & Money audit). The money that needs a person, worst
 // first, between how the business is doing (Performance, above) and what to do next (below). The rules are
@@ -30,7 +30,7 @@ type Board = { rows: AttnRow[] };
 export default function MoneyAttention() {
   const { setSection } = useOperatorSection();
   const confirm = useConfirm();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [paying, setPaying] = useState<string | null>(null);
 
   const loader = useCallback(async (): Promise<Board> => {

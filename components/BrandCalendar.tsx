@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { useOperatorSection } from "./OperatorNav";
 import { CAL_CAT, CONTENT_STATUS as STC } from "@/lib/calendarTokens";
@@ -46,7 +46,7 @@ const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 
 export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: string) => void; onCreate: (iso: string, eventId?: string | null) => void }) {
   const { setSection } = useOperatorSection();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const goToCompany = () => setSection("plan");
   const now = new Date();
   const [cursor, setCursor] = useState(() => new Date(now.getFullYear(), now.getMonth(), now.getDate())); // always open on today
@@ -305,7 +305,7 @@ function DayView({ dayKey, posts, evs, evTitle, onClose, onEdit, onOpenFull, onA
 // Quick in-place editor for a scheduled piece — date, time, status, and the event link, written
 // straight to content_items. "Open full editor" jumps to Studio for hook/caption/Canva.
 function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string; events: EvItem[]; onClose: () => void; onSaved: () => void; onOpenFull: (id: string) => void }) {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [f, setF] = useState<any | null>(null);
   // The piece as loaded: what "unsaved" is measured against (lib/formGuard edited).
   const [loaded, setLoaded] = useState<any | null>(null);

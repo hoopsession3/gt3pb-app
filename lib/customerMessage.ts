@@ -41,8 +41,10 @@ export async function tellCustomer(opts: {
   message: string;
   kind: MessageKind;
   sentBy?: string | null;
+  /** What happened, named (lib/notify onceKey, R22): the same key twice is one email. None for a send pressed on purpose. */
+  key?: string | null;
 }): Promise<Told> {
-  const sent = await notifyCustomer({ email: opts.email, subject: opts.subject, message: opts.message });
+  const sent = await notifyCustomer({ email: opts.email, subject: opts.subject, message: opts.message, key: opts.key });
   const ok = sent.email === "sent";
 
   try {
@@ -50,7 +52,12 @@ export async function tellCustomer(opts: {
       // "off" and "no-address" are not recorded as sends: the log is what the customer WAS TOLD,
       // and a message the app never handed to a provider is not something the customer was told.
       // They still reach the caller in `email`, which is what decides the alert.
-      if (sent.email === "sent" || sent.email === "failed") {
+      // The same message told again (R22, a once-key): Resend answered with the first send's id — the customer was told
+      // once, and the log keeps one row for it.
+      const again = (!!sent.emailId && !!(await supabaseAdmin.from("customer_messages").select("id")
+        // scoped-by: provider_id — Resend's own id for one message this app sent; one row at most
+        .eq("provider_id", sent.emailId).limit(1).maybeSingle()).data);
+      if (!again && (sent.email === "sent" || sent.email === "failed")) {
         // scoped-by: tenant_id is stamped by the 0134 trigger; order_id is the caller's own order.
         // A log row that did not land is said in the server's log (R12b, F4): the record of what the customer was told,
         // and the id a bounce is matched against, would be missing with no trace of why.

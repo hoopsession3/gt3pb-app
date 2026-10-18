@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
@@ -39,7 +39,7 @@ const dotClass = (h: number, status: string) => status === "parked" ? "park" : h
 
 export default function OsRegistry() {
   const { profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const isAdmin = !!profile?.is_admin || ["owner", "admin"].includes(String((profile as any)?.role ?? ""));
   const crew = useCrew();
   // The person is the id (0307); the text is what prints when the person has no account. A linked

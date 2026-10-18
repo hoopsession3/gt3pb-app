@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { cleanReview, isDisplayable } from "@/lib/reviews";
 import { SectionHeader } from "@/components/kit";
 import { Segmented, tabPanel } from "@/components/controls";
@@ -24,7 +24,7 @@ interface Row { id: string; name: string | null; rating: number; body: string | 
 const SOURCES = ["manual", "google", "instagram", "app"] as const;
 
 export default function ReviewsAdmin() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const confirm = useConfirm();
   const [tab, setTab] = useState<"pending" | "live">("pending");
   const [adding, setAdding] = useState(false);

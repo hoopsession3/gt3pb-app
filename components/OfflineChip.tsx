@@ -3,7 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabase";
 import { refusedToast, type Refused } from "@/lib/orderStatus";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { readQueue, OFFLINE_EVENT } from "./offline";
 import { flushQueue, isFlushing, OFFLINE_REFUSED_EVENT, OFFLINE_SYNCING_EVENT } from "./offlineReplay";
 import { useOnline } from "@/lib/clientState";
@@ -27,7 +27,7 @@ const queuedNow = () => readQueue().length;
 // Also OWNS the replay triggers: online event, tab-visible, and a safety-net interval while
 // anything is queued. Nothing renders when online with an empty queue — the normal state is quiet.
 export default function OfflineChip() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const online = useOnline();
   const queued = useSyncExternalStore(watchQueue, queuedNow, () => 0);
   const syncing = useSyncExternalStore(watchSyncing, isFlushing, () => false);

@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { subscribePush } from "@/lib/push";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { usePushKept } from "./usePushKept";
 import GoLine from "./GoLine";
@@ -56,7 +56,7 @@ const SAYS: Record<AlertPermission | "unknown", string> = {
 
 /** Settings › You: what this phone says, and the one tap that asks it. */
 export function DeviceAlerts() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { user } = useAuth();
   const perm = useAlertPermission();
   // Allowed here, and this phone kept for them as crew (R8, components/usePushKept): a sign-out let the phone go and

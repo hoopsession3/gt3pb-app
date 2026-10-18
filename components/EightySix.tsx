@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { homeMarket } from "@/lib/homeMarket";
 import { FOUNDING_MARKET, MARKET_LABEL } from "@/lib/markets";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { haptic } from "@/lib/haptics";
 import { SectionHeader } from "@/components/kit";
@@ -22,7 +22,7 @@ import { useLatestRead } from "@/lib/useLatestRead";
 type Prod = { id: string; slug: string; name: string; sold_out: boolean; sold_out_at: string | null };
 
 export default function EightySix() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const { profile } = useAuth();
   const market = homeMarket(profile) ?? FOUNDING_MARKET;
   const [rows, setRows] = useState<Prod[]>([]);

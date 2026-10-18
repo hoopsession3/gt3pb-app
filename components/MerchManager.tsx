@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { isBlank } from "@/lib/formGuard";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
@@ -48,7 +48,7 @@ const variantsFrom = (sizes: string, colors: string): any[] => {
 };
 
 export default function MerchManager() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [openId, setOpenId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [showArchived, setShowArchived] = useState(false);

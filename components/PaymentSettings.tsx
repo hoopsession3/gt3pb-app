@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { squareClientReady } from "@/lib/square";
 import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
@@ -17,7 +17,7 @@ import { useLatestRead } from "@/lib/useLatestRead";
 //     Square. Default ON so a real order can be placed and tasted end-to-end before Square is even
 //     connected. NOTE: this does NOT touch Sunday delivery — delivery is always prepaid on the card.
 export default function PaymentSettings() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [payAtPickup, setPayAtPickup] = useState<boolean | null>(null);
   const [health, setHealth] = useState<{ name: string; ok: boolean; note: string }[] | null>(null);
   const [checking, setChecking] = useState(false);

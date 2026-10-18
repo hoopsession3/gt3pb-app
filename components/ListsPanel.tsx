@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { AsyncSection } from "./AsyncSection";
 import Icon from "@/components/Icon";
@@ -35,7 +35,7 @@ const SETS: { key: OptionSetKey; title: string; blurb: string }[] = [
 ];
 
 export default function ListsPanel() {
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState<OptionSetKey | null>(null);
   const [newValue, setNewValue] = useState("");

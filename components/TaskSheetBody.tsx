@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth, roleOf } from "@/components/AuthProvider";
-import { useApp } from "@/components/AppProvider";
+import { useAppStable } from "@/components/AppProvider";
 import Sheet from "@/components/Sheet";
 import { updateTask, deleteTask, type TaskSource } from "@/lib/tasks";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -45,7 +45,7 @@ const OP_ICON: Record<string, ReactNode> = { event: <Icon name="calendar" />, st
 export default function TaskSheetBody({ id, source, onClose }: { id: string; source: TaskSource; onClose: () => void }) {
   const confirm = useConfirm();
   const { user, profile } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const router = useRouter();
   const [t, setT] = useState<AllTask | null>(null);
   const crew = useCrew();  // was a hand-rolled profiles fetch; identical result, one shared read

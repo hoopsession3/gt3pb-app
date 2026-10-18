@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "./AuthProvider";
-import { useApp } from "./AppProvider";
+import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { haptic } from "@/lib/haptics";
@@ -39,7 +39,7 @@ const TYPE_LABEL: Record<string, string> = { event: "Event", stop: "Truck stop",
 
 export default function OpsPlan({ noteId }: { noteId: string }) {
   const { user } = useAuth();
-  const { toast } = useApp();
+  const { toast } = useAppStable();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Record<number, boolean>>({}); // armed for a 2nd-tap approve
