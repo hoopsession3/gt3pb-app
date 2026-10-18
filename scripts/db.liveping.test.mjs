@@ -103,7 +103,7 @@ for (const [who, name] of [[EVENTM, "an event manager"], [SERVER, "a server"], [
 {
   const fn = readFileSync(join(ROOT, "supabase/functions/push/index.ts"), "utf8");
   ok("the push function pings wants_live = true of the business's tenant on the live flip — the rows counted",
-    /targets = await subsFor\(\(q\) => q\.eq\("wants_live", true\)\.eq\("tenant_id", tenantOf\(record\)\)\);/.test(fn));
+    /targets = await subsFor\(\(q\) => q\.eq\("wants_live", true\)\.eq\("tenant_id", tenantOf\(record\)\), faults\);/.test(fn));
   await q(`update public.push_subscriptions set wants_live = true where endpoint = $1`, [quiet]);
   const up = await count(OWNER);
   await q(`update public.push_subscriptions set wants_live = false where endpoint = $1`, [guestA]);

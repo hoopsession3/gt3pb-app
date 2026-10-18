@@ -1,0 +1,9 @@
+{
+  "what": "supabase/functions/push, each build that was named: PUSH_VERSION and the fingerprint of index.ts and policy.ts (their code, comments aside) under that name. A change to either is a NEW name added to the end — never an entry rewritten — and a deploy of the function (verify:prod asks the deployed one its name). scripts/push.function.test.mjs holds the last entry to the code.",
+  "versions": [
+    {
+      "version": "2026-10-18 R21",
+      "fingerprint": "1768833556201207064"
+    }
+  ]
+}

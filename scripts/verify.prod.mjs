@@ -19,6 +19,7 @@
 //   1. LIVE      — /api/health reports the commit this tree is at (Vercel finished, and built main)
 //   2. CURRENT   — /api/migrations holds every file in supabase/migrations (nothing pending, no gap)
 //   2b. POSTURE  — the committed security snapshot (RLS, grants, policies) judged by security.audit
+//   2c. PUSH     — the push function deployed is this tree's (its PUSH_VERSION; R21)
 //   3. ANSWERS   — a handful of routes, with and without a session, answer JSON — never Next's HTML
 //                  500 page (lib/apiRoute.ts is what makes this true; this is what checks it); the
 //                  front door (proxy.ts) sends a known guest from "/" to /truck; and the API lets the
@@ -130,6 +131,41 @@ try {
   const first = out.split("\n").find((l) => l.startsWith("SECURITY AUDIT")) || "SECURITY AUDIT: (no output)";
   if (notChecked) { console.log(`  · ${first.replace(/^SECURITY AUDIT: /, "posture: ")}`); console.log("    (pull the snapshot — steps in scripts/security.audit.mjs — and re-run; this is not a pass)"); }
   else ok(`posture: ${run.status === 0 ? "no table the API roles can touch has RLS off; no write policy is `true`; lists at their ceilings" : "the security audit has findings"}`, run.status === 0, out.split("\n").filter((l) => l.includes("✗")).slice(0, 4).join(" | "));
+}
+
+// ── 2c. PUSH — the deployed push function is this tree's (R21, 2026-10-18 — the 10/10 audit, operations F12) ──────────
+// supabase/functions/push is deployed by hand (the dashboard, or `supabase functions deploy push`), apart from every push
+// to main, and nothing said when the deployed one lagged the repo: a fix could sit in main for weeks while the old
+// function ran. It answers a GET with its PUSH_VERSION; this asks it with the database's public key — the repository
+// variables the iPhone build and smoke:authed already read — and fails while the two differ. Without them: not checked,
+// and said. The key is public by design; it is read from the environment, never written here.
+{
+  const { readFileSync } = await import("node:fs");
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/$/, ""), key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  const ours = (readFileSync(new URL("../supabase/functions/push/index.ts", import.meta.url), "utf8").match(/const PUSH_VERSION = "([^"]+)";/) || [])[1] || "";
+  if (!ours) ok("push: this tree names its push function (PUSH_VERSION in supabase/functions/push/index.ts)", false, "no PUSH_VERSION found — the comparison would be empty against empty");
+  else if (!base || !key) console.log("  · push: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY not set here — the deployed push function is not compared");
+  // The function's door checks a JWT (verify_jwt — the database's webhook calls it with the anon key, which is one). A
+  // publishable key (sb_publishable_…) is no JWT: the platform refuses it at that door whatever is deployed ("Invalid
+  // JWT" — Supabase's own rule for the new keys), so asking with one would be a red run that says nothing. Said, not judged.
+  else if (!key.startsWith("eyJ")) console.log("  · push: the public key here is not the anon JWT the function's door checks (a publishable key?) — the deployed push function is not compared");
+  else {
+    // Asked twice at most (the R21 review): one gateway hiccup is not a red run.
+    let res = null, deployed = "", why = "";
+    for (let tries = 0; tries < 2 && !deployed; tries++) {
+      if (tries) await new Promise((r) => setTimeout(r, 3000));
+      try {
+        res = await fetch(`${base}/functions/v1/push`, { headers: { apikey: key, authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(20000) });
+        try { deployed = String((await res.json())?.version ?? ""); } catch { /* an older function answers a GET in words, not JSON */ }
+        if (deployed || res.ok) break;   // it answered: an older function's words are a verdict, not a hiccup
+      } catch (e) { why = String(e?.message || e); }
+    }
+    if (!res) ok("push: the push function answered", false, why);
+    else ok(`push: the deployed push function is this tree's (${deployed || "?"} = ${ours})`, res.ok && deployed === ours,
+      !res.ok ? (res.status === 401 ? "HTTP 401 — the function's door refused the anon key (rotated, or another project's?)" : `HTTP ${res.status} from the function`)
+        : deployed ? `deployed ${deployed}; this tree has ${ours} — deploy supabase/functions/push (index.ts and policy.ts)`
+          : "the deployed function doesn't say which it is (deployed before R21) — deploy supabase/functions/push (index.ts and policy.ts)");
+  }
 }
 
 // ── 3. ANSWERS ──────────────────────────────────────────────────────────────────────────────────

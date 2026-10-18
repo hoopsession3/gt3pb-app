@@ -13,8 +13,11 @@
 // may show). Supabase dashboard -> Edge Functions -> "push" -> paste index.ts AND add policy.ts -> deploy; or
 // `supabase functions deploy push`, which takes the folder. Deploy it BEFORE pasting 0373 and 0374 — and 0383
 // (2026-10-12: a muted category and quiet hours hold a non-critical alert's push; an escalation asks for the claim).
+// Pinned to exact versions (R21, 2026-10-18 — the 10/10 audit, operations F12): "@2" was whatever 2.x npm had on the day
+// it was deployed. supabase-js is the version the app runs (package-lock.json) — scripts/functions.check.mjs holds the
+// two together, and type-checks this file and ./policy.ts against it; scripts/push.function.test.mjs runs this file.
 import webpush from "npm:web-push@3.6.7";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.108.2";
 import {
   alertShown, channelsFor, escalationShown, eventKey, freshRow, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown,
   orderVoidShown, packNoticeShown, packNoticeTold, reminderShown, severityOf, sitePath, stillUnanswered, stopCanceledShown,
@@ -28,6 +31,40 @@ webpush.setVapidDetails(
   Deno.env.get("VAPID_PRIVATE")!,
 );
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+// WHICH BUILD OF THIS FUNCTION IS DEPLOYED (R21 — operations F12). It is deployed by hand, apart from every push to
+// main, and nothing said when the deployed one lagged the repo. A GET answers this; verify:prod asks it and fails when it
+// isn't this tree's. Change this file or ./policy.ts and scripts/push.function.test.mjs asks for a new one.
+const PUSH_VERSION = "2026-10-18 R21";
+
+// No call out of here waits for ever (R21, as the app's since R20): Teams, Resend, Twilio, Apple and the browsers' push
+// services are each given ten seconds. One that hung held every send after it, for as long as the platform let it run.
+const OUT_MS = 10_000;
+
+// WHAT DIDN'T GO, SAID (R21 — operations F12). A Teams card refused, a mail the provider wouldn't take, Apple refusing
+// our key, a read of the database that failed on the way: each went unsaid — the function answered "ok" and nobody heard.
+// Each is a line in the function's log now and, when it is ours to put right, a fault the function says itself, in the
+// crew's inbox (sayFaults, below — the database stops listening for this answer after a second or five, and a fault can
+// take longer to find). A phone that is gone, or one device's own refusal, is not the function's fault: it is deleted,
+// or logged, as before.
+type Faults = string[];
+// The keys this function holds. Whatever an error says, none of them is repeated (R21 review: a webhook address pasted
+// without its https:// came back whole in fetch's "Invalid URL" — no address pattern would have caught it).
+const KEYS = ["TEAMS_WEBHOOK_URL", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "RESEND_API_KEY", "APNS_PRIVATE_KEY", "VAPID_PRIVATE", "SUPABASE_SERVICE_ROLE_KEY"];
+/** An error's own words with no key and no address in them — Teams' webhook address and Twilio's account path are keys. */
+function whyOf(e: unknown): string {
+  let said = String((e as { message?: unknown } | null)?.message ?? e);
+  for (const name of KEYS) { const v = Deno.env.get(name); if (v && v.length >= 8) said = said.split(v).join("(a key)"); }
+  return said.replace(/\bhttps?:\/\/[^\s"'<>)]+/g, "(an address)").slice(0, 160);
+}
+/** For a call whose address is itself a key (Teams' webhook, Twilio's account path): what kind of failure, and no words. */
+const reachOf = (e: unknown) => ((e as { name?: unknown } | null)?.name === "TimeoutError" ? "no answer in ten seconds" : "could not be reached");
+function fault(faults: Faults, where: string, what: string): void {
+  const line = `${where}: ${what}`;
+  if (!faults.includes(line)) faults.push(line);
+  console.error(`[push] ${line}`);
+}
+const codeOf = (error: { code?: string | null } | null | undefined) => error?.code || "no code";
 
 const firstName = (full?: string | null) => (full || "").trim().split(/\s+/)[0] || "";
 
@@ -73,12 +110,12 @@ async function signApns(): Promise<string | null> {
   return apnsAuth.token;
 }
 
-/** One alert to one app install. Returns Apple's status, or 0 when APNs is not set up here. An alert that could not
- *  reach the phone within the hour is dropped, not delivered late ("your order's ready" at midnight is wrong). */
-async function sendApns(endpoint: string, alert: { title: string; body: string; url: string }): Promise<number> {
+/** One alert to one app install: Apple's status and its reason, or status 0 when APNs is not set up here. An alert that
+ *  could not reach the phone within the hour is dropped, not delivered late ("your order's ready" at midnight is wrong). */
+async function sendApns(endpoint: string, alert: { title: string; body: string; url: string }): Promise<{ status: number; reason?: string }> {
   const bearer = await apnsBearer();
   const token = endpoint.slice("apns:".length);
-  if (!bearer || !/^[0-9a-f]{32,200}$/i.test(token)) return 0;
+  if (!bearer || !/^[0-9a-f]{32,200}$/i.test(token)) return { status: 0 };
   const r = await fetch(`${APNS_HOST}/3/device/${token}`, {
     method: "POST",
     headers: {
@@ -86,24 +123,27 @@ async function sendApns(endpoint: string, alert: { title: string; body: string; 
       "apns-expiration": String(Math.floor(Date.now() / 1000) + 3600), "content-type": "application/json",
     },
     body: JSON.stringify({ aps: { alert: { title: alert.title.slice(0, 120), body: alert.body.slice(0, 900) }, sound: "default" }, url: alert.url }),
+    signal: AbortSignal.timeout(OUT_MS),
   });
-  if (r.status === 400 || r.status === 403) {
-    const reason = ((await r.json().catch(() => ({}))) as { reason?: string }).reason;
-    if (r.status === 403 && (reason === "ExpiredProviderToken" || reason === "InvalidProviderToken")) apnsAuth = null;
-    if (r.status === 400 && reason === "BadDeviceToken") return 410;
-  }
-  return r.status;
+  if (r.status === 200) return { status: 200 };
+  const reason = ((await r.json().catch(() => ({}))) as { reason?: string }).reason;
+  if (r.status === 403 && (reason === "ExpiredProviderToken" || reason === "InvalidProviderToken")) apnsAuth = null;
+  // A token that is no phone of this app's is gone, as Apple's 410 is (BadDeviceToken: a development build's).
+  if (r.status === 400 && reason === "BadDeviceToken") return { status: 410, reason };
+  return { status: r.status, reason };
 }
 
 type Sub = { endpoint: string; p256dh: string | null; auth: string | null; platform: string | null };
 type SubQuery = ReturnType<ReturnType<typeof supabase.from>["select"]>;
 
-async function subsFor(filter: (q: SubQuery) => SubQuery): Promise<Sub[]> {
+async function subsFor(filter: (q: SubQuery) => SubQuery, faults: Faults): Promise<Sub[]> {
   // Page by page (R9): one read stopped at the API's row cap, so the go-live ping reached the first thousand devices and
   // not the rest. Twenty pages at most — far past every subscriber this business has.
   const rows: Sub[] = [];
   for (let page = 0; page < 20; page++) {
     const { data, error } = await filter(supabase.from("push_subscriptions").select("*")).order("endpoint").range(page * 1000, page * 1000 + 999);
+    // A list that couldn't be read is said (R21): what was read is sent to, and the rest is a fault, not an empty list.
+    if (error) fault(faults, "devices", `the list could not be read (${codeOf(error)})`);
     if (error || !data) break;
     rows.push(...(data as Sub[]));
     if (data.length < 1000) break;
@@ -122,15 +162,21 @@ type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 async function rowNow(table: string, id: unknown): Promise<Row | null> {
   if (!EVENT_TABLES.has(table) || (typeof id !== "string" && typeof id !== "number")) return null;
   const { data, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
-  return error ? null : ((data as Row | null) ?? null);
+  // A read that failed is not a row that isn't there (R21): the event is said lost — a 500 the database keeps, which
+  // cron_watch reads — where "skip: not in the database" answered 200 and nothing went, in silence.
+  if (error) throw new Error(`the ${table} row could not be read (${codeOf(error)})`);
+  return (data as Row | null) ?? null;
 }
 
 // SENT ONCE (R10, 0419 push_sent): the first send of an event keeps its key; the same event told again finds it and is
-// not sent twice. A key that cannot be kept for any other reason (the table not there yet) is sent, as before 0419.
-async function firstSend(key: string): Promise<boolean> {
+// not sent twice. A key that cannot be kept for any other reason is sent all the same — a push missed is worse than one
+// doubled — and since R21 it is said: push_sent is there (0419), so a write it refuses is a fault.
+async function firstSend(key: string, faults: Faults): Promise<boolean> {
   const { error } = await supabase.from("push_sent").insert({ event_key: key.slice(0, 200) });
   if (!error) return true;
-  return error.code !== "23505";
+  if (error.code === "23505") return false;
+  fault(faults, "sent once", `the event's key could not be kept (${codeOf(error)})`);
+  return true;
 }
 
 async function nameForUser(userId: string) {
@@ -141,13 +187,14 @@ async function nameForUser(userId: string) {
 // WHO AN ALERT REACHES (2026-10-11). Its own person when it has one; a broadcast, the leadership of its tenant
 // (event_manager, admin, owner — 0157). An escalation (0373) is sent to those again AND to every admin and owner of
 // the tenant, so a critical nobody picked up reaches the people who answer for the business, not only its lane.
-async function peopleFor(a: { target_user_id?: string | null; tenant_id?: string | null }, escalation = false): Promise<string[]> {
+async function peopleFor(a: { target_user_id?: string | null; tenant_id?: string | null }, faults: Faults, escalation = false): Promise<string[]> {
   const ids = new Set<string>();
   if (a.target_user_id) ids.add(a.target_user_id);
   const roles = new Set<string>(a.target_user_id ? [] : ["event_manager", "admin", "owner"]);
   if (escalation) { roles.add("admin"); roles.add("owner"); }
   if (roles.size) {
-    const { data } = await supabase.from("profiles").select("id").eq("tenant_id", tenantOf(a)).in("role", [...roles]);
+    const { data, error } = await supabase.from("profiles").select("id").eq("tenant_id", tenantOf(a)).in("role", [...roles]);
+    if (error) fault(faults, "people", `the leadership could not be read (${codeOf(error)})`);
     for (const p of (data ?? []) as { id: string }[]) ids.add(p.id);
   }
   return [...ids];
@@ -176,64 +223,87 @@ async function ringingNow(a: { severity?: unknown; category?: unknown }, ids: st
   return whoRings(a, ids.map((id) => ({ id, prefs: prefsOf.get(id) ?? null, timeZone: zoneOf.get(marketOf.get(id) ?? "") })), new Date()).ring;
 }
 
-// Post an alert card to the Teams channel (best-effort; skipped with no webhook, and wherever ./policy.ts says a
-// severity does not post — an fyi).
-async function postTeams(severity: string, ttl: string, body: string) {
+// Post an alert card to the Teams channel (skipped with no webhook, and wherever ./policy.ts says a severity does not
+// post — an fyi). Never thrown out of; since R21 a card Teams didn't take is said — a fault — where it was dropped
+// unread (a connector Microsoft retires answers 4xx to every card, and the crew would have gone on hearing nothing).
+async function postTeams(severity: string, ttl: string, body: string, faults: Faults) {
   const teams = Deno.env.get("TEAMS_WEBHOOK_URL");
   if (!teams || !channelsFor(severity).teams) return;
   const themeColor = severityOf(severity) === "critical" ? "D2554A" : "A97C3F";
   const flag = severityOf(severity) === "critical" ? "🔴 " : "🟠 ";
   try {
-    await fetch(teams, {
+    const r = await fetch(teams, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ "@type": "MessageCard", "@context": "https://schema.org/extensions", themeColor, summary: ttl, title: flag + ttl, text: body || "" }),
+      signal: AbortSignal.timeout(OUT_MS),
     });
-  } catch { /* never fail on a channel error */ }
+    // A connector answers 200 when it took the card, a Workflows webhook 202: anything else is a card nobody saw.
+    if (!r.ok) fault(faults, "teams", `HTTP ${r.status}`);
+  } catch (e) { fault(faults, "teams", reachOf(e)); }   // never the error's words: its address is the webhook's key
 }
 // Drop a row in the in-app inbox (service role bypasses RLS — these are system-raised). Its fan-out (0157) carries
 // the push and the Teams card, so a caller here sends neither itself — that made two Teams cards per booking.
-async function insertAlert(a: { severity: string; category: string; title: string; body?: string; link?: string; tenant_id?: string | null }) {
-  await supabase.from("alerts").insert({ severity: a.severity, category: a.category, title: a.title, body: a.body ?? null,
+async function insertAlert(a: { severity: string; category: string; title: string; body?: string; link?: string; tenant_id?: string | null }, faults: Faults) {
+  const { error } = await supabase.from("alerts").insert({ severity: a.severity, category: a.category, title: a.title, body: a.body ?? null,
     link: a.link ?? "/admin", tenant_id: tenantOf(a) });
+  if (error) fault(faults, "inbox", `"${a.title}" could not be written (${codeOf(error)})`);
 }
 
-// The ONE Resend send under emailAdmins/emailUser. First address on To, the rest BCC
+// The ONE Resend send under every email here. First address on To, the rest BCC
 // (2026-07-30 — Ryan: "Why can you see CC, maybe BCC?"): one visible To keeps deliverability
 // happy; BCC keeps the list private and the header clean. RESEND_API_KEY / NOTIFY_FROM_EMAIL
 // must be set on this function's env or this is a clean no-op — same contract as lib/notify.ts.
-async function sendEmail(to: string[], subject: string, body: string): Promise<boolean> {
+// "sent", "off" (that no-op), or what stopped it (R21: a refusal was a bare false, and nobody was told).
+async function mail(to: string[], subject: string, body: string): Promise<string> {
   const key = Deno.env.get("RESEND_API_KEY");
   const from = Deno.env.get("NOTIFY_FROM_EMAIL");
-  if (!key || !from || !to.length) return false;
+  if (!key || !from) return "off";
+  if (!to.length) return "no address to send it to";
   try {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to: to.slice(0, 1), ...(to.length > 1 ? { bcc: to.slice(1) } : {}), subject: subject.slice(0, 200), text: body }),
+      signal: AbortSignal.timeout(OUT_MS),
     });
-    return r.ok;
-  } catch { return false; /* never fail the webhook on a mail-provider hiccup */ }
+    if (r.ok) return "sent";
+    // Resend's own name for the refusal (validation_error, missing_api_key, rate_limit_exceeded…), never its message.
+    const name = ((await r.json().catch(() => ({}))) as { name?: unknown }).name;
+    return `Resend ${r.status}${typeof name === "string" && /^[a-z_]{1,40}$/.test(name) ? ` ${name}` : ""}`;
+  } catch (e) { return whyOf(e); /* never fail the webhook on a mail-provider hiccup — say it */ }
+}
+/** A mail to whoever `to` names: true when Resend took it. What stopped one is logged. */
+async function sendEmail(to: string[], subject: string, body: string): Promise<boolean> {
+  const got = await mail(to, subject, body);
+  if (got !== "sent" && got !== "off") console.error(`[push] email: ${got}`);
+  return got === "sent";
 }
 
 // Email the owner/manager list (public.admin_emails — 0004). Push needs a subscribed device and
 // Teams needs its webhook configured; email is the net under both for anything that must not
-// silently go cold.
-async function emailAdmins(subject: string, body: string) {
-  const { data: admins } = await supabase.from("admin_emails").select("email");
-  await sendEmail(((admins ?? []) as { email: string }[]).map((a) => a.email), subject, body);
+// silently go cold — so one that doesn't go is a fault (R21).
+async function emailAdmins(subject: string, body: string, faults: Faults) {
+  const { data: admins, error } = await supabase.from("admin_emails").select("email");
+  if (error) return fault(faults, "admin email", `the list could not be read (${codeOf(error)})`);
+  const got = await mail(((admins ?? []) as { email: string }[]).map((a) => a.email), subject, body);
+  if (got !== "sent" && got !== "off") fault(faults, "admin email", got);
 }
 
 // Email ONE user by id (2026-07-30, Ryan: "I want to get emails on critical notes and tasks as
 // well. Owners of those should get [them]"). The service role this function runs with can look
 // the address up via the auth admin API. A critical must never go cold: if the owner's email
 // can't be resolved, the admin list gets it instead.
-async function emailUser(userId: string, subject: string, body: string) {
+async function emailUser(userId: string, subject: string, body: string, faults: Faults) {
   try {
     const { data } = await supabase.auth.admin.getUserById(userId);
     const em = data?.user?.email;
-    if (em) { await sendEmail([em], subject, body); return; }
+    if (em) {
+      const got = await mail([em], subject, body);
+      if (got !== "sent" && got !== "off") fault(faults, "email", got);
+      return;
+    }
   } catch { /* fall through to the admin list */ }
-  await emailAdmins(subject, body);
+  await emailAdmins(subject, body, faults);
 }
 
 // A KIND THE MEMBER TURNED OFF (2026-10-14, R6): their Notifications screen keeps it in their notif_prefs row (0177;
@@ -256,7 +326,7 @@ async function emailMember(userId: string, subject: string, body: string): Promi
 // A text to a member (0398, 0399): only when texts are switched on here (TEXTS_ON=1, with the Twilio number's keys —
 // Ryan's, set beside Vercel's when the number is registered), to a number whose yes stands, and never at night. What
 // happened is said back in lib/notify's words.
-async function textMember(phone: unknown, body: string): Promise<{ result: "sent" | "off" | "not-asked" | "quiet" | "no-number" | "failed"; detail?: string }> {
+async function textMember(phone: unknown, body: string, faults: Faults): Promise<{ result: "sent" | "off" | "not-asked" | "quiet" | "no-number" | "failed"; detail?: string }> {
   const sid = Deno.env.get("TWILIO_ACCOUNT_SID"), token = Deno.env.get("TWILIO_AUTH_TOKEN"), from = Deno.env.get("TWILIO_FROM_NUMBER");
   if (Deno.env.get("TEXTS_ON") !== "1" || !sid || !token || !from) return { result: "off" };
   const num = textNumber(phone);
@@ -269,14 +339,49 @@ async function textMember(phone: unknown, body: string): Promise<{ result: "sent
       method: "POST",
       headers: { Authorization: `Basic ${btoa(`${sid}:${token}`)}`, "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ To: num, From: from, Body: smsPlain(body).slice(0, 320) }),   // plain characters (R6)
+      signal: AbortSignal.timeout(OUT_MS),
     });
-    return r.ok ? { result: "sent" } : { result: "failed", detail: `Twilio ${r.status}` };
+    if (r.ok) return { result: "sent" };
+    // A refusal of the number is the member's (it is written on the notice); a refusal of our keys is ours (R21).
+    if (r.status === 401 || r.status === 403) fault(faults, "texts", `Twilio ${r.status} — the account's keys`);
+    else console.error(`[push] text: Twilio ${r.status}`);
+    return { result: "failed", detail: `Twilio ${r.status}` };
   } catch (e) {
-    return { result: "failed", detail: String(e).slice(0, 200) };
+    // Never the error's words: Twilio's path carries the account (R21 — the notice's detail is the crew's to read).
+    console.error(`[push] text: ${reachOf(e)}`);
+    return { result: "failed", detail: `Twilio ${reachOf(e)}` };
   }
 }
 
+// The door: a GET says which build this is (verify:prod asks it); anything else is the database telling of an event.
+// Faults on the way (above) are said once everything that could go, went — by the function itself (sayFaults), and in
+// its answer's words.
 Deno.serve(async (req) => {
+  if (req.method === "GET") return new Response(JSON.stringify({ version: PUSH_VERSION }), { headers: { "content-type": "application/json" } });
+  const faults: Faults = [];
+  const res = await handle(req, faults);
+  if (!faults.length || res.status >= 500) return res;
+  const said = `${(await res.text()).slice(0, 100)} — but ${faults.join("; ")}`.slice(0, 600);
+  return new Response(said, { status: (await sayFaults(faults)) ? 200 : 502 });
+});
+
+// SAID BY THE FUNCTION ITSELF (the R21 review). The database stops waiting for this answer after a second, or five, and
+// a fault can take longer to find than that (Teams hanging for its ten seconds): a 502 nobody waited for says nothing.
+// So the function writes its faults where the crew reads them — one open line (alert_open_once: refreshed while it
+// stands, never a second one, and once someone has said "Got it", not raised again until six hours after the last one
+// was). Only when that line can't be written is the answer a 502, for cron_watch to read (0427).
+async function sayFaults(faults: Faults): Promise<boolean> {
+  const { error } = await supabase.rpc("alert_open_once", {
+    p_kind: "push_fault", p_subject: null, p_severity: "important", p_category: "system",
+    p_title: "Alerts couldn't all go out",
+    p_body: `The push service couldn't do all it was asked. The last time: ${faults.join("; ")}.`.slice(0, 900),
+    p_link: "/crew?s=settings&a=set-errors", p_reopen_after: "6 hours",
+  });
+  if (error) console.error(`[push] the fault line could not be written (${codeOf(error)})`);
+  return !error;
+}
+
+async function handle(req: Request, faults: Faults): Promise<Response> {
   try {
     // A POINTER, NOT A STORY (R10): the body names a table and a row; what happened is the database's (rowNow above).
     const body = (await req.json().catch(() => null)) as { table?: unknown; type?: unknown; record?: Row | null; old_record?: Row | null } | null;
@@ -289,13 +394,13 @@ Deno.serve(async (req) => {
     // Sent once (push_sent, 0419): asked where each event is known to be one, before anything goes. And news only: each
     // branch asks the row's own stamp of what happened (created, status changed, fired, sent, escalated) to be recent —
     // an old event described again is not sent, after its key is swept as before it.
-    const once = async () => { const key = eventKey(table, type, record, nowMs); return key !== null && await firstSend(key); };
+    const once = async () => { const key = eventKey(table, type, record, nowMs); return key !== null && await firstSend(key, faults); };
     // What the phone shows (./policy.ts — no customer name, phone, address, email or amount, whatever the row
     // holds) and where a tap opens. The row's own words stay in the app.
     let shown: Shown | null = null, url = "/";
     let targets: Sub[] = [];
     // Something to do once the push is sent (a pack notice writes back what went).
-    let after: (() => PromiseLike<unknown>) | null = null;
+    let after: (() => PromiseLike<{ error: { code?: string | null } | null }>) | null = null;
 
     if (table === "orders" && type === "INSERT") {
       if (!freshRow(record.created_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
@@ -303,7 +408,7 @@ Deno.serve(async (req) => {
       // A tap opens the Pass itself (2026-10-11, the KDS audit): "/admin" opened the console wherever it was last left,
       // a screen or two from the ticket. &a=kitchen-pass is the console's own jump to the Pass (app/crew/page.tsx jumpTo).
       url = "/crew?s=now&a=kitchen-pass";
-      targets = await subsFor((q) => q.eq("is_admin", true).eq("tenant_id", tenantOf(record)));
+      targets = await subsFor((q) => q.eq("is_admin", true).eq("tenant_id", tenantOf(record)), faults);
 
     } else if (table === "orders" && type === "UPDATE" && record.user_id) {
       // Only fire on a real status TRANSITION - this is what stops the duplicate spam
@@ -327,7 +432,7 @@ Deno.serve(async (req) => {
       if (!shown) return new Response("skip");
       // A canceled order opens its own page — why, and what becomes of the money (R7b); Today has nothing to say of it.
       if (record.status === "void" && typeof record.ticket === "string" && record.ticket) url = `/order?t=${encodeURIComponent(record.ticket)}`;
-      targets = await subsFor((q) => q.eq("user_id", record.user_id));
+      targets = await subsFor((q) => q.eq("user_id", record.user_id), faults);
 
     } else if (table === "subscriptions" && type === "UPDATE" && record.user_id) {
       if (old_record && old_record.status === record.status) return new Response("skip: no transition");
@@ -335,7 +440,7 @@ Deno.serve(async (req) => {
       shown = subscriptionShown(record);
       if (!shown) return new Response("skip");
       url = "/3mpire";
-      targets = await subsFor((q) => q.eq("user_id", record.user_id));
+      targets = await subsFor((q) => q.eq("user_id", record.user_id), faults);
 
     } else if (table === "booking_requests" && type === "INSERT") {
       // No direct push targets here (2026-07-30, Ryan's screenshot: "Should I have gotten three?").
@@ -347,7 +452,7 @@ Deno.serve(async (req) => {
       // an owner who's away from the crew app for a day still finds out a lead came in, and when.
       if (!freshRow(record.created_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       const message = `${record.name ?? "Someone"}${record.event_date ? " - " + record.event_date : ""}${record.location_text ? " - " + record.location_text : ""}`;
-      await insertAlert({ severity: "important", category: "booking", title: "New booking lead", body: message, tenant_id: record.tenant_id });
+      await insertAlert({ severity: "important", category: "booking", title: "New booking lead", body: message, tenant_id: record.tenant_id }, faults);
       if (mayEmail("important", true)) await emailAdmins(
         `New booking request${record.name ? ` — ${record.name}` : ""}`,
         [
@@ -363,6 +468,7 @@ Deno.serve(async (req) => {
           "",
           "Manage it: https://app.gt3pb.com/crew?s=plan",
         ].filter((line) => line !== null).join("\n"),
+        faults,
       );
       return new Response("ok: booking");
 
@@ -375,12 +481,12 @@ Deno.serve(async (req) => {
       const who = record.display_name?.trim() || "Someone new";
       const role = record.role && record.role !== "member" ? ` (${record.role})` : "";
       const severity: string = "fyi";
-      await insertAlert({ severity, category: "system", title: "New member signed up", body: `${who}${role} just joined.`, link: "/crew?s=customers", tenant_id: record.tenant_id });
+      await insertAlert({ severity, category: "system", title: "New member signed up", body: `${who}${role} just joined.`, link: "/crew?s=customers", tenant_id: record.tenant_id }, faults);
       if (mayEmail(severity, true)) await emailAdmins("New member signed up", [
         `${who}${role} just created an account.`,
         "",
         "Customer book: https://app.gt3pb.com/crew?s=customers",
-      ].join("\n"));
+      ].join("\n"), faults);
       return new Response("ok: signup");
 
     } else if (table === "delivery_orders" && type === "INSERT") {
@@ -394,7 +500,7 @@ Deno.serve(async (req) => {
         message + ".",
         "",
         "Run sheet: https://app.gt3pb.com/crew?s=driver",
-      ].join("\n"));
+      ].join("\n"), faults);
       return new Response("ok: delivery");
 
     } else if (table === "drop_orders" && type === "INSERT") {
@@ -406,7 +512,7 @@ Deno.serve(async (req) => {
         message + ".",
         "",
         "Drop board: https://app.gt3pb.com/crew?s=now",
-      ].join("\n"));
+      ].join("\n"), faults);
       return new Response("ok: reserve");
 
     } else if (table === "event_tasks" && type === "UPDATE" && record.assignee) {
@@ -419,7 +525,7 @@ Deno.serve(async (req) => {
       if (named.assignee !== record.assignee || !(await once())) return new Response("skip: moved on, or sent already");
       shown = taskShown(record, becameCritical && !assigneeChanged);
       url = "/admin";
-      targets = await subsFor((q) => q.eq("user_id", record.assignee));
+      targets = await subsFor((q) => q.eq("user_id", record.assignee), faults);
       // Critical tasks EMAIL their owner too (push alone depends on a subscribed device) — both
       // when a critical task is assigned and when an assigned task turns critical. The email says what the task is;
       // the lock screen does not (a label or an event's title can be a client's name).
@@ -441,7 +547,7 @@ Deno.serve(async (req) => {
           said + ".",
           "",
           "Your day: https://app.gt3pb.com/crew?s=day",
-        ].join("\n"));
+        ].join("\n"), faults);
       }
 
     } else if (table === "live_status" && type === "UPDATE") {
@@ -462,7 +568,7 @@ Deno.serve(async (req) => {
       }
       shown = liveShown(stopName);
       url = "/";
-      targets = await subsFor((q) => q.eq("wants_live", true).eq("tenant_id", tenantOf(record)));
+      targets = await subsFor((q) => q.eq("wants_live", true).eq("tenant_id", tenantOf(record)), faults);
 
     } else if (table === "cup_reminders" && type === "UPDATE") {
       // Remind me when cup orders open (0394): the minute's run marked it sent — to that member's own devices, once.
@@ -472,7 +578,7 @@ Deno.serve(async (req) => {
       const { data: s } = await supabase.from("stops").select("name").eq("id", record.stop_id).maybeSingle();
       shown = reminderShown(s?.name ?? null, record.stop_id);
       url = "/";
-      targets = await subsFor((q) => q.eq("user_id", record.user_id));
+      targets = await subsFor((q) => q.eq("user_id", record.user_id), faults);
 
     } else if (table === "pack_notices" && type === "UPDATE") {
       // A pack hears about its day (0399): the five minutes' run marked it sent. To the member's own devices, their own
@@ -480,8 +586,10 @@ Deno.serve(async (req) => {
       // words say how things stand; what went is written back on the notice.
       if (!record.sent_at || (old_record && old_record.sent_at)) return new Response("skip: not a notice going out");
       if (!freshRow(record.sent_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
-      const { data: pack } = await supabase.from("drop_orders")
+      const { data: pack, error: unread } = await supabase.from("drop_orders")
         .select("id, user_id, size, glass, drop_date, stop_id, paid, payment_status, phone").eq("id", record.pack_id).maybeSingle();
+      // A pack that couldn't be read is a notice lost, not one with no pack (R21): said, as the row's own read is.
+      if (unread) throw new Error(`the pack could not be read (${codeOf(unread)})`);
       if (!pack?.user_id) return new Response("skip: no pack");
       const { data: stop } = pack.stop_id
         ? await supabase.from("stops").select("name, starts_at, ends_at, location_text, address").eq("id", pack.stop_id).maybeSingle()
@@ -492,13 +600,14 @@ Deno.serve(async (req) => {
       // The evening-before reminder, turned off on their Notifications screen (R6): nothing goes, and the notice says
       // why. A pack moved or canceled is the order itself, and goes whatever the switch.
       if (record.kind === "pickup_tomorrow" && await customerMuted(pack.user_id, CUSTOMER_MUTE.pickupReminders)) {
-        await supabase.from("pack_notices").update({ pushed: 0, emailed: false, texted: null, detail: "pickup reminders off (Notifications)" }).eq("id", record.id);
+        const { error: unwritten } = await supabase.from("pack_notices").update({ pushed: 0, emailed: false, texted: null, detail: "pickup reminders off (Notifications)" }).eq("id", record.id);
+        if (unwritten) fault(faults, "notice", `why nothing went could not be written back (${codeOf(unwritten)})`);
         return new Response("skip: pickup reminders off");
       }
       url = "/reserve";
-      targets = await subsFor((q) => q.eq("user_id", pack.user_id));
+      targets = await subsFor((q) => q.eq("user_id", pack.user_id), faults);
       const emailed = await emailMember(pack.user_id, told.subject, told.text);
-      const texted = await textMember(pack.phone, told.sms);
+      const texted = await textMember(pack.phone, told.sms, faults);
       const devices = targets.length;
       after = () => supabase.from("pack_notices").update({ pushed: devices, emailed, texted: texted.result, detail: texted.detail ?? null }).eq("id", record.id);
 
@@ -513,7 +622,7 @@ Deno.serve(async (req) => {
       if (!ch.push && !ownTest) return new Response("ok: fyi stays in the inbox");
       // 1) Teams (classic Incoming Webhook / MessageCard). If you wired a Power Automate
       // "Workflows" webhook instead, it expects an Adaptive Card — say so and I'll switch it.
-      if (!ownTest) await postTeams(record.severity, record.title, record.body || "");
+      if (!ownTest) await postTeams(record.severity, record.title, record.body || "", faults);
       // Critical alerts EMAIL as well (2026-07-30, Ryan: "emails on critical notes... owners of
       // those should get"): the alert's own target user when there is one, the admin list when
       // there isn't. Push needs a subscribed device; a critical can't depend on that.
@@ -521,16 +630,16 @@ Deno.serve(async (req) => {
         const subj = `Critical — ${record.title}`;
         // A path on this site, and nothing else (./policy.ts sitePath): "@other.example/x" made this link another site's.
         const bodyTxt = [record.body || record.title, "", `Open it: https://app.gt3pb.com${sitePath(record.link, "/crew?s=day")}`].join("\n");
-        if (record.target_user_id) await emailUser(record.target_user_id, subj, bodyTxt);
-        else await emailAdmins(subj, bodyTxt);
+        if (record.target_user_id) await emailUser(record.target_user_id, subj, bodyTxt, faults);
+        else await emailAdmins(subj, bodyTxt, faults);
       }
       // 2) Push: to the target user, or all leadership of the alert's business when there's no specific target —
       // each of them asked first whether this alert may ring them now (ringingNow: their mutes, their quiet hours;
       // a critical always rings).
       shown = alertShown(record);
       url = sitePath(record.link, "/admin");
-      const ids = await ringingNow(record, await peopleFor(record));
-      targets = ids.length ? await subsFor((q) => q.in("user_id", ids)) : [];
+      const ids = await ringingNow(record, await peopleFor(record, faults));
+      targets = ids.length ? await subsFor((q) => q.in("user_id", ids), faults) : [];
 
     } else if (table === "alerts" && type === "UPDATE") {
       // A CRITICAL NOBODY PICKED UP (0373). escalate_unacked_criticals() marks it escalated once it has gone ten
@@ -549,8 +658,8 @@ Deno.serve(async (req) => {
       if (!freshRow(record.escalated_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       shown = escalationShown(record);
       url = sitePath(record.link, "/admin");
-      const ids = await peopleFor(record, true);
-      targets = ids.length ? await subsFor((q) => q.in("user_id", ids)) : [];
+      const ids = await peopleFor(record, faults, true);
+      targets = ids.length ? await subsFor((q) => q.in("user_id", ids), faults) : [];
 
     } else {
       return new Response("skip");
@@ -561,28 +670,50 @@ Deno.serve(async (req) => {
     // tag and ring are the browser's (public/sw.js): one notification per event, and shown even with the app open
     // for a critical, an escalation and a test. A worker from before reads title, body and url as it always did.
     const payload = JSON.stringify({ title, body: message, url, tag: shown.tag, ring: shown.ring });
+    // WHOSE REFUSAL IT IS (R21). A device that is gone is deleted (Apple's 410, a browser service's 404/410), and one
+    // device's own refusal is logged — a phone sent to too fast (Apple's 429), a browser's subscription made under
+    // another key (403 at Google's, 401 at Mozilla's). A refusal of what WE sent — our key, our topic, our payload, Apple
+    // down — is a fault; so is every one of three or more browsers refusing it, which no single device does.
+    let webTook = 0;
+    const webRefused: number[] = [];
     const sendOne = async (s: Sub) => {
       try {
         // The iPhone app's row: Apple's service, not a browser's (0367).
         if (s.platform === "apns") {
-          const status = await sendApns(s.endpoint, { title, body: message, url });
+          const { status, reason } = await sendApns(s.endpoint, { title, body: message, url });
           if (status === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+          // One phone's own refusal: sent to too fast (429), or a token for another app (kept: a topic of ours gone wrong
+          // would answer that for every phone, and deleting them all would lose every phone's alerts — R21 review).
+          else if (status === 429 || reason === "DeviceTokenNotForTopic") console.warn(`[push] apns: HTTP ${status}${reason ? ` ${reason}` : ""} (one phone)`);
+          else if (status !== 200 && status !== 0) fault(faults, "apns", `HTTP ${status}${reason ? ` ${reason}` : ""}`);
           return;
         }
         // A web device at a browser's push service only (R9, 0418 push_host_ok): a row kept at any other address is
         // left alone, never posted to.
         if (!pushHostOk(s.endpoint)) return;
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh ?? "", auth: s.auth ?? "" } }, payload);
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh ?? "", auth: s.auth ?? "" } }, payload, { timeout: OUT_MS });
+        webTook++;
       } catch (e) {
         const code = (e as { statusCode?: number })?.statusCode;
         if (code === 404 || code === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint);
+        else if (s.platform === "apns") fault(faults, "apns", whyOf(e));                 // Apple unreachable, or our key unusable
+        else if (code === 413) fault(faults, "web push", "HTTP 413");                     // our payload's size
+        else { webRefused.push(code ?? 0); console.warn(`[push] web push: ${code ? `HTTP ${code}` : whyOf(e)} (one device)`); }
       }
     };
     // A few at a time (R9): every subscriber at the same moment was one burst of posts as wide as the list.
     for (let i = 0; i < targets.length; i += SEND_AT_ONCE) await Promise.all(targets.slice(i, i + SEND_AT_ONCE).map(sendOne));
-    if (after) await after();
+    if (webRefused.length >= 3 && webTook === 0) {
+      fault(faults, "web push", `every browser refused it (${[...new Set(webRefused)].sort().map((c) => (c ? `HTTP ${c}` : "no answer")).join(", ")})`);
+    }
+    if (after) {
+      const { error } = await after();
+      if (error) fault(faults, "notice", `what went could not be written back (${codeOf(error)})`);
+    }
     return new Response("ok");
   } catch (e) {
-    return new Response("err: " + e, { status: 500 });
+    // Never thrown past here; said in the log and in the answer — with no address in it (whyOf).
+    console.error(`[push] failed: ${whyOf(e)}`);
+    return new Response("err: " + whyOf(e), { status: 500 });
   }
-});
+}

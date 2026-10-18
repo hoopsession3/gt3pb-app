@@ -74,7 +74,7 @@ async function post(req: Request) {
     to = (await accountEmail(person.id)) ?? "";
     const f = await crewFacts(tenant, person);
     // Its old password taken as it came on (0423's mark, set in the last few minutes): the letter says how to get back in.
-    // arrives-with: 0423 — before 0423 is pasted the column isn't there, and nothing was taken.
+    // A mark that couldn't be read leaves that line out and the letter still goes — the code they're emailed gets them in.
     // scoped-by: the person read above, by tenant
     const mark = await supabaseAdmin.from("profiles").select("password_taken_at").eq("tenant_id", tenant).eq("id", person.id).maybeSingle();
     const takenAt = !mark.error ? (mark.data as { password_taken_at?: string | null } | null)?.password_taken_at ?? null : null;

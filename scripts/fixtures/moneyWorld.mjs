@@ -41,7 +41,7 @@ export function routeLoader(shims = {}) {
       if (spec.startsWith("./")) {
         const base = join(dirname(rel), spec.slice(2));
         if (Object.prototype.hasOwnProperty.call(shims, `@/${base}`)) return shims[`@/${base}`];
-        return load(`${base}.ts`);
+        return load(base.endsWith(".ts") ? base : `${base}.ts`);   // Deno's imports name the extension (supabase/functions)
       }
       if (spec.endsWith(".json")) return JSON.parse(readFileSync(join(ROOT, spec.replace(/^@\//, "")), "utf8"));
       throw new Error(`unexpected import ${spec} in ${rel}`);
@@ -133,7 +133,7 @@ export function moneyWorld({ tables = {}, unique = {}, rpc = {}, sessions = {}, 
     const call = { table, op: "select", ops: [] };
     w.calls.push(call);
     const keep = [];
-    let ord = [], lim = Infinity, count = false, head = false, single = null, cols = "*", wantRows = false;
+    let ord = [], lim = Infinity, off = 0, count = false, head = false, single = null, cols = "*", wantRows = false;
     let write = null;   // { kind: insert|update|upsert|delete, values, opts }
     const filterRows = () => rowsOf(table).filter((r) => keep.every((f) => f(r)));
     const run = () => {
@@ -180,7 +180,7 @@ export function moneyWorld({ tables = {}, unique = {}, rpc = {}, sessions = {}, 
       let out = w.embed[table] ? w.embed[table]({ ops: call.ops, rows: rowsOf(table) }) : filterRows();
       for (const o of [...ord].reverse()) out = [...out].sort((a, b) => (o.asc ? 1 : -1) * cmp(a[o.c], b[o.c]));
       const n = out.length;
-      if (lim !== Infinity) out = out.slice(0, lim);
+      if (off || lim !== Infinity) out = out.slice(off, lim === Infinity ? undefined : off + lim);
       const data = w.embed[table] ? out : out.map((r) => project(r, cols));
       if (single === "maybe") return data.length > 1 ? { data: null, error: { code: "PGRST116", message: "multiple rows" } } : { data: data[0] ?? null, error: null };
       if (single === "one") return data.length === 1 ? { data: data[0], error: null } : { data: null, error: { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" } };
@@ -206,6 +206,7 @@ export function moneyWorld({ tables = {}, unique = {}, rpc = {}, sessions = {}, 
       or(list) { call.ops.push(["or", list]); keep.push(orOf(list)); return q; },
       order(c, o = {}) { call.ops.push(["order", c, o]); ord.push({ c, asc: o.ascending !== false }); return q; },
       limit(n) { call.ops.push(["limit", n]); lim = n; return q; },
+      range(a, b) { call.ops.push(["range", a, b]); off = a; lim = b - a + 1; return q; },   // PostgREST's rows a..b, inclusive
       maybeSingle() { call.ops.push(["maybeSingle"]); single = "maybe"; return q; },
       single() { call.ops.push(["single"]); single = "one"; return q; },
       then(res, rej) { return Promise.resolve().then(run).then(res, rej); },

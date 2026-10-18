@@ -194,6 +194,9 @@ export const KIND_WORDS: Readonly<Record<string, string>> = {
   error_storm: "Error storm — new-error alerts paused",
   heartbeat_stale: "The uptime check went quiet",
   cron_failed: "A scheduled job is failing",                   // 0419 cron_watch: never the job's own words
+  cron_stalled: "A scheduled job stopped running",              // 0423 cron_watch
+  db_http_failed: "The database's requests are failing",       // 0423/0427 cron_watch: the push function not answering
+  push_fault: "Alerts couldn't all go out",                    // ./index.ts sayFaults (R21): never which, nor the words
   task_assigned: "A task is yours",
   task_due: "A task is past due",
   thread_reply: "New reply",

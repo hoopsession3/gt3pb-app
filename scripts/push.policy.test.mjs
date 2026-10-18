@@ -321,7 +321,7 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
   // The function asks before it sends. It cannot run here (Deno, the network), so its wiring is read.
   const fn = readFileSync(join(ROOT, "supabase/functions/push/index.ts"), "utf8");
   ok("the push function asks whoRings for every alert's people before it looks up their devices",
-    /const ids = await ringingNow\(record, await peopleFor\(record\)\);\s*targets = ids\.length \? await subsFor/.test(fn)
+    /const ids = await ringingNow\(record, await peopleFor\(record, faults\)\);\s*targets = ids\.length \? await subsFor/.test(fn)
     && /return whoRings\(a, ids\.map\(/.test(fn));
   ok("…a critical skips the question, and a prefs read that fails pings everyone — a failed read is not a mute",
     /if \(!ids\.length \|\| severityOf\(a\.severity\) === "critical"\) return ids;/.test(fn) && /if \(prefs\.error\) return ids;/.test(fn));
@@ -398,14 +398,14 @@ const shape = (s) => !!s && typeof s.title === "string" && s.title.length > 0 &&
   const fn = readFileSync(join(ROOT, "supabase/functions/push/index.ts"), "utf8");
   ok("the push function sends a notice once — when the run marks it sent — to the member's own devices",
     /table === "pack_notices" && type === "UPDATE"/.test(fn) && /if \(!record\.sent_at \|\| \(old_record && old_record\.sent_at\)\) return new Response\("skip: not a notice going out"\);/.test(fn)
-    && /targets = await subsFor\(\(q\) => q\.eq\("user_id", pack\.user_id\)\);/.test(fn));
+    && /targets = await subsFor\(\(q\) => q\.eq\("user_id", pack\.user_id\), faults\);/.test(fn));
   ok("…emails the member's own address and nobody else's (no fallback to the admin list)",
     /async function emailMember\(userId: string, subject: string, body: string\): Promise<boolean> \{[\s\S]{0,260}return em \? await sendEmail\(\[em\], subject, body\) : false;/.test(fn));
   ok("…texts only when texts are on, the number's yes stands, and not at night",
     /if \(Deno\.env\.get\("TEXTS_ON"\) !== "1" \|\| !sid \|\| !token \|\| !from\) return \{ result: "off" \};/.test(fn)
     && fn.indexOf('supabase.rpc("text_consent_standing"') < fn.indexOf("if (textQuiet(new Date()))") && fn.indexOf("if (textQuiet(new Date()))") < fn.indexOf("api.twilio.com"));
   ok("…and writes back what went", /after = \(\) => supabase\.from\("pack_notices"\)\.update\(\{ pushed: devices, emailed, texted: texted\.result, detail: texted\.detail \?\? null \}\)\.eq\("id", record\.id\);/.test(fn)
-    && /if \(after\) await after\(\);\s*return new Response\("ok"\);/.test(fn));
+    && /if \(after\) \{\s*const \{ error \} = await after\(\);\s*if \(error\) fault\(faults, "notice", /.test(fn));   // and run: scripts/push.function.test.mjs (R21)
 }
 
 // ── 6 · A POINTER, NEWS, AND ONCE (R10, 2026-10-16 — the 10/10 audit) ───────────────────────────────────────────────

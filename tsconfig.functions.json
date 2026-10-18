@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": [],
+    "paths": { "npm:@supabase/supabase-js@2.108.2": ["./node_modules/@supabase/supabase-js"] }
+  },
+  "files": [
+    "supabase/functions/_types/deno.d.ts",
+    "supabase/functions/push/index.ts",
+    "supabase/functions/push/policy.ts"
+  ]
+}

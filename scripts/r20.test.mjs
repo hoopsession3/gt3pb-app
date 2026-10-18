@@ -1,6 +1,7 @@
 // R20 — THE 10/10 AUDIT, ROUND TWENTY, RUN (2026-10-17; Ryan: "Keep working to improve to a 10").
 //
-//   · an event's takings are asked of the database, by lib/eventTotals' rule until 0426 lands (performance F6);
+//   · an event's takings are asked of the database (performance F6; 0426, applied 2026-10-18 — the screen's own reading
+//     of the rows, kept until it was, is retired in R21);
 //   · what the phone keeps of a ticket is the board's own fields — never the card, the payment, the share key
 //     (lib/passBoard forTheSnapshot; security F5);
 //   · the error intake says a report it lost (lib/errorIntake; operations F2).
@@ -43,13 +44,12 @@ const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n
   ok("totals: with 0426 the database answers — three numbers, no rows read", fromDb?.cents === 3300 && fromDb?.orders === 5 && fromDb?.firstAt === "2026-10-17T18:05:00+00:00"
     && JSON.stringify(asked) === JSON.stringify(["rpc:event_totals:ev-1"]), { fromDb, asked });
   asked.length = 0;
-  const before = await ET.eventTotals(db({ data: null, error: { code: "PGRST202", message: "Could not find the function public.event_totals(p_event) in the schema cache" } }), "ev-1");
-  ok("totals: before 0426 is pasted, the rows are read and added by the same rule", JSON.stringify(before) === JSON.stringify(t) && asked.includes("read:orders") && asked.includes("read:event_sales"), { before, asked });
-  asked.length = 0;
   const down = await ET.eventTotals(db({ data: null, error: { code: "", message: "Failed to fetch" } }), "ev-1");
   ok("totals: a failure is no answer (null — the screen keeps its numbers), and asks nothing more", down === null && JSON.stringify(asked) === JSON.stringify(["rpc:event_totals:ev-1"]), { down, asked });
-  const half = await ET.eventTotals(db({ data: null, error: { code: "42883", message: "function public.event_totals(uuid) does not exist" } }, { orders, sales }, { message: "Failed to fetch" }), "ev-1");
-  ok("totals: …and a fallback read that fails is no answer too — never $0", half === null, half);
+  asked.length = 0;
+  const gone = await ET.eventTotals(db({ data: null, error: { code: "PGRST202", message: "Could not find the function public.event_totals(p_event) in the schema cache" } }), "ev-1");
+  ok("totals: with 0426 applied the rows are never read here (R21) — a function the database doesn't find is no answer, not a reason to read every order",
+    gone === null && JSON.stringify(asked) === JSON.stringify(["rpc:event_totals:ev-1"]), { gone, asked });
 }
 
 // ── lib/passBoard forTheSnapshot: what the phone keeps of a ticket ───────────────────────────────────────────────────

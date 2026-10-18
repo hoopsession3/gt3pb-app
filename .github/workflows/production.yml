@@ -95,9 +95,13 @@ jobs:
       # means in scripts/verify.prod.mjs and this follows.
       # The check names itself to /api/health (R19 — the 10/10 audit, operations F6): with the site's HEALTH_PROBE_SECRET set,
       # only a check carrying the same secret feeds the watchdog. The repository secret of that name; unset, it sends none.
+      # And it asks the deployed push function which build it is (R21 — operations F12): the database's two public
+      # values, the repository VARIABLES smoke:authed and the iPhone build read. Unset: that one check says so and passes.
       - name: verify:prod
         env:
           HEALTH_PROBE_SECRET: ${{ secrets.HEALTH_PROBE_SECRET }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: npm run verify:prod -- ${{ steps.form.outputs.args }}
 
       # THE CREW CONSOLE, SIGNED IN, ON THE DEPLOYED SITE (R14 — the 10/10 audit, F9). verify:prod sees what a guest

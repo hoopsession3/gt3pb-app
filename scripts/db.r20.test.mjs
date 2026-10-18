@@ -83,7 +83,7 @@ const iso = (t) => (t ? new Date(t).toISOString() : null);
   ok("0426: how many sales — three orders (the voided one not among them) and the two sales that are no app payment's", Number(t?.orders) === 5, t);
   const { orders, sales, notOwn } = await rows(ev);
   const mine = ET.totalsFromRows(orders, sales, { notOwn, refundedCents: 500 });
-  ok("0426: the database's answer is lib/eventTotals' own rule on the same rows (the screen's until 0426 is pasted)",
+  ok("0426: the database's answer is lib/eventTotals' own rule on the same rows (the rule written in TypeScript; the screen asks the database)",
     mine.cents === Number(t?.cents) && mine.orders === Number(t?.orders) && iso(mine.firstAt) === iso(t?.first_at), { db: t, lib: mine });
   ok("0426: the first sale is the earliest of the orders and the sales it counts (the walk-up, 55 minutes ago)",
     iso(t?.first_at) === iso((await q1(`select created_at from public.event_sales where square_payment_id = 'sq-pay-walkup'`)).created_at), t?.first_at);

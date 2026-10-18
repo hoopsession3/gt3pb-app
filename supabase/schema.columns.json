@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-16T19:56:06.807Z",
+    "pulled_at": "2026-10-18T01:06:26.120Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
     "relations": 228,
-    "columns": 2901
+    "columns": 2904
   },
   "academy_acknowledgements": [
     "user_id",
@@ -387,9 +387,9 @@
     "alerted_overextract",
     "alerted_hold_soon",
     "alerted_hold_expired",
+    "brewer",
     "coffee_lot",
     "taste_notes",
-    "brewer",
     "stop_id",
     "drop_date",
     "field_op_id",
@@ -540,7 +540,8 @@
     "moved_from",
     "moved_at",
     "client_note",
-    "paylink_id"
+    "paylink_id",
+    "idempotency_key"
   ],
   "changelog": [
     "id",
@@ -1082,8 +1083,8 @@
     "created_at",
     "link",
     "warn",
-    "stop_id",
     "tenant_id",
+    "stop_id",
     "meeting_note_id",
     "ai_proposal",
     "ai_has_answer",
@@ -2097,7 +2098,9 @@
     "card_vision",
     "card_motto",
     "market",
-    "leads_market"
+    "leads_market",
+    "password_taken_at",
+    "password_set_by_hand_at"
   ],
   "program_access": [
     "id",

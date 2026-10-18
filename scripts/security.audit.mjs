@@ -97,8 +97,14 @@ export const CEILING = {
   // door — owners and admins inside, the order locked, from a state that still owes only, the invoice made in the same
   // write), granted to authenticated by name. cron_watch, sweep_rate_limits (0419) and reap_stale_pending_subs (0421) are
   // the cron's and granted to no API role; nothing new is callable signed out (anon 15).
+  // 2026-10-18, snapshot at ledger 0426: definerExec 122 → 124 — password_not_now (0423: a signed-in person's "Not now"
+  // to choosing a password, their own mark and nothing else) and event_totals (0426: the live event's three numbers, the
+  // crew's only, on the caller's own tenant), each granted to authenticated by name. confirm_address and
+  // set_password_by_hand (0423) answer only an owner in the SQL editor and are granted to no API role; claim_team_invites,
+  // take_signup_password and 0423's triggers are granted to no one; promote_to_crew (0299) was counted already. 0425
+  // rewrote policies only. Nothing new is callable signed out (anon 15).
   publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
-  definerExec: 122,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
+  definerExec: 124,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.

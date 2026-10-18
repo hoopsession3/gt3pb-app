@@ -6030,7 +6030,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/haptic\("success"\); notifyDelivered\(o\);/.test(read("components/DriverRun.tsx")));
   ok("orders export: the paid column is lib/collect's ledger word — it called every unpaid order 'at pickup', picked up or not",
     /paid: ledgerWord\(o\),/.test(crewSrc) && !/paid: o\.paid \? "paid online" : "at pickup"/.test(crewSrc));
-  // R20: the rule is lib/eventTotals' (the screen's until 0426 is pasted) and 0426's event_totals (the database's).
+  // R20: the rule is lib/eventTotals' (totalsFromRows — db.r20 holds the database to it) and 0426's event_totals (the database's).
   const etSrc = code(read("lib/eventTotals.ts")), m25src = read("supabase/migrations/0426_an_events_takings_are_counted_where_they_are.sql");
   ok("event HUD: a card paid online is not counted twice — once as the order, again as its own Square payment — nor any other app payment Square files against the event (the R20 review: report_sales' rule)",
     /const linked = new Set\(orders\.map\(\(o\) => o\.payment_id\)\.filter\(\(p\): p is string => !!p\)\);/.test(etSrc)
@@ -10367,9 +10367,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /PushNotifications: \{\s*presentationOptions: \["badge", "sound", "alert"\],/.test(read("capacitor.config.ts"))
       && /grep -q "aps-environment" entitlements\.txt/.test(read(".github/workflows/ios.yml")));
     ok("alerts: the push function sends an app's row through APNs — ES256 with the team's key, the bundle as topic, a gone token deleted — and skips it quietly when APNs is not set up",
-      /if \(s\.platform === "apns"\) \{\s*const status = await sendApns\(s\.endpoint, \{ title, body: message, url \}\);\s*if \(status === 410\) await supabase\.from\("push_subscriptions"\)\.delete\(\)\.eq\("endpoint", s\.endpoint\);/.test(fn)
+      /if \(s\.platform === "apns"\) \{\s*const \{ status, reason \} = await sendApns\(s\.endpoint, \{ title, body: message, url \}\);\s*if \(status === 410\) await supabase\.from\("push_subscriptions"\)\.delete\(\)\.eq\("endpoint", s\.endpoint\);/.test(fn)
       && /text64\(JSON\.stringify\(\{ alg: "ES256", kid: keyId \}\)\)/.test(fn) && /iss: team, iat: now/.test(fn) && /const APNS_TOPIC = "com\.gt3pb\.app";/.test(fn)
-      && /"apns-push-type": "alert"/.test(fn) && /if \(!keyId \|\| !pem\) return null;/.test(fn) && /if \(r\.status === 400 && reason === "BadDeviceToken"\) return 410;/.test(fn));
+      && /"apns-push-type": "alert"/.test(fn) && /if \(!keyId \|\| !pem\) return null;/.test(fn) && /if \(r\.status === 400 && reason === "BadDeviceToken"\) return \{ status: 410, reason \};/.test(fn)
+      && /else if \(status === 429 \|\| reason === "DeviceTokenNotForTopic"\) console\.warn\(/.test(fn));
     ok("alerts: one Apple token per send however many phones it goes to (429 TooManyProviderTokenUpdates), made again when Apple calls it expired, and an alert never arrives after its hour",
       /apnsSigning \?\?= signApns\(\)\.finally\(\(\) => \{ apnsSigning = null; \}\);/.test(fn)
       && /if \(r\.status === 403 && \(reason === "ExpiredProviderToken" \|\| reason === "InvalidProviderToken"\)\) apnsAuth = null;/.test(fn)
@@ -11864,7 +11865,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       .every((c) => fn.includes(`shown = ${c}`))
     && /const title = shown\.title, message = shown\.body;/.test(fn)
     && /const payload = JSON\.stringify\(\{ title, body: message, url, tag: shown\.tag, ring: shown\.ring \}\);/.test(fn)
-    && /const status = await sendApns\(s\.endpoint, \{ title, body: message, url \}\);/.test(fn)
+    && /const \{ status, reason \} = await sendApns\(s\.endpoint, \{ title, body: message, url \}\);/.test(fn)
     && !/\blet\s+(title|message)\b/.test(fn) && !/\b(title|message)\s*=\s*(\(sev|map\[|record\.(title|body|customer))/.test(fn)
     && !/\bDRINKS\b|total_cents \/ 100/.test(fn));
   ok("alerts: a go-live push names the stop and never its street; a task's push names no label or event",
@@ -11873,10 +11874,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // 3 · who is reached: the alert's own business, and an escalation also every admin and owner
   ok("alerts: the crew's devices and a broadcast's leadership are looked up in the row's own tenant",
-    /subsFor\(\(q\) => q\.eq\("is_admin", true\)\.eq\("tenant_id", tenantOf\(record\)\)\)/.test(fn)
+    /subsFor\(\(q\) => q\.eq\("is_admin", true\)\.eq\("tenant_id", tenantOf\(record\)\), faults\)/.test(fn)
     && /\.from\("profiles"\)\.select\("id"\)\.eq\("tenant_id", tenantOf\(a\)\)\.in\("role", \[\.\.\.roles\]\)/.test(fn)
     && /if \(escalation\) \{ roles\.add\("admin"\); roles\.add\("owner"\); \}/.test(fn)
-    && /subsFor\(\(q\) => q\.eq\("wants_live", true\)\.eq\("tenant_id", tenantOf\(record\)\)\)/.test(fn));
+    && /subsFor\(\(q\) => q\.eq\("wants_live", true\)\.eq\("tenant_id", tenantOf\(record\)\), faults\)/.test(fn));
   // 2026-10-12 (0383): "read by anyone" became "claimed" — the first Got it on a team alert, kept on the row — and
   // reads count only while the row has no claim column (before 0383 is pasted). The rule is ./policy.ts
   // stillUnanswered, run by scripts/push.policy.test.mjs; this holds the function to asking it, on the whole row.
@@ -11884,9 +11885,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\} else if \(table === "alerts" && type === "UPDATE"\) \{/.test(fn) && /if \(!isEscalation\(record, old_record\)\) return new Response\("skip: not an escalation"\);/.test(fn)
     && /const record = await rowNow\(table, named\.id\);/.test(fn) && /if \(!\("claimed_by" in record\)\) \{/.test(fn)
     && /if \(!stillUnanswered\(record, reads\)\) return new Response\("skip: acknowledged"\);/.test(fn)
-    && /const ids = await peopleFor\(record, true\);/.test(fn));
+    && /const ids = await peopleFor\(record, faults, true\);/.test(fn));
   ok("alerts: a device test goes to its person's devices alone — never Teams, never email",
-    /const ownTest = record\.kind === "device_test";/.test(fn) && /if \(!ownTest\) await postTeams\(record\.severity, record\.title, record\.body \|\| ""\);/.test(fn)
+    /const ownTest = record\.kind === "device_test";/.test(fn) && /if \(!ownTest\) await postTeams\(record\.severity, record\.title, record\.body \|\| "", faults\);/.test(fn)
     && /if \(ownTest && !record\.target_user_id\) return new Response\("skip: a device test is someone's own"\);/.test(fn));
   {
     const canon = (/const ALERT_CATEGORIES = \{([\s\S]*?)\} as const;/.exec(read("lib/alertKinds.ts")) || [])[1] || "";
@@ -13952,7 +13953,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /supabase\.rpc\("drop_cup_reminder", \{ p_stop: stopId \}\)/.test(rm) && !/arrives-with/.test(rm));
   ok("remind me: the push function sends a reminder marked sent to that member's devices only, saying the stop's name and nothing else",
     /table === "cup_reminders" && type === "UPDATE"/.test(fn) && /if \(!record\.fired_at \|\| \(old_record && old_record\.fired_at\)\) return new Response\("skip: not a reminder going out"\);/.test(fn)
-    && /targets = await subsFor\(\(q\) => q\.eq\("user_id", record\.user_id\)\);/.test(fn) && /shown = reminderShown\(s\?\.name \?\? null, record\.stop_id\);/.test(fn));
+    && /targets = await subsFor\(\(q\) => q\.eq\("user_id", record\.user_id\), faults\);/.test(fn) && /shown = reminderShown\(s\?\.name \?\? null, record\.stop_id\);/.test(fn));
   ok("remind me: 0394 makes its door from the fan-out's call (no address or key in the file), runs every minute, and lets a late one go",
     /cron\.schedule\('fire-cup-reminders', '\* \* \* \* \*', 'select public\.fire_cup_reminders\(\)'\)/.test(mig) && /and r\.remind_at > now\(\) - interval '30 minutes'/.test(mig)
     && /create trigger cup_reminders_push after update of fired_at on public\.cup_reminders/.test(mig) && !/https?:\/\/|Bearer/i.test(mig.replace(/--.*$/gm, "")));
@@ -15243,7 +15244,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/const \{ table, type, record, old_record \} = await req\.json\(\);/.test(pfn) && !/event_approval_request/.test(pfn));
   ok("R10 push: every branch sends once (push_sent, 0419) — a key already kept is 'sent already'; a store that cannot keep it still sends",
     branches === 13 && (pfn.match(/await once\(\)/g) || []).length === 13
-    && /const \{ error \} = await supabase\.from\("push_sent"\)\.insert\(\{ event_key: key\.slice\(0, 200\) \}\);\s+if \(!error\) return true;\s+return error\.code !== "23505";/.test(pfn), branches);
+    && /const \{ error \} = await supabase\.from\("push_sent"\)\.insert\(\{ event_key: key\.slice\(0, 200\) \}\);\s+if \(!error\) return true;\s+if \(error\.code === "23505"\) return false;\s+fault\(faults, "sent once", /.test(pfn), branches);   // run: scripts/push.function.test.mjs (R21)
   ok("R10 push: news only — every branch but a task's asks the row's own stamp (created, status changed, updated, live since, fired, sent, escalated)",
     ["freshRow(record.created_at, nowMs)", "freshRow(record.status_changed_at, nowMs)", "freshRow(record.updated_at, nowMs)", "freshRow(record.live_since, nowMs, LIVE_NEWS_MS)",
       "freshRow(record.fired_at, nowMs)", "freshRow(record.sent_at, nowMs)", "freshRow(record.escalated_at, nowMs)"].every((c) => pfn.includes(c))
@@ -16142,7 +16143,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     cp.includes("eventTotals(supabase, eid),") && !cp.includes('supabase.from("orders").select("total_cents, paid, payment_id, created_at").eq("event_id", eid)')
       && cp.includes("if (r.live.stats) setStats({ eid: r.live.ev.id, totals: r.live.stats });") && cp.includes("const took = stats && stats.eid === ev.id ? stats.totals : null;")
       && cp.includes('<b>{took ? moneyRound(took.cents) : "—"}</b>') && !/useState<\{ cents: number; orders: number; firstAt: string \| null \}>\(\{ cents: 0/.test(cp)
-      && et.includes('sb.rpc("event_totals", { p_event: eventId })') && /\/\/ arrives-with: 0426/.test(rd("lib/eventTotals.ts"))
+      && et.includes('sb.rpc("event_totals", { p_event: eventId })') && !/arrives-with/.test(rd("lib/eventTotals.ts")) && !et.includes('.from("orders")')   // 0426 applied: the rows are never read here (R21)
       && /language plpgsql stable security definer set search_path = public as \$\$/.test(m25) && /if not public\.is_staff\(\) then/.test(m25)
       && /grant execute on function public\.event_totals\(uuid\) to authenticated;/.test(m25));
 }
