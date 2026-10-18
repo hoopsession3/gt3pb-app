@@ -502,8 +502,31 @@ ok("arriving: silence is not a declaration",
 // ── api.audit: guarded / public / silent ───────────────────────────────────────────────────────
 // Shapes lifted from app/api. The trap this guards against is the one that produced "50 unguarded
 // routes" above: a word in a comment counting as (or failing to count as) the real thing.
-ok("api: a route calling a house guard in code is guarded (app/api/office/route.ts shape)",
-  classifyRoute(`import { userFromRequest } from "@/lib/apiAuth";\nexport async function GET(req) { const u = await userFromRequest(req); }`) === "guarded");
+ok("api: a route refusing a caller with no session is guarded (app/api/office/route.ts shape)",
+  classifyRoute(`import { userFromRequest } from "@/lib/apiAuth";\nexport async function GET(req) { const u = await userFromRequest(req); if (!u) return no(); }`) === "guarded");
+// R23 (API F15, security F13): a guard NAMED is not a guard — the answer has to refuse.
+ok("api: knowing who is calling without refusing anyone is NOT a guard (R23)",
+  classifyRoute(`import { userFromRequest } from "@/lib/apiAuth";\nexport async function GET(req) { const u = await userFromRequest(req); return price(u?.id); }`) === "silent");
+ok("api: a role asked and not refused on is NOT a guard (R23)",
+  classifyRoute(`export async function GET(req) { await staffFromRequest(req); return ok(); }`) === "silent");
+ok("api: a role refused inline, in a block that says why first, is guarded (R23)",
+  classifyRoute(`export async function GET(req) { if (!(await staffFromRequest(req))) {\n  log("refused");\n  return no();\n}\nreturn ok(); }`) === "guarded");
+ok("api: a session refused through a name made from it is guarded (the card doors' shape, R23)",
+  classifyRoute(`export async function POST(req) { const who = await callerFromRequest(req);\n  const user = who.kind === "user" ? { id: who.id } : null;\n  if (!user) return no(); }`) === "guarded");
+ok("api: tenantFromRequest alone names a business, not who may act for it — NOT a guard (R23)",
+  classifyRoute(`export async function GET(req) { const t = await tenantFromRequest(req); if (!t) return no(); return rows(t); }`) === "silent");
+ok("api: createHmac alone signs as readily as it checks — NOT a guard (R23)",
+  classifyRoute(`import { createHmac } from "node:crypto";\nexport async function POST(req) { const sig = createHmac("sha256", k).update(b).digest("hex"); return send(sig); }`) === "silent");
+ok("api: a SECRET read from the environment and compared with nothing is NOT a guard (R23)",
+  classifyRoute(`export async function POST(req) { const key = process.env.WEBHOOK_SECRET; return forward(key); }`) === "silent");
+ok("api: …compared with what the request carried, it is (R23)",
+  classifyRoute(`export async function GET(req) { if (req.headers.get("x-probe") !== process.env.HEALTH_PROBE_SECRET) return no(); }`) === "guarded");
+ok("api: a signature check inside the refusing condition is guarded (notes/inbound's shape, R23)",
+  classifyRoute(`export async function POST(req) { if (!tokens(req).some((t) => tokenOk(t, secret))) return no(); }`) === "guarded");
+ok("api: …and through a function of the route's own that returns the check (resend/webhook's shape, R23)",
+  classifyRoute(`function verify(raw, h) { return svixSignatureOk(raw, h, s); }\nexport async function POST(req) { if (!verify(raw, req.headers)) return no(); }`) === "guarded");
+ok("api: a signature checked and NOT refused on is not a guard (R23)",
+  classifyRoute(`export async function POST(req) { const good = squareSignatureOk(raw, sig, k, u); log(good); return ok(); }`) === "silent");
 ok("api: a webhook that compares a signature is guarded (timingSafeEqual)",
   classifyRoute(`import { timingSafeEqual } from "node:crypto";\nexport async function POST(req) { if (!timingSafeEqual(a, b)) return bad(); }`) === "guarded");
 ok("api: a guard named only in a comment is NOT a guard",
@@ -519,7 +542,7 @@ ok("api: public: must be its own comment line, not buried in code",
 ok("api: an inline session read is a second copy of lib/apiAuth, not a guard (the old app/api/office shape)",
   classifyRoute(`import { supabaseAdmin } from "@/lib/supabaseAdmin";\nexport async function POST(req) { const { data } = await supabaseAdmin.auth.getUser(token); if (!data.user) return no(); }`) === "silent");
 ok("api: a guarded route with a stray public: line is still reported as guarded, not public",
-  classifyRoute(`// public: left over from before the guard was added, long enough\nimport { staffFromRequest } from "@/lib/apiAuth";\nexport async function GET(req) { await staffFromRequest(req); }`) === "guarded");
+  classifyRoute(`// public: left over from before the guard was added, long enough\nimport { staffFromRequest } from "@/lib/apiAuth";\nexport async function GET(req) { if (!(await staffFromRequest(req))) return no(); }`) === "guarded");
 
 // ── api.audit: the bound ───────────────────────────────────────────────────────────────────────
 // A public write names the shared-store cap that bounds it, or the audit names the route. The
@@ -663,14 +686,17 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   await db.exec(`
     create role anon; create role authenticated; create role service_role;
     create table public.schema_migrations (seq int, name text); insert into public.schema_migrations values (1, 'a'), (2, 'b');
-    create or replace function public.is_staff() returns boolean language sql stable security definer as $$ select true $$;
+    create or replace function public.is_staff() returns boolean language sql stable security definer set search_path = public as $$ select true $$;
     grant execute on function public.is_staff() to anon, authenticated;
-    create or replace function public.internal_only() returns boolean language sql stable security definer as $$ select true $$;
+    create or replace function public.internal_only() returns boolean language sql stable security definer set search_path = public as $$ select true $$;
     revoke execute on function public.internal_only() from public, anon, authenticated;
-    create or replace function public.members_only() returns boolean language sql stable security definer as $$ select true $$;
+    create or replace function public.members_only() returns boolean language sql stable security definer set search_path = '' as $$ select true $$;
     revoke execute on function public.members_only() from public, anon, authenticated;
     grant execute on function public.members_only() to authenticated;
     create or replace function public.plain() returns boolean language sql stable as $$ select true $$;
+    -- R23: a definer with no search_path of its own that only the server may call — measured (its sixth field false), not judged
+    create or replace function public.no_path_inside() returns boolean language sql stable security definer as $$ select true $$;
+    revoke execute on function public.no_path_inside() from public, anon, authenticated;
     create table public.leak (id int); grant select on public.leak to anon;
     create table public.service_only (id int);
     create table public.menu_items (id int); alter table public.menu_items enable row level security;
@@ -697,6 +723,15 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
     create schema storage;
     create table storage.buckets (id text primary key, public boolean default false, file_size_limit bigint, allowed_mime_types text[]);
     insert into storage.buckets values ('content', false, 104857600, array['image/*', 'video/*']), ('shop', true, null, null);
+    -- R23 (database F15): every file's rules and every private channel's, as Supabase makes the two tables (RLS on, the API
+    -- roles granted) with rules of the house's shape: a public bucket read by anyone, a write for staff, a room for its editors
+    create table storage.objects (id uuid, bucket_id text, name text, owner uuid); alter table storage.objects enable row level security;
+    grant select, insert, update, delete on storage.objects to anon, authenticated, service_role;
+    create policy "shop read" on storage.objects for select using (bucket_id = 'shop');
+    create policy "content staff write" on storage.objects for insert to authenticated with check (bucket_id = 'content' and (select public.is_staff()));
+    create schema realtime; create table realtime.messages (topic text, extension text, payload jsonb); alter table realtime.messages enable row level security;
+    grant select, insert on realtime.messages to anon, authenticated;
+    create policy "room hears its editors" on realtime.messages for select to authenticated using (topic like 'studio-%' and (select public.is_staff()));
     -- fourteen ordinary tenant tables, so the document spans several 2000-character rows (the refusals below need more than one)
     ${Array.from({ length: 14 }, (_, i) => `create table public.plain_${i} (id int, tenant_id uuid); alter table public.plain_${i} enable row level security; grant select on public.plain_${i} to authenticated; create policy "tenant isolation" on public.plain_${i} as restrictive for all using (tenant_id = tenant_id); create policy "staff read" on public.plain_${i} for select using ((select public.is_staff()));`).join("\n")}
   `);
@@ -704,7 +739,7 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   const r = reassemble(rows);
   ok("security: the query's rows reassemble and the digest row agrees", !r.error, r.error);
   const snap = r.json || { t: {}, f: [], x: [] };
-  ok("security: the compact shape names every relation and definer function", Object.keys(snap.t).length === 22 && snap.f.length === 3, [Object.keys(snap.t).length, snap.f.length]);
+  ok("security: the compact shape names every relation and definer function", Object.keys(snap.t).length === 22 && snap.f.length === 4, [Object.keys(snap.t).length, snap.f.length]);
   ok("security: the fixture spans several rows, so the refusals below mean something", rows.length >= 3, rows.length);
   ok("security: expressions are stored once and policies point at them", snap.x.includes("true") && snap.t.menu_items[7][0][4] === snap.x.indexOf("true"));
   const NONE = { moneyKeys: {}, bucketCaps: [], accountTriggers: {} };   // the R19 rules, judged on their own below
@@ -720,6 +755,55 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
   ok("security: an exemption with a reason clears a finding", judge(snap, { leak: "a planted reason", "guestbook.anyone writes": "a planted reason" }, NONE).hard.length === 0);
   ok("security: an exemption with no reason is itself a finding", judge(snap, { leak: "" }, NONE).hard.some((h) => h.includes("NO reason")));
   ok("security: the expanded shape judges the same", JSON.stringify(judge(expand(snap), {}, NONE)) === JSON.stringify(v));
+  // R23 (database F15): the definers' search_path and the platform's two gates — measured by the real query, then judged.
+  ok("security (R23): each definer's search_path is measured — pinned to a schema, pinned to nothing, or not pinned at all",
+    JSON.stringify(snap.f.map((r) => [r[0], r[5]])) === JSON.stringify([["internal_only", true], ["is_staff", true], ["members_only", true], ["no_path_inside", false]]), snap.f);
+  ok("security (R23): a definer with no path that the API roles may not call is measured, not judged", !v.hard.some((h) => h.startsWith("definer-path")), v.hard);
+  const unpinned = { ...snap, f: snap.f.map((r) => (r[0] === "is_staff" ? [...r.slice(0, 5), false] : r)) };
+  ok("security (R23): one the API roles may call with no search_path pinned is the hard finding",
+    judge(unpinned, {}, NONE).hard.filter((h) => h.startsWith("definer-path")).join() === "definer-path: is_staff() runs as its owner for the API roles with no search_path pinned",
+    judge(unpinned, {}, NONE).hard);
+  ok("security (R23): …exempted by name with its reason — and an exemption without one is a finding",
+    !judge(unpinned, { "definer-path:is_staff()": "a planted reason" }, NONE).hard.some((h) => h.startsWith("definer-path"))
+      && judge(unpinned, { "definer-path:is_staff()": " " }, NONE).hard.some((h) => /^definer-path:is_staff\(\): exempt with NO reason/.test(h)));
+  ok("security (R23): definers measured by an older query (five fields, no path) are not judged on it",
+    !judge({ ...snap, f: unpinned.f.map((r) => r.slice(0, 5)) }, {}, NONE).hard.some((h) => h.startsWith("definer-path")));
+  const STORE = "storage.objects", ROOM = "realtime.messages", T = snap.x.indexOf("true");
+  const rule = (table, n) => (snap.p?.[table]?.[5] || []).find((x) => x[0] === n);
+  ok("security (R23): the platform's two tables are measured — RLS, what each API role may do, every rule, its expressions in x",
+    JSON.stringify(Object.keys(snap.p || {})) === JSON.stringify([ROOM, STORE])
+      && JSON.stringify(snap.p[STORE].slice(0, 5)) === JSON.stringify([true, false, "riud", "riud", "riud"]) && JSON.stringify(snap.p[ROOM].slice(0, 5)) === JSON.stringify([true, false, "ri", "ri", ""])
+      && snap.x[rule(STORE, "shop read")[4]] === "(bucket_id = 'shop'::text)" && rule(STORE, "shop read")[3] === "public"
+      && rule(STORE, "content staff write")[1] === "a" && rule(STORE, "content staff write")[4] === null && /is_staff/.test(snap.x[rule(STORE, "content staff write")[5]])
+      && rule(ROOM, "room hears its editors")[3] === "authenticated" && /studio-%/.test(snap.x[rule(ROOM, "room hears its editors")[4]]), snap.p);
+  ok("security (R23): the house's shapes — a public bucket read by anyone, a staff write, a room for its editors — are no finding, and counted",
+    v.info.platform === 2 && !v.hard.some((h) => /^(platform-rls-off|storage-|realtime-)/.test(h)), [v.info.platform, v.hard]);
+  const withRule = (table, r) => ({ ...snap, p: { ...snap.p, [table]: [...snap.p[table].slice(0, 5), [...snap.p[table][5], r]] } });
+  const gates = (sn, ex = {}) => judge(sn, ex, NONE).hard.filter((h) => /^(platform-rls-off|storage-|realtime-)/.test(h) || h.startsWith(STORE + ".") || h.startsWith(ROOM + "."));
+  const SHOP = rule(STORE, "shop read")[4], STUDIO = rule(ROOM, "room hears its editors")[4];
+  ok("security (R23): a file rule that lets someone with no session write is the hard finding — however narrow its bucket",
+    gates(withRule(STORE, ["guests upload", "a", true, "anon", null, SHOP])).join() === `storage-write: ${STORE} — policy "guests upload" (insert) is for anon: a file written by someone with no session`
+      && gates(withRule(STORE, ["anyone deletes", "d", true, "public", SHOP, null])).length === 1, gates(withRule(STORE, ["guests upload", "a", true, "anon", null, SHOP])));
+  ok("security (R23): a file write that is `true` for whoever is signed in is the hard finding; a read that is, or a bounded write, is not",
+    gates(withRule(STORE, ["any file, anyone signed in", "w", true, "authenticated", T, null])).join() === `storage-open-write: ${STORE} — policy "any file, anyone signed in" (update) is \`true\`: any signed-in person writes any file`
+      && gates(withRule(STORE, ["every file read", "r", true, "authenticated", T, null])).length === 0
+      && gates(withRule(STORE, ["shop files, signed in", "*", true, "authenticated", SHOP, SHOP])).length === 0);
+  ok("security (R23): a private room's rule for someone with no session is the hard finding — whatever it reads",
+    gates(withRule(ROOM, ["guests hear", "r", true, "anon", STUDIO, null])).join() === `realtime-room: ${ROOM} — policy "guests hear" (select) is for anon: a private room joined with no session`
+      && gates(withRule(ROOM, ["anyone speaks", "a", true, "public", null, STUDIO])).length === 1);
+  ok("security (R23): a private room's rule that reads nothing (`true`) is the hard finding — every room open to anyone signed in",
+    gates(withRule(ROOM, ["every room", "r", true, "authenticated", T, null])).join() === `realtime-open-room: ${ROOM} — policy "every room" (select) is \`true\`: every private room open to anyone signed in`
+      && gates(withRule(ROOM, ["every room, speak", "a", true, "authenticated", null, null])).length === 1);
+  ok("security (R23): a restrictive rule only narrows — it is not judged as a door",
+    gates(withRule(STORE, ["narrow", "*", false, "public", T, T])).length === 0 && gates(withRule(ROOM, ["narrow", "r", false, "anon", T, null])).length === 0);
+  ok("security (R23): a platform table with RLS off that the API roles reach is the hard finding; one they cannot reach is not",
+    gates({ ...snap, p: { ...snap.p, [STORE]: [false, ...snap.p[STORE].slice(1)] } }).join() === `platform-rls-off: ${STORE} — row-level security is off and anon may riud, authenticated may riud`
+      && gates({ ...snap, p: { ...snap.p, [STORE]: [false, false, "", "", "riud", snap.p[STORE][5]] } }).length === 0);
+  ok("security (R23): a platform rule is exempted by table and name with its reason — and an exemption without one is a finding",
+    gates(withRule(STORE, ["guests upload", "a", true, "anon", null, SHOP]), { [`${STORE}.guests upload`]: "a planted reason" }).length === 0
+      && gates(withRule(STORE, ["guests upload", "a", true, "anon", null, SHOP]), { [`${STORE}.guests upload`]: "" }).join() === `${STORE}.guests upload: exempt with NO reason`);
+  { const noP = { ...withRule(ROOM, ["every room", "r", true, "authenticated", T, null]) }; delete noP.p;
+    ok("security (R23): a snapshot from before R23 (no p) is not judged on the platform's gates, and says so", judge(noP, {}, NONE).info.platform === null && gates(noP).length === 0); }
   // R19: the money's keys, the buckets' caps, the triggers — measured by the real query
   ok("security: the unique keys are measured, by table and name (and the primary keys among them)", snap.k.some(([t, n, p]) => t === "menu_items" && n === "menu_items_id_uniq" && p === false), snap.k);
   ok("security: the triggers are measured — names and switches, never a definition — public's, then the accounts' (auth.users, named so)",
@@ -784,6 +868,12 @@ ok("errmsg: the call to the home is not a copy", !peelsErrorMessageByHand(`catch
     const cut = Array.from({ length: Math.ceil(older.length / 2000) }, (_, i) => ({ row: i, chunk: older.slice(i * 2000, (i + 1) * 2000) }));
     const digest = { row: cut.length, chunk: JSON.stringify({ rows: cut.length, length: older.length, sha256: createHash("sha256").update(older, "utf8").digest("hex") }) };
     ok("security: a document pulled with an older query (no keys, triggers or buckets) is refused, nothing written", /no k\/g\/b/.test(reassemble([...cut, digest]).error || ""), reassemble([...cut, digest]).error);
+    // R23: whole and its digest right, but pulled with R22's query — no platform gates, or a definer without its sixth field.
+    const pulled = (doc) => { const t = JSON.stringify(doc); const c = Array.from({ length: Math.ceil(t.length / 2000) }, (_, i) => ({ row: i, chunk: t.slice(i * 2000, (i + 1) * 2000) }));
+      return reassemble([...c, { row: c.length, chunk: JSON.stringify({ rows: c.length, length: t.length, sha256: createHash("sha256").update(t, "utf8").digest("hex") }) }]); };
+    ok("security (R23): a document with no p (the files' and the private channels' rules) is refused", /no p \(the files'/.test(pulled({ ...snap, p: undefined }).error || ""), pulled({ ...snap, p: undefined }).error);
+    ok("security (R23): …and one whose definers carry no search_path — any of them, not only the first", /search_path on the definers/.test(pulled({ ...snap, f: snap.f.map((r, i) => (i === snap.f.length - 1 ? r.slice(0, 5) : r)) }).error || "")
+      && !pulled(snap).error, [pulled({ ...snap, f: snap.f.map((r, i) => (i === snap.f.length - 1 ? r.slice(0, 5) : r)) }).error, pulled(snap).error]);
   }
   await db.close();
 }

@@ -5,7 +5,9 @@ import { benefitsForUser, refillIsFree } from "@/lib/benefits";
 import { packCents } from "@/lib/packOrder";
 import { isPackSize, type GlassPath } from "@/lib/orderAhead";
 import { route } from "@/lib/apiRoute";
-import { callerIp } from "@/lib/rateLimit";
+import { callerIp, limitsFit } from "@/lib/rateLimit";
+
+// public: a pack's price before Pay — the price anyone pays, or a signed-in member's with their tier's perks (who is calling prices the pack, never permits it); reads only, bounded per caller and for the app in the shared store
 
 // A PACK'S PRICE, BEFORE PAY (R7b, 2026-10-16). What /api/reserve would charge this caller for this pack — their tier's
 // perks (0176: a founding member's bring-back refill is on us) and a code's discount applied, in the reserve's own rule
@@ -17,6 +19,12 @@ async function post(req: Request) {
   let body: { size?: unknown; glass?: unknown; code?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  // BOUNDED (R23 — API F15): counted with a code only, before; each caller now, then the app (the cup quote's numbers and
+  // buckets — one door for prices).
+  if (!(await limitsFit(supabaseAdmin, [
+    { bucket: `quote:${callerIp(req)}`, windowMs: 600_000, max: 600 },
+    { bucket: "quote:all", windowMs: 3_600_000, max: 20_000 },
+  ]))) return NextResponse.json({ error: "Too many price checks just now — give it a minute." }, { status: 429 });
   const size = Number(body.size);
   const glass: GlassPath | null = body.glass === "return" ? "return" : body.glass === "new" ? "new" : null;
   if (!isPackSize(size) || !glass) return NextResponse.json({ error: "Bad request" }, { status: 400 });

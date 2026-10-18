@@ -8,7 +8,9 @@ import { cartRefusal, MENU_UNCHECKED } from "@/lib/catalog";
 import { priceCups } from "@/lib/cupPrice";
 import { squarePriceMap } from "@/lib/squareCatalog";
 import { route } from "@/lib/apiRoute";
-import { callerIp } from "@/lib/rateLimit";
+import { callerIp, limitsFit } from "@/lib/rateLimit";
+
+// public: a cart's price before Pay — the price anyone pays, or a signed-in member's with their perks (who is calling prices the cart, never permits it); reads only, bounded per caller and for the app in the shared store
 
 // THE CUP CHECKOUT'S QUOTE (2026-10-12, C2 of the customer frontend audit, approved) — what /api/checkout would charge
 // for this cart, before Pay: each line at its price, a member's perks applied and named, and the subtotal. The page
@@ -23,6 +25,14 @@ async function post(req: Request) {
   let body: { items?: unknown; code?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  // BOUNDED (R23 — the 10/10 audit, API F15): a guest's door, which reads the menu and can ask Square for a price, was
+  // counted only with a code in it. Each caller now, then the app — the caller's first (lib/rateLimit), so one caller past
+  // its own never spends what every customer shares: six hundred in ten minutes for an address (a venue's Wi-Fi, a crowd
+  // re-pricing carts, stays under), twenty thousand an hour for the app. Fails open, as every limiter here does.
+  if (!(await limitsFit(supabaseAdmin, [
+    { bucket: `quote:${callerIp(req)}`, windowMs: 600_000, max: 600 },
+    { bucket: "quote:all", windowMs: 3_600_000, max: 20_000 },
+  ]))) return NextResponse.json({ error: "Too many price checks just now — give it a minute." }, { status: 429 });
   const items = Array.isArray(body.items) ? body.items.filter((x): x is string => typeof x === "string") : [];
   if (items.length === 0 || items.length > MAX_CUPS || items.length !== (body.items as unknown[]).length) {
     return NextResponse.json({ error: "Bad request" }, { status: 400 });

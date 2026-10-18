@@ -25,6 +25,8 @@ import { checkoutClaims } from "@/lib/checkoutClaims";
 import { CONNECT_APP } from "@/lib/connect";
 import { callerIp, limitsFit } from "@/lib/rateLimit";
 
+// public: a cup order — a guest orders and pays as anyone at the window may (who is calling prices the order and keeps it on their account, never permits it); a member whose sign-in can't be checked is refused (503), every card try is bounded per caller and for the app before the card is asked, and a key is charged once
+
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
 // A minute at most (R10b — the 10/10 audit; reserves/pay's rule): a claim still "started" two minutes on is taken for a
 // request that died (lib/chargeOnce IN_FLIGHT_MS), so no request may outlive it — Square is asked with a 20-second

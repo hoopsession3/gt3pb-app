@@ -41,6 +41,18 @@
 //   bucket-caps   a storage bucket the app writes to takes any size or any type — a wildcard of every type is any
 //                 (BUCKET_CAPS; 0421, 0423).
 //   bucket-private a bucket for what only the crew or the person may see is public (PRIVATE_BUCKETS; R19 review).
+// HARD, from a snapshot that carries them (R23 — the 10/10 audit, database F15):
+//   definer-path  a SECURITY DEFINER function anon or authenticated may execute that pins no search_path: it runs as its
+//                 owner with whatever an earlier schema on the caller's path names the same as what it calls. Every one
+//                 of the migrations' is written with one (scripts/db.r23.test.mjs asks the whole schema); a missing one
+//                 is said, or exempted by name, "definer-path:<name>(<args>)", with its reason.
+//   platform-rls-off  storage.objects or realtime.messages — the platform's own tables, whose rules are every file's and
+//                 every private channel's gate — reachable by the API roles with row-level security off.
+//   storage-write a permissive storage.objects rule that writes for public or anon: a file written with no session.
+//   storage-open-write  …for the signed in, `true` (or absent): any signed-in person writes any file in any bucket.
+//   realtime-room a permissive realtime.messages rule for public or anon: a private channel joined with no session.
+//   realtime-open-room  …for the signed in, `true`: every private room (the Studio's, 0428) open to anyone signed in.
+//                 Each platform rule is exempted by "<table>.<rule name>" with its reason; restrictive rules only narrow.
 // Triggers are measured (names and switches, never a definition) and listed with --list: the push webhooks made in the
 // dashboard (database F6) are visible there, not yet judged.
 // EXEMPT — an entry in EXEMPT below, with a reason; an exemption without one is a finding.
@@ -171,12 +183,24 @@ export function expand(snap) {
       policies: (policies || []).map(([n, c, p, r, q, w]) => ({ n, c, p, r: String(r || "").split(",").filter(Boolean), q: expr(q), w: expr(w) })),
     };
   }
-  const functions = (snap.f || []).map(([name, args, anon, authenticated, service_role]) => ({ name, args, definer: true, exec: { anon, authenticated, service_role } }));
+  // R23: whether it pins its search_path — a sixth field, undefined (not checked) in an older snapshot.
+  const functions = (snap.f || []).map(([name, args, anon, authenticated, service_role, path]) => ({ name, args, definer: true, exec: { anon, authenticated, service_role }, path }));
   // R19: present only in a snapshot pulled with them (undefined — not checked — in an older one).
   const keys = snap.k ? snap.k.map(([table, name, primary, valid]) => ({ table, name, primary: !!primary, valid: valid !== false })) : undefined;
   const triggers = snap.g ? snap.g.map(([table, name, enabled]) => ({ table, name, enabled: String(enabled ?? "") })) : undefined;
   const buckets = snap.b ? snap.b.map(([id, isPublic, sizeLimit, types]) => ({ id, public: !!isPublic, sizeLimit: sizeLimit ?? null, types: Array.isArray(types) ? types : null })) : undefined;
-  return { tables, functions, keys, triggers, buckets, ledger: snap.ledger };
+  // R23 (database F15): the platform's own gates — every file's rules and every private channel's — as t's rows are read.
+  let platform;
+  if (snap.p) {
+    platform = {};
+    for (const [name, [rls, force, anon, authenticated, service_role, policies]] of Object.entries(snap.p)) {
+      platform[name] = {
+        rls, force, priv: { anon: anon || "", authenticated: authenticated || "", service_role: service_role || "" },
+        policies: (policies || []).map(([n, c, p, r, q, w]) => ({ n, c, p, r: String(r || "").split(",").filter(Boolean), q: expr(q), w: expr(w) })),
+      };
+    }
+  }
+  return { tables, functions, keys, triggers, buckets, platform, ledger: snap.ledger };
 }
 
 const isTrue = (x) => x === null || x === undefined || String(x).trim() === "true";
@@ -238,6 +262,33 @@ export function judge(snapshot, exempt = EXEMPT, { moneyKeys = MONEY_KEYS, bucke
   for (const fn of snap.functions || []) {
     if (fn.definer && API_ROLES.some((r) => fn.exec?.[r])) definerExec.push(`${fn.name}(${fn.args || ""})`);
     if (fn.definer && fn.exec?.anon) anonExec.push(`${fn.name}(${fn.args || ""})`);
+    // R23: one that runs as its owner for a caller, with no search_path of its own, runs whatever an earlier schema on
+    // the caller's path names the same — every one of this house's is written with one; a missing one is said.
+    if (fn.definer && fn.path === false && API_ROLES.some((r) => fn.exec?.[r])) {
+      const key = `definer-path:${fn.name}(${fn.args || ""})`;
+      if (key in exempt) { if (!String(exempt[key]).trim()) hard.push(`${key}: exempt with NO reason`); }
+      else hard.push(`definer-path: ${fn.name}(${fn.args || ""}) runs as its owner for the API roles with no search_path pinned`);
+    }
+  }
+  // R23 (database F15): the platform's gates. Every file's rules (storage.objects): nobody without a session writes,
+  // and no write is `true` for whoever is signed in. Every private channel's (realtime.messages, 0428): a room is for the
+  // signed in, and never `true` — a rule that reads nothing lets anyone with a session into every room.
+  info.platform = snap.platform ? Object.keys(snap.platform).length : null;
+  for (const [name, rel] of Object.entries(snap.platform || {})) {
+    const reachable = touches(rel);
+    if (reachable && !rel.rls) hard.push(`platform-rls-off: ${name} — row-level security is off and ${API_ROLES.filter((r) => rel.priv?.[r]).map((r) => `${r} may ${rel.priv[r]}`).join(", ")}`);
+    for (const pol of rel.policies || []) {
+      if (!pol.p || !forApi(pol)) continue;
+      const key = `${name}.${pol.n}`;
+      if (key in exempt) { if (!String(exempt[key]).trim()) hard.push(`${key}: exempt with NO reason`); continue; }
+      const write = pol.c === "a" || pol.c === "w" || pol.c === "d" || pol.c === "*";
+      const anyone = pol.r.includes("public") || pol.r.includes("anon");
+      const open = isTrue(pol.q) && isTrue(pol.w);
+      if (name === "storage.objects" && write && anyone) hard.push(`storage-write: ${name} — policy "${pol.n}" (${CMD[pol.c]}) is for ${pol.r.join("/")}: a file written by someone with no session`);
+      else if (name === "storage.objects" && write && open) hard.push(`storage-open-write: ${name} — policy "${pol.n}" (${CMD[pol.c]}) is \`true\`: any signed-in person writes any file`);
+      if (name === "realtime.messages" && anyone) hard.push(`realtime-room: ${name} — policy "${pol.n}" (${CMD[pol.c]}) is for ${pol.r.join("/")}: a private room joined with no session`);
+      else if (name === "realtime.messages" && open) hard.push(`realtime-open-room: ${name} — policy "${pol.n}" (${CMD[pol.c]}) is \`true\`: every private room open to anyone signed in`);
+    }
   }
   info.keys = snap.keys ? snap.keys.length : null;
   info.triggers = snap.triggers ? snap.triggers.filter((t) => !t.table.startsWith("auth.")).length : null;
@@ -327,6 +378,12 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     else if (!v.hard.some((h) => h.startsWith("account-trigger"))) console.log(`  ✓ every trigger the accounts stand on is there and on (${v.info.accountTriggers} of those this snapshot's migrations made)`);
     console.log(`  · ${v.info.triggers} trigger(s) on public tables${list ? ":" : " (--list names them)"}`);
     if (list) for (const t of v.triggers) console.log(`      ${t.table}.${t.name}${t.enabled === "D" ? " (disabled)" : ""}`);
+  }
+  // R23: the platform's gates and the definers' search_path — judged when the snapshot measured them.
+  if (v.info.platform === null) console.log("  · the files' rules (storage.objects), the private channels' (realtime.messages) and the definers' search_path: not measured by this snapshot (pulled before R23's query) — re-pull it and they are judged");
+  else {
+    if (!v.hard.some((h) => /^(platform-rls-off|storage-|realtime-)/.test(h))) console.log(`  ✓ nobody without a session writes a file, no file write is \`true\`, and every private channel's rule is for the signed in and reads something (${v.info.platform} platform table(s))`);
+    if (!v.hard.some((h) => h.startsWith("definer-path"))) console.log("  ✓ every definer function the API roles may call pins its search_path");
   }
   ratchet("tables readable by the world (SELECT `true`)", v.publicRead, CEILING.publicRead);
   ratchet("SECURITY DEFINER functions the API roles may call", v.definerExec, CEILING.definerExec);

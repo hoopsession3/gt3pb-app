@@ -13,10 +13,11 @@
 // fails and names it. Same idiom as `// scoped-by:` and `-- scaffold:` — an exception is allowed,
 // silence is not.
 //
-// The guards are the ones lib/apiAuth.ts and lib/apliiq.ts actually export, plus the two shapes a
-// webhook or callback legitimately uses instead of a session: an HMAC/timing-safe compare, and a
-// stored one-time state. A route that invents a fourth way to be safe should add it HERE, in one
-// place, with the reason — not teach this file to trust a new word by accident.
+// The guards are the ones lib/apiAuth.ts, lib/webhookSignature.ts and lib/apliiq.ts actually export, plus the shapes a
+// webhook or callback legitimately uses instead of a session: a timing-safe compare, a stored one-time state, a shared
+// secret compared with what the request carried — and since R23 each counts only where the request is REFUSED on its
+// answer (gateOf). A route that invents another way to be safe should add it HERE, in one place, with the reason — not
+// teach this file to trust a new word by accident.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,21 +25,84 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const API = join(ROOT, "app/api");
 
-export const GUARDS = [
-  /\buserFromRequest\(/, /\bstaffFromRequest\(/, /\bownerFromRequest\(/, /\btenantFromRequest\(/, /\bleadershipFromRequest\(/,
-  /\badminFromRequest\(/,                    // owner or admin, is_admin() (2026-10-14: a reserve's refund and its payment settled by hand)
-  /\bcallerFromRequest\(/,                   // the card doors' caller (R15): a person, a guest, or an auth service that didn't answer — userFromRequest's three-way twin
-  /\bverifyApliiq\(/,                         // Apliiq webhook signature (lib/apliiq.ts)
-  /\btimingSafeEqual\(/, /\bcreateHmac\(/,     // a signed webhook (Stripe/Square shape)
-  // lib/webhookSignature.ts (2026-10-11): the same signed-webhook checks, in one home — a route that calls one of
-  // these verifies its sender and answers 401 when it fails (scripts/webhooks.test.mjs runs each route).
-  /\b(?:square|svix|stripe|apliiq|twilio)SignatureOk\(/, /\btokenOk\(/,
-  /\bpending_state\b/,                        // an OAuth callback checking the state it issued
-  /process\.env\.[A-Z_]*SECRET[A-Z_]*/,       // a shared-secret token compared on the request
-  // NOT here, on purpose: an inline `.auth.getUser(`. app/api/office did that to get the email
-  // beside the id; userFromRequest returns both now. A route that re-reads the session by hand is
-  // a second copy of lib/apiAuth and this audit names it.
-];
+// WHAT COUNTS AS A GUARD (R23 — the 10/10 audit, API F15 and security F13). A guard NAMED is not a guard: until R23 a
+// route counted as guarded when one of these words appeared in its code — but userFromRequest says who is calling, not
+// whether they may; createHmac signs as readily as it checks; reading a SECRET from the environment compares it with
+// nothing. A route is guarded when the request is REFUSED on the guard's answer:
+//   a role        staffFromRequest / ownerFromRequest / adminFromRequest / leadershipFromRequest, its false answer
+//                 returning (inline, or kept in a name the next statements refuse on);
+//   a session     userFromRequest / callerFromRequest, refused when there is none — on its own name, or on a name made
+//                 from it (`const user = who.kind === "user" ? … : null; if (!user) return …`);
+//   a signature   lib/webhookSignature's checks and verifyApliiq, asked in the condition that refuses; a timing-safe
+//                 compare; an OAuth callback's stored state;
+//   a secret      one from the environment compared with what the request carried (=== / !==).
+// tenantFromRequest alone says which business, not who may act for it: a guard only beside one of the above.
+const ROLE_FNS = "staffFromRequest|ownerFromRequest|adminFromRequest|leadershipFromRequest";
+const WHO_FNS = "userFromRequest|callerFromRequest";
+const SIGNED = "(?:square|svix|stripe|apliiq|twilio)SignatureOk|tokenOk|verifyApliiq";
+/** An `if (`'s condition — its text and the index just past its closing paren — read by bracket depth, strings skipped. */
+function ifCondition(code, at) {
+  const open = code.indexOf("(", at);
+  let depth = 0;
+  for (let j = open; j < code.length; j++) {
+    const c = code[j];
+    if (c === '"' || c === "'") { j = skipQuoted(code, j, c); continue; }
+    if (c === "`") { j = skipTemplate(code, j); continue; }
+    if (c === "(") depth++;
+    else if (c === ")" && --depth === 0) return { text: code.slice(open + 1, j), end: j + 1 };
+  }
+  return null;
+}
+/** Does the statement an `if` guards return — at once, or anywhere in the block it opens? */
+function refusesAfter(code, end) {
+  const rest = code.slice(end).replace(/^\s+/, "");
+  if (/^return\b/.test(rest)) return true;
+  if (!rest.startsWith("{")) return false;
+  const close = skipExpression(rest, 1);
+  return /\breturn\b/.test(rest.slice(1, close));
+}
+export function gateOf(code) {
+  // A role, refused inline: if (!(await staffFromRequest(req))) return …
+  for (const i of code.matchAll(/\bif\s*\(/g)) {
+    const cond = ifCondition(code, i.index);
+    const role = cond && new RegExp(`^\\s*!\\s*\\(?\\s*await\\s+(${ROLE_FNS})\\(`).exec(cond.text);
+    if (role && refusesAfter(code, cond.end)) return role[1];
+  }
+  // A role or a session kept in a name — or in a name made from it — that a later statement refuses on.
+  for (const m of code.matchAll(new RegExp(`(?:const|let)\\s+(\\w+)\\s*=\\s*await\\s+(${ROLE_FNS}|${WHO_FNS})\\(`, "g"))) {
+    const after = code.slice(m.index);
+    const names = [m[1]];
+    for (const d of after.matchAll(new RegExp(`(?:const|let)\\s+(\\w+)\\s*=\\s*[^;\\n]*\\b${m[1]}\\b[^;\\n]*;`, "g"))) names.push(d[1]);
+    const lead = new RegExp(`^\\s*!\\s*(?:${names.join("|")})\\b`);
+    for (const i of after.matchAll(/\bif\s*\(/g)) {
+      const cond = ifCondition(after, i.index);
+      if (cond && lead.test(cond.text) && refusesAfter(after, cond.end)) return m[2];
+    }
+  }
+  // A signature asked in the condition that refuses — directly, inside it (`!tokens.some((t) => tokenOk(t, secret))`), or
+  // through a function of the route's own that returns the check (`function verify(…) { return svixSignatureOk(…) }`) —
+  // or kept in a name a later statement refuses on; a timing-safe compare; a stored state.
+  const wrappers = [...code.matchAll(new RegExp(`(?:function\\s+(\\w+)\\s*\\([^)]*\\)\\s*(?::\\s*[\\w<>|\\s]+)?\\{\\s*return\\s+|(?:const|let)\\s+(\\w+)\\s*=\\s*(?:async\\s*)?\\([^)]*\\)\\s*(?::\\s*[\\w<>|\\s]+)?=>\\s*)(?:await\\s+)?(?:${SIGNED})\\(`, "g"))].map((m) => m[1] ?? m[2]);
+  const checks = [SIGNED, ...wrappers].join("|");
+  for (const m of code.matchAll(/\bif\s*\(\s*!/g)) {
+    const cond = ifCondition(code, m.index);
+    if (!cond) continue;
+    const hit = new RegExp(`\\b(${checks})\\(`).exec(cond.text);
+    if (hit && refusesAfter(code, cond.end)) return wrappers.includes(hit[1]) ? `${hit[1]} (a signature check)` : hit[1];
+  }
+  for (const m of code.matchAll(new RegExp(`(?:const|let)\\s+(\\w+)\\s*=\\s*(?:await\\s+)?(?:${checks})\\(`, "g"))) {
+    const after = code.slice(m.index);
+    for (const i of after.matchAll(/\bif\s*\(/g)) {
+      const cond = ifCondition(after, i.index);
+      if (cond && new RegExp(`^\\s*!\\s*${m[1]}\\b`).test(cond.text) && refusesAfter(after, cond.end)) return "signature";
+    }
+  }
+  if (/\btimingSafeEqual\(/.test(code)) return "timingSafeEqual";
+  if (/\bpending_state\b/.test(code)) return "pending_state";
+  // A shared secret compared with what the request carried.
+  if (/(?:===|!==)\s*process\.env\.[A-Z_]*SECRET[A-Z_]*|process\.env\.[A-Z_]*SECRET[A-Z_]*\s*(?:===|!==)/.test(code)) return "a shared secret";
+  return null;
+}
 
 export function routesUnder(dir = API) {
   const out = [];
@@ -68,7 +132,7 @@ export function classify(src) {
   // Comments first, so a guard named in prose does not count as a guard — the trap three gates
   // in scripts/smoke.cjs fell into on 2026-09-30.
   const code = stripComments(src);
-  const guarded = GUARDS.some((g) => g.test(code));
+  const guarded = gateOf(code) !== null;
   const pub = /^\s*\/\/\s*public:\s*\S.{9,}/m.test(src);
   if (guarded) return "guarded";
   if (pub) return "public";
@@ -300,8 +364,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   }
   if (by("silent").length) {
     for (const r of by("silent")) console.log(`  ✗ ${r.route} — no guard in code and no "// public: <why>" line`);
-    console.log(`\n  A route is either guarded (one of the helpers in lib/apiAuth.ts, a signature check, or a stored`);
-    console.log(`  state) or it says, in one line the next person can grep for, why anyone may call it:`);
+    console.log(`\n  A route is either guarded — the request REFUSED on a role, a session, a signature, a stored state or a`);
+    console.log(`  shared secret it carried (gateOf above) — or it says, in one line the next person can grep for, why anyone may call it:`);
     console.log(`      // public: read-only menu prices; nothing here a guest cannot already see at the window`);
     process.exit(1);
   }

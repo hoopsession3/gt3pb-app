@@ -16197,6 +16197,44 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     reset > 0 && videoOut > reset);
 }
 
+// ── R23 · A DOOR IS A REFUSAL, THE PLATFORM'S OWN GATES ARE MEASURED, AND EVERY TEST RUNS (2026-10-18) ─────────────────
+// Run in scripts/audits.test.mjs (the rules, on a fixture database) and scripts/db.r23.test.mjs (on the whole schema).
+{
+  const fs = require("node:fs"), path = require("node:path");
+  const ROOTDIR = path.join(__dirname, "..");
+  const rd = (f) => fs.readFileSync(path.join(ROOTDIR, f), "utf8");
+  const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const pkg = JSON.parse(rd("package.json"));
+  ok("R23: its test runs — db.r23.test in db:test", pkg.scripts["db:test"].includes("node scripts/db.r23.test.mjs"));
+  // A test file no script names never runs, and passes for ever. Every one is named by the scripts the chain and CI run.
+  const named = Object.values(pkg.scripts).join(" ");
+  const unrun = fs.readdirSync(path.join(ROOTDIR, "scripts")).filter((f) => /\.test\.(mjs|cjs|js)$/.test(f) && !named.includes(`scripts/${f}`));
+  ok("R23: every test file in scripts/ is run by an npm script — a test that never runs is not a check", unrun.length === 0, unrun);
+  // database F15: the platform's two gates and the definers' search_path, measured — names, switches and rules, never a body.
+  const sq = rd("scripts/security.snapshot.sql"), au = strip(rd("scripts/security.audit.mjs")), sn = strip(rd("scripts/security.snapshot.mjs"));
+  ok("R23 snapshot: it measures storage.objects and realtime.messages (RLS, grants, every rule) and whether each definer pins its search_path — from its settings, never its body",
+    sq.includes("where (n.nspname = 'storage' and c.relname = 'objects') or (n.nspname = 'realtime' and c.relname = 'messages')")
+      && sq.includes("'p', (select coalesce(j, '{}'::json) from plat)") && sq.includes("coalesce((select bool_or(c like 'search_path=%') from unnest(p.proconfig) c), false)")
+      && !/prosrc|pg_get_functiondef|pg_get_triggerdef|tgargs/.test(sq));
+  ok("R23 audit: a definer the API may call with no path, a file written with no session or by anyone `true`, a room for no session or for everyone, a platform table open — each a hard finding, judged only when measured",
+    ["hard.push(`definer-path: ${fn.name}(${fn.args || \"\"}) runs as its owner for the API roles with no search_path pinned`);",
+     "hard.push(`storage-write: ${name} —", "hard.push(`storage-open-write: ${name} —", "hard.push(`realtime-room: ${name} —", "hard.push(`realtime-open-room: ${name} —",
+     "if (reachable && !rel.rls) hard.push(`platform-rls-off: ${name} —", "info.platform = snap.platform ? Object.keys(snap.platform).length : null;", "fn.definer && fn.path === false && API_ROLES.some((r) => fn.exec?.[r])"].every((x) => au.includes(x)));
+  ok("R23 read-back: a pull without the platform's gates, or with any definer missing its path, is refused — every row asked, not the first",
+    sn.includes('if (!json.p || !Array.isArray(json.f) || json.f.some((r) => !Array.isArray(r) || typeof r[5] !== "boolean")) return { error:'));
+  // API F15: the two price doors anyone may knock on are bounded before any work, per caller and for the app.
+  for (const f of ["app/api/checkout/quote/route.ts", "app/api/reserve/quote/route.ts"]) {
+    const c = strip(rd(f)), lim = c.indexOf("if (!(await limitsFit(supabaseAdmin, ["), work = Math.min(...["const items =", "const size ="].map((w) => c.indexOf(w)).filter((i) => i > 0));
+    ok(`R23 doors: ${f} counts every caller and the app before it prices anything — and says so on its // public: line`,
+      lim > 0 && lim < work && c.includes("{ bucket: `quote:${callerIp(req)}`, windowMs: 600_000, max: 600 },") && c.includes('{ bucket: "quote:all", windowMs: 3_600_000, max: 20_000 },')
+        && c.includes('return NextResponse.json({ error: "Too many price checks just now — give it a minute." }, { status: 429 });') && /^\/\/ public: .*bounded per caller and for the app/m.test(rd(f)));
+  }
+  // security F13: a guard named is not a guard — the request must be refused on its answer.
+  const aa = strip(rd("scripts/api.audit.mjs"));
+  ok("R23 doors: the API audit counts a guard only where the request is refused on its answer — no list of words",
+    aa.includes("const guarded = gateOf(code) !== null;") && !/export const GUARDS\b/.test(aa) && aa.includes("export function gateOf(code) {") && aa.includes("function refusesAfter(code, end) {"));
+}
+
 Promise.all(PENDING).then(() => {
   console.log(`\nSPACE/LOADOUT SMOKE: ${pass} passed, ${fail} failed`);
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);

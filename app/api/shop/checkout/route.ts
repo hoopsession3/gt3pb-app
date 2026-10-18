@@ -19,6 +19,8 @@ import { chargeOnce, claimKey, seenBefore, type Answer, type Say, type Stopped }
 import { checkoutClaims } from "@/lib/checkoutClaims";
 import { callerIp, limitsFit } from "@/lib/rateLimit";
 
+// public: a shop order — a guest buys merch with a card and an address (who is calling fills in their email, never permits it); a member whose sign-in can't be checked is refused (503), every card try is bounded per caller and for the app before the card is asked, and a key is charged once
+
 export const runtime = "nodejs";
 // After the charge, Apliiq is given 25 seconds (lib/apliiq APLIIQ_SUBMIT_TIMEOUT_MS): the function outlives the wait.
 export const maxDuration = 60;

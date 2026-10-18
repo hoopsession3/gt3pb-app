@@ -39,6 +39,9 @@ export function reassemble(rows) {
   // R19: the money's unique keys, the triggers and the buckets. A pull with an older copy of the query would write a
   // snapshot the audit can't judge them on — refused here, not discovered later as "not measured".
   if (!json.k || !json.g || !json.b) return { error: "the document has no k/g/b (the unique keys, the triggers, the buckets) — run the current scripts/security.snapshot.sql" };
+  // R23: the platform's gates (storage.objects, realtime.messages) and the definers' search_path, likewise.
+  //      Every definer row is asked, not the first: a document stitched from two pulls would have a mix.
+  if (!json.p || !Array.isArray(json.f) || json.f.some((r) => !Array.isArray(r) || typeof r[5] !== "boolean")) return { error: "the document has no p (the files' and the private channels' rules) or no search_path on the definers — run the current scripts/security.snapshot.sql" };
   return { doc, meta, json };
 }
 

@@ -20,6 +20,11 @@
 --      pass; that table named "auth.users") → [table, trigger, enabled (O/D/R/A)]   (R19 — names and switches only,
 --      never a definition: a webhook's carries its address)
 --   b  every storage bucket → [id, public?, size limit, allowed types]   (R19)
+--   p  the two platform tables whose rows are the platform's own gates (R23 — the 10/10 audit, database F15):
+--      storage.objects (every file, every bucket) and realtime.messages (who may join a private channel, 0428) →
+--      [rls, force, anon, authenticated, service_role, [policies]] — policies as t's, their expressions in x
+--   f  …and since R23 a sixth: whether the function pins its search_path (a definer that doesn't runs whatever an
+--      earlier schema on the caller's path names the same)
 --
 -- Output: one JSON document cut into rows of 2000 characters so the grid can show every row
 -- whole, then one last row with the document's row count, length and sha256, so a read-back that
@@ -47,9 +52,23 @@ polraw as (
          pg_get_expr(p.polwithcheck, p.polrelid) as w
   from pg_policy p join tbl t on t.oid = p.polrelid
 ),
+ptbl as (
+  select c.oid, n.nspname || '.' || c.relname as name, c.relrowsecurity as rls, c.relforcerowsecurity as force
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where (n.nspname = 'storage' and c.relname = 'objects') or (n.nspname = 'realtime' and c.relname = 'messages')
+),
+ppolraw as (
+  select p.polrelid as oid, p.polname as n, p.polcmd::text as c, p.polpermissive as perm,
+         case when p.polroles = '{0}' then 'public'
+              else (select string_agg(rolname::text, ',' order by rolname) from pg_roles where oid = any(p.polroles)) end as r,
+         pg_get_expr(p.polqual, p.polrelid) as q,
+         pg_get_expr(p.polwithcheck, p.polrelid) as w
+  from pg_policy p join ptbl t on t.oid = p.polrelid
+),
 exprs as (
   select e, row_number() over (order by e) - 1 as i
-  from (select distinct q as e from polraw where q is not null union select distinct w from polraw where w is not null) d
+  from (select distinct q as e from polraw where q is not null union select distinct w from polraw where w is not null
+        union select distinct q from ppolraw where q is not null union select distinct w from ppolraw where w is not null) d
 ),
 pol as (
   select pr.oid,
@@ -71,12 +90,28 @@ rels as (
          ) order by t.name) as j
   from tbl t
 ),
+plat as (
+  select json_object_agg(t.name, json_build_array(
+           t.rls, t.force,
+           concat(case when has_table_privilege('anon', t.oid, 'select') then 'r' else '' end, case when has_table_privilege('anon', t.oid, 'insert') then 'i' else '' end,
+                  case when has_table_privilege('anon', t.oid, 'update') then 'u' else '' end, case when has_table_privilege('anon', t.oid, 'delete') then 'd' else '' end),
+           concat(case when has_table_privilege('authenticated', t.oid, 'select') then 'r' else '' end, case when has_table_privilege('authenticated', t.oid, 'insert') then 'i' else '' end,
+                  case when has_table_privilege('authenticated', t.oid, 'update') then 'u' else '' end, case when has_table_privilege('authenticated', t.oid, 'delete') then 'd' else '' end),
+           concat(case when has_table_privilege('service_role', t.oid, 'select') then 'r' else '' end, case when has_table_privilege('service_role', t.oid, 'insert') then 'i' else '' end,
+                  case when has_table_privilege('service_role', t.oid, 'update') then 'u' else '' end, case when has_table_privilege('service_role', t.oid, 'delete') then 'd' else '' end),
+           coalesce((select json_agg(json_build_array(pr.n, pr.c, pr.perm, pr.r,
+                       (select i from exprs where e = pr.q), (select i from exprs where e = pr.w)) order by pr.n)
+                     from ppolraw pr where pr.oid = t.oid), '[]'::json)
+         ) order by t.name) as j
+  from ptbl t
+),
 fns as (
   select json_agg(json_build_array(
            p.proname, pg_get_function_identity_arguments(p.oid),
            has_function_privilege('anon', p.oid, 'execute'),
            has_function_privilege('authenticated', p.oid, 'execute'),
-           has_function_privilege('service_role', p.oid, 'execute')
+           has_function_privilege('service_role', p.oid, 'execute'),
+           coalesce((select bool_or(c like 'search_path=%') from unnest(p.proconfig) c), false)
          ) order by p.proname, pg_get_function_identity_arguments(p.oid)) as j
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.prokind = 'f' and p.prosecdef
@@ -111,7 +146,8 @@ doc as (
     'f', (select coalesce(j, '[]'::json) from fns),
     'k', (select coalesce(j, '[]'::json) from ukeys),
     'g', (select coalesce(j, '[]'::json) from trigs),
-    'b', (select coalesce(j, '[]'::json) from bkts)
+    'b', (select coalesce(j, '[]'::json) from bkts),
+    'p', (select coalesce(j, '{}'::json) from plat)
   )::text as d
 )
 select i as row, substr(d, i * 2000 + 1, 2000) as chunk
