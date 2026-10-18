@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useAppStable } from "./AppProvider";
-import { nativePush, onNativePush, type AppAlertState } from "@/lib/nativePush";
+import { nativePush, onNativePush, onPhoneKept, phoneKept, type AppAlertState } from "@/lib/nativePush";
 import { nativeDevice } from "@/lib/deviceActions";
 import { appleDevice } from "@/lib/ios";
 
@@ -58,6 +58,8 @@ const says = (s: AppAlertState | "unknown"): string =>
 export function AppAlertsRow() {
   const { toast } = useAppStable();
   const { state, turnOn } = useAppAlerts();
+  // iOS's yes is half of "On": the database keeping this phone is the other (R33 — FE11-08, lib/nativePush phoneKept).
+  const kept = useSyncExternalStore(onPhoneKept, phoneKept, () => "unknown" as const);
   const ask = async () => {
     const s = await turnOn();
     if (s === "granted") toast("Order alerts are on for this phone");
@@ -68,9 +70,12 @@ export function AppAlertsRow() {
     <div className="pay-row">
       <div className="pay-row-l">
         <div className="pay-row-t">Order alerts on this phone</div>
-        <div className="pay-row-s">{says(state)}</div>
+        <div className="pay-row-s" aria-live="polite">{state === "granted" && kept !== "kept"
+          ? kept === "failed" ? "Couldn't save this phone for alerts yet — it tries again when there's a signal." : "Saving this phone for alerts…"
+          : says(state)}</div>
       </div>
       {state === "prompt" ? <button type="button" className="btn-sec btn-sm" onClick={ask}>Turn on</button>
+        : state === "granted" && kept !== "kept" ? <span className="k-tag">{kept === "failed" ? "Not yet" : "Saving"}</span>
         : state === "granted" ? <span className="k-tag ok">On</span>
         : state === "denied" ? <button type="button" className="btn-sec btn-sm" onClick={openSettings}>Open Settings</button>
         : null}

@@ -6,7 +6,8 @@ import { useAppStable } from "@/components/AppProvider";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { useOperatorSection } from "./OperatorNav";
 import { CAL_CAT, CONTENT_STATUS as STC } from "@/lib/calendarTokens";
-import { localDayBoundsISO } from "@/lib/calendarMath";
+import { etDayBoundsISO } from "@/lib/calendarMath";
+import { etClockHm, etDayKey, etInstantIso } from "@/lib/dates";
 import { edited, isBlank } from "@/lib/formGuard";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -90,7 +91,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
     if (!supabase) return { content: [], events: [], backlog: [] };
     // Shared UTC-bounding math (lib/calendarMath) — events.day keys off local calendar strings.
     const fromKey = key(days[0]), toKey = key(days[41]);
-    const { fromISO, toISO } = localDayBoundsISO(days[0], days[41]);
+    const { fromISO, toISO } = etDayBoundsISO(days[0], days[41]);   // the days drawn, on the business's clock (R33)
     const [c, e, b] = await Promise.all([
       supabase.from("content_items").select("id, title, status, channel, scheduled_for, event_id").not("scheduled_for", "is", null).gte("scheduled_for", fromISO).lt("scheduled_for", toISO),
       supabase.from("events").select("id, title, day, day_label").is("archived_at", null).gte("day", fromKey).lte("day", toKey),
@@ -111,7 +112,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const byDay = useMemo(() => {
     const m: Record<string, { posts: CItem[]; evs: EvItem[] }> = {};
     for (const d of days) m[key(d)] = { posts: [], evs: [] };
-    for (const c of content) if (c.scheduled_for) { const k = key(new Date(c.scheduled_for)); if (m[k]) m[k].posts.push(c); }
+    for (const c of content) if (c.scheduled_for) { const k = etDayKey(new Date(c.scheduled_for)); if (m[k]) m[k].posts.push(c); }   // its Eastern day (R33)
     for (const e of events) if (m[e.day]) m[e.day].evs.push(e);
     return m;
   }, [days, content, events]);
@@ -120,9 +121,8 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
     if (!supabase) return;
     const it = [...content, ...backlog].find((c) => c.id === id);
     const prev = it?.scheduled_for ? new Date(it.scheduled_for) : null;
-    const [y, mo, da] = dayKey.split("-").map(Number);
-    const dt = new Date(y, mo - 1, da, prev ? prev.getHours() : 9, prev ? prev.getMinutes() : 0);
-    const { error } = await supabase.from("content_items").update({ scheduled_for: dt.toISOString() }).eq("id", id);
+    const at = etInstantIso(dayKey, prev ? etClockHm(prev) : "09:00");   // that day, at its Eastern time (R33)
+    const { error } = await supabase.from("content_items").update({ scheduled_for: at }).eq("id", id);
     if (error) toast("Couldn't move that piece — check your role or connection.", "error");
     reload();
   };
@@ -156,7 +156,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
   const wchip = (c: CItem) => {
     const linked = !!c.event_id;
     const t = c.scheduled_for ? new Date(c.scheduled_for) : null;
-    const time = t ? t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+    const time = t ? t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) : "";   // Eastern (R33)
     return (
       <button key={c.id} type="button" draggable className="calw-chip" style={{ ["--st" as string]: STC[c.status] ?? "#9a8f7c" }}
         onDragStart={() => { dragId.current = c.id; }} onClick={() => onOpen(c.id)}
@@ -320,8 +320,9 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
       .then(({ data, error }) => { if (error) { setLoadFailed(true); setF(null); return; } setLoadFailed(false); setF(data ?? {}); setLoaded(data ?? {}); });
   }, [id]);
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
-  const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  const localTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  // Read and written in Eastern (R33 — the audit's FE11-06), as every time the app shows is.
+  const localDate = (iso: string) => etDayKey(new Date(iso));
+  const localTime = (iso: string) => etClockHm(new Date(iso));
   const save = async () => {
     if (!supabase || !f || isBlank(f.title)) return;   // a piece can't be saved without a title (no more "Untitled")
     setSaving(true);
@@ -338,7 +339,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
   if (!f) return null;
   const dateVal = f.scheduled_for ? localDate(f.scheduled_for) : "";
   const timeVal = f.scheduled_for ? localTime(f.scheduled_for) : "09:00";
-  const setDT = (date: string, time: string) => { if (!date) { set("scheduled_for", null); return; } set("scheduled_for", new Date(`${date}T${time || "09:00"}:00`).toISOString()); };
+  const setDT = (date: string, time: string) => { if (!date) { set("scheduled_for", null); return; } set("scheduled_for", etInstantIso(date, time || "09:00")); };
   return (
     <Sheet open onClose={onClose} label="Edit content piece" dirty={edited(f, loaded, ["title", "scheduled_for", "status", "event_id"])} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
           <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="Title" autoFocus />

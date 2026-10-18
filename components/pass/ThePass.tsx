@@ -35,6 +35,7 @@ import { usePassBoard, usePassScope, setPassScope } from "./usePassBoard";
 import { useBoardNow } from "./clock";
 import { useFollowFocus } from "./focus";
 import Said from "@/components/Said";
+import { ModalAnnouncer } from "@/components/Announcer";
 
 // THE PASS (2026-10-11, the KDS program, wave 2). The crew console's service screen, in a module of its own: it was the
 // Kitchen function and the service-mode block inside app/crew/page.tsx, 6,500 lines that held everything else too. The
@@ -83,6 +84,7 @@ export default function ThePass({ bell, strip, canPlan, onExit }: { bell: ReactN
   }, []);
   return (
     <div className="svc-full text-cream pass-frame" role="dialog" aria-modal="true" aria-label="The Pass" ref={frame} tabIndex={-1}>
+      <ModalAnnouncer />{/* what is said while the Pass is open is said in it (R33 — UX11-01) */}
       <div className="svc-bar">
         <b>The Pass</b>
         <span className="flex items-center gap-2">

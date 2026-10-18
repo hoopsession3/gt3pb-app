@@ -65,6 +65,10 @@ export function recoverFromCrash(error: { message?: string; stack?: string; dige
       fatal: plan.fatal && opts.fatal !== false,
       skew: plan.skew,
     });
+    // NO SIGNAL, NO RELOAD (R33 — the audit's FE11-07): a piece whose code couldn't be fetched with no bars isn't a tab a
+    // build behind — and a reload offline would close the Pass mid-service for whatever shell the worker kept. It is said
+    // where it failed, and tried again when it is asked for again.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return { reloading: false };
     if (!plan.reload) return { reloading: false };
     try { sessionStorage.setItem(SKEW_KEY, JSON.stringify(plan.mem)); } catch { /* ignore */ }
     window.location.reload();

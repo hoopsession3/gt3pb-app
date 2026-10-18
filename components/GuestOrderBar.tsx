@@ -31,7 +31,8 @@ type Seen = { no: string; status: string; items: string[]; ready_from: string | 
 export default function GuestOrderBar() {
   const held = useHeldTickets();
   const lead = held?.[0] ?? null;
-  return lead ? <TicketBar t={lead.t} voidSeen={!!lead.seenVoid} /> : null;
+  // keyed by the ticket (R33 — FE11-04): a second order's bar starts empty, never with the first order's number on it
+  return lead ? <TicketBar key={lead.t} t={lead.t} voidSeen={!!lead.seenVoid} /> : null;
 }
 
 function TicketBar({ t, voidSeen }: { t: string; voidSeen: boolean }) {

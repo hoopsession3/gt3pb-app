@@ -10,6 +10,7 @@ import type { Recent } from "@/lib/recents";
 import { APP_BUILD } from "@/lib/native";
 import Said from "./Said";
 import { useChanged } from "@/lib/useChanged";
+import { ModalAnnouncer } from "./Announcer";
 
 // COMMAND PALETTE — ⌘K / Ctrl-K quick-jump for the crew console. Type to jump to any role-allowed
 // section or run a quick action, keyboard-first (↑↓ ⏎ esc). The "this is a real product" flourish.
@@ -108,6 +109,7 @@ export default function CommandPalette() {
   return (
     <div className="cmdk-scrim" onMouseDown={() => setOpen(false)}>
       <div className="cmdk" role="dialog" aria-modal="true" aria-label="Jump to" onMouseDown={(e) => e.stopPropagation()}>
+        <ModalAnnouncer />{/* "No match" and the rest, said inside the palette (R33 — UX11-01) */}
         {/* A COMBOBOX, SAID AS ONE (R12 — the 10/10 audit, F8): ↑ ↓ moved a highlight a screen reader never heard. The field
             says it controls a list of options and which one is picked (aria-activedescendant), as the address field's
             does; the options are the list's; "No match" is said when it comes. */}

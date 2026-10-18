@@ -27,6 +27,22 @@ export function etWallMs(day: string, hhmm: string): number {
   return guess + (guess - eastern);   // Eastern's clock then, less the instant: its offset, added back
 }
 
+// ── AN EDITOR'S DAY AND CLOCK, EASTERN (R33, 2026-10-18 — the audit's FE11-06) ──────────────────────────────────────
+// Every time the app shows is Eastern (the business's — R26), but the fields that set one read and wrote the phone's
+// own: in Denver, "11:00am–2:00pm" opened as 09:00–12:00, and "fixing" the start to 11:00 saved 1:00pm Eastern — Find
+// Us said 1:00 and ordering closed an hour early. An editor reads an instant's Eastern day (etDayKey) and clock
+// (etClockHm) and writes back the instant they are (etInstantIso), on any phone.
+const ET_HM = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hourCycle: "h23", hour: "2-digit", minute: "2-digit" });
+/** An instant's Eastern clock, as an <input type="time"> holds it: "HH:MM". */
+export function etClockHm(d: Date): string {
+  const p = Object.fromEntries(ET_HM.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${String(Number(p.hour) % 24).padStart(2, "0")}:${p.minute}`;
+}
+/** An Eastern day and clock ("2026-10-24", "11:00") as the instant they are, ISO — what an editor writes back. */
+export function etInstantIso(day: string, hhmm: string): string {
+  return new Date(etWallMs(day, hhmm)).toISOString();
+}
+
 // ── WORKING WITH A DAY KEY ─────────────────────────────────────────────────────────────────────
 // Everything below takes and returns a YYYY-MM-DD key rather than a Date, on purpose. A Date is an
 // instant and carries a time zone question with it everywhere it goes; a key is a calendar day and

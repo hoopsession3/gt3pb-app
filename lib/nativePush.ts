@@ -48,6 +48,30 @@ export function onNativePush(fn: () => void): () => void {
   return () => { listeners.delete(fn); };
 }
 
+// "ON" ONLY WHEN THE DATABASE KEPT THIS PHONE (R33, 2026-10-18 — the audit's FE11-08). Settings said "On" whenever iOS
+// had said yes — but a phone is alerted only once the database keeps its token (keep_app_push_token), and that ask was
+// made once and its answer dropped: a crew iPad that launched with no signal said "On" all day and heard no order. And a
+// registration iOS itself refused (registrationError) said nothing. Kept, failed, or not yet known — set by the bridge
+// as each answer comes, read by the Settings row (components/AppAlerts), retried by the bridge on the signal's return.
+//
+// Its own listeners, not the plugin's: a screen that reads iOS's answer reads it again when the plugin arrives
+// (onNativePush) — told of every kept answer as well, it asked iOS again each time the database answered, for nothing.
+export type PhoneKept = "unknown" | "kept" | "failed";
+let kept: PhoneKept = "unknown";
+const keptListeners = new Set<() => void>();
+export function setPhoneKept(v: PhoneKept): void {
+  if (v === kept) return;
+  kept = v;
+  for (const fn of keptListeners) fn();
+}
+export function phoneKept(): PhoneKept {
+  return kept;
+}
+export function onPhoneKept(fn: () => void): () => void {
+  keptListeners.add(fn);
+  return () => { keptListeners.delete(fn); };
+}
+
 /**
  * Keep this phone for whoever is signed in now — or nobody (0367 keep_app_push_token, as a browser is kept by 0366's
  * keep_push_device): the database takes the phone from whoever had it, keeps one app install each (a browser is not

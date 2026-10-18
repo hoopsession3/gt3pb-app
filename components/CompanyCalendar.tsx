@@ -12,7 +12,7 @@ import { useStuck } from "./useStuck";
 import EmptyState from "./EmptyState";
 import { CAL_CAT as CAT } from "@/lib/calendarTokens";
 import { brewStartOverdue, BATCH_OVER_IN } from "@/lib/brewMath";
-import { etToday, fmt12, timeRange, sortTime, byClock, dayWithDate } from "@/lib/dates";
+import { etToday, fmt12, timeRange, sortTime, byClock, dayWithDate, etDayKey, etClockHm, etInstantIso } from "@/lib/dates";
 import { goPlanTab, type PlanTab } from "@/lib/planNav";
 import { scrollToAnchor } from "@/lib/anchors";
 import { useWorkStreams } from "@/lib/streams";
@@ -24,7 +24,7 @@ import { useOperatorSection } from "./OperatorNav";
 import { edited, isBlank } from "@/lib/formGuard";
 import VenuePick from "./VenuePickLazy";
 import type { VenueFill } from "@/lib/venues";
-import { localDayBoundsISO } from "@/lib/calendarMath";
+import { etDayBoundsISO } from "@/lib/calendarMath";
 import { createTodo, updateTask, deleteTask } from "@/lib/tasks";
 import FieldOpSheet from "./FieldOpSheet";
 import Sheet, { CloseButton, LeaveButton, useSheetDoor } from "@/components/Sheet";
@@ -209,7 +209,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     const eFrom = (() => { const d = new Date(range.start); d.setDate(d.getDate() - 31); return key(d); })(); // catch multi-day spillover
     const from = key(range.start);
     // Shared UTC-bounding math (lib/calendarMath) — date columns keep the local key strings.
-    const { fromISO, toISO } = localDayBoundsISO(range.start, range.end);
+    const { fromISO, toISO } = etDayBoundsISO(range.start, range.end);   // the days drawn, on the business's clock (R33)
     const none = Promise.resolve({ data: [], error: null });   // role-gated source → empty, never an error
     const [e, c, t, s, pt, bb, dr, dv, bt, bc, bo, gl, bk, op, mn] = await Promise.all([
       supabase.from("events").select("id, title, day, day_label, is_live, category, plan_days, stage, published_at, start_time, end_time, location_text").is("archived_at", null).gte("day", eFrom).lte("day", to),
@@ -297,8 +297,8 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
         : kind === "pipe" ? opps.find((x) => x.id === id)?.next_step_at
         : null;
       const old = prev ? new Date(prev) : null;
-      const hh = old ? `${pad(old.getHours())}:${pad(old.getMinutes())}` : cfg.defTime;
-      val = new Date(`${dayKey}T${hh}:00`).toISOString();
+      const hh = old ? etClockHm(old) : cfg.defTime;
+      val = etInstantIso(dayKey, hh);   // moved to that day at its Eastern time, on any phone (R33)
     }
     // A move that did not take is said, and the calendar reads again where it really is (R12b, F4).
     if (kind === "task") { const r = await updateTask("event", id, { dueISO: val }); if (r.error) toast(`Couldn't move it — ${r.error}`, "error"); }   // ONE write path (lib/tasks)
@@ -355,25 +355,26 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     // "Wine Express Saturday" with no hint that it is 11:00am-2:00pm. location_text was already in
     // the select and thrown away; ends_at was the one field that had to be added. Status only shows
     // when it is NOT the ordinary "upcoming", so the common case stays quiet.
-    for (const s of stops) if (s.starts_at && pass("stop")) push(key(new Date(s.starts_at)), {
+    // A dated instant goes on its Eastern day (R33 — FE11-06), where its time is said: the agenda already says it in Eastern.
+    for (const s of stops) if (s.starts_at && pass("stop")) push(etDayKey(new Date(s.starts_at)), {
       id: s.id, title: s.name, cat: "stop", kind: "stop",
       meta: [timeRange(s.starts_at, s.ends_at), s.location_text?.trim(),
              s.status && s.status !== "upcoming" ? s.status : ""].filter(Boolean).join(" · "),
       at: sortTime(s.starts_at),
       go: () => openStopPrep(s.id),
     });
-    for (const c of content) if (c.scheduled_for && pass("content")) push(key(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
+    for (const c of content) if (c.scheduled_for && pass("content")) push(etDayKey(new Date(c.scheduled_for)), { id: c.id, title: c.title || "Content", cat: "content", kind: "content", go: () => setSection("studio") });
     for (const t of todos) if (t.due_on && pass(t.category)) push(t.due_on, { id: t.id, title: t.title, cat: CAT[t.category] ? t.category : "ops", kind: "todo", done: t.done, go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.meeting_note_id) setSection("plan"); }, toggle: () => toggleTodo(t) });
     // Goals render ON Command since the 2026-07-29 merge — jump there and land on the #goals block. Since 2026-10-12
     // that is a row that opens the goals as their own screen (components/CommandFold): the jump opens it, as a link to
     // a panel does (lib/anchors) — a bare scroll stopped on the closed row.
     const goGoals = () => { setSection("command"); scrollToAnchor("goals"); };
-    for (const t of prepTasks) if (t.due_at && pass("task")) push(key(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("notes"); else if (t.goal_id) goGoals(); } });
+    for (const t of prepTasks) if (t.due_at && pass("task")) push(etDayKey(new Date(t.due_at)), { id: t.id, title: t.label, cat: "task", kind: "task", go: () => { if (t.event_id) openEventPrep(t.event_id); else if (t.stop_id) openStopPrep(t.stop_id); else if (t.meeting_note_id) setSection("notes"); else if (t.goal_id) goGoals(); } });
     for (const g of goals) if (g.due_date && pass("goal")) push(g.due_date, { id: g.id, title: g.title, cat: "goal", kind: "goal", meta: g.status === "hit" ? "Hit" : g.horizon, go: goGoals });
     // The sales/relationship rhythm (2026-08-01) — read-only rollups; the rows live on Plan › Leads
     // and Notes, so go() jumps to the sibling tab (openPlanTab) rather than editing here.
     for (const l of leads) if (l.event_date && pass("lead")) push(l.event_date, { id: l.id, title: `Lead · ${l.name || "Booking request"}`, cat: "lead", kind: "lead", meta: l.status === "new" ? "New" : "Contacted", go: () => openPlanTab("leads") });
-    for (const o of opps) if (o.next_step_at && pass("pipe")) push(key(new Date(o.next_step_at)), { id: o.id, title: `Pipeline · ${o.vendors?.name ?? "Account"}`, cat: "pipe", kind: "pipe", meta: o.next_step || (o.stage ? o.stage[0].toUpperCase() + o.stage.slice(1) : ""), go: () => openPlanTab("leads", "pipeline-board") });
+    for (const o of opps) if (o.next_step_at && pass("pipe")) push(etDayKey(new Date(o.next_step_at)), { id: o.id, title: `Pipeline · ${o.vendors?.name ?? "Account"}`, cat: "pipe", kind: "pipe", meta: o.next_step || (o.stage ? o.stage[0].toUpperCase() + o.stage.slice(1) : ""), go: () => openPlanTab("leads", "pipeline-board") });
     for (const mt of meets) if (mt.met_on && pass("meeting")) push(mt.met_on, { id: mt.id, title: `Meeting · ${mt.title || "Notes"}`, cat: "meeting", kind: "meeting", go: () => setSection("notes") });
     if (pass("brew")) for (const b of brews) if (b.brew_date) push(b.brew_date, { id: b.id, title: `Brew · ${b.recipe_name || "Batch"} ${Number(b.batch_gal ?? 1)} gal`, cat: "brew", kind: "brew", warn: brewStartOverdue(b), go: openBrew });
     if (pass("drop")) {
@@ -906,15 +907,15 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
     });
   }, [cfg.table, sel, id]);
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
-  const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const localDate = (iso: string) => etDayKey(new Date(iso));   // its Eastern day (R33 — FE11-06)
   // a date input <-> the source column, preserving the existing time-of-day on timestamp columns
   const dateVal = !f ? "" : cfg.dateIsTimestamp ? (f[cfg.dateCol] ? localDate(f[cfg.dateCol]) : "") : (f[cfg.dateCol] || "");
   const onDate = (v: string) => {
     if (!cfg.dateIsTimestamp) { set(cfg.dateCol, v || null); return; }
     if (!v) { set(cfg.dateCol, null); return; }
     const old = f[cfg.dateCol] ? new Date(f[cfg.dateCol]) : null;
-    const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : cfg.defTime;
-    set(cfg.dateCol, new Date(`${v}T${hh}:00`).toISOString());
+    const hh = old ? etClockHm(old) : cfg.defTime;
+    set(cfg.dateCol, etInstantIso(v, hh));
   };
   // pipe's "name" is the next step (an account with no next step yet is a valid row), and brew /
   // lead / meeting names are nullable in their own tables — blank saves null there, so a date-only

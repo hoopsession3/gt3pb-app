@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { keepPlace, placeFor, restorePlace, returnToPlace } from "@/lib/appScroll";
 import { HELP_EVENTS, type Asked, type HelpEvent } from "@/lib/helpSheets";
 import { useApp, useAppStable } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import { OperatorSectionProvider } from "./OperatorSection";
-import { TaskSheetProvider } from "./TaskSheet";
+import { TaskSheetProvider, type SheetFence } from "./TaskSheet";
 import { RecordProvider } from "./RecordSheet";
 import { ConfirmProvider } from "./ConfirmSheet";
 import { PromptProvider } from "./PromptSheet";
@@ -101,7 +101,10 @@ function NotOpened({ open, close, what, toast }: { open: boolean; close: () => v
   useEffect(() => {
     if (!open) return;
     close();
-    toast(`${what} didn't open — tap it again.`, "error");
+    // With no signal its code may never have been fetched (R33 — FE11-07): said as that, and nothing reloads
+    // (components/ErrorReporter recoverFromCrash) — a reload offline would close the Pass mid-service.
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    toast(offline ? `${what} needs a signal to open the first time — tap it again when you have bars.` : `${what} didn't open — tap it again.`, "error");
   }, [open, close, what, toast]);
   return null;
 }
@@ -132,6 +135,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const bodyRef = useRef<HTMLElement>(null);
   const appOnly = useSyncExternalStore(noSubscribe, noBrowser, onServer);
   const { toast } = useAppStable();
+  // The task and record sheets, fenced here and handed to their providers (R33 — FE11-07, components/TaskSheet SheetFence).
+  const sheetFence = useCallback<SheetFence>((sheet, o) => (
+    <Fence name={o.name} again={o.again} fallback={() => <NotOpened open close={o.close} what={o.what} toast={toast} />}>{sheet}</Fence>
+  ), [toast]);
 
   // A new screen opens at its top — unless the move was a tab bar tap or a step back through history,
   // which come back to where that screen was left (lib/appScroll, EACH TAB KEEPS ITS PLACE). The key is
@@ -238,10 +245,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
          top, which is always the question being asked. */}
      <ConfirmProvider>
      <PromptProvider>
-     <TaskSheetProvider>
+     <TaskSheetProvider fence={sheetFence}>
       {/* Records open from anywhere (?r=kind:id). Inside TaskSheetProvider so a task sheet can open
           the person it is assigned to, and so both live above every screen that prints a name. */}
-      <RecordProvider>
+      <RecordProvider fence={sheetFence}>
       {/* data-surface says which kind of page this is (lib/surfaces): the console's primary button is gold. */}
       {/* "app desk-shell" is a string of its own so Tailwind's scanner reads desk-shell as a class (inside a template,
           run into ${…}, it was not one, and the shell's utility never built). */}

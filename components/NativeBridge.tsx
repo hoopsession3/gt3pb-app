@@ -9,7 +9,7 @@ import { saveFromUrl, setNativeDevice, type GT3DevicePlugin } from "@/lib/device
 import { applyDisplayPrefs } from "@/lib/displayPrefs";
 import { opensOutside as linkOut } from "@/lib/nativeLinks";
 import { appleCredentialState, appleSession, markAppleSession } from "@/lib/appleAuth";
-import { NATIVE_PUSH_ON, alertTarget, keepAppDevice, setNativePush, type AppAlertState } from "@/lib/nativePush";
+import { NATIVE_PUSH_ON, alertTarget, keepAppDevice, phoneKept, setNativePush, setPhoneKept, type AppAlertState } from "@/lib/nativePush";
 import { setAppBuild } from "@/lib/heartbeat";
 import { isStaff } from "@/lib/roles";
 import { scrollToTop } from "@/lib/appScroll";
@@ -191,13 +191,15 @@ export default function NativeBridge() {
           try { return said((await PushNotifications.checkPermissions()).receive); } catch { return "unavailable"; }
         };
         const registered = await PushNotifications.addListener("registration", ({ value }) => setPushToken(value));
+        // iOS refused to register the phone (an entitlement, the network): said, not "On" (R33 — FE11-08).
+        const refused = await PushNotifications.addListener("registrationError", () => setPhoneKept("failed"));
         const opened = await PushNotifications.addListener("pushNotificationActionPerformed", ({ notification }) => {
           const to = alertTarget((notification.data as { url?: unknown } | undefined)?.url);
           if (to) router.push(to);
         });
         // Left before this errand finished: its listeners go now, as the rest of the bridge's already went.
-        if (cancelled) { void registered.remove(); void opened.remove(); return; }
-        undo.push(() => { void registered.remove(); void opened.remove(); });
+        if (cancelled) { void registered.remove(); void refused.remove(); void opened.remove(); return; }
+        undo.push(() => { void registered.remove(); void refused.remove(); void opened.remove(); });
         setNativePush({
           state,
           enable: async () => {
@@ -376,8 +378,17 @@ export default function NativeBridge() {
   // keepAppDevice, 0367): the order that is ready reaches its own person's phone, a phone someone signed out of is
   // nobody's, and only the crew's phones hear of new orders (0365). The database does all of it, whoever had the phone.
   const staff = isStaff(profile);
+  // Its answer is the Settings row's word (R33 — FE11-08): kept, or not — and a phone not kept asks again when the signal
+  // comes back and when the app comes to the front, until it is.
   useEffect(() => {
-    if (pushToken && ready) void keepAppDevice(pushToken);
+    if (!pushToken || !ready) return;
+    let live = true;
+    const keep = () => { void keepAppDevice(pushToken).then((ok) => { if (live) setPhoneKept(ok ? "kept" : "failed"); }); };
+    const again = () => { if (phoneKept() !== "kept" && document.visibilityState === "visible") keep(); };
+    keep();
+    window.addEventListener("online", again);
+    document.addEventListener("visibilitychange", again);
+    return () => { live = false; window.removeEventListener("online", again); document.removeEventListener("visibilitychange", again); };
   }, [pushToken, ready, uid, staff]);
 
   // A new screen: look at what is under the status bar again.

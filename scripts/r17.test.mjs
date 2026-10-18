@@ -111,8 +111,11 @@ const load = routeLoader({ react: React, "@/lib/failureReport": { reportFailure:
   // the pure halves
   ok("sameDeps: React's comparison — the same length, each Object.is", A.sameDeps([1, "a", NaN], [1, "a", NaN]) && !A.sameDeps([1], [1, 2]) && !A.sameDeps([{}], [{}]) && !A.sameDeps([0], [-0]));
   const s = (o) => JSON.stringify(A.shownFrom(o, 1, 0));
-  ok("shownFrom: nothing answered yet is loading", s(null) === JSON.stringify({ status: "loading", data: null, error: null, refreshing: false }));
-  ok("shownFrom: an answer for older deps with data is refreshing", A.shownFrom({ depsGen: 0, reloadGen: 0, ok: true, data: [1], error: null }, 1, 0).refreshing === true);
+  ok("shownFrom: nothing answered yet is loading", s(null) === JSON.stringify({ status: "loading", data: null, error: null, refreshing: false, stale: false }));
+  ok("shownFrom: an answer for older deps with data is refreshing — and says it is another key's (R33: stale)",
+    A.shownFrom({ depsGen: 0, reloadGen: 0, ok: true, data: [1], error: null }, 1, 0).refreshing === true && A.shownFrom({ depsGen: 0, reloadGen: 0, ok: true, data: [1], error: null }, 1, 0).stale === true);
+  ok("shownFrom: a reload of the same deps with data is refreshing, not stale", A.shownFrom({ depsGen: 1, reloadGen: 0, ok: true, data: [1], error: null }, 1, 2).refreshing === true
+    && A.shownFrom({ depsGen: 1, reloadGen: 0, ok: true, data: [1], error: null }, 1, 2).stale === false);
 }
 
 // ── lib/useChanged: a copy seeded from each fresh load, set while rendering ─────────────────────────────────────────

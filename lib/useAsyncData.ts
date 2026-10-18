@@ -11,7 +11,12 @@ import { useLatest } from "./useLatest";
 // This is the one shared implementation, pairs with useRealtimeTable (lib/realtime.ts) for the
 // refetch-on-change half of the same problem: `const { reload } = useAsyncData(...); useRealtimeTable(t, reload)`.
 export type AsyncStatus = "loading" | "error" | "ready";
-export type AsyncData<T> = { status: AsyncStatus; data: T | null; error: Error | null; reload: () => Promise<void>; refreshing: boolean };
+export type AsyncData<T> = {
+  status: AsyncStatus; data: T | null; error: Error | null; reload: () => Promise<void>; refreshing: boolean;
+  /** The data on screen answered what was asked BEFORE — another month, another day, another order (R33 — FE11-04):
+   *  shown while the new answer comes, never as it. AsyncSection dims it and says it is loading. */
+  stale: boolean;
+};
 
 /** The same deps, as React compares an effect's: the same length, each Object.is the last. Pure. */
 export function sameDeps(a: React.DependencyList, b: React.DependencyList): boolean {
@@ -21,15 +26,18 @@ export function sameDeps(a: React.DependencyList, b: React.DependencyList): bool
 type Settled<T> = { depsGen: number; reloadGen: number; ok: boolean; data: T | null; error: Error | null };
 
 /** What the screen shows, read off what was asked for and what has answered (R17). Pure (scripts/r17.test.mjs). */
-export function shownFrom<T>(settled: Settled<T> | null, depsGen: number, reloadGen: number): { status: AsyncStatus; data: T | null; error: Error | null; refreshing: boolean } {
+export function shownFrom<T>(settled: Settled<T> | null, depsGen: number, reloadGen: number): { status: AsyncStatus; data: T | null; error: Error | null; refreshing: boolean; stale: boolean } {
   const data = settled?.data ?? null;
   if (settled !== null && settled.depsGen === depsGen && settled.reloadGen === reloadGen) {
-    return { status: settled.ok || data !== null ? "ready" : "error", data, error: settled.error, refreshing: false };
+    return { status: settled.ok || data !== null ? "ready" : "error", data, error: settled.error, refreshing: false, stale: false };
   }
   // A load is out. Stale-while-revalidate: only a genuine first load (nothing to show yet) is "loading" — a reload with
   // data on screen keeps showing it and says `refreshing`. Unconditionally blanking on every reload flashed the whole
   // section to a bare "Loading…" on every save (losing scroll position and any in-progress edit in a sibling row).
-  return { status: data !== null ? "ready" : "loading", data, error: null, refreshing: data !== null };
+  // R33 (FE11-04): data that answered OTHER deps — last month, yesterday, the order before — is still drawn while the
+  // new answer comes, but says so (`stale`): AsyncSection dims it and says it's loading, and it is never kept as the new
+  // key's answer if that answer fails (the error path below).
+  return { status: data !== null ? "ready" : "loading", data, error: null, refreshing: data !== null, stale: data !== null && settled!.depsGen !== depsGen };
 }
 
 export function useAsyncData<T>(loader: () => Promise<T>, deps: React.DependencyList = []): AsyncData<T> {
@@ -75,7 +83,9 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: React.Dependency
           const error = err instanceof Error ? err : new Error(String(err));
           // A transient refetch error with data already on screen keeps it — "error" only when there is nothing to fall
           // back to (shownFrom). `error` is still set either way, for a caller that wants to show a toast.
-          setSettled((was) => ({ depsGen, reloadGen, ok: false, data: was?.data ?? null, error }));
+          // R33 (FE11-04): only the same deps' data falls back — another month's, another day's or another order's was
+          // drawn as this one's answer, "ready" with no error, after the read for this one had failed.
+          setSettled((was) => ({ depsGen, reloadGen, ok: false, data: was && was.depsGen === depsGen ? was.data : null, error }));
         }
         answered();
       },

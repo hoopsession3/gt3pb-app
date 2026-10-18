@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { nextOnEnter } from "@/lib/formKeys";
+import { ModalAnnouncer } from "./Announcer";
 
 // Shown over the app when the user arrives from a reset link or code — they pick a new password before they can use the
 // app. Reuses the auth styling so it feels like the sign-in screen. Its own file since R8, loaded when it is raised
@@ -58,6 +59,7 @@ export default function PasswordRecovery({ updatePassword, onDone, onCancel, mod
 
   return (
     <div className="qd-scrim" style={{ zIndex: 200 }} ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={w.label}>
+      <ModalAnnouncer />{/* said inside this dialog while it is open (R33 — UX11-01) */}
       <div className="qd-sheet" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
         <div className="qd-body" style={{ padding: 22 }}>
           {done ? (

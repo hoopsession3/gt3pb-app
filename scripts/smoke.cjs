@@ -6007,7 +6007,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<button type="button" className="adm-act-more" onClick=\{press\.show\} aria-haspopup="dialog"/.test(kit) && !/onClick=\{\(\) => voidOrder\(o\)\}/.test(kit)
     && /show: \(\) => setOpen\(true\),/.test(read("components/LongPress.tsx")) && /if \(!\(await confirm\(\{ title: `Void \$\{o\.customer/.test(kit));
   ok("pass: opening it keeps the truck's broadcast going (Live truck stays mounted, inert, under it) and keeps the screen on",
-    /\{canManage && <div className="contents" inert=\{svc \? true : undefined\}><LiveControl compact \/><\/div>\}/.test(crewSrc) && /useWakeLock\(svc\);/.test(crewSrc)
+    /\{canManage && <div className="contents" inert=\{svc \? true : undefined\}><Fence name="live-control"><LiveControl compact \/><\/Fence><\/div>\}/.test(crewSrc) && /useWakeLock\(svc\);/.test(crewSrc)
     && /useWakeLock\(broadcasting\);/.test(read("components/crew/LiveControl.tsx")) && !/wakeRef|wakeLock/.test(read("components/crew/LiveControl.tsx"))
     && /document\.addEventListener\("visibilitychange", onVis\);/.test(read("lib/useWakeLock.ts")) && /catch \{ \/\* refused/.test(read("lib/useWakeLock.ts")));
   {
@@ -6319,7 +6319,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const rec = code(read("components/ComplianceRuleRecord.tsx")), crew = code(read("app/crew/page.tsx"));
   ok("permits: Needs you opens the rule's record, and the record host knows the kind",
     /if \(to\.kind === "rule"\) \{ openRecord\("compliance_rule", to\.id\); return; \}/.test(owedSrc)
-    && /ref\?\.kind === "compliance_rule" && <ComplianceRuleRecord ruleId=\{ref\.id\} onClose=\{closeRecord\} \/>/.test(sheetHost)
+    && /ref\.kind === "compliance_rule" && <ComplianceRuleRecord ruleId=\{ref\.id\} onClose=\{closeRecord\} \/>/.test(sheetHost)
     && /const ComplianceRuleRecord = dynamic\(\(\) => import\("\.\/ComplianceRuleRecord"\), \{ ssr: false \}\);/.test(sheetHost));
   ok("permits: the sheet answers only where the database can record it — the row says (0342's verified_by key)",
     /canRecord: !!rule && "verified_by" in rule,/.test(rec) && /\) : !d\.canRecord \? \(/.test(rec));
@@ -9775,7 +9775,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /jumpTo\(d\.anchor\);/.test(pg) && !/scrollToAnchor\(d\.anchor\)/.test(pg) && /<div className="adm-sec pass-board" id="kitchen-pass"/.test(code(read("components/pass/ThePass.tsx"))));
   ok("links land: the page answers by going to Live Ops and opening the Pass — and a link waits for ?s=now to land before it is taken",
     /const open = \(\) => \{ setSection\("now"\); unlockAudio\(\); setSvc\(true\); \};\s*window\.addEventListener\(OPEN_PASS_EVENT, open\);/.test(pg)
-    && /if \(a === PASS_ANCHOR && sec !== "now" && readParam\("s"\) === "now"\) return;\s*consumedAnchorRef\.current = true;\s*dropParam\("a"\);/.test(pg)
+    && /if \(a === PASS_ANCHOR && sec !== "now" && readParam\("s"\) === "now"\) return;\s*dropParam\("a"\);/.test(pg) && !/consumedAnchorRef/.test(pg)   // read at every arrival, taken out as used (R33)
     // A link to a panel that moved, opened as a page, goes to the panel's home first (2026-10-15): the same alias table the
     // alert router reads — in the console, not the section provider every guest's page carries.
     && /const named = readParam\("s"\) \?\? sec;\s*const home = panelHome\(named, a\);\s*if \(home\.section !== named && VALID_SECTIONS\.has\(home\.section as OpSection\)\) setSection\(home\.section as OpSection\);\s*jumpTo\(home\.anchor \?\? a\);/.test(pg)
@@ -10339,12 +10339,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /PushNotifications\.addListener\("registration", \(\{ value \}\) => setPushToken\(value\)\)/.test(nb)
       && /const to = alertTarget\(\(notification\.data as \{ url\?: unknown \} \| undefined\)\?\.url\);\s*if \(to\) router\.push\(to\);/.test(nb)
       && /if \(answer === "granted"\) await PushNotifications\.register\(\);/.test(nb) && /if \(\(await state\(\)\) === "granted"\) void PushNotifications\.register\(\)/.test(nb)
-      && /if \(pushToken && ready\) void keepAppDevice\(pushToken\);\s*\}, \[pushToken, ready, uid, staff\]\);/.test(nb));
+      && /const keep = \(\) => \{ void keepAppDevice\(pushToken\)\.then\(\(ok\) => \{ if \(live\) setPhoneKept\(ok \? "kept" : "failed"\); \}\); \};/.test(nb)
+      && /\}, \[pushToken, ready, uid, staff\]\);/.test(nb));
     // The review (2026-10-11): one errand of its own — a build without the plugin skipped the links, window.open and the
     // launch screen, silently — and its listeners go if the bridge was torn down before it finished.
     ok("alerts: the alerts setup can't stop the rest of the bridge — its own errand, caught on its own, nothing after it waiting",
       /\}\)\(\)\.catch\(\(\) => \{ \/\* alerts are optional; never the app \*\/ \}\);/.test(read("components/NativeBridge.tsx"))
-      && /if \(cancelled\) \{ void registered\.remove\(\); void opened\.remove\(\); return; \}/.test(nb));
+      && /if \(cancelled\) \{ void registered\.remove\(\); void refused\.remove\(\); void opened\.remove\(\); return; \}/.test(nb));
     ok("alerts: the database keeps the phone for whoever is signed in — or nobody — one app install each, browsers untouched; a web row still needs its keys (0367)",
       /const \{ error \} = await supabase\.rpc\("keep_app_push_token", \{ p_token: token \}\);\s*return !error;/.test(read("lib/nativePush.ts"))
       && !/from\("push_subscriptions"\)/.test(read("lib/nativePush.ts"))
@@ -12562,7 +12563,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /Truck stops · Plan › Lists<\/button>/.test(compact) && /\{admin && <button type="button" className="adm-golink hit-y-44" onClick=\{goDial\}>Cup-ordering dial ›<\/button>\}/.test(compact)
       && !/Map dot off|dot moves|see the dot|Customers can&apos;t see the truck/.test(compact) && /Broadcasting the truck&apos;s location/.test(compact) && /<div id="truck-more"/.test(compact));
   ok("truck: it stays mounted under the Pass, inert, so a broadcast goes on (the 2026-10-11 decision stands)",
-    /\{canManage && <div className="contents" inert=\{svc \? true : undefined\}><LiveControl compact \/><\/div>\}/.test(nowSec) && /useWakeLock\(broadcasting\);/.test(lc));
+    /\{canManage && <div className="contents" inert=\{svc \? true : undefined\}><Fence name="live-control"><LiveControl compact \/><\/Fence><\/div>\}/.test(nowSec) && /useWakeLock\(broadcasting\);/.test(lc));
 
   // THE PASS'S ROW (approved item 1) — clear, busy, the phones' trouble in words.
   const phones = (o) => ({ onPass: 0, ringing: 0, reconnecting: 0, notConnected: 0, ...o });
@@ -15462,7 +15463,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /<\/Fence>\n\s+<ErrorReporter \/>/.test(sh) && !/<Fence name="[a-z-]+"><ErrorReporter/.test(sh), names);
   ok("R11 fence: a sheet someone asked for that crashed says it didn't open, and the next ask tries again",
     /<Fence name="checkout" again=\{coOpen\} fallback=\{\(\) => <NotOpened open=\{coOpen\} close=\{closeCheckout\} what="Checkout" toast=\{toast\} \/>\}><Checkout \/><\/Fence>/.test(sh)
-      && /<Fence name="help" again=\{asked\.n\}/.test(sh) && /toast\(`\$\{what\} didn't open — tap it again\.`, "error"\);/.test(sh));
+      && /<Fence name="help" again=\{asked\.n\}/.test(sh) && /: `\$\{what\} didn't open — tap it again\.`, "error"\);/.test(sh));
   const tp = rd("components/pass/ThePass.tsx");
   ok("R11 fence: on the Pass the strip, the pickups and the 86 board each fail alone — the board goes on, and says which didn't load",
     /<Fence name="pass-strip">\{strip\}<\/Fence><PassBoard \/>/.test(tp) && /<Fence name="pass-pickups" fallback=\{\(retry\) => <RailDown what="Pickups" retry=\{retry\} \/>\}><DropOps canPlan=\{canPlan\} \/><\/Fence>/.test(tp)

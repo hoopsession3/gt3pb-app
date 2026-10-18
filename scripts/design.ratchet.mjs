@@ -734,20 +734,20 @@ export const PROD_ROUTE = {
 // the same (+1 byte). Lowered to what they weigh and the files raised to what they are, route by route, from this tree's
 // build; /offer is 274.42 KB, near a rounding line — its ceiling is the line above, 275.
 export const WEIGHT = {
-  "/truck":                    { js: 276, css: 90, chunks: 17 },
-  "/events":                   { js: 276, css: 90, chunks: 17 },
-  "/menu":                     { js: 264, css: 90, chunks: 16 },
+  "/truck":                    { js: 277, css: 90, chunks: 17 },
+  "/events":                   { js: 277, css: 90, chunks: 17 },
+  "/menu":                     { js: 265, css: 90, chunks: 16 },
   "/reserve":                  { js: 288, css: 90, chunks: 18 },
   "/delivery":                 { js: 285, css: 90, chunks: 18 },
-  "/3mpire":                   { js: 277, css: 90, chunks: 17 },
+  "/3mpire":                   { js: 278, css: 90, chunks: 17 },
   "/craft":                    { js: 263, css: 90, chunks: 16 },
-  "/book":                     { js: 264, css: 90, chunks: 16 },
-  "/academy":                  { js: 316, css: 90, chunks: 18 },
-  "/office":                   { js: 272, css: 90, chunks: 17 },
-  "/scan":                     { js: 264, css: 90, chunks: 16 },
-  "/architecture":             { js: 273, css: 90, chunks: 17 },
-  "/playbook":                 { js: 271, css: 90, chunks: 17 },
-  "/driver":                   { js: 270, css: 90, chunks: 17 },
+  "/book":                     { js: 265, css: 90, chunks: 16 },
+  "/academy":                  { js: 317, css: 90, chunks: 18 },
+  "/office":                   { js: 273, css: 90, chunks: 17 },
+  "/scan":                     { js: 265, css: 90, chunks: 16 },
+  "/architecture":             { js: 274, css: 90, chunks: 17 },
+  "/playbook":                 { js: 272, css: 90, chunks: 17 },
+  "/driver":                   { js: 271, css: 90, chunks: 17 },
   "/agreement":                { js: 265, css: 90, chunks: 16 },
   "/offer":                    { js: 275, css: 90, chunks: 17 },
   "/built/gt3-built-k7m9x4q2": { js: 261, css: 90, chunks: 16 },
@@ -756,7 +756,7 @@ export const WEIGHT = {
   "/primal":                   { js: 264, css: 90, chunks: 16 },
   "/privacy":                  { js: 260, css: 90, chunks: 15 },
   "/terms":                    { js: 260, css: 90, chunks: 15 },
-  "/":                         { js: 269, css: 90, chunks: 17 },
+  "/":                         { js: 270, css: 90, chunks: 17 },
   "/order":                    { js: 268, css: 90, chunks: 17 },
 };
 
@@ -901,6 +901,17 @@ export const WEIGHT = {
 // and /office (282.48 → 282.63), recorded. Not the first cut, measured too: the two-step setup as a lazy chunk of its own
 // from the account sheet, and the delete step without its import of that provider, each regrouped every route's shared
 // download into one chunk more (+0.92 KB, the same modules split differently) — both undone, and said where they are.
+// 2026-10-19 (R33 of the fresh audit): every route's script +545 bytes (gzip). Built R32 (58cf4d3) and this commit and
+// gzipped what each route references (/menu 270 447 → 270 993, /privacy 265 784 → 266 330, /academy 323 745 → 324 290). In
+// the shell, because it is the shell's job: the console's section follows the router's own address (components/
+// OperatorSection AddressWatch, in a Suspense of its own; FE11-01), a sheet's words are said inside it (components/
+// Announcer's modal stack and ModalAnnouncer; UX11-01), the task and record sheets are fenced (components/AppShell
+// sheetFence; FE11-07), and a section's last answer is marked stale while the next key's read is out (lib/useAsyncData,
+// components/AsyncSection; FE11-04). Crossed the rounding line upward on /truck, /events (276 → 277 KB), /menu, /book, /scan
+// (264 → 265), /3mpire (277 → 278), /academy (316 → 317), /office (272 → 273), /architecture (273 → 274), /playbook
+// (271 → 272), /driver (270 → 271) and / (269 → 270), recorded. Not the first cut, measured too: the fence imported by the
+// task and record sheets' own modules regrouped every route's shared download into one chunk more (+0.9 KB, the same
+// modules split differently, as R28 found of two other imports) — the shell hands its fence in instead.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

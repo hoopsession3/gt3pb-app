@@ -68,7 +68,7 @@ const src = (p) => readFileSync(join(ROOT, p), "utf8");
   ok("…which holds the drink and checkout sheets, the latch that keeps Checkout once wanted, and the close on a new page — where the shell had them",
     /if \(!checkoutWanted && \(cartCount > 0 \|\| coOpen\)\) setCheckoutWanted\(true\);/.test(cart) && /useEffect\(\(\) => \{ closeDrink\(\); \}, \[pathname, closeDrink\]\);/.test(cart)
       && /<Fence name="drink"/.test(cart) && /<Fence name="checkout"/.test(cart) && appShell.indexOf("</main>") < appShell.indexOf("<CartChrome />") && appShell.indexOf("<CartChrome />") < appShell.indexOf('<Fence name="announcer">'));
-  const memo = { "components/OperatorSection.tsx": "const value = useMemo(() => ({ section, setSection, back, canGoBack, groupId, setGroupId: setGroup }), [section, setSection, back, canGoBack, groupId, setGroup]);",
+  const memo = { "components/OperatorSection.tsx": "const value = useMemo(() => ({ section, setSection, back, canGoBack, groupId, setGroupId: setGroup, addressGen }), [section, setSection, back, canGoBack, groupId, setGroup, addressGen]);",
     "components/TaskSheet.tsx": "const value = useMemo(() => ({ openTask }), [openTask]);",
     "components/RecordSheet.tsx": "const value = useMemo(() => ({ openRecord, closeRecord }), [openRecord, closeRecord]);",
     "components/Crumbs.tsx": "const value = useMemo(() => ({ crumbs, push, remove }), [crumbs, push, remove]);" };

@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useEffectEvent, useI
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import Icon from "./Icon";
+import { ModalAnnouncer } from "./Announcer";
 import type { SheetMotionProps } from "./SheetMotion";
 import { haptic } from "@/lib/haptics";
 import { appHistory } from "@/lib/appHistory";
@@ -348,6 +349,7 @@ export default function Sheet({
       <div className={`sheet2 sheet-detent ${className}${out}`} ref={panelRef} tabIndex={-1} role={alert ? "alertdialog" : "dialog"} aria-modal="true" aria-labelledby={labelledBy} aria-describedby={describedBy}
         aria-label={labelledBy ? undefined : (label ?? "Dialog")} inert={ask ? true : undefined}
         onClick={(e) => e.stopPropagation()} onFocus={(e) => { if (e.target.matches?.("input, select, textarea")) expand(); }}>
+        <ModalAnnouncer />{/* what is said while this sheet is open is said in it (R33 — UX11-01) */}
         {live && <SheetMotion panel={panelRef} scrim={scrimRef} body={ownBody} asking={!!ask} dismissible={dismissible} unsaved={unsaved}
           ask={askFor} requestClose={requestClose} finish={finish} page={page} expand={expand} alone={() => stack.length <= 1} />}
         <SheetCtx.Provider value={door}>

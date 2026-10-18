@@ -58,6 +58,7 @@ import { flagIsToday, rhythmDay, RHYTHM_TABLES } from "@/lib/home";
 // chunk to see where they are working (see "Code-split" below).
 import DayHeadline from "@/components/DayHeadline";
 import EmptyState from "@/components/EmptyState";
+import Fence from "@/components/Fence";
 import { rememberMode } from "@/lib/mode";
 import { useRouter } from "next/navigation";
 import { useOperatorSection, sectionsForRole, streamGroups, SECTION_LABEL, TODAY_GROUP, VALID as VALID_SECTIONS, type OpSection } from "@/components/OperatorNav";
@@ -1635,7 +1636,10 @@ function EventPrep({ sel, setSel }: { sel: PrepTarget | null; setSel: Dispatch<S
   }, []);
   useRealtimeTable(["events", "stops", "event_tasks"], prepState.reload);
 
-  if (selected) return <PrepDetail target={selected} onBack={() => setSelected(null)} />;
+  // keyed by the target (R33 — the audit's FE11-05): ⌘K or a recent jumps from one event or stop to another in place, and a
+  // slow read of the first, answering after the second's, set its name, tasks and crew under the second's header — a tick
+  // then ticked the first's task. A new target is a new PrepDetail: what the old one's read sets lands on nothing.
+  if (selected) return <PrepDetail key={`${selected.kind}:${selected.id}`} target={selected} onBack={() => setSelected(null)} />;
 
   return (
     <>
@@ -1895,6 +1899,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
   // layers status/error tracking + a race-safe reload on top, so this stays a light-touch wrap
   // rather than a rewrite of every optimistic-update call site in this hub.
   const load = prepState.reload;
+  // Every table's change, unfiltered on purpose: Supabase can't filter a delete, and a filtered channel would miss a task
+  // another crew member removed (R33 weighed the audit's FE11-05 filter and kept this).
   useRealtimeTable(["event_tasks", "event_staff", "event_approvals", "comments", "brew_batch_links", "brew_batches"], load);
 
   // Clear, identifiable labels — staff often sign in without setting a name, so fall back
@@ -5500,7 +5506,7 @@ const closedOnServer = () => false;
 
 export default function AdminPage() {
   const { ready, enabled, user, profile, profileStatus, refreshProfile, leader, waitingForCode, waitForCode } = useAuth();
-  const { section, setSection, groupId: navGroupId, setGroupId } = useOperatorSection();
+  const { section, setSection, groupId: navGroupId, setGroupId, addressGen } = useOperatorSection();
   const router = useRouter();
   const streams = useWorkStreams();
 
@@ -5563,18 +5569,19 @@ export default function AdminPage() {
   // Cross-route deep link: /crew?s=settings&a=set-copy (or a specific copy group, e.g. sc-craft-page
   // from the owner-only Edit pill on a live page) lands on the right SECTION via
   // OperatorSectionProvider's own ?s= hydration; this consumes the matching ?a= once that section has
-  // actually mounted, via the same scrollToAnchor alert links already use. Own ref (not state) so it
-  // fires once per page load and never re-triggers on an in-app section change afterward.
+  // actually mounted, via the same scrollToAnchor alert links already use.
   // A link to the Pass (&a=kitchen-pass, 2026-10-06) opens it (jumpTo) — and waits until the
   // address's ?s=now has landed, because "leaving Live Ops closes the Pass" (below) would otherwise
   // close it again on the way in, while the section is still the one this page started on.
-  const consumedAnchorRef = useRef(false);
+  // EVERY ARRIVAL, NOT ONLY THE PAGE'S FIRST (R33 — the audit's FE11-01). It was read once per page load (a ref), so a
+  // link the router opened in the app — a tapped order alert, a universal link — left its ?a= in the address, unread,
+  // until the next section tap threw the crew member into the Pass. It is read whenever the router moves the address
+  // (addressGen) and the section lands, and taken out of the address as it is used: an ?a= is read once because it is
+  // gone, not because the page remembers.
   useEffect(() => {
-    if (consumedAnchorRef.current) return;
     const a = readParam("a");
     if (!a) return;
     if (a === PASS_ANCHOR && sec !== "now" && readParam("s") === "now") return;
-    consumedAnchorRef.current = true;
     dropParam("a");
     // A LINK TO A PANEL THAT MOVED, OPENED AS A PAGE (2026-10-15): a push, a crew member's "Draft their offer letter"
     // or a bookmark still names the old section (?s=money&a=offers), and the page looked for the panel there. Go to the
@@ -5584,7 +5591,7 @@ export default function AdminPage() {
     const home = panelHome(named, a);
     if (home.section !== named && VALID_SECTIONS.has(home.section as OpSection)) setSection(home.section as OpSection);
     jumpTo(home.anchor ?? a);
-  }, [sec, setSection]);
+  }, [sec, setSection, addressGen]);
   // The header 🔔 opens the ONE inbox (your flags + the needs-you queue). Any screen can summon it
   // (a badged nav tab, the Now strip) via the gt3-open-inbox event; navigating a section closes it.
   useEffect(() => {
@@ -5919,6 +5926,13 @@ export default function AdminPage() {
       {/* The lane's row of sections is a tab list, and the section its panel (R12 — the 10/10 audit, F7); a lane of one
           section has no row, and the section is a named region. */}
       <div className="op-trans" key={sec} ref={opBodyRef} tabIndex={-1} {...(lane.members.length >= 2 ? tabPanel("lane-panel", sec) : { role: "region", "aria-label": `${SEC_LABEL[sec]} section` })}>
+      {/* ONE SECTION FAILS ALONE (R33 — the audit's FE11-07): a panel that threw took the whole console — and the open
+          Pass with it — to the page's crash screen mid-service. The section steps aside with a Try again; the nav, the
+          Pass and every other section stay. */}
+      <Fence name={`section:${sec}`} fallback={(retry) => (
+        <EmptyState role="alert" title={`${SEC_LABEL[sec]} didn't load`} sub="The rest of the console still works — try this section again."
+          action={<button type="button" className="btn-ter" onClick={retry}>Try again</button>} />
+      )}>
       {sec === "day" && (
         <>
           {/* P3 (2026-08-03): a leader's day opens with the headline — today's op + top 3 due —
@@ -6004,7 +6018,7 @@ export default function AdminPage() {
               stopped the GPS broadcast: the customers' dot froze the moment service began. Under the Pass
               it is still drawn, out of reach — inert takes it out of the tab order and away from a screen
               reader, and the Pass covers it; `contents` leaves Live Ops' layout as it was. */}
-          {canManage && <div className="contents" inert={svc ? true : undefined}><LiveControl compact /></div>}
+          {canManage && <div className="contents" inert={svc ? true : undefined}><Fence name="live-control"><LiveControl compact /></Fence></div>}
           </Column>
           <Column>
           {!svc && <DueNext canPlan={canManage} onOpenPass={openPass} />}
@@ -6326,6 +6340,7 @@ export default function AdminPage() {
           </Columns>
         </>
       )}
+      </Fence>
       </div>
       </SwipePager>
     </section>

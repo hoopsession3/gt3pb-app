@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { parseRecordParam, recordParam, type RecordKind, type RecordRef } from "@/lib/records";
+import { bare, type SheetFence } from "./TaskSheet";
 
 // RECORDSHEET — one host for every record detail view, opened from anywhere by (kind, id).
 //
@@ -32,7 +33,7 @@ type Ctx = { openRecord: (kind: RecordKind, id: string) => void; closeRecord: ()
 const RecordCtx = createContext<Ctx>({ openRecord: () => {}, closeRecord: () => {} });
 export const useRecord = () => useContext(RecordCtx);
 
-export function RecordProvider({ children }: { children: React.ReactNode }) {
+export function RecordProvider({ children, fence }: { children: React.ReactNode; fence?: SheetFence }) {
   // Read the address ONCE, lazily, rather than in an effect that calls setState on mount — a link
   // somebody pasted should open on the first render, not after a second one. Guarded for the server
   // pass, where there is no window and the answer is always "nothing open".
@@ -76,12 +77,15 @@ export function RecordProvider({ children }: { children: React.ReactNode }) {
   return (
     <RecordCtx.Provider value={value}>
       {children}
-      {ref?.kind === "person"     && <CrewPerson      userId={ref.id}     onClose={closeRecord} />}
-      {ref?.kind === "customer"   && <CustomerRecord  customerId={ref.id} onClose={closeRecord} />}
-      {ref?.kind === "shop_order" && <ShopOrderRecord orderId={ref.id}    onClose={closeRecord} />}
-      {ref?.kind === "event"      && <EventRecord     eventId={ref.id}    onClose={closeRecord} />}
-      {ref?.kind === "stop"       && <StopRecord      stopId={ref.id}     onClose={closeRecord} />}
-      {ref?.kind === "compliance_rule" && <ComplianceRuleRecord ruleId={ref.id} onClose={closeRecord} />}
+      {/* fenced (R33 — FE11-07): a record that throws, or whose code couldn't be fetched, closes and says so */}
+      {ref && (fence ?? bare)(<>
+          {ref.kind === "person"     && <CrewPerson      userId={ref.id}     onClose={closeRecord} />}
+          {ref.kind === "customer"   && <CustomerRecord  customerId={ref.id} onClose={closeRecord} />}
+          {ref.kind === "shop_order" && <ShopOrderRecord orderId={ref.id}    onClose={closeRecord} />}
+          {ref.kind === "event"      && <EventRecord     eventId={ref.id}    onClose={closeRecord} />}
+          {ref.kind === "stop"       && <StopRecord      stopId={ref.id}     onClose={closeRecord} />}
+          {ref.kind === "compliance_rule" && <ComplianceRuleRecord ruleId={ref.id} onClose={closeRecord} />}
+        </>, { name: `record:${ref.kind}`, again: ref, close: closeRecord, what: "That record" })}
     </RecordCtx.Provider>
   );
 }

@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import EmptyState from "./EmptyState";
 import PourFill from "./PourFill";
+import Said from "./Said";
 import type { AsyncData } from "@/lib/useAsyncData";
 
 // Renders the three states of a useAsyncData() result as three VISIBLY DIFFERENT things — the
@@ -48,11 +49,23 @@ export function AsyncSection<T>({
     );
   }
   const data = state.data as T;
+  // R33 (FE11-04): what is drawn says what it is. Another key's answer while this one's comes (another month, another
+  // day): dimmed, busy, and "Loading…" said. A refresh of this key that failed: what we had, with why and a Try again —
+  // never the old answer as if it were fresh.
+  // Said through components/Said (a region that arrives holding its words is skipped by VoiceOver — spoken.audit); the
+  // note's layout is utilities (the house stylesheet only goes down — css.audit).
+  const NOTE = "flex flex-wrap items-center gap-x-2.5 gap-y-1 mb-2.5 text-subhead text-cream-muted";
+  const note = state.stale
+    ? <div className={NOTE}><Said as="span">{loadingLabel ?? "Loading…"}</Said></div>
+    : state.status === "ready" && state.error && !state.refreshing
+      ? <div className={NOTE}><Said as="span" assertive>Couldn&apos;t refresh — showing what we had.</Said> <button type="button" className="btn-ter" onClick={state.reload}>Try again</button></div>
+      : null;
   const empty = isEmpty ? isEmpty(data) : Array.isArray(data) ? data.length === 0 : !data;
   if (empty) {
-    return <EmptyState role="status" title={emptyTitle} sub={emptySub} action={emptyAction} />;
+    return state.stale ? <PourFill label={loadingLabel ?? "Loading…"} /> : <>{note}<EmptyState role="status" title={emptyTitle} sub={emptySub} action={emptyAction} /></>;
   }
-  return <>{children(data)}</>;
+  if (!note) return <>{children(data)}</>;
+  return <>{note}<div className={state.stale ? "opacity-50 transition-opacity motion-reduce:transition-none" : undefined} aria-busy={state.stale || undefined}>{children(data)}</div></>;
 }
 
 export default AsyncSection;

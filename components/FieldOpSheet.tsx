@@ -16,6 +16,7 @@ import { archiveOwner } from "@/lib/wrap";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { haptic } from "@/lib/haptics";
 import { anyTable } from "@/lib/dbTypes";
+import { etClockHm, etDayKey, etInstantIso, etToday } from "@/lib/dates";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
 // place · status), reachable in two taps from anywhere a stop or event shows (calendar,
@@ -123,31 +124,31 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
   };
 
   // date/time <-> columns: events.day is a plain date; stops.starts_at is a timestamp.
-  const dateVal = !f ? "" : isEvent ? (f.day || "") : (f.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : "");
+  const dateVal = !f ? "" : isEvent ? (f.day || "") : (f.starts_at ? etDayKey(new Date(f.starts_at)) : "");
   const onDate = (v: string) => {
     setTouchedWhen(true);
     if (isEvent) { set("day", v || null); return; }
     if (!v) { set("starts_at", null); return; }
     const old = f?.starts_at ? new Date(f.starts_at) : null;
-    const hh = old ? `${String(old.getHours()).padStart(2, "0")}:${String(old.getMinutes()).padStart(2, "0")}` : "11:00";
-    set("starts_at", new Date(`${v}T${hh}:00`).toISOString());
+    const hh = old ? etClockHm(old) : "11:00";
+    set("starts_at", etInstantIso(v, hh));   // the Eastern day and clock, as the instant they are (R33)
   };
-  const timeVal = !f || isEvent || !f.starts_at ? "" : (() => { const d = new Date(f.starts_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
+  const timeVal = !f || isEvent || !f.starts_at ? "" : etClockHm(new Date(f.starts_at));
   const onTime = (v: string) => {
     if (isEvent || !v) return;
     setTouchedWhen(true);
-    const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
-    set("starts_at", new Date(`${dayKey}T${v}:00`).toISOString());
+    const dayKey = f?.starts_at ? etDayKey(new Date(f.starts_at)) : etToday();
+    set("starts_at", etInstantIso(dayKey, v));
   };
   // Close time (stops.ends_at) — online ordering auto-closes 60 min before this and the truck goes
   // offline 45 min before it (FindUs). Empty = no auto wind-down. Same day as the start.
-  const endTimeVal = !f || isEvent || !f.ends_at ? "" : (() => { const d = new Date(f.ends_at); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; })();
+  const endTimeVal = !f || isEvent || !f.ends_at ? "" : etClockHm(new Date(f.ends_at));
   const onEndTime = (v: string) => {
     if (isEvent) return;
     if (!v) { set("ends_at", null); return; }
     setTouchedWhen(true);
-    const dayKey = f?.starts_at ? new Date(f.starts_at).toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA");
-    set("ends_at", new Date(`${dayKey}T${v}:00`).toISOString());
+    const dayKey = f?.starts_at ? etDayKey(new Date(f.starts_at)) : etToday();
+    set("ends_at", etInstantIso(dayKey, v));
   };
 
   const save = async () => {

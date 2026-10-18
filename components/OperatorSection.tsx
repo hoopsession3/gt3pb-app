@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, Suspense, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useHydrated } from "@/lib/clientState";
 
 // THE OPERATOR SECTION — which console section is open, shared by the nav (rendered in the shell)
@@ -11,7 +12,9 @@ import { useHydrated } from "@/lib/clientState";
 
 export type OpSection = "day" | "now" | "ask" | "command" | "prep" | "plan" | "studio" | "brew" | "garage" | "driver" | "notes" | "money" | "catalog" | "customers" | "team" | "settings";
 
-const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean; groupId: string | null; setGroupId: (g: string | null) => void }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false, groupId: null, setGroupId: () => {} });
+// addressGen (R33 — the audit's FE11-01): moves each time the router changes the address's query, so a screen that
+// reads a one-time parameter (the console's ?a=) reads it again after a navigation the page didn't reload for.
+const Ctx = createContext<{ section: OpSection; setSection: (s: OpSection) => void; back: () => boolean; canGoBack: boolean; groupId: string | null; setGroupId: (g: string | null) => void; addressGen: number }>({ section: "day", setSection: () => {}, back: () => false, canGoBack: false, groupId: null, setGroupId: () => {}, addressGen: 0 });
 export const useOperatorSection = () => useContext(Ctx);
 
 export const VALID = new Set<OpSection>(["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "driver", "notes", "money", "catalog", "customers", "team", "settings"]);
@@ -25,6 +28,22 @@ function arrivalSection(): OpSection | null {
     const ls = localStorage.getItem("gt3-op-section");
     if (ls && VALID.has(ls as OpSection)) return ls as OpSection;
   } catch { /* ignore */ }
+  return null;
+}
+
+/**
+ * THE ADDRESS, FOLLOWED (R33, 2026-10-18 — the audit's FE11-01). The section was read from ?s= once, as the app loaded,
+ * and again only on back/forward (popstate). A link opened through the router — a tapped order alert on the iPhone
+ * (NativeBridge), a universal link, the task sheet's goal link — changed the address and nothing else: the Pass didn't
+ * open, and its ?a= opened it later, at the next section tap. This reads the router's own address (useSearchParams) and
+ * hands each change to the provider. In a Suspense of its own: on a page drawn ahead of time it draws nothing until the
+ * browser has the address, and nothing around it waits (Next: useSearchParams outside Suspense draws the whole tree in
+ * the browser).
+ */
+function AddressWatch({ onAddress }: { onAddress: (path: string, search: string) => void }) {
+  const path = usePathname() ?? "";
+  const search = useSearchParams()?.toString() ?? "";
+  useEffect(() => { onAddress(path, search); }, [path, search, onAddress]);
   return null;
 }
 
@@ -86,6 +105,19 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
     // The arrival only: a later section change is stamped by setSection, and a back/forward by the address itself.
   }, [arrived, section]);
 
+  // A navigation the router made (R33 — FE11-01): /crew?s=… opened from an alert, a universal link or a sheet's link is
+  // that section now, and the query's move is counted (addressGen) for the screens that read a one-time parameter.
+  // The section's own pushState (setSection) lands here too, already applied — and changes nothing.
+  const [addressGen, setAddressGen] = useState(0);
+  const lastSearch = useRef<string | null>(null);
+  const followAddress = useCallback((path: string, search: string) => {
+    if (lastSearch.current !== null && lastSearch.current !== search) setAddressGen((g) => g + 1);
+    lastSearch.current = search;
+    if (!path.startsWith("/crew")) return;
+    const q = new URLSearchParams(search).get("s");
+    if (q && VALID.has(q as OpSection) && q !== sectionRef.current) apply(q as OpSection);
+  }, []);
+
   useEffect(() => {
     // Back/forward (button or swipe): read the section out of the URL and apply it.
     const onPop = () => {
@@ -125,7 +157,12 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
   // One value per change (R25 — the 10/10 audit, performance F19): a new object each render re-drew every reader of this
   // context whenever the shell drew again — the whole console among them.
   const canGoBack = depth > 0;
-  const value = useMemo(() => ({ section, setSection, back, canGoBack, groupId, setGroupId: setGroup }), [section, setSection, back, canGoBack, groupId, setGroup]);
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  const value = useMemo(() => ({ section, setSection, back, canGoBack, groupId, setGroupId: setGroup, addressGen }), [section, setSection, back, canGoBack, groupId, setGroup, addressGen]);
+  return (
+    <Ctx.Provider value={value}>
+      <Suspense fallback={null}><AddressWatch onAddress={followAddress} /></Suspense>
+      {children}
+    </Ctx.Provider>
+  );
 }
 

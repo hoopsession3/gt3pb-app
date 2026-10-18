@@ -3,7 +3,7 @@ import { adminFromRequest, staffFromRequest, tenantFromRequest, userFromRequest 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
-import { addDays, dayFromKey, etToday, weekdayOf } from "@/lib/dates";
+import { addDays, dayFromKey, etInstantIso, etToday, weekdayOf } from "@/lib/dates";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 
@@ -115,7 +115,8 @@ async function post(req: Request) {
       for (const e of (plan.events ?? [])) {
         if (e._skip) { eventIds.push(null); continue; }
         if (e.kind === "stop") {
-          const startsAt = e.date ? new Date(`${e.date}T11:00:00-04:00`).toISOString() : null; // 11a ET default
+          // 11am Eastern on that day — in winter too (it was -04:00 always: 10am from November to March) (R33)
+          const startsAt = e.date && /^\d{4}-\d{2}-\d{2}$/.test(String(e.date)) ? etInstantIso(String(e.date), "11:00") : null;
           const data = wrote(await supabaseAdmin.from("stops").insert({
             tenant_id: tenant, name: String(e.title || "New stop").slice(0, 200), location_text: e.location || null,
             starts_at: startsAt, status: "upcoming", notes: e.blurb || null, sort: 0,

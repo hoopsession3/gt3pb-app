@@ -41,8 +41,15 @@ export function nextOwnOp(queue: OfflineOp[], owner: string | null): OfflineOp |
 export function enqueueOp(queue: OfflineOp[], op: OfflineOp, max = 200): OfflineOp[] {
   const i = queue.findIndex((q) => q.key === op.key);
   const next = i >= 0 ? [...queue.slice(0, i), { ...op, from: queue[i].from }, ...queue.slice(i + 1)] : [...queue, op];
-  return next.length > max ? next.slice(next.length - max) : next;
+  if (next.length <= max) return next;
+  // Over the cap, the oldest status moves go first — money taken (or given back) at the window never does (R33).
+  let over = next.length - max;
+  return next.filter((q) => { if (over > 0 && !isMoneyOp(q)) { over--; return false; } return true; });
 }
+
+/** Money at the window (R33 — the audit's FE11-02): cash or a card taken (collect_cup), or an order voided (its refund
+ *  flag and its void email go with it — offlineReplay). Pure. */
+export const isMoneyOp = (q: OfflineOp): boolean => q.kind === "collect_cup" || (q.kind === "order_status" && q.value === "void");
 
 // A REPLAYED OP LEAVES THE QUEUE BY ITSELF (2026-10-11). The replay kept its own copy of the queue across each write
 // and put the copy back, so a tap queued while a write was on its way was erased. It reads the queue again now and
@@ -55,8 +62,14 @@ export function settleOp(queue: OfflineOp[], sent: OfflineOp, landed: boolean): 
 
 // Drop ops that are too old to be safely replayed (a status set yesterday shouldn't stomp
 // today's board — the order it targeted is long resolved by someone else).
+// MONEY IS NEVER DROPPED FOR ITS AGE (R33, 2026-10-18 — the audit's FE11-02). A stop's last hour with no bars, the phone
+// closed, the app opened at nine the next morning: every cash collection and void taken that evening was older than six
+// hours and went without a word — orders read unpaid, cash in the till with no order, a void never voided (no refund
+// flag). A collection and a void wait until they are sent, however long: replaying either is safe (the database answers
+// "already settled" to a second collection, refuses a voided order, and a void whose order moved since is refused against
+// what the screen showed — p_from).
 export function pruneStale(queue: OfflineOp[], now: number, maxAgeMs = 6 * 60 * 60 * 1000): OfflineOp[] {
-  return queue.filter((q) => now - q.at <= maxAgeMs);
+  return queue.filter((q) => isMoneyOp(q) || now - q.at <= maxAgeMs);
 }
 
 // Is a cached read snapshot still worth showing? (Fresh enough to orient a human, clearly labeled.)
