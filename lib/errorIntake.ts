@@ -59,7 +59,14 @@ export type ErrorReport = {
 export { reportWords, SERVER_ROWS, SERVER_ALERTS, ERRORS_LINK };
 export { stableFrame } from "./errorKey";
 
-export const NEW_ROWS = { bucket: "client-errors:new", windowMs: 3_600_000, max: 30 } as const;
+// A HUNDRED AND TWENTY, AND THE REFUSALS APART (R24 — the 10/10 audit, operations F1's last). With thirty new errors an hour
+// shared by every browser and five for each address, six addresses — three, with a page's refused reads spending the same
+// thirty — blinded the filing of every real crash for the rest of the hour. A browser's crashes now share a hundred and
+// twenty (a new error is a new fingerprint: a hundred and twenty different bugs in an hour is an attack or an outage, and
+// either is already said); the database's refusals (lib/failureReport) have a pool of their own; and an IPv6 caller's
+// share is its /56 — a household's or an office's block — not each /64 of it, which one router hands out by the hundred.
+export const NEW_ROWS = { bucket: "client-errors:new", windowMs: 3_600_000, max: 120 } as const;
+export const NEW_FAILURE_ROWS = { bucket: "client-errors:new:db", windowMs: 3_600_000, max: 60 } as const;
 // ONE ADDRESS'S SHARE (R18, 2026-10-17 — the 10/10 audit, operations F1). The hour's thirty new browser errors were one
 // pool, and an address may post thirty reports in ten minutes (app/api/errors/report): one script's thirty made-up
 // messages spent all of it, and every real crash a browser sent for the rest of the hour was dropped unfiled. A browser's
@@ -69,13 +76,20 @@ export const NEW_ROWS_PER_ADDRESS = { windowMs: 3_600_000, max: 5 } as const;
 // A page's refused reads (lib/failureReport — six a page load at most) have a share of their own (R18 review): spending
 // the crashes' five, a page whose reads all failed had the crash that followed dropped here.
 export const NEW_FAILURES_PER_ADDRESS = { windowMs: 3_600_000, max: 6 } as const;
-/** The limiter's bucket for one address's new browser errors — an IPv6 caller's /64, as every limit counts it — a
- *  database failure's apart from a crash's. Pure. */
-export const addressBucket = (ip: string, failure = false): string => `client-errors:new${failure ? ":db" : ""}:${limitAddress(ip)}`;
+/** The limiter's bucket for one address's new browser errors — an IPv6 caller's /56 (R24; every other limit counts its
+ *  /64) — a database failure's apart from a crash's. Pure. */
+export const addressBucket = (ip: string, failure = false): string => `client-errors:new${failure ? ":db" : ""}:${block56(limitAddress(ip))}`;
+/** An IPv6 /64 as lib/rateLimit writes it ("2001:db8:1:2::/64"), widened to its /56; anything else as it came. Pure. */
+function block56(a: string): string {
+  const m = /^([0-9a-f]{1,4}):([0-9a-f]{1,4}):([0-9a-f]{1,4}):([0-9a-f]{1,4})::\/64$/.exec(a);
+  return m ? `${m[1]}:${m[2]}:${m[3]}:${(parseInt(m[4], 16) & 0xff00).toString(16)}::/56` : a;
+}
 export const NEW_ALERTS = { bucket: "client-errors:alert", windowMs: 600_000, max: 5 } as const;
-/** Whose budget a report spends: a route's own throw the server's, anything a browser could have sent the browsers'. Pure. */
-export function budgetsFor(r: Pick<ErrorReport, "ua" | "browser">): { rows: typeof NEW_ROWS | typeof SERVER_ROWS; alerts: typeof NEW_ALERTS | typeof SERVER_ALERTS } {
-  return r.browser !== true && r.ua === "server" ? { rows: SERVER_ROWS, alerts: SERVER_ALERTS } : { rows: NEW_ROWS, alerts: NEW_ALERTS };
+/** Whose budget a report spends: a route's own throw the server's, anything a browser could have sent the browsers' — a
+ *  browser's report of what the database refused, the refusals' own (R24). Pure. */
+export function budgetsFor(r: Pick<ErrorReport, "ua" | "browser" | "failure">): { rows: typeof NEW_ROWS | typeof NEW_FAILURE_ROWS | typeof SERVER_ROWS; alerts: typeof NEW_ALERTS | typeof SERVER_ALERTS } {
+  if (r.browser !== true && r.ua === "server") return { rows: SERVER_ROWS, alerts: SERVER_ALERTS };
+  return { rows: r.failure === true && r.browser === true ? NEW_FAILURE_ROWS : NEW_ROWS, alerts: NEW_ALERTS };
 }
 
 /** Fingerprint: normalised message + where it was thrown + path — stable across users, sessions and

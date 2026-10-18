@@ -277,7 +277,8 @@ const BASE = "https://db.example.test";
   const deps = { admin, raiseAlert: async () => {}, raiseAlertOnce: async () => true };
   await EI.fileError({ message: "[load: events] schema 42703 — column events.eta does not exist", url: "https://app.example.test/crew", ua: "t", browser: true, ip: "203.0.113.9", failure: true }, deps);
   await EI.fileError({ message: "TypeError: x is undefined", url: "https://app.example.test/crew", ua: "t", browser: true, ip: "203.0.113.9" }, deps);
-  const shares = asked.filter((a) => a.fn === "rate_limit_hit" && /^client-errors:new:|^client-errors:new:db:/.test(a.p_bucket)).map((a) => `${a.p_bucket}/${a.p_max}`);
+  // An address's shares only — not the pools every address shares (R24: the refusals have a pool of their own, client-errors:new:db).
+  const shares = asked.filter((a) => a.fn === "rate_limit_hit" && /^client-errors:new:|^client-errors:new:db:/.test(a.p_bucket) && a.p_bucket !== "client-errors:new:db").map((a) => `${a.p_bucket}/${a.p_max}`);
   ok("limit address (review): a database failure spends its own share (six), a crash the crashes' (five) — never each other's",
     JSON.stringify(shares) === JSON.stringify(["client-errors:new:db:203.0.113.9/6", "client-errors:new:203.0.113.9/5"]), shares);
 }

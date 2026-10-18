@@ -3,10 +3,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { buildInfo } from "@/lib/buildInfo";
 import { route } from "@/lib/apiRoute";
 import { tokenOk } from "@/lib/webhookSignature";
+import { CRON_JOBS, PUSH_HOOKS } from "@/lib/opsWatch";
 
 export const runtime = "nodejs";
 
-// public: the uptime probe — answers ok/not-ok and the build id, nothing else
+// public: the uptime probe — answers ok/not-ok, the build id, and whether the scheduled jobs run and the push hooks are on (an age and counts), nothing else
 // HEALTH CHECK (2026-07-30 — the "crash/error/outage email" round, part 2). Point any free
 // uptime monitor (UptimeRobot, BetterStack, …) at GET /api/health every few minutes:
 //
@@ -39,6 +40,34 @@ export const runtime = "nodejs";
 // that differ — or a site given one before the check was — would otherwise starve the watchdog in silence, and the
 // scheduled check fails on `probe: false` instead. Both are read trimmed — a secret pasted with its newline is the same
 // secret. A preview deployment never feeds production's watchdog (R19 review): it may share production's database.
+// THE WATCHER, WATCHED, AND THE PUSH WEBHOOKS COUNTED (R24, 2026-10-18 — the 10/10 audit, database F8 and F6, operations
+// F11 and F19). pg_cron runs every scheduled job and cron_watch says one that fails or stops — but nothing in the database
+// can say that pg_cron, or cron_watch, stopped; and ten of the webhooks that carry pushes were made in the dashboard, in
+// no migration, where one switched off is a push that never goes. This asks from outside (0430 ops_alive, lib/opsWatch):
+// `cron.ok` is false when cron_watch hasn't finished in 25 minutes (it runs every ten) or a job the applied migrations
+// made is missing or off; `hooks.ok` when a push webhook is not there or off. The half-hourly production check fails on
+// either. Counts and an age only. null: not measured — 0430 not pasted yet, or the question went unanswered.
+const CRON_STALE_MIN = 25;
+type OpsState = { cron: { ok: boolean; watched_min: number | null; missing: number } | null; hooks: { ok: boolean; off: number } | null };
+async function opsState(): Promise<OpsState> {
+  const none: OpsState = { cron: null, hooks: null };
+  if (!supabaseAdmin) return none;
+  try {
+    const { data, error } = await supabaseAdmin.rpc("ops_alive", {
+      p_jobs: CRON_JOBS.map(([job]) => job), p_from: CRON_JOBS.map(([, madeBy]) => madeBy), p_hooks: [...PUSH_HOOKS],
+    });
+    if (error || !data || typeof data !== "object") return none;
+    const d = data as { watched_at?: string | null; missing?: number; hooks_off?: number };
+    const at = Date.parse(d.watched_at ?? "");
+    const watched_min = Number.isFinite(at) ? Math.max(0, Math.floor((Date.now() - at) / 60_000)) : null;
+    const missing = Number(d.missing) || 0, off = Number(d.hooks_off) || 0;
+    return {
+      cron: { ok: watched_min !== null && watched_min <= CRON_STALE_MIN && missing === 0, watched_min, missing },
+      hooks: { ok: off === 0, off },
+    };
+  } catch { return none; }
+}
+
 async function get(req: Request) {
   const noStore = { "cache-control": "no-store" };
   const build = buildInfo();
@@ -59,7 +88,9 @@ async function get(req: Request) {
       const beat = await supabaseAdmin.from("ops_heartbeat").upsert({ id: 1, seen_at: new Date().toISOString(), source: "health" });
       if (beat.error) console.warn(`health: the watchdog's heartbeat wasn't written — ${beat.error.message}`);   // the probe still answers; said (R12b)
     }
-    return NextResponse.json({ ok: true, db_ms: Date.now() - t0, build, ...(from !== "app" ? { probe } : {}) }, { headers: noStore });
+    const db_ms = Date.now() - t0;
+    const { cron, hooks } = await opsState();
+    return NextResponse.json({ ok: true, db_ms, build, cron, hooks, ...(from !== "app" ? { probe } : {}) }, { headers: noStore });
   } catch {
     return NextResponse.json({ ok: false, build }, { status: 503, headers: noStore });
   }

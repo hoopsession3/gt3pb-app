@@ -46,8 +46,9 @@ async function post(req: Request) {
   if (!res) return NextResponse.json({ error: "That visit isn't on the schedule." }, { status: 404 });
 
   // scoped-by: the stop id is the one cancel_stop just accepted from an owner or admin, by their own token.
-  const { data: stopRow } = await supabaseAdmin.from("stops").select("name, starts_at, cancel_reason").eq("id", id).maybeSingle();
+  const { data: stopRow } = await supabaseAdmin.from("stops").select("name, starts_at, cancel_reason, canceled_at").eq("id", id).maybeSingle();
   const stop = (stopRow as CanceledStop | null) ?? { name: null, starts_at: null, cancel_reason: reason || null };
+  const canceledAt = (stopRow as { canceled_at?: string | null } | null)?.canceled_at ?? null;
 
   // The cup orders placed for it, still to be picked up: voided with it, each its own write, as the caller (R9 — 0416
   // void_stop_orders). Each paid one — online or on the card reader — raises its own refund flag in the database, in the
@@ -68,17 +69,30 @@ async function post(req: Request) {
   // A retry with nothing left to void (R22): its packs are told again below — keyed, so only whoever the first call
   // didn't reach hears it — and nothing new is raised to the crew.
   const retryOnly = res.already && !cups.length && !stuck.length;
+  // …and its cups (R24 — the 10/10 audit, API F11's last): void_stop_orders answers only what IT voided, so a member's cup
+  // that a first call voided and died before telling was never told. A retry reads them back — this stop's, voided since
+  // it was called off (a cup voided on the Pass before that is the Pass's to tell, and told) — and tells each with the
+  // same key: whoever the first call reached hears nothing twice (lib/notify).
+  let retold: CupRow[] = [];
+  let cupsUnread = false;
+  if (res.already && canceledAt) {
+    // scoped-by: stop_id = the stop an owner or admin just canceled through cancel_stop's own check.
+    const back = await supabaseAdmin.from("orders").select("id, user_id, items, paid, collected_via, total_cents, tip_cents, payment_id")
+      .eq("stop_id", id).eq("status", "void").gte("status_changed_at", canceledAt);
+    if (back.error) cupsUnread = true;
+    else retold = ((back.data ?? []) as CupRow[]).filter((c) => c.user_id && !cups.some((x) => x.id === c.id));
+  }
 
   // Told: a member, by email here and on their phone by the push function (the void, R3b). A guest has no address with
   // us — their order's page (the ticket, 0395) says it was called off, and why. The crew's toast counts which is which.
   // Keyed as every "canceled" for an order is (the Pass's void, the member's own cancel): one each, however it is told.
   let told = 0;
-  await eachFew(cups, async (c) => {
+  await eachFew([...cups, ...retold], async (c) => {
     const email = await accountEmail(c.user_id);
     if (email) {
       await notifyCustomer({ email, subject: "GT3 — your order is canceled", message: cupWords(stop, { cups: c.items?.length || 1, how: cupHow(c) }), key: `order-canceled:${c.id}` });
     }
-    if (c.user_id) told++;
+    if (c.user_id && cups.includes(c)) told++;
   });
 
   // The packs picked up at it (0397: a pack knows its stop) and, when no other stop is left that day, the day's packs
@@ -109,14 +123,15 @@ async function post(req: Request) {
   }
   // A retry whose packs couldn't be read goes on to the crew's line below (the R22 review): "Already canceled" would hide
   // that the packs a first call died before telling may never hear.
-  if (retryOnly && !packsUnread) return NextResponse.json({ ok: true, already: true, cups: 0, packs: packs.length });
+  if (retryOnly && !packsUnread && !cupsUnread) return NextResponse.json({ ok: true, already: true, cups: 0, packs: packs.length, retold: retold.length });
 
   // The crew's one line: who was told, how many cards to refund — each has its own flag (above), so the line counts them
   // and never lists them (R9) — and the cups the database would not void, to void on the Pass.
   const refunds = cups.filter((c) => cupHow(c) === "online" || cupHow(c) === "card_reader").length;
   const line = crewWords(stop, { cups: cups.length, told, refunds, packs: packs.length, stuck });
-  const unread = packsUnread ? ` Its packs couldn't be read just now (${res.packs} on it) — their customers were not told; reach them from the pack board.` : "";
-  await raiseAlert({ severity: refunds || stuck.length || packsUnread ? "critical" : "important", category: refunds ? "money" : "order", kind: "stop_canceled",
+  const unread = (packsUnread ? ` Its packs couldn't be read just now (${res.packs} on it) — their customers were not told; reach them from the pack board.` : "")
+    + (cupsUnread ? " Its canceled cups couldn't be read again just now — a member the first try missed may not have been told; their orders say it was called off." : "");
+  await raiseAlert({ severity: refunds || stuck.length || packsUnread || cupsUnread ? "critical" : "important", category: refunds ? "money" : "order", kind: "stop_canceled",
     subjectId: id, title: line.title, body: line.body + unread, link: "/crew?s=now" });
   return NextResponse.json({ ok: true, cups: cups.length, told, paid: refunds, packs: packs.length, stuck: stuck.length });
 }

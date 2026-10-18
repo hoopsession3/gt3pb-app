@@ -731,8 +731,8 @@ export const WEIGHT = {
   "/events":                   { js: 287, css: 90, chunks: 16 },
   "/menu":                     { js: 274, css: 90, chunks: 15 },
   "/reserve":                  { js: 298, css: 90, chunks: 17 },
-  "/delivery":                 { js: 295, css: 90, chunks: 17 },
-  "/3mpire":                   { js: 287, css: 90, chunks: 15 },
+  "/delivery":                 { js: 296, css: 90, chunks: 17 },
+  "/3mpire":                   { js: 288, css: 90, chunks: 15 },
   "/craft":                    { js: 273, css: 90, chunks: 15 },
   "/book":                     { js: 274, css: 90, chunks: 15 },
   "/academy":                  { js: 326, css: 90, chunks: 16 },
@@ -746,10 +746,10 @@ export const WEIGHT = {
   "/built/gt3-built-k7m9x4q2": { js: 271, css: 90, chunks: 15 },
   "/display":                  { js: 272, css: 90, chunks: 15 },
   "/shop":                     { js: 304, css: 90, chunks: 17 },
-  "/primal":                   { js: 273, css: 90, chunks: 15 },
-  "/privacy":                  { js: 269, css: 90, chunks: 14 },
-  "/terms":                    { js: 269, css: 90, chunks: 14 },
-  "/":                         { js: 279, css: 90, chunks: 15 },
+  "/primal":                   { js: 274, css: 90, chunks: 15 },
+  "/privacy":                  { js: 270, css: 90, chunks: 14 },
+  "/terms":                    { js: 270, css: 90, chunks: 14 },
+  "/":                         { js: 280, css: 90, chunks: 15 },
   "/order":                    { js: 278, css: 90, chunks: 15 },
 };
 
@@ -878,6 +878,14 @@ export const WEIGHT = {
 // is held apart from the cart (components/AppProvider useAppStable, +243 bytes raw), so the 148 places that read only
 // those no longer draw again on every change to the cart (performance F19); the three other shell chunks moved +12 to +18
 // raw, the new chunk names they carry. Crossed the rounding line upward on /offer (284.48 → 284.54 KB), recorded.
+// 2026-10-18 (R24 of the 10/10 audit): every route's script +236 bytes (gzip). Built R23 (a09e32f) and this commit and
+// gzipped what each route's HTML references (/ 286 046 → 286 282, /delivery 302 360 → 302 596, /menu 280 543 → 280 779).
+// In the shell, read as the page opens — so it cannot wait for a lazy import: the auth client takes a session from the
+// fragment only, never the query string, and a session's tokens found in the query are taken out of the address
+// (lib/linkSignin answerInFragmentOnly, withoutQueryTokens; security F8's web half), and the hour's ask is used up by the
+// sign-in that came of it (takeSigninAsked; API F23). Crossed the rounding line upward on / (279.34 → 279.57 KB),
+// /delivery (295.27 → 295.50), /3mpire (287.39 → 287.62), /primal (273.44 → 273.67), /privacy and /terms (269.32 →
+// 269.55), recorded.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

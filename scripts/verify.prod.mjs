@@ -87,6 +87,25 @@ if (health.status === 200) {
       : "probe: false — the site has HEALTH_PROBE_SECRET and this check sent none: set the repository secret of that name (GitHub first, then Vercel, then redeploy)");
   else console.log("  · probe: the site has HEALTH_PROBE_SECRET and this run sent none — not judged by hand (the scheduled check carries it; set HEALTH_PROBE_SECRET here to judge it)");
 }
+// THE WATCHER, WATCHED (R24 — database F8 and F6, operations F11 and F19). pg_cron runs every scheduled job and cron_watch
+// says one that fails or stops; nothing in the database can say that pg_cron, or cron_watch, stopped — this check, outside it, can.
+if (health.status === 200) {
+  const cron = health.body?.cron;
+  if (cron === undefined) console.log("  · cron: production's build doesn't say whether the scheduled jobs run (built before R24) — not judged");
+  else if (cron === null) console.log("  · cron: not measured — 0430 isn't pasted yet, or the database didn't answer the question");
+  else ok(`live: the scheduled jobs run — cron_watch finished ${cron.watched_min ?? "?"} min ago, and every job the applied migrations made is there and on`,
+    cron.ok === true,
+    cron.watched_min === null ? "cron_watch has never finished here — pg_cron is off, or the watcher fails every run (Supabase → Integrations → Cron)"
+      : cron.watched_min > 25 ? `cron_watch last finished ${cron.watched_min} minutes ago — pg_cron stopped, or the watcher fails every run (Supabase → Integrations → Cron)`
+      : `${cron.missing} scheduled job(s) the migrations made are missing or switched off (lib/opsWatch names them; Supabase → Integrations → Cron)`);
+  // …and the push webhooks, ten of them made in the dashboard (database F6): one deleted or switched off is a push that
+  // never goes, and said nowhere else.
+  const hooks = health.body?.hooks;
+  if (hooks === undefined) console.log("  · hooks: production's build doesn't say whether the push webhooks are on (built before R24) — not judged");
+  else if (hooks === null) console.log("  · hooks: not measured — 0430 isn't pasted yet, or the database didn't answer the question");
+  else ok("live: every push webhook is on its table and switched on — orders, bookings, sign-ups, tasks, go-lives and alerts reach the push function",
+    hooks.ok === true, `${hooks.off} push webhook(s) missing or switched off — those pushes don't go (lib/opsWatch PUSH_HOOKS names them; Supabase → Database → Webhooks)`);
+}
 if (head) ok(`live: production is this tree (${built || "?"} = ${head})`, same(built, head),
   built ? `production runs ${built}; this tree is ${head}. Not deployed yet, or main is ahead/behind — do not read the rest as a verdict on this commit.` : "no build hash in /api/health");
 else console.log("  · live: not a git checkout here — the build hash is not compared");

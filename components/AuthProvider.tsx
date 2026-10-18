@@ -12,7 +12,7 @@ import { writeViewerHint } from "@/lib/viewerHint";
 import type { Role } from "@/lib/roles";
 import { publicOrigin } from "@/lib/native";
 import { takeReturn } from "@/lib/returnTo";
-import { markSigninAsked, signinAskedHere, OPENED_WITH_SESSION } from "@/lib/linkSignin";
+import { markSigninAsked, takeSigninAsked, OPENED_WITH_SESSION } from "@/lib/linkSignin";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
@@ -330,11 +330,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       else if (u && event === "INITIAL_SESSION" && recoveryPending(null)) setRecovery(true);
       // THE PAGE YOU STARTED ON (2026-10-09, lib/returnTo): a sign-in link lands on the front door; the
       // sign-in it completes goes back to the page the link was asked for on, once.
-      // A session that arrived in the address, on a device that asked for no sign-in in the last day (R9): whose it is,
-      // said once, with a way out — a link someone else asked for, opened here, signed this device into their account.
+      // A session that arrived in the address, on a device that asked for no sign-in in the last hour (R9; R24 — the ask is
+      // used up by it): whose it is, said once, with a way out — a link someone else asked for, opened here, signed this
+      // device into their account.
       if (u && (event === "SIGNED_IN" || event === "INITIAL_SESSION") && OPENED_WITH_SESSION && !linkSeen.current) {
         linkSeen.current = true;
-        if (!signinAskedHere()) { setLinkNotice(u.email ?? "another account"); noticePending.current = true; }
+        if (!takeSigninAsked()) { setLinkNotice(u.email ?? "another account"); noticePending.current = true; }
       }
       if (u && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
         const to = takeReturn();
@@ -379,6 +380,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (opts?.passwordFollows) chooseAsked.current = true;
     const { error } = await supabase.auth.verifyOtp({ email, token, type: kind });
     if (error) chooseAsked.current = asked;
+    else takeSigninAsked();   // the code was the sign-in this device asked for: a link after it is said (R24, lib/linkSignin)
     return error ? { error: error.message } : {};
   }, []);
 
@@ -398,7 +400,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         return { error: "Paste the full URL from your browser's address bar after clicking the sign-in link." };
       // The iPhone app's sign-in link (NativeBridge): the same notice when this phone asked for none (R9, lib/linkSignin) —
       // known before the session lands, so "choose your password" (seeMark, as the profile lands) waits behind it.
-      const notice = !signinAskedHere();
+      const notice = !takeSigninAsked();
       if (notice) noticePending.current = true;
       const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
       if (error) { if (notice) { noticePending.current = false; if (chooseAfterNotice.current) { chooseAfterNotice.current = false; setChoosePassword(true); } } return { error: error.message }; }
@@ -519,7 +521,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       {children}
       {/* Saved is saved (R8): the reload flag goes the moment the new password is, not at Continue — a reload on "Password
           updated." would raise "Set a new password." again, and its Cancel sign them out of the account they just secured. */}
-      {linkNotice && <LinkSigninNotice email={linkNotice} onKeep={() => { markSigninAsked(); setLinkNotice(null); noticePending.current = false; if (chooseAfterNotice.current) { chooseAfterNotice.current = false; setChoosePassword(true); } }} onLeave={() => { noticePending.current = false; chooseAfterNotice.current = false; setLinkNotice(null); void signOut(); }} />}
+      {linkNotice && <LinkSigninNotice email={linkNotice} onKeep={() => { setLinkNotice(null); noticePending.current = false; if (chooseAfterNotice.current) { chooseAfterNotice.current = false; setChoosePassword(true); } }} onLeave={() => { noticePending.current = false; chooseAfterNotice.current = false; setLinkNotice(null); void signOut(); }} />}
       {/* Choosing is optional: Not now keeps them signed in (a code signs them in next time) and takes the mark off
           (password_not_now), as a password saved does — asked once, not at every sign-in. */}
       {choosePassword && <PasswordRecovery mode="choose" updatePassword={async (pw) => { chooseHere.current = true; const r = await updatePassword(pw); if (r.error) chooseHere.current = false; return r; }}

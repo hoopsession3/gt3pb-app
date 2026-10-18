@@ -13643,7 +13643,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     api.indexOf("staffFromRequest(req)") < api.indexOf('sb.rpc("cancel_stop"') && /const sb = callerClient\(req\);/.test(api)
     && api.indexOf('sb.rpc("cancel_stop"') < api.indexOf('sb.rpc("void_stop_orders", { p_stop: id })') && !/\.update\(\{ status: "void" \}\)/.test(api)
     && /const retryOnly = res\.already && !cups\.length && !stuck\.length;/.test(api) && /if \(res\.packs > 0 && res\.day\) \{/.test(api)
-    && /key: `stop-canceled:\$\{id\}:pack:\$\{p\.id\}`/.test(api) && api.indexOf("if (res.packs > 0 && res.day) {") < api.indexOf("if (retryOnly && !packsUnread) return NextResponse.json")
+    && /key: `stop-canceled:\$\{id\}:pack:\$\{p\.id\}`/.test(api) && api.indexOf("if (res.packs > 0 && res.day) {") < api.indexOf("if (retryOnly && !packsUnread && !cupsUnread) return NextResponse.json")
     && /export const POST = route\("crew\/stops\/cancel", post\);/.test(api));
   ok("checkout: every cup order says which stop it is for", (co.match(/stop_id: ordering\.stop\?\.id \?\? null/g) || []).length === 2);
   ok("Find Us: canceled stops are read beside the road (an error is none), and the next one said above the stop",
@@ -14112,7 +14112,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && many.length <= 300);
   const sc = code(rd("app/api/crew/stops/cancel/route.ts")), lc = code(rd("components/crew/LiveControl.tsx")), px = code(rd("supabase/functions/push/index.ts"));
   ok("stop called off: the route counts members told and gives each refund its number; the toast says it; the push tells the member why",
-    /if \(c\.user_id\) told\+\+;/.test(sc) && /cups: cups\.length, told, paid: refunds/.test(sc) && /message: cupWords\(stop, \{ cups: c\.items\?\.length \|\| 1, how: cupHow\(c\) \}\)/.test(sc)
+    /if \(c\.user_id && cups\.includes\(c\)\) told\+\+;/.test(sc) && /cups: cups\.length, told, paid: refunds/.test(sc) && /message: cupWords\(stop, \{ cups: c\.items\?\.length \|\| 1, how: cupHow\(c\) \}\)/.test(sc)
     && /toast\(d\.already \? "Already canceled\." : stopCanceledToast\(d\)\);/.test(lc)
     && /if \(!shown && record\.status === "void" && record\.stop_id\) \{/.test(px) && /if \(st\?\.canceled_at\) shown = stopCanceledShown\(record, st\.name \?\? null, st\.cancel_reason \?\? null\);/.test(px));
 }
@@ -15022,11 +15022,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const LS = require("../.smoke/linkSignin.js"), supa = rd("lib/supabase.ts"), ap = strip(rd("components/AuthProvider.tsx"));
     ok("R9 doors: a session that arrives in an address on a device that asked for none is said — whose account, and a way out (lib/linkSignin)",
       LS.carriesSession("#access_token=a&refresh_token=b&type=magiclink") && !LS.carriesSession("#access_token=a&type=recovery") && !LS.carriesSession("#code=1")
-      && supa.indexOf('import "./linkSignin";') > 0 && supa.indexOf('import "./linkSignin";') < supa.indexOf("createClient(url")
-      && (rd("components/AuthProvider.tsx").match(/markSigninAsked\(\);   \/\//g) || []).length === 3 && /onKeep=\{\(\) => \{ markSigninAsked\(\); setLinkNotice\(null\);/.test(ap)
+      && supa.indexOf('from "./linkSignin";') > 0 && supa.indexOf('from "./linkSignin";') < supa.indexOf("createClient(url")
+      && (rd("components/AuthProvider.tsx").match(/markSigninAsked\(\);   \/\//g) || []).length === 3 && /onKeep=\{\(\) => \{ setLinkNotice\(null\);/.test(ap)
       // R18 review: the same notice, and a password join's "choose your password" after it when both are asked.
-      && /if \(!signinAskedHere\(\)\) \{ setLinkNotice\(u\.email \?\? "another account"\); noticePending\.current = true; \}/.test(ap)
-      && /const notice = !signinAskedHere\(\);[\s\S]{0,400}?if \(notice\) setLinkNotice\(data\.user\?\.email \?\? "another account"\);/.test(ap)
+      && /if \(!takeSigninAsked\(\)\) \{ setLinkNotice\(u\.email \?\? "another account"\); noticePending\.current = true; \}/.test(ap)
+      && /const notice = !takeSigninAsked\(\);[\s\S]{0,400}?if \(notice\) setLinkNotice\(data\.user\?\.email \?\? "another account"\);/.test(ap)
       && /onLeave=\{\(\) => \{ noticePending\.current = false; chooseAfterNotice\.current = false; setLinkNotice\(null\); void signOut\(\); \}\}/.test(ap));
   }
   const gw = rd("app/api/wallet/google/route.ts");

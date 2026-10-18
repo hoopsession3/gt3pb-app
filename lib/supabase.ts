@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // Read before the client below takes a sign-in's session out of the address (R9, lib/linkSignin): this import runs first.
-import "./linkSignin";
+import { answerInFragmentOnly } from "./linkSignin";
 import { dbDeadlineFor, withDeadline } from "./deadline";
 import { reportFailingAnswers } from "./failureReport";
 
@@ -16,7 +16,8 @@ export const supabase: SupabaseClient | null = supabaseEnabled
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true,
+        // From the fragment only, never the query string (R24 — security F8; lib/linkSignin answerInFragmentOnly).
+        detectSessionInUrl: (url) => answerInFragmentOnly(url),
         // implicit flow: token arrives in the URL fragment, so a magic link works even when
         // opened in a different browser/app than it was requested from (no PKCE verifier needed).
         flowType: "implicit",
