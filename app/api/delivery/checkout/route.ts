@@ -178,7 +178,8 @@ async function post(req: Request) {
   // first is still out hears "still confirming", and an answer Square never gave stays "we couldn't confirm" — the crew
   // told once, nothing under that key sent to Square again.
   // A card try, counted at every card door (R9, lib/cardGuard): after a seen key is answered, before it is claimed.
-  const cardRefusal = await cardTryRefusal(supabaseAdmin, { userId: user.id, ip: callerAddress(req) });
+  const payer = { userId: user.id, ip: callerAddress(req) };   // their tries, and a card Square refuses them (R32)
+  const cardRefusal = await cardTryRefusal(supabaseAdmin, payer);
   if (cardRefusal) return NextResponse.json({ error: cardRefusal, charged: false }, { status: 429 });
   const held = await claimKey(seen.claims, idemKey, { channel: "delivery", card: true, amountCents: quote.totalCents }, now, stopped, say);
   if ("answer" in held) return reply(held.answer);
@@ -268,7 +269,7 @@ async function post(req: Request) {
   return reply(await chargeOnce({
     claims: held.claims, key: idemKey, now,
     // Delivery always charges on order — no cash on delivery.
-    charge: () => chargeCard({ token, locationId, sourceId: b.sourceId!, amountCents: quote.totalCents, note: `GT3 Sunday delivery ${slot.deliveryDateKey}`, idempotencyKey: idemKey, buyerEmail }),
+    charge: () => chargeCard({ token, locationId, sourceId: b.sourceId!, amountCents: quote.totalCents, note: `GT3 Sunday delivery ${slot.deliveryDateKey}`, idempotencyKey: idemKey, buyerEmail, who: payer }),
     record: (paymentId) => recordDelivery(paymentId),
     // chargeCard threw: a dropped connection after Square may already have taken the money, or an answer that does not
     // say whether it did. The claim is 'unknown' from here; this answer and every retry's are the same words, and the

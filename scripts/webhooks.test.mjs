@@ -164,7 +164,7 @@ class NextResponseShim extends Response {
   static json(body, init) { return new Response(JSON.stringify(body), { status: init?.status ?? 200, headers: { "content-type": "application/json" } }); }
 }
 const nextServer = { NextResponse: NextResponseShim };
-function world({ rpc: answer = () => ({ data: null, error: null }), table: tableAnswer = () => ({ data: null, error: null, count: 0 }) } = {}) {
+function world({ rpc: answer = () => ({ data: null, error: null }), table: tableAnswer = () => ({ data: null, error: null, count: 0 }), lasts = true } = {}) {
   const calls = [], alerts = [], filed = [], rpcs = [];
   const rpc = async (name, args) => { rpcs.push({ name, args }); return answer(name, args); };
   const from = (table) => {
@@ -182,7 +182,9 @@ function world({ rpc: answer = () => ({ data: null, error: null }), table: table
     "next/server": nextServer,
     "@/lib/supabaseAdmin": { supabaseAdmin: { from, rpc } },
     "./supabaseAdmin": { supabaseAdmin: { from, rpc } },
-    "@/lib/serverAlerts": { raiseAlert: async (a) => { alerts.push(a); }, raiseAlertOnce: async (a) => { alerts.push(a); return true; } },
+    // refusalLasts (R32 — API11-04): whether a failed signature has lasted (three in the hour, none verified in a day) —
+    // its own rules are run below, from lib/serverAlerts; here it answers as each case says.
+    "@/lib/serverAlerts": { raiseAlert: async (a) => { alerts.push(a); }, raiseAlertOnce: async (a) => { alerts.push(a); return true; }, refusalLasts: async () => lasts },
     "./errorIntake": { fileError: async (e) => { filed.push(e); return true; } },
     "./apliiqOrder": { buildOrderPayload: () => ({}) },
     "./errorMessage": { errorMessage: (e) => String(e) },
@@ -205,7 +207,7 @@ const post = async (mod, url, headers, body) => {
 await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: SQ_KEY, SQUARE_WEBHOOK_URL: SQ_URL }, async () => {
   // The route says each refusal in the platform's log (R14); the test keeps its own output to its checks.
   const quiet = async (fn) => { const e = console.error, w = console.warn; console.error = () => {}; console.warn = () => {}; try { return await fn(); } finally { console.error = e; console.warn = w; } };
-  const run = async (headers, body) => quiet(async () => { const w = world(); const r = await post(loader(w.shims)("app/api/square/webhook/route.ts"), SQ_URL, headers, body); return { ...r, w }; });
+  const run = async (headers, body, opts = {}) => quiet(async () => { const w = world(opts); const r = await post(loader(w.shims)("app/api/square/webhook/route.ts"), SQ_URL, headers, body); return { ...r, w }; });
   const body = JSON.stringify({ type: "unknown.event", event_id: "evt-sq-test" });
   const none = await run({}, body), wrong = await run({ "x-square-hmacsha256-signature": sqSign(body, SQ_URL, "not-the-key") }, body);
   ok("square route: no signature → 401, nothing read or written", none.status === 401 && none.w.calls.length === 0, none.status);
@@ -222,6 +224,10 @@ await withEnv({ SQUARE_WEBHOOK_SIGNATURE_KEY: SQ_KEY, SQUARE_WEBHOOK_URL: SQ_URL
   const sigAlert = rotated.w.alerts.find((a) => a.kind === "webhook_signature");
   ok("square route (R14): a Square-shaped event whose signature fails → 401, and the crew is told (critical, money, once while it lasts)",
     rotated.status === 401 && !!sigAlert && sigAlert.severity === "critical" && sigAlert.category === "money" && sigAlert.subjectId === "square" && !rotated.w.wrote(), rotated.w.alerts);
+  // R32 (API11-04): …only once it lasts — a stranger's Square-shaped post with a wrong signature, before that, is the log's.
+  const stranger = await quiet(() => run({ "x-square-hmacsha256-signature": sqSign(sqShaped, SQ_URL, "a-strangers-guess") }, sqShaped, { lasts: false }));
+  ok("square route (R32): a Square-shaped bad signature that hasn't lasted (a stranger's post) → 401, and tells no one",
+    stranger.status === 401 && stranger.w.alerts.length === 0, stranger.w.alerts);
   ok("square route (R14): …a post with no signature, or one not shaped like Square's, tells no one",
     none.w.alerts.length === 0 && wrong.w.alerts.length === 0 && forged.w.alerts.length === 0, { none: none.w.alerts, wrong: wrong.w.alerts });
   // What threw is kept with the event, in its own words, and Square is answered 500 so it sends the event again.

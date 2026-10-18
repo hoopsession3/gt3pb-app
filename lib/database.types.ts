@@ -11908,6 +11908,8 @@ export type Database = {
         { Args: Record<PropertyKey, never>; Returns: string }
       caller_address:
         { Args: Record<PropertyKey, never>; Returns: string }
+      caller_block:
+        { Args: Record<PropertyKey, never>; Returns: string }
       cancel_any_order:
         { Args: { p_channel: string | null; p_id: string | null }; Returns: boolean }
       cancel_by_ticket:

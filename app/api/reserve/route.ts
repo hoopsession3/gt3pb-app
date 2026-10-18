@@ -172,7 +172,8 @@ async function post(req: Request) {
   // pickup — charged nothing, and each an alert on the crew's phones and an email to every admin — four an hour a member,
   // and no more than three still to be paid at the window at once. After a seen key is answered, before it is claimed.
   if (charging) {
-    const cardRefusal = await cardTryRefusal(supabaseAdmin, { userId: user.id, ip: callerAddress(req) });
+    const payer = { userId: user.id, ip: callerAddress(req) };   // their tries, and a card Square refuses them (R32)
+    const cardRefusal = await cardTryRefusal(supabaseAdmin, payer);
     if (cardRefusal) return NextResponse.json({ error: cardRefusal, charged: false }, { status: 429 });
   } else {
     const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `reserve-later:u:${user.id}`, p_window_ms: 3_600_000, p_max: 4 });
@@ -276,7 +277,7 @@ async function post(req: Request) {
   const buyerEmail = await accountEmail(user.id);
   return reply(await chargeOnce({
     claims: held.claims, key: idemKey, now,
-    charge: () => chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: idemKey, buyerEmail }),
+    charge: () => chargeCard({ token: token!, locationId: locationId!, sourceId: body.sourceId!, amountCents: amount, note: `GT3PB order-ahead · ${size}-pack · ${glass} · pickup ${dropDate}`, idempotencyKey: idemKey, buyerEmail, who: { userId: user.id, ip: callerAddress(req) } }),
     record: (paymentId) => recordPack(paymentId, true),
     // chargeCard threw: Square's answer never came or did not say whether the card was charged. The claim is 'unknown'
     // from here; this answer and every retry's are the same words, and the payment, if there is one, carries the key.

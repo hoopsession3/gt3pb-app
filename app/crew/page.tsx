@@ -3315,7 +3315,8 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           )}
           <OpsPlan noteId={note.id} />
           <div className="note-fu-h">Follow-ups
-            <button type="button" className="btn-ter ml-auto" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : <><Icon name="sparkles" /> Suggest</>}</button>
+            {/* An owner's or admin's (R32 — the follow-ups are tasks, and tasks are theirs to add: /api/agents/recap asks the same) */}
+            {isAdmin && <button type="button" className="btn-ter ml-auto" onClick={suggest} disabled={suggesting}>{suggesting ? "Reading…" : <><Icon name="sparkles" /> Suggest</>}</button>}
           </div>
           {items.map((t) => (
             <div key={t.id} className="note-fu-wrap">

@@ -53,14 +53,15 @@ async function post(req: Request) {
   const key = safeIdemKey(body.idempotencyKey);
   const sourceId = typeof body.sourceId === "string" && body.sourceId ? body.sourceId : null;
   // A card try, counted at every card door (R9, lib/cardGuard); a quote, or a change with no card, is not one.
-  const cardRefusal = sourceId && !quote ? await cardTryRefusal(sb, { userId: user.id, ip: callerAddress(req) }) : null;
+  const payer = { userId: user.id, ip: callerAddress(req) };   // their tries, and a card Square refuses them (R32)
+  const cardRefusal = sourceId && !quote ? await cardTryRefusal(sb, payer) : null;
   if (cardRefusal) return NextResponse.json({ error: cardRefusal, charged: false }, { status: 429 });
 
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   const money: Money | null = token && locationId ? {
     charge: async ({ amountCents, key: k, note }) => sourceId
-      ? chargeCard({ token, locationId, sourceId, amountCents, note, idempotencyKey: k, buyerEmail: await accountEmail(user.id) })
+      ? chargeCard({ token, locationId, sourceId, amountCents, note, idempotencyKey: k, buyerEmail: await accountEmail(user.id), who: payer })
       : { ok: false as const, error: "Add a card to pay the difference." },
     refund: ({ paymentId, amountCents, key: k, reason }) => refundPayment({ token, paymentId, amountCents, idempotencyKey: k, reason }),
   } : null;

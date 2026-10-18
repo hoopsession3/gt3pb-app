@@ -39,7 +39,8 @@ async function post(req: Request) {
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
   if (sourceId && (!token || !locationId)) return NextResponse.json({ error: "Card checkout isn't switched on yet." }, { status: 503 });
   // A card try, counted at every card door (R9, lib/cardGuard) — before the reserve is read or a key is claimed.
-  const cardRefusal = sourceId ? await cardTryRefusal(supabaseAdmin, { userId: user.id, ip: callerAddress(req) }) : null;
+  const payer = { userId: user.id, ip: callerAddress(req) };   // their tries, and a card Square refuses them (R32)
+  const cardRefusal = sourceId ? await cardTryRefusal(supabaseAdmin, payer) : null;
   if (cardRefusal) return NextResponse.json({ error: cardRefusal, charged: false }, { status: 429 });
 
   // The reserve, with its pickup (0400).
@@ -62,7 +63,7 @@ async function post(req: Request) {
     steps: reserveSteps(db), claims: checkoutClaims(db), tell, now: () => Date.now(),
     userId: user.id, who, key, reserve, qty: body.qty, expectedCents: body.expectedCents, sourceId,
     // buyerEmail → Square emails the receipt. The key goes as the payment's idempotency key and its reference_id.
-    charge: (amountCents, note) => chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents, note, idempotencyKey: key, buyerEmail: email }),
+    charge: (amountCents, note) => chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents, note, idempotencyKey: key, buyerEmail: email, who: payer }),
   }));
 }
 

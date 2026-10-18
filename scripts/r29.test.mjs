@@ -39,19 +39,36 @@ const load = libLoader();
 const CG = load("lib/cardGuard.ts");
 const SQ = load("lib/squareServer.ts");
 ok("compiled: lib/cardGuard, lib/squareServer", typeof CG.cardTryRefusal === "function" && typeof CG.cardRefused === "function" && typeof SQ.isCardRefusal === "function");
+// R32 (API11-01, SEC11-02): the pause is the refused caller's, never everyone's — R29's minute for everyone together
+// tells the crew and pauses nobody. The rules below are R32's; the ceiling R29 put on tries (240) stands.
 {
   const s = store();
-  for (let i = 0; i < 19; i++) await CG.cardRefused(s);
-  ok("refused cards: nineteen in a minute pause nothing", (await CG.cardsPaused(s)) === false && s.counts["card:refused"] === 19);
-  await CG.cardRefused(s);
-  ok("…the twentieth pauses card payments for the rest of the minute", (await CG.cardsPaused(s)) === true && CG.CARD_TRIES.refusedPerMinute === 20);
-  await CG.cardRefused(s); await CG.cardRefused(s);
-  ok("…and a refusal past the cap is never counted past it (the store's own rule)", s.counts["card:refused"] === 20);
+  const a = { ip: "1.2.3.4" }, b = { ip: "5.6.7.8" };
+  for (let i = 0; i < 3; i++) await CG.cardRefused(s, a);
+  ok("refused cards: three of an address's in ten minutes pause nothing", (await CG.cardsPaused(s, a)) === false && s.counts["card:refused:1.2.3.4"] === 3);
+  await CG.cardRefused(s, a);
+  ok("…the fourth pauses that address — and only it: another address still pays", (await CG.cardsPaused(s, a)) === true && (await CG.cardsPaused(s, b)) === false
+    && CG.CARD_TRIES.refusedPerCaller === 4 && CG.refusedLimits(a)[0].windowMs === 600_000);
+  await CG.cardRefused(s, a); await CG.cardRefused(s, a);
+  ok("…and a refusal past its cap is never counted past it (the store's own rule)", s.counts["card:refused:1.2.3.4"] === 4);
   s.asked.length = 0;
-  const words = await CG.cardTryRefusal(s, { userId: "u-1", ip: "1.2.3.4" });
-  ok("paused: a card try is told so — nothing charged — before any count is asked (the person's, the address's, everyone's)",
-    words === CG.CARDS_PAUSED_WORDS && /paused for a minute/.test(words) && /Nothing was charged/.test(words)
+  const words = await CG.cardTryRefusal(s, a);
+  ok("paused: the caller is told so — nothing charged — before any try is counted",
+    words === CG.CARDS_PAUSED_WORDS && /refused from here/.test(words) && /Nothing was charged/.test(words)
     && s.asked.every(([fn]) => fn === "rate_limit_peek"), { words, asked: s.asked });
+  ok("…while everyone else's try goes on to be counted and let through", (await CG.cardTryRefusal(s, b)) === null);
+}
+{
+  const s = store();
+  for (let i = 0; i < 4; i++) await CG.cardRefused(s, { userId: "u-1", ip: `10.0.0.${i}` });
+  ok("a signed-in person refused four times from four addresses is paused on any of them — a fifth address too",
+    (await CG.cardsPaused(s, { userId: "u-1", ip: "10.0.0.9" })) === true && (await CG.cardsPaused(s, { userId: "u-2", ip: "10.0.0.9" })) === false);
+}
+{
+  const s = store();
+  for (let i = 0; i < 25; i++) await CG.cardRefused(s, { ip: `9.9.${i}.1` });
+  ok("everyone's minute: twenty-five refused from twenty-five addresses pause nobody — not one more address",
+    s.counts["card:refused"] === 20 && (await CG.cardsPaused(s, { ip: "8.8.8.8" })) === false && (await CG.cardTryRefusal(s, { ip: "8.8.8.8" })) === null);
 }
 {
   const s = store();
@@ -68,27 +85,35 @@ ok("compiled: lib/cardGuard, lib/squareServer", typeof CG.cardTryRefusal === "fu
 }
 {
   const before = store({ peekMissing: true });
-  for (let i = 0; i < 25; i++) await CG.cardRefused(before);
+  for (let i = 0; i < 25; i++) await CG.cardRefused(before, { ip: "9.9.9.9" });
   const broken = { rpc: async () => { throw new Error("socket hang up"); } };
-  ok("before 0434 (no rate_limit_peek), or a store that can't answer: nothing pauses — the person's and the address's counts still stand",
-    (await CG.cardsPaused(before)) === false && (await CG.cardTryRefusal(before, { ip: "9.9.9.9" })) === null
-    && (await CG.cardsPaused(broken)) === false && (await CG.cardTryRefusal(broken, { ip: "9.9.9.9" })) === null);
+  ok("before 0434 (no rate_limit_peek), or a store that can't answer: nothing pauses — the person's and the address's tries still stand",
+    (await CG.cardsPaused(before, { ip: "9.9.9.9" })) === false && (await CG.cardTryRefusal(before, { ip: "9.9.9.9" })) === null
+    && (await CG.cardsPaused(broken, { ip: "9.9.9.9" })) === false && (await CG.cardTryRefusal(broken, { ip: "9.9.9.9" })) === null);
 }
-ok("a refusal of the card is counted — its decline, a card entry Square wouldn't take — and Square's own trouble isn't",
+ok("a refusal of the card is the card's — its decline, a number or date Square won't take — a used or expired token isn't, nor Square's own trouble",
   SQ.isCardRefusal(SQ.DECLINE_WORDS) && SQ.isCardRefusal(SQ.CARD_ENTRY_WORDS) && !SQ.isCardRefusal(SQ.SQUARE_DOWN_WORDS)
-  && SQ.refusalWords(402, { errors: [{ category: "PAYMENT_METHOD_ERROR", code: "CARD_DECLINED" }] }) === SQ.DECLINE_WORDS);
+  && SQ.refusalWords(402, { errors: [{ category: "PAYMENT_METHOD_ERROR", code: "CARD_DECLINED" }] }) === SQ.DECLINE_WORDS
+  && SQ.refusalKind({ errors: [{ category: "PAYMENT_METHOD_ERROR", code: "CARD_DECLINED" }] }) === "card"
+  && SQ.refusalKind({ errors: [{ category: "INVALID_REQUEST_ERROR", code: "INVALID_CARD_DATA" }] }) === "card"
+  && SQ.refusalKind({ errors: [{ category: "INVALID_REQUEST_ERROR", code: "CARD_TOKEN_USED" }] }) === "token"
+  && SQ.refusalKind({ errors: [{ category: "INVALID_REQUEST_ERROR", code: "CARD_TOKEN_EXPIRED" }] }) === "token"
+  && SQ.refusalKind({ errors: [{ category: "AUTHENTICATION_ERROR", code: "UNAUTHORIZED" }] }) === "square");
 {
   const sq = code(read("lib/squareServer.ts")), cg = code(read("lib/cardGuard.ts"));
-  ok("chargeCard counts each refusal of a card (and only those), in the running app — a test compiling the file alone counts nothing",
-    /const words = refusalWords\(res\.status, data\);\s*if \(isCardRefusal\(words\)\) await countCardRefused\(\);\s*return \{ ok: false, error: words \};/.test(sq)
-    && /async function countCardRefused\(\): Promise<void> \{\s*if \(typeof process === "undefined" \|\| !process\.env\.NEXT_RUNTIME\) return;/.test(sq)
-    && /await cardRefused\(supabaseAdmin\)/.test(sq));
-  ok("the pause tells the crew once an hour (raiseAlertOnce, an hour's subject), critical, with where to look",
-    /kind: "cards_paused", subjectId: `cards-paused:\$\{now\.toISOString\(\)\.slice\(0, 13\)\}`/.test(cg) && /severity: "critical", category: "money"/.test(cg)
-    && /link: "\/crew\?s=money&a=pay"/.test(cg) && /if \(typeof process !== "undefined" && process\.env\.NEXT_RUNTIME\) \{/.test(cg));
+  ok("chargeCard counts each refusal of the card against who was paying (and only those), in the running app — a test compiling the file alone counts nothing",
+    /const words = refusalWords\(res\.status, data\);\s*if \(refusalKind\(data\) === "card" && opts\.who\) await countCardRefused\(opts\.who\);\s*return \{ ok: false, error: words \};/.test(sq)
+    && /async function countCardRefused\(who: \{ userId\?: string \| null; ip: string \}\): Promise<void> \{\s*if \(typeof process === "undefined" \|\| !process\.env\.NEXT_RUNTIME\) return;/.test(sq)
+    && /await cardRefused\(supabaseAdmin, who\)/.test(sq));
+  ok("everyone's minute tells the crew once an hour (raiseAlertOnce, an hour's subject), critical, with where to look — and pauses nobody",
+    /kind: "cards_refused", subjectId: `cards-refused:\$\{now\.toISOString\(\)\.slice\(0, 13\)\}`/.test(cg) && /severity: "critical", category: "money"/.test(cg)
+    && /link: "\/crew\?s=money&a=pay"/.test(cg) && /if \(typeof process !== "undefined" && process\.env\.NEXT_RUNTIME\) \{/.test(cg) && !/cards_paused/.test(cg));
   const doors = ["app/api/delivery/checkout/route.ts", "app/api/reserves/pay/route.ts", "app/api/reserve/route.ts", "app/api/reserve/change/route.ts", "app/api/subscriptions/create/route.ts"];
   const off = doors.filter((f) => { const c = code(read(f)); return !/const cardRefusal = [^;]*await cardTryRefusal\(/.test(c) || !/if \(cardRefusal\) return NextResponse\.json\(\{ error: cardRefusal/.test(c) || /cardTryFits/.test(c); });
-  ok("every other card door asks cardTryRefusal and answers in its words — the pause's, or too many tries", off.length === 0, off);
+  ok("every other card door asks cardTryRefusal and answers in its words — the caller's pause, or too many tries", off.length === 0, off);
+  const charging = ["app/api/checkout/route.ts", "app/api/shop/checkout/route.ts", "app/api/delivery/checkout/route.ts", "app/api/reserves/pay/route.ts", "app/api/reserve/route.ts", "app/api/reserve/change/route.ts"];
+  const blind = charging.filter((f) => { const c = code(read(f)); return (c.match(/chargeCard\(\{/g) || []).length !== (c.match(/chargeCard\(\{[^\n]*\bwho: /g) || []).length; });
+  ok("every chargeCard says who is paying, so a refused card is counted against them (R32)", blind.length === 0, blind);
 }
 
 // ── 2 · the checkouts ask everyone's ceiling of a try that would reach Square ─────────────────────────────────────────
@@ -97,13 +122,13 @@ ok("a refusal of the card is counted — its decline, a card entry Square wouldn
   const at = (c, s) => c.indexOf(s);
   ok("cup checkout: the address's own six a minute before the menu is read; the pause and everyone's two hundred and forty after the price is agreed, before the claim and the card",
     /\{ bucket: `checkout:\$\{ip\}`, windowMs: 60_000, max: 6 \},\s*\]\)\)\)/.test(cup) && at(cup, "checkout:${ip}") < at(cup, "readMenuRows(supabaseAdmin, uniq)")
-    && at(cup, "if (expected !== null && expected !== due) {") < at(cup, "const paused = await cardsPausedRefusal(supabaseAdmin);")
-    && at(cup, "const paused = await cardsPausedRefusal(supabaseAdmin);") < at(cup, '{ bucket: "checkout:global", windowMs: 60_000, max: CARD_TRIES.allPerMinute }')
+    && at(cup, "if (expected !== null && expected !== due) {") < at(cup, "const paused = await cardsPausedRefusal(supabaseAdmin, { userId: caller?.id ?? null, ip });")
+    && at(cup, "const paused = await cardsPausedRefusal(supabaseAdmin, { userId: caller?.id ?? null, ip });") < at(cup, '{ bucket: "checkout:global", windowMs: 60_000, max: CARD_TRIES.allPerMinute }')
     && at(cup, '{ bucket: "checkout:global", windowMs: 60_000, max: CARD_TRIES.allPerMinute }') < at(cup, "return reply(await chargeOnce({")
     && (cup.match(/"checkout:global"/g) || []).length === 1);
   ok("shop checkout: the same — the address's six before the cart is read; the pause and everyone's after the cart is priced and agreed, before the claim",
     /\{ bucket: `shop-checkout:\$\{ip\}`, windowMs: 60_000, max: 6 \},\s*\]\)\)\)/.test(shop) && at(shop, "shop-checkout:${ip}") < at(shop, "const rawItems =")
-    && at(shop, "if (raised) return NextResponse.json(raised, { status: 409 });") < at(shop, "const paused = await cardsPausedRefusal(supabaseAdmin);")
+    && at(shop, "if (raised) return NextResponse.json(raised, { status: 409 });") < at(shop, "const paused = await cardsPausedRefusal(supabaseAdmin, { userId: user?.id ?? null, ip });")
     && at(shop, '{ bucket: "shop-checkout:global", windowMs: 60_000, max: CARD_TRIES.allPerMinute }') < at(shop, "const held = await claimKey(")
     && (shop.match(/"shop-checkout:global"/g) || []).length === 1);
 }

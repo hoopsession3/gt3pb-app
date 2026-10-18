@@ -51,8 +51,12 @@ export type Span =
  *
  * Protocol-relative "//evil.example" is excluded deliberately: it starts with "/" and is NOT
  * internal, which is the trap a naive startsWith("/") walks into.
+ *
+ * And no backslash, anywhere (R32 — the audit's SEC11-03): a browser reads "\" as "/" in a web address, so
+ * "/\evil.example" went to "//evil.example" — another site, from a link this filter called internal. Control characters
+ * the address parser drops are refused with the spaces.
  */
-export const isInternalHref = (href: string): boolean => /^\/(?!\/)[^\s)]*$/.test(href);
+export const isInternalHref = (href: string): boolean => /^\/(?![\/\\])[^\s)\\\x00-\x1f\x7f]*$/.test(href);
 
 /** One rendered line. A paragraph and a list item are both stacks of these — see Item. */
 export type Line = Span[];

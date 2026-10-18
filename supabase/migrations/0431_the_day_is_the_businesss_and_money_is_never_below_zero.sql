@@ -20,8 +20,11 @@
 -- break would refuse every later write to them): it is named in the crew's inbox instead, to put right, and the next
 -- paste adds it.
 --
--- set lock_timeout (database F16): a check is added NOT VALID (a moment's lock) and then validated (reads and writes go
--- on while it reads the rows); a function or a view made again holds its own lock for a moment only.
+-- set lock_timeout (database F16): each check is added and proven inside this paste, and a paste is one transaction, so
+-- each money table's strongest lock is held from its check to the paste's end — reads and writes of the orders, packs,
+-- deliveries, shop orders, office orders and invoices wait until it commits: well under a second on tables this size,
+-- longer as they grow (R32 put this right — the audit's DB11-04; it once said reads and writes go on). Paste it when
+-- service is quiet. A function or a view made again holds its own lock for a moment only.
 -- existing rows: none — the defaults date new rows only (which evening a row was written cannot be told now), and every
 --   check is proven against the rows already there before it stands.
 -- changelog: below.

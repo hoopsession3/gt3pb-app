@@ -220,6 +220,12 @@ export function pasteHeader(highest, generatedAt, pendingCount, source = "unknow
     "--",
     "-- The line below is what stops that happening again: scripts/drift.check.mjs fails the release",
     "-- if supabase/migrations/ ever holds a migration numbered above it.",
+    "--",
+    "-- EACH MIGRATION IS ITS OWN TRANSACTION (R32 — the 10/10 audit, DB11-04 and OPS11-03). A paste runs as one transaction",
+    "-- unless it says otherwise, so a lock one migration took was held to the end of all of them, and one that stopped took",
+    "-- the others back with it. Each section below is wrapped in its own begin … commit: its locks end with it, and if one",
+    "-- stops (a busy table's lock wait ran out), the ones above it stay applied and nothing below it runs — paste the file",
+    "-- again a moment later; a migration already applied changes nothing the second time.",
     `-- pending-from: ${String(highest).padStart(4, "0")}`,
     `-- generated-at: ${generatedAt}`,
     `-- pending-count: ${pendingCount}`,
@@ -308,7 +314,9 @@ async function main() {
         "-- ============================================================",
         `-- ${m.file}`,
         "-- ============================================================",
+        `begin;   -- ${m.file.slice(0, 4)}, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again`,
         readFileSync(join(DIR, m.file), "utf8").replace(/\s*$/, ""),
+        `commit;  -- ${m.file.slice(0, 4)}`,
         "",
       ].join("\n")).join("\n")
     : [

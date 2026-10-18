@@ -104,6 +104,25 @@ async function alertNotWritten(a: { severity: AlertSeverity; category: AlertCate
 // of the same event is not a second raise, so it is not counted as one.
 //
 // Returns whether it actually raised, so a caller can tell "already open" from "written".
+/**
+ * A webhook's signature refused, and it isn't a stranger's (R32 — the audit's API11-04). Anyone can post a body shaped
+ * like a provider's event with a wrong signature, and each one raised a critical telling the owner to change a key that
+ * was working. A key that is really wrong refuses EVERY event — so this is true only once three were refused in the
+ * hour (rate_limit_hit — false is past the cap) and none of that provider's events has passed its check in a day (the
+ * webhook inbox, 0230). Fails quiet: a store that can't be asked tells nobody, and the route's log line still stands.
+ */
+export async function refusalLasts(provider: string, now: Date = new Date()): Promise<boolean> {
+  if (!supabaseAdmin) return false;
+  try {
+    const under = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `${provider}:signature-refused`, p_window_ms: 3_600_000, p_max: 2 });
+    if (under.error || under.data !== false) return false;   // the first two in the hour: the log's alone
+    const since = new Date(now.getTime() - 24 * 3_600_000).toISOString();
+    const { count, error } = await supabaseAdmin.from("webhook_events").select("id", { count: "exact", head: true })
+      .eq("provider", provider).gte("received_at", since);
+    return !error && count === 0;
+  } catch { return false; }
+}
+
 export async function raiseAlertOnce(
   a: Parameters<typeof raiseAlert>[0] & { kind: string; subjectId: string },
 ): Promise<boolean> {

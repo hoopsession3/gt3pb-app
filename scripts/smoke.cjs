@@ -2294,7 +2294,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     if (!fs.existsSync(f)) continue;
     const src = fs.readFileSync(f, "utf8");
     const resolves = /const tenant = await tenantFromRequest\(req\)/.test(src);
-    const uses = /\.eq\("tenant_id", tenant\)/.test(src);
+    const uses = /\.eq\("tenant_id", tenant\)|\btenant_id: tenant\b/.test(src);   // read by it, or written with it (R32)
     if (resolves !== uses) half.push(`${d.name}: resolves=${resolves} uses=${uses}`);
     if (resolves) {
       const guarded = /if \(!tenant\) return/.test(src);
@@ -15809,7 +15809,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const wh = rd("app/api/square/webhook/route.ts");
   ok("R14 webhook: a webhook not set up, or a signature that stops matching, is said in the log and to the crew once while it lasts; what threw is kept with the event",
     /console\.error\(`\[square-webhook\] not set up \(\$\{missing\}\) — Square's event refused`\);/.test(wh) && /kind: "webhook_off", subjectId: "square"/.test(wh)
-      && /if \(req\.headers\.get\("x-square-hmacsha256-signature"\) && \/"merchant_id"\/\.test\(raw\) && \/"event_id"\/\.test\(raw\)\) \{/.test(wh) && /kind: "webhook_signature", subjectId: "square"/.test(wh)
+      && /if \(req\.headers\.get\("x-square-hmacsha256-signature"\) && \/"merchant_id"\/\.test\(raw\) && \/"event_id"\/\.test\(raw\) && await refusalLasts\("square"\)\) \{/.test(wh) && /kind: "webhook_signature", subjectId: "square"/.test(wh)
       && /update\(\{ error: `processing threw: \$\{why\}` \}\)/.test(wh));
   // F9 — the signed-in smoke: a gate that cannot run when asked fails; it runs for real after each deploy
   const sa = rd("scripts/smoke.authed.mjs"), ci = rd(".github/workflows/ci.yml"), pr = rd(".github/workflows/production.yml"), ios = rd(".github/workflows/ios.yml");

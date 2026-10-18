@@ -135,7 +135,13 @@ export function pendingMigrations(src = null, file = PENDING_FILE) {
   const out = new Map();
   for (let k = 0; k < starts.length; k++) {
     const end = k + 1 < starts.length ? starts[k + 1][0] - 1 : lines.length;
-    out.set(starts[k][1], lines.slice(starts[k][0] + 2, end).join("\n"));
+    // Each section is its own transaction (R32): the generator's `begin;` line before the migration and `commit;` after
+    // it are the paste's, not the migration's text.
+    let body = lines.slice(starts[k][0] + 2, end);
+    if (body.length && /^begin;/.test(body[0])) body = body.slice(1);
+    while (body.length && body[body.length - 1].trim() === "") body.pop();
+    if (body.length && /^commit;/.test(body[body.length - 1])) body = body.slice(0, -1);
+    out.set(starts[k][1], body.join("\n"));
   }
   return out.size === Number(want[1]) ? out : null;
 }

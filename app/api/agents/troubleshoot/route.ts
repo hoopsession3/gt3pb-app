@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
@@ -90,6 +90,10 @@ async function post(req: Request) {
 
   // ── COMMIT: log the incident + (optionally) write kept prevention items as event_tasks ──
   if (body.commit) {
+    // AN OWNER'S OR ADMIN'S TO WRITE (R32 — the audit's API11-03): the database keeps an event's or a stop's tasks to owners and admins (RLS:
+    // is_admin()); this door asked only "on the crew?" and wrote with the server's key past every policy. Asked as the
+    // database asks it now — the screen offers it to owners and admins only.
+    if (!(await adminFromRequest(req))) return NextResponse.json({ ok: false, error: "Only an owner or admin can log this and add its fixes." }, { status: 403 });
     const c = body.commit;
     const problem = String(c.problem ?? "").trim().slice(0, 2000);
     if (!problem) return NextResponse.json({ ok: false, error: "problem required" }, { status: 400 });

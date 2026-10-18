@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { apliiqGet } from "@/lib/apliiq";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
@@ -94,7 +94,10 @@ function buildVariants(p: any): any[] {
 
 async function post(req: Request) {
   if (!supabaseAdmin) return NextResponse.json({ error: "Storage isn't switched on." }, { status: 503 });
-  if (!(await staffFromRequest(req))) return NextResponse.json({ error: "Staff only." }, { status: 401 });
+  // AN OWNER'S OR ADMIN'S TO WRITE (R32 — the audit's API11-03): the database keeps the shop's products to owners and admins (RLS:
+  // is_admin()); this door asked only "on the crew?" and wrote with the server's key past every policy. Asked as the
+  // database asks it now — the screen offers it to owners and admins only.
+  if (!(await adminFromRequest(req))) return NextResponse.json({ error: "Only an owner or admin can bring products in from Apliiq." }, { status: 403 });
   // R-002: staff-gated, so unlike the two Apliiq WEBHOOKS this one has a caller and the caller is
   // the right scope. tenantFromRequest, not the integration constant.
   const tenant = await tenantFromRequest(req);

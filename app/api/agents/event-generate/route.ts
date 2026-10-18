@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -88,10 +88,26 @@ async function post(req: Request) {
   if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
 
   // ── COMMIT: write the (reviewed) plan ──
+  // AN OWNER'S OR ADMIN'S TO WRITE (R32 — the audit's API11-03). A plan's stops and events are the database's admin
+  // write (RLS: is_admin()), and a stop is offered to customers as a pickup day the moment it exists — but this door
+  // asked only "on the crew?", and wrote with the server's key past every policy: a contractor's token could put a stop
+  // the truck never visits on Find Us and take prepaid packs for it. The preview (drafting from notes) is anyone on the
+  // crew's still; the write is asked as the database asks it. What is written is what was previewed: the plan is held to
+  // the claim guard again (a page can send any plan it likes), and each row says its business and is read back.
   if (body.commit) {
+    if (!(await adminFromRequest(req))) return NextResponse.json({ ok: false, error: "Only an owner or admin can add these to the calendar." }, { status: 403 });
     const plan = body.commit;
+    if (!plan || typeof plan !== "object") return NextResponse.json({ ok: false, error: "commit must be the plan" }, { status: 400 });
+    const held = claimSafeDeep(plan);
+    if (!held.ok) return NextResponse.json({ ok: false, error: "The plan needs review — try again." }, { status: 422 });
+    const tenant = await tenantFromRequest(req);
+    if (!tenant) return NextResponse.json({ ok: false, error: "no tenant on this session" }, { status: 401 });
     const user = await userFromRequest(req);
     const created: any = { events: [], note: null, todos: 0 };
+    const wrote = <T,>(r: { data: T; error: { message: string } | null }, what: string): NonNullable<T> => {
+      if (r.error || r.data === null || r.data === undefined) throw new Error(`couldn't save ${what}${r.error ? ` — ${r.error.message}` : ""}`);
+      return r.data as NonNullable<T>;
+    };
     try {
       // 1) events + truck stops — a 'stop' is the truck on the ground (→ stops table, dated via
       //    starts_at so it shows on the route); an 'event' is a booked show (→ events table).
@@ -100,44 +116,45 @@ async function post(req: Request) {
         if (e._skip) { eventIds.push(null); continue; }
         if (e.kind === "stop") {
           const startsAt = e.date ? new Date(`${e.date}T11:00:00-04:00`).toISOString() : null; // 11a ET default
-          const { data } = await supabaseAdmin.from("stops").insert({
-            name: String(e.title || "New stop").slice(0, 200), location_text: e.location || null,
+          const data = wrote(await supabaseAdmin.from("stops").insert({
+            tenant_id: tenant, name: String(e.title || "New stop").slice(0, 200), location_text: e.location || null,
             starts_at: startsAt, status: "upcoming", notes: e.blurb || null, sort: 0,
-          }).select("id, name").single();
+          }).select("id, name").single(), "a stop");
           eventIds.push(null);
-          if (data) created.events.push({ id: data.id, title: data.name, kind: "stop" });
+          created.events.push({ id: data.id, title: data.name, kind: "stop" });
           continue;
         }
-        const { data } = await supabaseAdmin.from("events").insert({
-          title: String(e.title || "New event").slice(0, 200), day: e.date || null, day_label: e.day_label || null,
+        const data = wrote(await supabaseAdmin.from("events").insert({
+          tenant_id: tenant, title: String(e.title || "New event").slice(0, 200), day: e.date || null, day_label: e.day_label || null,
           location_text: e.location || null, state: e.state || null, county: e.county || null, blurb: e.blurb || null,
           category: "event", sort: 0,
-        }).select("id, title").single();
-        if (data) { eventIds.push(data.id); created.events.push({ id: data.id, title: data.title, kind: "event" }); } else eventIds.push(null);
+        }).select("id, title").single(), "an event");
+        eventIds.push(data.id); created.events.push({ id: data.id, title: data.title, kind: "event" });
       }
       // 2) collaboration note (anchored to the first event)
       let noteId: string | null = null;
       if (plan.collaboration_note?.title) {
-        const { data } = await supabaseAdmin.from("meeting_notes").insert({
-          title: String(plan.collaboration_note.title).slice(0, 200), summary: plan.collaboration_note.summary || null,
+        const data = wrote(await supabaseAdmin.from("meeting_notes").insert({
+          tenant_id: tenant, title: String(plan.collaboration_note.title).slice(0, 200), summary: plan.collaboration_note.summary || null,
           met_on: etToday(), source: "manual",
           event_id: eventIds.find(Boolean) ?? null, created_by: user?.id ?? null,
-        }).select("id, title").single();
-        if (data) { noteId = data.id; created.note = { id: data.id, title: data.title }; }
+        }).select("id, title").single(), "the note");
+        noteId = data.id; created.note = { id: data.id, title: data.title };
       }
       // 3) action items → todos, linked to event + note
       const rows = (plan.action_items ?? []).filter((a: any) => !a._skip && a.title?.trim()).map((a: any) => {
         const idx = typeof a.event_index === "number" ? a.event_index : null;
         const ev = idx != null ? plan.events?.[idx] : null;
         return {
-          title: String(a.title).slice(0, 300), category: CATS.includes(a.category) ? a.category : "ops",
+          tenant_id: tenant, title: String(a.title).slice(0, 300), category: CATS.includes(a.category) ? a.category : "ops",
           due_on: ev?.date || null, event_id: (idx != null ? eventIds[idx] : null) ?? null,
           meeting_note_id: noteId, created_by: user?.id ?? null,
         };
       });
-      if (rows.length) { const { data } = await supabaseAdmin.from("todos").insert(rows).select("id"); created.todos = data?.length ?? 0; }
+      if (rows.length) created.todos = wrote(await supabaseAdmin.from("todos").insert(rows).select("id"), "the to-dos").length;
     } catch (e) {
-      return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 500 });
+      // What was made before the failure is said with it, so the screen can say what's on the calendar now.
+      return NextResponse.json({ ok: false, error: errorMessage(e, 300), created }, { status: 500 });
     }
     return NextResponse.json({ ok: true, created });
   }

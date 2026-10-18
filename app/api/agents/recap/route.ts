@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -38,7 +38,10 @@ const TOOL: ToolDef = {
 };
 
 async function post(req: Request) {
-  if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // AN OWNER'S OR ADMIN'S TO WRITE (R32 — the audit's API11-03): the database keeps a note's follow-up tasks to owners and admins (RLS:
+  // is_admin()); this door asked only "on the crew?" and wrote with the server's key past every policy. Asked as the
+  // database asks it now — the screen offers it to owners and admins only.
+  if (!(await adminFromRequest(req))) return NextResponse.json({ ok: false, error: "Only an owner or admin can add a note's follow-ups." }, { status: 403 });
   // R-002: the service role bypasses RLS, so every read below names its own tenant. Without it
   // the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
   // day a second one does, which is what 0305's guard is holding the door shut against.

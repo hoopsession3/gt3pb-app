@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL, mapSubStatus } from "@/lib/squareServer";
-import { raiseAlertOnce } from "@/lib/serverAlerts";
+import { raiseAlertOnce, refusalLasts } from "@/lib/serverAlerts";
 import { moneyPlain } from "@/lib/money";
 import { squareSignatureOk } from "@/lib/webhookSignature";
 import { route } from "@/lib/apiRoute";
@@ -37,7 +37,8 @@ async function post(req: Request) {
   if (!squareSignatureOk(raw, req.headers.get("x-square-hmacsha256-signature"), SQUARE_WEBHOOK_SIGNATURE_KEY, SQUARE_WEBHOOK_URL)) {
     console.warn("[square-webhook] a signature didn't match — refused (a forgery, or the key or the address changed)");
     // Only what reads like Square's own event tells the crew: a stranger's post with no signature is a forgery's 401 alone.
-    if (req.headers.get("x-square-hmacsha256-signature") && /"merchant_id"/.test(raw) && /"event_id"/.test(raw)) {
+    // And only once it lasts (R32 — API11-04: lib/serverAlerts refusalLasts) — a stranger's wrong signature is the log's.
+    if (req.headers.get("x-square-hmacsha256-signature") && /"merchant_id"/.test(raw) && /"event_id"/.test(raw) && await refusalLasts("square")) {
       await raiseAlertOnce({ severity: "critical", category: "money", kind: "webhook_signature", subjectId: "square",
         title: "Square's webhook signatures aren't matching — its events are refused",
         body: "An event shaped like Square's arrived and its signature didn't match. If the webhook's signature key was rotated or its address changed in Square, set SQUARE_WEBHOOK_SIGNATURE_KEY and SQUARE_WEBHOOK_URL in Vercel to what Square's Webhooks page shows, then redeploy — until then every refund, dispute and subscription change is refused.", link: "/crew?s=money&a=pay" });

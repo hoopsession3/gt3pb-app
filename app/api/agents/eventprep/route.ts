@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server";
-import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
@@ -155,6 +155,10 @@ async function post(req: Request) {
 
   // ── COMMIT: write the reviewed tasks as event_tasks (owned by the event OR the stop) ──
   if (body.commit) {
+    // AN OWNER'S OR ADMIN'S TO WRITE (R32 — the audit's API11-03): the database keeps an event's or a stop's pick list to owners and admins (RLS:
+    // is_admin()); this door asked only "on the crew?" and wrote with the server's key past every policy. Asked as the
+    // database asks it now — the screen offers it to owners and admins only.
+    if (!(await adminFromRequest(req))) return NextResponse.json({ ok: false, error: "Only an owner or admin can add to the pick list." }, { status: 403 });
     const tasks = (body.commit.tasks ?? []).filter((t: any) => !t._skip && t.label?.trim());
     if (!tasks.length) return NextResponse.json({ ok: true, added: 0 });
     const { data: existing } = await supabaseAdmin.from("event_tasks").select("label").eq("tenant_id", tenant).eq(ownerCol, ownerId);

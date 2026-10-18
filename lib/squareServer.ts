@@ -104,7 +104,14 @@ export async function chargeCard(opts: {
   // Square emails the buyer a receipt when this is present (2026-08-01 enterprise round P3) —
   // optional, so guest checkouts without an account email charge exactly as before.
   buyerEmail?: string | null;
+  // Who is paying, as the card door counted their tries (lib/cardGuard): a card Square refuses is counted against them
+  // (R32). None: the refusal is still said, and counted against nobody.
+  who?: { userId?: string | null; ip: string } | null;
 }): Promise<{ ok: true; paymentId: string | null; card?: PaidCard | null } | { ok: false; error: string }> {
+  // A card entry that isn't one never reaches Square (R32 — the audit's API11-04): a number, an object or three hundred
+  // characters sent as the card raised a critical "Square is refusing payments — check the access token" for anyone
+  // who posted one. It is the card entry's words, said here.
+  if (!sourceShaped(opts.sourceId)) return { ok: false, error: CARD_ENTRY_WORDS };
   const res = await fetch(`${SQUARE_BASE}/v2/payments`, {
     method: "POST",
     headers: squareHeaders(opts.token),
@@ -127,21 +134,38 @@ export async function chargeCard(opts: {
     throw new ChargeUnknown(`Square answered ${res.status}${said ? ` (${said})` : ""}`);
   }
   const words = refusalWords(res.status, data);
-  if (isCardRefusal(words)) await countCardRefused();
+  if (refusalKind(data) === "card" && opts.who) await countCardRefused(opts.who);
   return { ok: false, error: words };
 }
 
 /** A refusal of the card itself — its decline, or a card entry Square would not take — not Square's own trouble. */
 export const isCardRefusal = (words: string): boolean => words === DECLINE_WORDS || words === CARD_ENTRY_WORDS;
 
-/** Counted for everyone together (R29 — API F1: lib/cardGuard cardRefused; twenty in a minute pause card payments for the
- *  rest of it). In the running app only — a test compiles this file alone. Never throws: a refusal uncounted is still a
- *  refusal said. */
-async function countCardRefused(): Promise<void> {
+/** A card entry as Square's payment form makes one (R32 — API11-04): a short prefix and a colon ("cnon:…", "ccof:…"),
+ *  then printable characters with no spaces, two hundred and fifty-six at most. Anything else isn't a card entry. Pure. */
+export function sourceShaped(v: unknown): v is string {
+  return typeof v === "string" && v.length >= 6 && v.length <= 256 && /^[A-Za-z]{2,10}:[\x21-\x7e]+$/.test(v);
+}
+
+/** What a refusal was (R32 — API11-01): the card's own ("card" — declined, or a number, date or code Square won't take),
+ *  a token Square won't take again ("token" — used or expired: the page's lost answer or a script's resend, never a card
+ *  tried), or Square's own trouble ("square"). Only the card's is counted against the caller. Pure. */
+export function refusalKind(data: unknown): "card" | "token" | "square" {
+  const e = (data as { errors?: { category?: unknown; code?: unknown }[] } | null)?.errors?.[0];
+  const category = String(e?.category ?? ""), code = String(e?.code ?? "");
+  if (/^CARD_TOKEN_(EXPIRED|USED)$/.test(code) || String((e as { field?: unknown } | undefined)?.field ?? "") === "source_id") return "token";
+  if (category === "PAYMENT_METHOD_ERROR" || /^INVALID_CARD_DATA$|^CARD_EXPIRED$|^INVALID_EXPIRATION/.test(code)) return "card";
+  return "square";
+}
+
+/** Counted against who was refused (R32 — lib/cardGuard cardRefused: four in ten minutes pause them, and only them; everyone's
+ *  minute tells the crew). In the running app only — a test compiles this file alone. Never throws: a refusal uncounted
+ *  is still a refusal said. */
+async function countCardRefused(who: { userId?: string | null; ip: string }): Promise<void> {
   if (typeof process === "undefined" || !process.env.NEXT_RUNTIME) return;
   try {
     const [{ supabaseAdmin }, { cardRefused }] = await Promise.all([import("./supabaseAdmin"), import("./cardGuard")]);
-    if (supabaseAdmin) await cardRefused(supabaseAdmin);
+    if (supabaseAdmin) await cardRefused(supabaseAdmin, who);
   } catch { /* uncounted */ }
 }
 
@@ -161,6 +185,9 @@ export function refusalWords(status: number, data: unknown): string {
   const category = String(e?.category ?? ""), code = String(e?.code ?? "");
   if (category === "PAYMENT_METHOD_ERROR") return DECLINE_WORDS;
   if (/^CARD_TOKEN_(EXPIRED|USED)$|^INVALID_CARD_DATA$|^CARD_EXPIRED$|^INVALID_EXPIRATION/.test(code)) return CARD_ENTRY_WORDS;
+  // A request Square refused for its card entry (the source_id field) is the entry's, not Square's trouble (R32 —
+  // API11-04): never "check the access token".
+  if (String((e as { field?: unknown } | undefined)?.field ?? "") === "source_id") return CARD_ENTRY_WORDS;
   sayRefusal(status, code || category || "no code", String(e?.detail ?? ""));
   return SQUARE_DOWN_WORDS;
 }

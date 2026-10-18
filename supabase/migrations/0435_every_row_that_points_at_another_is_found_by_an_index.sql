@@ -20,13 +20,17 @@
 -- From here a foreign key written in a migration comes with its index: scripts/db.r30.test.mjs reads every migration
 -- into a database and fails the release on a key without one.
 --
--- set lock_timeout (database F16): each index holds its table's share lock while it is built — reads go on, writes wait
--- the moment it takes on tables this size. If a table is busy the paste stops after five seconds and changes nothing;
--- run it again a moment later.
+-- set lock_timeout (database F16): each index holds its table's share lock from its build to the paste's end — reads go
+-- on; writes to the hundred-odd tables it indexes wait until the paste commits: a few seconds on tables this size,
+-- longer as they grow (R32 put this right — the audit's DB11-04; it once said writes wait only the moment each takes).
+-- Paste it on its own when service is quiet: APPLY_ALL_PENDING makes each migration its own transaction (R32). If a
+-- table is busy the paste stops after five seconds and changes nothing, and a statement_timeout of a minute ends it
+-- whole if the builds ever run long; run it again a moment later.
 -- existing rows: indexed as they stand.
 -- changelog: none — nothing anyone sees changes; a delete and the console's lookups stop reading whole tables.
 
 set lock_timeout = '5s';
+set statement_timeout = '60s';   -- the builds together, at most a minute (R32): a paste that would hold writes longer stops
 
 do $$
 declare
@@ -91,4 +95,5 @@ end $$;
 --                 format('(%s IS NOT NULL)', (select quote_ident(b.attname) from pg_attribute b
 --                                              where b.attrelid = c.conrelid and b.attnum = c.conkey[1])))));   -- 0
 select public.record_migration('0435_every_row_that_points_at_another_is_found_by_an_index');
+reset statement_timeout;
 reset lock_timeout;   -- the paste's own wait, not the next query's in this editor

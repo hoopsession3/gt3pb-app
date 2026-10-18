@@ -167,7 +167,7 @@ async function post(req: Request) {
   // Now after the cart is priced and agreed — a cart refused spends nothing everyone shares — and of what happened: card
   // payments pause while a minute holds twenty cards Square refused (lib/cardGuard). A try let through still counts against
   // a ceiling no rush reaches.
-  const paused = await cardsPausedRefusal(supabaseAdmin);
+  const paused = await cardsPausedRefusal(supabaseAdmin, { userId: user?.id ?? null, ip });   // this caller's refused cards (R32)
   if (paused) return NextResponse.json({ error: paused }, { status: 429 });
   if (!(await limitsFit(supabaseAdmin, [{ bucket: "shop-checkout:global", windowMs: 60_000, max: CARD_TRIES.allPerMinute }]))) {
     return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
@@ -317,7 +317,7 @@ async function post(req: Request) {
 
   return reply(await chargeOnce({
     claims: held.claims, key: idemKey, now,
-    charge: () => chargeCard({ token, locationId, sourceId: body.sourceId!, amountCents: total, note: `GT3 shop · ${lineItems.reduce((n, l) => n + l.qty, 0)} item(s)`, idempotencyKey: idemKey, buyerEmail: email }),
+    charge: () => chargeCard({ token, locationId, sourceId: body.sourceId!, amountCents: total, note: `GT3 shop · ${lineItems.reduce((n, l) => n + l.qty, 0)} item(s)`, idempotencyKey: idemKey, buyerEmail: email, who: { userId: user?.id ?? null, ip } }),
     record: (paymentId) => recordShop(paymentId),
     // chargeCard threw: Square's answer never came or did not say whether the card was charged. The claim is 'unknown'
     // from here; this answer and every retry's are the same words, and the payment, if there is one, carries the key.

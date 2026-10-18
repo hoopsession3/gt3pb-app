@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { moneyRound } from "@/lib/money";
 import { addDays, etToday } from "@/lib/dates";
@@ -55,7 +55,10 @@ async function revenue(tenant: string, from: string, to: string): Promise<number
 }
 
 async function post(req: Request) {
-  if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  // AN OWNER'S OR ADMIN'S TO WRITE (R32 — the audit's API11-03): the database keeps the week's revenue (the digest's, API F5) to owners and admins (RLS:
+  // is_admin()); this door asked only "on the crew?" and wrote with the server's key past every policy. Asked as the
+  // database asks it now — the screen offers it to owners and admins only.
+  if (!(await adminFromRequest(req))) return NextResponse.json({ ok: false, error: "Only an owner or admin can run the week's review." }, { status: 403 });
   // R-002: the service role bypasses RLS, so every read below has to name its own tenant. Without
   // this the route reads the whole table — harmless while one tenant exists, a cross-tenant read the
   // day a second one does, which is precisely what 0305's guard is holding the door shut against.

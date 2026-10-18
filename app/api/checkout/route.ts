@@ -286,7 +286,7 @@ async function post(req: Request) {
   // shares — and of what happened: card payments pause while a minute holds twenty cards Square refused (lib/cardGuard,
   // and the crew are told). A try let through still counts against a ceiling no rush at one truck reaches.
   if (paying) {
-    const paused = await cardsPausedRefusal(supabaseAdmin);
+    const paused = await cardsPausedRefusal(supabaseAdmin, { userId: caller?.id ?? null, ip });   // this caller's refused cards (R32)
     if (paused) return NextResponse.json({ error: paused, charged: false }, { status: 429 });
     if (!(await limitsFit(supabaseAdmin, [{ bucket: "checkout:global", windowMs: 60_000, max: CARD_TRIES.allPerMinute }]))) {
       return NextResponse.json({ error: "Too many attempts — give it a minute.", charged: false }, { status: 429 });
@@ -402,7 +402,7 @@ async function post(req: Request) {
 
   return reply(await chargeOnce({
     claims: held.claims, key: idemKey, now,
-    charge: () => chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey, buyerEmail }),
+    charge: () => chargeCard({ token: token!, locationId: locationId!, sourceId: sourceId!, amountCents: amount, note: "GT3PB pre-order", idempotencyKey: idemKey, buyerEmail, who: { userId: caller?.id ?? null, ip } }),
     // The card it was paid with goes on the receipt (R3b, 0395); a retry answered from the claim charges nothing,
     // and its receipt says "Paid" without the card.
     record: (paymentId, charged) => recordPaid(paymentId, charged.card ?? null),
