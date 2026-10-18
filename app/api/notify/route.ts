@@ -7,6 +7,7 @@ import { orderNo } from "@/lib/activeOrder";
 import { orderLine } from "@/lib/orderWords";
 import { money } from "@/lib/money";
 import { etToday } from "@/lib/dates";
+import { isUuid } from "@/lib/uuid";
 
 // LIFECYCLE PINGS the crew fires from the boards — the customer can't be expected to sit in the
 // app. order_ready: the pass advanced an order to Ready (walk-up/pre-orders carry no phone, so
@@ -39,7 +40,8 @@ async function post(req: Request) {
     return NextResponse.json({ ok: true, test: true, to, sent: r.ok, detail: r.detail ?? null });
   }
 
-  if (!id || !["order_ready", "delivered", "order_void"].includes(kind)) {
+  // An id that isn't one (R26 — API F14) is refused here, never asked of the database.
+  if (!isUuid(id) || !["order_ready", "delivered", "order_void"].includes(kind)) {
     return NextResponse.json({ ok: false, error: "kind + id required" }, { status: 400 });
   }
 

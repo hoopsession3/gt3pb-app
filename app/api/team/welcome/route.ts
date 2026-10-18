@@ -6,6 +6,7 @@ import { tellCustomer } from "@/lib/customerMessage";
 import { crewWelcome, crewInvite } from "@/lib/crewWelcome";
 import { trackFor } from "@/lib/academy";
 import { route } from "@/lib/apiRoute";
+import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
 
@@ -65,7 +66,7 @@ async function post(req: Request) {
 
   let to = "", letter: { subject: string; message: string };
   if (kind === "bring_on") {
-    if (!userId) return NextResponse.json({ ok: false, error: "user_id required" }, { status: 400 });
+    if (!isUuid(userId)) return NextResponse.json({ ok: false, error: "user_id required" }, { status: 400 });   // R26, API F14
     const { data: p } = await supabaseAdmin.from("profiles")
       .select("id, display_name, role, market, leads_market").eq("tenant_id", tenant).eq("id", userId).maybeSingle();
     const person = p as Person | null;

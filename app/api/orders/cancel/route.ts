@@ -6,6 +6,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
 import { money } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
+import { isUuid } from "@/lib/uuid";
 import { packClosesAt, closesWords, type PackStop } from "@/lib/pickupDay";
 import { orderNo } from "@/lib/activeOrder";
 import { deliveryCancelClosesAt } from "@/lib/delivery";
@@ -50,7 +51,8 @@ async function post(req: Request) {
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request." }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
   const channel = body.channel as Channel;
   const id = typeof body.id === "string" ? body.id.trim() : "";   // a number here threw (R10b): a 400, not a 500
-  if (!CHANNELS.includes(channel) || !id) {
+  // An id that isn't one (R26 — the 10/10 audit, API F14): a 400 here, not the database's refusal read as "couldn't cancel".
+  if (!CHANNELS.includes(channel) || !isUuid(id)) {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
 

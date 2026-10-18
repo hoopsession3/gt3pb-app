@@ -5,6 +5,7 @@ import { raiseAlert } from "@/lib/serverAlerts";
 import { nextDrop, dropDateKey } from "@/lib/orderAhead";
 import { packClosesAt, packIsOpen, pickupDayWords, PICKUP_STOPS_READ, type PackStop } from "@/lib/pickupDay";
 import { route, isJsonObject } from "@/lib/apiRoute";
+import { isUuid } from "@/lib/uuid";
 import { isSettled } from "@/lib/settled";
 import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
 
@@ -26,8 +27,11 @@ async function post(req: Request) {
   if (!isJsonObject(body)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
   const id = typeof body.id === "string" ? body.id : "";
   const toDate = typeof body.toDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.toDate) ? body.toDate : "";
-  if (!id || !toDate) return NextResponse.json({ error: "Bad request" }, { status: 400 });
-  const stopId = typeof body.stopId === "string" ? body.stopId : "";
+  // An id that isn't one (R26 — API F14): a 400, not the database's refusal at the write below read as a 500; and a stop
+  // named that isn't an id is refused, not quietly read as "the day's first".
+  if (!isUuid(id) || !toDate) return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  if (body.stopId != null && body.stopId !== "" && !isUuid(body.stopId)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
+  const stopId = isUuid(body.stopId) ? body.stopId : "";
 
   // THE DAY TO MOVE TO (R5, 0397): one of the truck's real upcoming stops — the same read as /api/reserve — the stop on it
   // the pack will be picked up at (the one the customer named, else the day's first still taking packs — an app from
