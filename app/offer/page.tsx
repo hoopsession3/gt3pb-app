@@ -12,6 +12,7 @@ import OfferLetterPrint, { type LetterRow } from "@/components/OfferLetterPrint"
 import { money } from "@/lib/offerLetter";
 import { MARKET_LABEL, toMarket } from "@/lib/markets";
 import Field from "@/components/Field";
+import { failureWords } from "@/lib/failureWords";
 
 // YOUR OFFER — the candidate's side of the hiring flow, which did not exist.
 //
@@ -76,7 +77,7 @@ export default function OfferPage() {
       p_id: id, p_action: action, p_note: (why ?? "").trim() || null,
     });
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }  // including "this offer has expired"
+    if (error) { toast(failureWords(error), "error"); return; }  // including "this offer has expired"
     toast(action === "accept" ? "Accepted. GT3 has been told."
         : action === "decline" ? "Declined. GT3 has been told."
         : "Sent back with your note.");

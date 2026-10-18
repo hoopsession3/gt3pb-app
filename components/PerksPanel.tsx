@@ -12,6 +12,7 @@ import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 import { haptic } from "@/lib/haptics";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // FOUNDING PERKS — the tier side of member_benefits (0176), CodesPanel's sibling for the other
 // scope. A perk is the same kind of rule a code is (kind × target × value), just keyed to a tier
@@ -103,7 +104,7 @@ export default function PerksPanel() {
     };
     const { error } = await supabase.from("member_benefits").insert(row);
     setSaving(false);
-    if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't add"), "error"); return; }
     toast(`Added — ${row.label}`);
     setLabel(""); setOpen(false);
     reload();
@@ -113,7 +114,7 @@ export default function PerksPanel() {
     if (r.active) haptic("toggleOff"); else haptic("toggleOn");
     if (!supabase) return;
     const { error } = await supabase.from("member_benefits").update({ active: !r.active }).eq("id", r.id);
-    if (error) { toast(`Couldn't update — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't update"), "error"); return; }
     reload();
   };
 
@@ -193,7 +194,7 @@ export default function PerksPanel() {
             )}
           </div>
           <p className="codes-reach">{reachText(kind, tgt, products)}</p>
-          {menu.status === "error" && <p className="codes-warn">{`Couldn't read the menu — ${menu.error?.message ?? "no answer"}. A single drink can be chosen once it loads.`}</p>}
+          {menu.status === "error" && <p className="codes-warn">{`Couldn't read the menu — ${menu.error ? plainFailure(menu.error) : "no answer"}. A single drink can be chosen once it loads.`}</p>}
           {menuPrice && Number.isFinite(priceCents) && price.trim() !== "" && priceCents >= menuPrice.high && (
             <p className="codes-warn">{`That isn't below the menu price (${money(menuPrice.high)}), so the perk would change nothing.`}</p>
           )}

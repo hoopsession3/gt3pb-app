@@ -22,6 +22,8 @@ import { useMinute } from "@/lib/useMinute";
 import { DUE_CARD, dueAnchor, notHome, porchLate, type PorchFeed } from "@/lib/dueNext";
 import { markOut, moveToRun, nextRunDay, nextRunFor, outPlan, outWords, runDayWords, undoMove, undoOutWords, unmarkOut, type MissedPorch, type PorchStep } from "@/lib/porchRun";
 import { useLatestRead } from "@/lib/useLatestRead";
+import Said from "@/components/Said";
+import { failureWords, plainFailure } from "@/lib/failureWords";
 
 // SUNDAY DELIVERY OPS — the crew side of the delivery debrief, in DropOps' shape: one summary
 // sentence (units, one hero thought), the Saturday brew totals (incl. Performance combos), and a
@@ -134,7 +136,7 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
   const setStatus = async (o: DOrder, status: string) => {
     if (!supabase) return;
     const { error } = await supabase.from("delivery_orders").update({ status }).eq("id", o.id);
-    if (error) toast(`Didn't save ${o.name}'s porch — ${error.message}`, "error");
+    if (error) toast(`Didn't save ${o.name}'s porch — ${plainFailure(error)}`, "error");
     load();
   };
   // 0261's delivery side, delivered (the DropOps picker's twin): stamp which brew filled this
@@ -149,7 +151,7 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
   const setBatch = async (id: string, batchId: string) => {
     if (!supabase) return;
     const { error } = await supabase.from("delivery_orders").update({ batch_id: batchId || null }).eq("id", id);
-    if (error) toast(`Didn't save the batch — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Didn't save the batch"), "error");
     load();
   };
   // ALL OUT AT ONCE (2026-10-11, the dispatch round — lib/porchRun says why, and why there is no "all delivered").
@@ -187,13 +189,13 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
     const res = await moveToRun(supabase, was, day);
     setBusy(null);
     if (res.ok) toast(`${o.name} — on the run for ${runDayWords(day, etToday())}`, "success", { action: { label: "Undo", run: () => { void undoNextRun(was, day); } } });
-    else toast(res.error ? `Didn't move ${o.name}'s porch — ${res.error}` : `${o.name}'s porch changed meanwhile — nothing moved`, res.error ? "error" : "info");
+    else toast(res.error ? `Didn't move ${o.name}'s porch — ${plainFailure(res.error)}` : `${o.name}'s porch changed meanwhile — nothing moved`, res.error ? "error" : "info");
     load();
   };
   const undoNextRun = async (was: MissedPorch, day: string) => {
     if (!supabase) return;
     const res = await undoMove(supabase, was, day);
-    toast(res.ok ? `${was.name} — back as it was` : res.error ? `Couldn't put it back — ${res.error}` : `${was.name}'s porch moved on since — left as it is`, res.ok ? "success" : res.error ? "error" : "info");
+    toast(res.ok ? `${was.name} — back as it was` : res.error ? `Couldn't put it back — ${plainFailure(res.error)}` : `${was.name}'s porch moved on since — left as it is`, res.ok ? "success" : res.error ? "error" : "info");
     load();
   };
   // The button says where the porch goes before it is tapped, and the tap does that: one rule, on the same minute's clock.
@@ -417,7 +419,7 @@ function LoopQuickLog({ porches }: { porches: readonly DOrder[] }) {
     const v = Math.round(Number(n));
     if (!Number.isFinite(v) || v <= 0) { setMsg("count first"); return; }
     const { error } = await supabase.from("loop_txns").insert({ returns: v, customer_id: whose || null, created_by: user?.id ?? null });
-    setMsg(error ? `couldn't log — ${error.message}` : `logged ${v} return${v === 1 ? "" : "s"} · $${(v * 2).toFixed(0)} credit owed`);
+    setMsg(error ? failureWords(error, "couldn't log") : `logged ${v} return${v === 1 ? "" : "s"} · $${(v * 2).toFixed(0)} credit owed`);
     if (!error) { setN(""); setWhose(""); load(); }
   };
 
@@ -428,7 +430,7 @@ function LoopQuickLog({ porches }: { porches: readonly DOrder[] }) {
     const why = await prompt({ title: `Void the entry for ${count} return${count === 1 ? "" : "s"}?`, hint: "Say why — a reversal nobody explained is unreadable six weeks later.", defaultValue: "miscounted", confirmLabel: "Void it" });
     if (!why || !why.trim()) return;
     const { error } = await supabase.rpc("void_loop_txn", { p_id: id, p_reason: why.trim() });
-    setMsg(error ? `couldn't void — ${error.message}` : `voided ${count} · $${(count * 2).toFixed(0)} credit taken back`);
+    setMsg(error ? failureWords(error, "couldn't void") : `voided ${count} · $${(count * 2).toFixed(0)} credit taken back`);
     if (!error) load();
   };
 
@@ -443,7 +445,7 @@ function LoopQuickLog({ porches }: { porches: readonly DOrder[] }) {
         </select>
       )}
       <button type="button" className="btn-sec btn-sm shrink-0" onClick={log} disabled={!n}>Log</button>
-      {msg && <i className="dops-loop-m">{msg}</i>}
+      {msg && <Said as="i" className="dops-loop-m">{msg}</Said>}
       {today.length > 0 && (
         <span className="dops-loop-today">
           today:

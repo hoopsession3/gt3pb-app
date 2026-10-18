@@ -12,6 +12,7 @@ import VendorResolve from "./VendorResolve";
 import Icon from "@/components/Icon";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // OPS PLAN (chief-of-staff) — turn a meeting note into a build-able operations plan. Calls the
 // opsplan agent, then lets the operator tap "Create" on each proposed op (event/stop, vendor,
@@ -66,11 +67,14 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
       // Every venue/vendor goes through the ONE resolver (0226): exact name → the existing vendor;
       // a ≥40% look-alike → PAUSE and ask (the confirm sheet), never a silent duplicate; a clean
       // miss → created PENDING for owner approval. Created records link back to the note.
-      const vendorFor = async (name: string): Promise<string | null | "asked"> => {
+      // A lookup that failed creates nothing and says so (R34): it went on with no vendor — a vendor op ticked "✓ Vendor
+      // created" with nothing written, and a stop or an event was made unlinked without a word.
+      const vendorFor = async (name: string): Promise<string | null | "asked" | "failed"> => {
         if (decision === "skip") return null;
         const r = await resolveVendor(name, { source: "a meeting note", decision });
         if (r.kind === "similar") { setResolve({ op, i, name, candidates: r.candidates }); return "asked"; }
-        return r.kind === "error" ? null : r.id;
+        if (r.kind === "error") { toast(failureWords(r, `Nothing was created — couldn't look up ${name} in the venue book`), "error"); return "failed"; }
+        return r.id;
       };
       // A vendor/pipeline op IS its vendor — skipping it creates nothing, so it must not read "done"
       // (panel finding: a skipped vendor op showed a ✓ and "created" with no row written).
@@ -90,31 +94,31 @@ export default function OpsPlan({ noteId }: { noteId: string }) {
       } else if (op.type === "stop") {
         const dk = whenToDate(op.when);
         const vid = await vendorFor(op.who || op.title);
-        if (vid === "asked") return;
+        if (vid === "asked" || vid === "failed") return;
         // Made, and tied to the note — or said which of the two did not happen (R12b, F4): a refused insert came back as no
         // row, and "Stop created" was said anyway.
         const { data: s, error: sErr } = await supabase.from("stops").insert({ name: (op.who || op.title).slice(0, 120), location_text: op.who || null, starts_at: new Date(`${dk}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: vid }).select("id").single();
-        if (sErr || !s) { toast(`Couldn't create the stop — ${sErr?.message ?? "try again"}`, "error"); return; }
+        if (sErr || !s) { toast(`Couldn't create the stop — ${sErr ? plainFailure(sErr) : "try again"}`, "error"); return; }
         if (!wrote(await supabase.from("meeting_notes").update({ stop_id: (s as { id: string }).id }).eq("id", noteId), toast, "The stop is made, but the note isn't linked to it")) return;
       } else if (op.type === "event") {
         // An EVENT is a booked show — it belongs in the events table, not stops (the old code
         // mis-routed both into stops).
         const dk = whenToDate(op.when);
         const vid = await vendorFor(op.who || op.title);
-        if (vid === "asked") return;
+        if (vid === "asked" || vid === "failed") return;
         const { data: e, error: eErr } = await supabase.from("events").insert({ title: op.title.slice(0, 160), day: dk, category: "event", location_text: op.who || null, vendor_id: vid }).select("id").single();
-        if (eErr || !e) { toast(`Couldn't create the event — ${eErr?.message ?? "try again"}`, "error"); return; }
+        if (eErr || !e) { toast(`Couldn't create the event — ${eErr ? plainFailure(eErr) : "try again"}`, "error"); return; }
         if (!wrote(await supabase.from("meeting_notes").update({ event_id: (e as { id: string }).id }).eq("id", noteId), toast, "The event is made, but the note isn't linked to it")) return;
       } else if (op.type === "vendor") {
         const vid = await vendorFor(op.who || op.title);
-        if (vid === "asked") return;
+        if (vid === "asked" || vid === "failed") return;
         if (vid && !wrote(await supabase.from("meeting_notes").update({ vendor_id: vid }).eq("id", noteId), toast, "Couldn't link the vendor to the note")) return;
       } else if (op.type === "pipeline") {
         const vid = await vendorFor(op.who || op.title);
-        if (vid === "asked") return;
+        if (vid === "asked" || vid === "failed") return;
         if (vid) {
           const { data: opp, error: oErr } = await supabase.from("opportunities").insert({ vendor_id: vid, next_step: (op.details || "Make first contact").slice(0, 300), created_by: user.id }).select("id").single();
-          if (oErr || !opp) { toast(`Couldn't add it to the pipeline — ${oErr?.message ?? "try again"}`, "error"); return; }
+          if (oErr || !opp) { toast(`Couldn't add it to the pipeline — ${oErr ? plainFailure(oErr) : "try again"}`, "error"); return; }
           if (!wrote(await supabase.from("meeting_notes").update({ opportunity_id: (opp as { id: string }).id, vendor_id: vid }).eq("id", noteId), toast, "It's in the pipeline, but the note isn't linked to it")) return;
         }
       }

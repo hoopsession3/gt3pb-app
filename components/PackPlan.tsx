@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { bottleStock, type ShelfRow } from "@/lib/bottleShelf";
 import { MARKET_LABEL, toMarket } from "@/lib/markets";
+import { plainFailure } from "@/lib/failureWords";
 
 // PACK PLAN — the whole event/stop's pack-out in one view: take every batch brewing for it, split each
 // between KEGS (poured on tap) and 10/16oz BOTTLES (grab-and-go in the cooler), and allocate the keg
@@ -122,7 +123,7 @@ export default function PackPlan({ ownerType, ownerId, title, onClose }: { owner
               {/* Where that number came from, right under it. */}
               <div className="dp-hint pp-src">
               {shelf.status === "loading" ? "Reading the shelf…"
-                : shelf.status === "error" ? `Couldn't read the shelf — ${shelf.error?.message ?? "no answer"}. Enter the bottles you have.`
+                : shelf.status === "error" ? `Couldn't read the shelf — ${shelf.error ? plainFailure(shelf.error) : "no answer"}. Enter the bottles you have.`
                 : onShelf?.kind === "count" ? (typed !== null && typed !== String(onShelf.bottles)
                     ? `You entered this. ${city}'s shelf says ${onShelf.bottles}.`
                     : `From ${city}'s shelf: ${onShelf.shelves.join(" + ")}.`)

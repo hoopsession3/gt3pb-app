@@ -17,6 +17,7 @@ import {
   isGuestFacing, money, nameDriftAdvice, placeLine, sortGaps, stopGapFix, stopGapWaysOut,
   stopOwedLine, stopStatusLabel, whenLabel, type StopWayOut,
 } from "@/lib/stopRecord";
+import { failureWords } from "@/lib/failureWords";
 
 // ONE TRUCK STOP, WHOLE (0315).
 //
@@ -101,7 +102,7 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
     setBusy(false);
     // supabase-js resolves with { error } rather than throwing — surface the database's own sentence,
     // which is written to be read by this crew.
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     const row = Array.isArray(data) ? data[0] : data;
     const from = (row as { old_name?: string } | null)?.old_name;
     const to = (row as { new_name?: string } | null)?.new_name;
@@ -122,7 +123,7 @@ export default function StopRecord({ stopId, onClose }: { stopId: string; onClos
     setBusy(true);
     const { error } = await what();
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setWrapping(false); setNote(null);
     toast(done);
     reload();

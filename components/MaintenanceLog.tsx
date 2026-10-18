@@ -12,6 +12,7 @@ import { InfoRow } from "@/components/kit";
 import { localToday } from "@/lib/dates";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { wrote } from "@/lib/wrote";
+import { failureWords } from "@/lib/failureWords";
 
 // MAINTENANCE & AUDITS (Settings) — the owner's record of every audit run on the app: what kind, when,
 // the prompt used, the result/score, a summary, findings, and a link to the artifact. Opens with a
@@ -85,7 +86,7 @@ export default function MaintenanceLog() {
       ? await supabase.from("maintenance_log").update(payload).eq("id", d.id)
       : await supabase.from("maintenance_log").insert({ ...payload, created_by: user?.id ?? null });
     setSaving(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     toast(d.id ? "Audit updated" : "Audit logged");
     setD(BLANK); setComposing(false); reload();
   };

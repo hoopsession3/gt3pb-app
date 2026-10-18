@@ -16,6 +16,7 @@ import { agoWord, daysBetween } from "@/lib/dayWords";
 import { useEtDay } from "@/lib/useEtDay";
 import { isQuietGoal } from "@/lib/rhythm";
 import { askOpenNote } from "@/lib/noteLink";
+import { plainFailure } from "@/lib/failureWords";
 
 // OPERATING RHYTHM (2026-08-02 exec-rhythm P1–P3) — the review step of plan → execute → REVIEW →
 // adjust, installed as a surface. Two rituals, one ledger:
@@ -64,7 +65,7 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
       if (j.ok) {
         toast(`Filed: ${j.decisions} decision${j.decisions === 1 ? "" : "s"} · ${j.open_items} follow-up${j.open_items === 1 ? "" : "s"} · ${j.events} event${j.events === 1 ? "" : "s"} · ${j.pipeline_moves} pipeline move${j.pipeline_moves === 1 ? "" : "s"}${j.activities ? ` · ${j.activities} activit${j.activities === 1 ? "y" : "ies"}` : ""}${j.skipped?.length ? ` · couldn't match: ${j.skipped.join(", ")}` : ""}`);
         setExtractOpen(false); setTranscript(""); openNote(j.note_id);
-      } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Couldn't extract — ${j.error ?? r.status}`, "error");
+      } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Couldn't extract — ${j.error ? plainFailure(j.error) : "try again in a moment"}`, "error");
     } catch { toast("Couldn't reach the extractor", "error"); }
     setExtracting(false);
   };
@@ -99,7 +100,7 @@ export default function OperatingRhythm({ isAdmin, onOpenNotes }: { isAdmin: boo
       if (j.ok) {
         toast(j.existing ? (kind === "review" ? "This week's review already stands — it's in Notes" : "Today's agenda already stands — it's in Notes") : `${j.title} — assembled, it's in Notes`);
         reload(); openNote(j.note_id);
-      } else toast(`Couldn't assemble — ${j.error ?? r.status}`, "error");
+      } else toast(`Couldn't assemble — ${j.error ? plainFailure(j.error) : "try again in a moment"}`, "error");
     } catch { toast("Couldn't reach the assembler", "error"); }
     setBusy(null);
   };

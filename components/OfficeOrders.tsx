@@ -24,6 +24,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { useMinute } from "@/lib/useMinute";
 import { dueAnchor, officeLate, type OfficeFeed } from "@/lib/dueNext";
 import { refusalText } from "@/lib/refusal";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // CREW · OFFICE ORDERS — the operator's control surface for the Monday B2B route (0187). See upcoming
 // office deliveries, log the jug swap (full out / empties in) on delivery, and settle billing
@@ -138,7 +139,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
     setBusyId(r.id);
     const { error } = await supabase.rpc("office_request_set", { p_request: r.id, p_status: status, p_resolution: resolution });
     setBusyId(null);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     haptic("success");
     toast(status === "in_progress" ? `${who} — it's yours` : status === "done" ? `${who} — done, and they can see it` : `${who} — declined, with your reason`);
     reload();
@@ -154,7 +155,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
     const made = "for the next six weeks";
     setBusyId(null);
     const n = (res.data as number | null) ?? 0;
-    toast(res.error ? `Couldn't generate the route — ${refusalText(res.error) ?? res.error.message}` : n ? `${n} office deliver${n === 1 ? "y" : "ies"} made ${made}` : `Nothing new — every delivery ${made} is already on the route`, res.error ? "error" : undefined);
+    toast(res.error ? `Couldn't generate the route — ${plainFailure(res.error)}` : n ? `${n} office deliver${n === 1 ? "y" : "ies"} made ${made}` : `Nothing new — every delivery ${made} is already on the route`, res.error ? "error" : undefined);
     reload();
   };
 
@@ -173,7 +174,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
     setBusyId(o.id);
     const { error } = await supabase.rpc("void_jug_entry", { p_id: row.id, p_reason: why.trim() });
     setBusyId(null);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast(`${o.company} — jug swap undone, balance corrected`);
     reload();
   };
@@ -202,7 +203,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
     const said = (data ?? null) as { ok?: boolean; already?: string | null } | null;
     if (error || !said?.ok || said.already) {
       setBusyId(null);
-      toast(error ? `Didn't save — ${error.message}` : `${o.company} was already ${said?.already === "paid" ? "paid" : "settled"}`, error ? "error" : undefined);
+      toast(error ? failureWords(error, "Didn't save") : `${o.company} was already ${said?.already === "paid" ? "paid" : "settled"}`, error ? "error" : undefined);
       reload(); return;
     }
     // Paid another way, its payment link goes (R9): left live, it was paid a second time and nothing said so. Said back
@@ -227,7 +228,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
     try {
       const r = await authedFetch("/api/office/paylink", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: o.id }) });
       const j = await r.json();
-      if (!j.ok || !j.url) { toast(`Couldn't create the link — ${j.error ?? "try again"}`, "error"); setBusyId(null); return; }
+      if (!j.ok || !j.url) { toast(`Couldn't create the link — ${j.error ? plainFailure(j.error) : "try again"}`, "error"); setBusyId(null); return; }
       try { await navigator.clipboard.writeText(j.url); toast("Payment link copied — text it to the customer. It auto-marks paid."); }
       catch { toast(`Payment link ready: ${j.url}`); }
     } catch { toast("Couldn't create the link — try again", "error"); }
@@ -245,7 +246,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
     setBusyId(o.id);
     const { error } = await supabase.rpc("office_reopen_delivery", { p_order: o.id, p_reason: why.trim() });
     setBusyId(null);
-    if (error) { toast(`Couldn't reopen it — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't reopen it"), "error"); return; }
     toast(`${o.company} — back on the run`); reload();
   };
 
@@ -272,7 +273,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
       j = await r.json().catch(() => null);
     } catch { /* said below */ }
     setBusyId(null);
-    if (!j?.ok) { toast(`Didn't cancel — ${j?.error ?? "no answer came back; check the route before trying again"}`, "error"); reload(); return; }
+    if (!j?.ok) { toast(`Didn't cancel — ${j?.error ? plainFailure(j.error) : "no answer came back; check the route before trying again"}`, "error"); reload(); return; }
     toast(j.already ? `${o.company} was already canceled`
       : j.link === "unknown" ? `${o.company} — canceled. Square didn't confirm its payment link is off: switch it off in Square`
       : paid ? `${o.company} — canceled. Refund ${money(o.total_cents)} in Square (it's in your alerts)`

@@ -297,9 +297,13 @@ export default function Sheet({
     const scope = (ask ? scrimRef.current?.querySelector<HTMLElement>(".sheet2-ask-scrim") : null) ?? panelRef.current;
     const items = Array.from(scope?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter((el) => el.offsetParent !== null);
     if (!items.length) return;
-    const first = items[0], last = items[items.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    const first = items[0], last = items[items.length - 1], at = document.activeElement;
+    // Focus that fell out of the sheet — its view swapped, the button pressed went with it — comes back in on the next Tab,
+    // as the Pass's trap does (R34 — the audit's UX11-05): it only wrapped from the first or last item, so a Tab from the
+    // page walked the page under the sheet.
+    if (!scope?.contains(at)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+    else if (e.shiftKey && at === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
   });
   useEffect(() => {
     if (phase === "closed") return;

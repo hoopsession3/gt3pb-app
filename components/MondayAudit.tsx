@@ -20,6 +20,8 @@ import {
   tapScore, thisWeekOf, wasScore, weekSummary, withNextAction,
   type AuditDetails, type AuditForm, type AuditStream, type CriterionKey, type DraftStore, type Score, type Scores, type StreamStatus, type WeekLine,
 } from "@/lib/mondayAudit";
+import Said from "@/components/Said";
+import { failureWords } from "@/lib/failureWords";
 
 // THE MONDAY AUDIT, FULL SCREEN (2026-10-12, Release 2 — Ryan chose it over the smaller sheet fix).
 //
@@ -215,7 +217,7 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
       p_scores: scored ? { c_owner: scores.c_owner, c_next: scores.c_next, c_blockers: scores.c_blockers, c_artifacts: scores.c_artifacts, c_signal: scores.c_signal } : null,
       p_note: scored ? draft.note.trim() || null : null,
     });
-    if (error) { setSaving(false); haptic("error"); toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { setSaving(false); haptic("error"); toast(failureWords(error, "Couldn't save"), "error"); return; }
     const r = (data ?? {}) as { ok?: boolean; code?: string; words?: string; week_of?: string };
     if (!r.ok) {
       setSaving(false); haptic("error");
@@ -252,7 +254,7 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
     const { error } = await supabase.from("os_workstreams").delete().eq("id", auditing.id);
     // A stream with audit history keeps it (0405: on delete restrict) — the record is parked, not deleted.
     if (error?.code === "23503") { toast("It has audit history, so it stays on the record — set its status to Parked instead.", "error"); return; }
-    if (error) { toast(`Couldn't remove — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't remove"), "error"); return; }
     toast("Removed from the portfolio");
     dropDraft(phone(), draftKey(me, auditing.id));
     onReload();
@@ -342,7 +344,7 @@ export default function MondayAudit({ rows, recent, ids, start, onReload, onClos
           <div>
             <label className="prod-f"><span>Due</span>
               <input type="date" className="note-in" value={draft.due} onChange={(e) => set({ due: e.target.value })} /></label>
-            {warn && <p className="m-0 mt-1.5 flex items-start gap-1.5 font-sans text-footnote leading-snug text-warn"><Icon name="warning" />{warn}</p>}
+            {warn && <Said as="p" className="m-0 mt-1.5 flex items-start gap-1.5 font-sans text-footnote leading-snug text-warn"><Icon name="warning" />{warn}</Said>}
           </div>
           <label className="prod-f"><span>Blocker</span>
             <input className="note-in" value={draft.blocker} onChange={(e) => set({ blocker: e.target.value })} onKeyDown={onReturn} enterKeyHint="go" placeholder="What's stuck, if anything" /></label>

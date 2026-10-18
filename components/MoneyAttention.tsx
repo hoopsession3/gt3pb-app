@@ -15,6 +15,7 @@ import { useOperatorSection, type OpSection } from "./OperatorNav";
 import { goToDest } from "./CrewKpis";
 import { useConfirm } from "./ConfirmSheet";
 import { useAppStable } from "./AppProvider";
+import { plainFailure } from "@/lib/failureWords";
 
 // NEEDS ATTENTION, ON MONEY (2026-10-15, release 3 of the Plan & Money audit). The money that needs a person, worst
 // first, between how the business is doing (Performance, above) and what to do next (below). The rules are
@@ -87,7 +88,7 @@ export default function MoneyAttention() {
     setPaying(r.invoiceId);
     const res = await markInvoicePaid(supabase, r.invoiceId);
     setPaying(null);
-    if (res.error) { toast(`Couldn't mark it paid — ${res.error}`, "error"); return; }
+    if (res.error) { toast(`Couldn't mark it paid — ${plainFailure(res.error)}`, "error"); return; }
     toast(res.already ? "Already paid." : "Paid.");
     reload();
   };

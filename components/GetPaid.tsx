@@ -13,6 +13,7 @@ import GoLine from "./GoLine";
 import Icon from "./Icon";
 import { useConfirm } from "./ConfirmSheet";
 import { useAppStable } from "./AppProvider";
+import { plainFailure } from "@/lib/failureWords";
 
 // GET PAID (2026-10-15, release 3 of the Plan & Money audit). The panel was two links out — "Refunds & disputes —
 // Square Dashboard" and the payment switches — and nothing in it said whether there was a refund, a chargeback or an
@@ -82,7 +83,7 @@ export default function GetPaid() {
     setPaying(inv.id);
     const res = await markInvoicePaid(supabase, inv.id);
     setPaying(null);
-    if (res.error) { toast(`Couldn't mark it paid — ${res.error}`, "error"); return; }
+    if (res.error) { toast(`Couldn't mark it paid — ${plainFailure(res.error)}`, "error"); return; }
     toast(res.already ? "Already paid." : "Paid.");
     reload();
   };

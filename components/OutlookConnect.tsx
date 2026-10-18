@@ -8,6 +8,8 @@ import { useConfirm } from "./ConfirmSheet";
 import AsyncSection from "./AsyncSection";
 import Button from "./Button";
 import { APP_BUILD, BROWSER_CLOSED_EVENT } from "@/lib/native";
+import Said from "@/components/Said";
+import { failureOr } from "@/lib/failureWords";
 
 // OUTLOOK — the owner's two-way calendar sync (/api/outlook/*, all owner-only).
 //
@@ -77,7 +79,7 @@ export default function OutlookConnect() {
         return;
       }
       if (j.ok && j.url) { window.location.href = j.url; return; }
-      setMsg(j.error || "Couldn't start Outlook connect.");
+      setMsg(failureOr(j.error, "Couldn't start Outlook connect."));
     } catch { setMsg("Couldn't reach the server — try again."); }
     setBusy(null);
   };
@@ -108,7 +110,7 @@ export default function OutlookConnect() {
               </div>
             </>
           )}
-          {msg && <div className="ol-msg">{msg}</div>}
+          {msg && <Said className="ol-msg">{msg}</Said>}
         </div>
       )}
     </AsyncSection>

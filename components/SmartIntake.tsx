@@ -9,6 +9,8 @@ import { useOptions } from "./useOptions";
 import { useSuggestions } from "./useSuggestions";
 import { withCurrent } from "@/lib/options";
 import { errorMessage } from "@/lib/errorMessage";
+import Said from "@/components/Said";
+import { failureOr, failureWords } from "@/lib/failureWords";
 
 // SMART INTAKE — drop any file (photo of gear, a permit, a receipt, a manual). It's read by the
 // intake agent, which proposes where it belongs: an asset, an inventory consumable, or a stored
@@ -47,11 +49,11 @@ export default function SmartIntake() {
     setBusy("Uploading…");
     const path = rand(file.name);
     const res = await uploadToBucket({ bucket: "intake", file, path });
-    if ("error" in res) { setErr(`Upload failed: ${res.error}`); setBusy(null); return; }
+    if ("error" in res) { setErr(failureWords(res.error, "Upload failed")); setBusy(null); return; }
     setBusy("Reading the file…");
     const j = await api({ path, name: file.name, mime: file.type }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     setBusy(null);
-    if (!j.ok) { setErr(j.error || "Couldn't read it."); return; }
+    if (!j.ok) { setErr(failureOr(j.error, "Couldn't read it.")); return; }
     setScan(j); setP({ ...j.proposal });
   };
 
@@ -60,7 +62,7 @@ export default function SmartIntake() {
     setBusy("Filing…"); setErr(null);
     const j = await api({ commit: { ...p, path: scan.path, name: p.name, mime: scan.mime } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     setBusy(null);
-    if (!j.ok) { setErr(j.error || "Couldn't file it."); return; }
+    if (!j.ok) { setErr(failureOr(j.error, "Couldn't file it.")); return; }
     setDone(j.filed || "filed"); setScan(null); setP(null);
   };
 
@@ -137,14 +139,14 @@ export default function SmartIntake() {
               </select></label>}
           </div>
 
-          {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
+          {err && <Said assertive className="dp-err" style={{ marginTop: 8 }}>{err}</Said>}
           <div className="prod-actions" style={{ marginTop: 12 }}>
             <button type="button" className="note-arch" onClick={reset} disabled={!!busy}>Cancel</button>
             <button type="button" className="btn-pri" onClick={file} disabled={!!busy}>{busy || <>File it <Icon name="arrowRight" /> {p.kind === "asset" ? "Assets" : p.kind === "inventory" ? "Inventory" : "Documents"}</>}</button>
           </div>
         </div>
       )}
-      {err && !p && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
+      {err && !p && <Said assertive className="dp-err" style={{ marginTop: 8 }}>{err}</Said>}
     </div>
   );
 }

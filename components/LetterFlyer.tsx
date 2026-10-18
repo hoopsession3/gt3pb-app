@@ -9,6 +9,7 @@ import Icon from "@/components/Icon";
 import { saveFile } from "@/lib/deviceActions";
 import { APP_BUILD } from "@/lib/native";
 import { devicePref, useDevicePref } from "@/lib/devicePref";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 const LETTER_TPL = devicePref("gt3-letter-tpl"), LETTER_FMT = devicePref("gt3-letter-fmt");
 /** A kept index, if it names one of `n`; else the first. Pure. */
@@ -329,12 +330,12 @@ export default function LetterFlyer() {
     await draw(); const blob = await toBlob();
     if (!blob) { toast("Couldn't render — try again.", "error"); setBusy(false); return; }
     const res = await uploadToBucket({ bucket: "content", file: blob, path: `flyer/letter-${new Date().getTime()}.png`, upsert: true });
-    if ("error" in res) { toast(`Save failed — ${res.error}`, "error"); setBusy(false); return; }
+    if ("error" in res) { toast(`Save failed — ${plainFailure(res.error)}`, "error"); setBusy(false); return; }
     const mediaUrl = res.url;
     const caption = `${f.headline}${f.body ? ` — ${f.body.split("\n")[0]}` : ""}`.slice(0, 300);
     const { error } = await supabase.from("content_items").insert({ title: f.headline || "Announcement", kind: "post", caption, media: [{ url: mediaUrl, type: "image" }], media_url: mediaUrl, media_type: "image", created_by: user?.id ?? null, updated_by: user?.id ?? null });
     setBusy(false);
-    toast(error ? `Save failed — ${error.message}` : "Saved to the feed — schedule it in Board/Grid", error ? "error" : undefined);
+    toast(error ? failureWords(error, "Save failed") : "Saved to the feed — schedule it in Board/Grid", error ? "error" : undefined);
   };
 
   const field = (k: keyof Fields, label: string, ph: string) => (

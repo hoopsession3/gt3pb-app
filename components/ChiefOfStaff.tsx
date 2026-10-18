@@ -8,6 +8,8 @@ import Icon from "@/components/Icon";
 import { useAuth } from "./AuthProvider";
 import { errorMessage } from "@/lib/errorMessage";
 import { CommandFold } from "./CommandFold";
+import Said from "@/components/Said";
+import { failureOr } from "@/lib/failureWords";
 
 // CHIEF OF STAFF — the executive-assistant briefing. Pick a horizon (week / month / quarter) and it
 // reads the whole org and tells you what to focus on and in what order: headline, ranked priorities,
@@ -58,7 +60,7 @@ export default function ChiefOfStaff() {
       // This panel renders for any leader, but /api/agents/chief is gated to is_owner() — so a
       // non-owner admin got the bare word "unauthorized" and no idea why. State the actual rule.
       if (r.status === 401 || r.status === 403) setErr("The Chief of Staff briefing is owner-only. Ask an owner to run it for you.");
-      else if (!j.ok) setErr(j.error || "Couldn't build the briefing."); else setRes(j);
+      else if (!j.ok) setErr(failureOr(j.error, "Couldn't build the briefing.")); else setRes(j);
     } catch (e) { setErr(errorMessage(e)); }
     setBusy(false);
   };
@@ -151,7 +153,7 @@ export default function ChiefOfStaff() {
           <button type="button" className="btn-sec btn-wide mt-3" onClick={() => run()} disabled={busy}>{busy ? "Refreshing…" : "↻ Refresh briefing"}</button>
         </>
       )}
-      {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
+      {err && <Said assertive className="dp-err" style={{ marginTop: 8 }}>{err}</Said>}
       {assignTitle != null && (
         <AssignTaskSheet defaultTitle={assignTitle} onClose={() => setAssignTitle(null)} onCreated={() => setAssignTitle(null)} />
       )}

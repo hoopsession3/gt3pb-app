@@ -6,6 +6,7 @@ import { haptic } from "@/lib/haptics";
 import { isNativeApp } from "@/lib/native";
 import { digitsOf, finishSetup, giveCode, keyGroups, qrSrc, setRequired, startSetup, turnOff, twoStepState, TOTP_LEN, type Enrolment, type TwoStepState } from "@/lib/twoStep";
 import Said from "./Said";
+import { useStepFocus } from "./useStepFocus";
 
 // TWO-STEP SIGN-IN — Settings & privacy, for an owner or an admin (R28, 2026-10-18 — the 10/10 audit, security F6; Ryan:
 // "Yes, owner/admin"). And the crew console's setup step when their business requires it (components/TwoStepPrompt).
@@ -27,6 +28,10 @@ type Step =
 
 export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
   const [step, setStep] = useState<Step>({ at: "loading" });
+  const scope = useRef<HTMLDivElement>(null);
+  // Only a view the person's own tap brought (acted): the first answer as Settings opens takes no focus from the page.
+  const acted = useRef(false);
+  useStepFocus(step.at, scope, { pick: () => (acted.current ? scope.current?.querySelector<HTMLElement>(".cfm-body") : null) });
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -48,6 +53,7 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
   useEffect(() => { if (step.at === "scan") codeRef.current?.focus({ preventScroll: true }); }, [step.at]);
 
   const begin = async () => {
+    acted.current = true;
     if (!supabase || busy) return;
     setBusy(true); setErr("");
     const got = await startSetup(supabase);
@@ -57,6 +63,7 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
   };
 
   const prove = async (enrol: Enrolment) => {
+    acted.current = true;
     if (!supabase || busy || code.length < TOTP_LEN) return;
     setBusy(true); setErr("");
     const done = await finishSetup(supabase, enrol.factorId, code);
@@ -68,6 +75,7 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
   };
 
   const require = async (state: TwoStepState, on: boolean) => {
+    acted.current = true;
     if (!supabase || busy) return;
     setBusy(true); setErr("");
     const r = await setRequired(supabase, on);
@@ -79,6 +87,7 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
 
   // Off, with this sign-in's code: given now when this sign-in hasn't given it yet (Supabase asks for it).
   const stop = async (state: TwoStepState | null) => {
+    acted.current = true;
     if (!supabase || busy) return;
     setBusy(true); setErr("");
     if (!state?.given) {
@@ -99,14 +108,17 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
       placeholder={"•".repeat(TOTP_LEN)} value={code} onChange={(e) => setCode(digitsOf(e.target.value))} readOnly={busy} />
   );
 
-  if (step.at === "loading") return <p className="dp-hint" role="status" aria-busy="true">Checking two-step sign-in…</p>;
+  // EACH VIEW IS WHERE FOCUS GOES (R34 — the audit's UX11-05). Setting up, the code accepted, a failure: each swap of view
+  // dropped focus to the page and said nothing. The view's first line takes focus (useStepFocus) — read where it lands.
+  if (step.at === "loading") return <div ref={scope}><p className="dp-hint" role="status" aria-busy="true">Checking two-step sign-in…</p></div>;
 
   if (step.at === "failed") {
     return (
-      <div>
+      <div ref={scope}>
+        {/* raw words: our own sentence (the "failed" step's, set above) */}
         <p className="cfm-body" role="alert">{step.message}</p>
         <div className="prod-actions cfm-actions">
-          <button type="button" className="btn-pri" onClick={() => { setStep({ at: "loading" }); setAsked((n) => n + 1); }}>Try again</button>
+          <button type="button" className="btn-pri" onClick={() => { acted.current = true; setStep({ at: "loading" }); setAsked((n) => n + 1); }}>Try again</button>
         </div>
       </div>
     );
@@ -114,7 +126,7 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
 
   if (step.at === "off") {
     return (
-      <div>
+      <div ref={scope}>
         <p className="cfm-body">Two-step sign-in is off.</p>
         <p className="dp-hint">
           Turn it on and the money, the books, customers and the crew&rsquo;s roles ask for a six-digit code from an
@@ -140,7 +152,7 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
   if (step.at === "scan") {
     const { enrol } = step;
     return (
-      <form noValidate onSubmit={(e) => { e.preventDefault(); void prove(enrol); }}>
+      <div ref={scope}><form noValidate onSubmit={(e) => { e.preventDefault(); void prove(enrol); }}>
         <p className="cfm-body">Add GT3 to your authenticator.</p>
         <p className="dp-hint">Scan this with your authenticator app{isNativeApp() ? ", or add it on this iPhone with the link below" : ""}.</p>
         {/* Black on white whatever the theme: a camera reads the code by its contrast. */}
@@ -156,13 +168,13 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
         {codeField("The code from your authenticator")}
         {err && <div className="auth-err" role="alert">{err}</div>}
         <button className="btn-pri btn-wide mt-3" type="submit" disabled={busy || code.length < TOTP_LEN}><span>{busy ? "Checking…" : "Turn it on"}</span></button>
-      </form>
+      </form></div>
     );
   }
 
   const { state } = step;
   return (
-    <div>
+    <div ref={scope}>
       <Said as="p" className="cfm-body" quietFirst>Two-step sign-in is on.</Said>
       <p className="dp-hint">
         The money, the books, customers and the crew&rsquo;s roles ask for your authenticator&rsquo;s code once each sign-in.

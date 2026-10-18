@@ -23,6 +23,7 @@ import { dueLead, type PickupFeed } from "@/lib/dueNext";
 import ReserveClaims from "./crew/ReserveClaims";
 import Said from "./Said";
 import { keyed } from "@/lib/dbTypes";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -149,7 +150,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
   const toggle = async (id: string, key: "picked_up" | "bottles_returned", val: boolean) => {
     if (!supabase) return;
     const { error } = await supabase.from("drop_orders").update(keyed(key, val)).eq("id", id);
-    if (error) toast(`Didn't save — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Didn't save"), "error");
     reload();
   };
   // ── MONEY AT THE WINDOW (2026-10-04, 0341) ─────────────────────────────────────────────────────
@@ -159,7 +160,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
     if (!supabase) return false;
     const { via, reason } = settleOf(how);   // on the house (0432): covered, with an owner's reason
     const res = await collectPayment(supabase, "pickup", o.id, via, reason);
-    if (res.error) { toast(`Couldn't record it — ${res.error}`, "error"); reload(); return false; }
+    if (res.error) { toast(`Couldn't record it — ${plainFailure(res.error)}`, "error"); reload(); return false; }
     // Each way said as what it was (R27: covered was said "on the card reader").
     const said = reason ? "on the house" : via === "cash" ? "cash" : via === "card_reader" ? "on the card reader" : "covered by their free cup or credit";
     toast(res.already ? `${o.name} had already paid — nothing taken` : `${o.name} — ${dollars(o.total_cents / 100)} ${said}`);
@@ -175,7 +176,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
     const via = viaOf(o) ?? "card_reader";
     if (!(await confirm({ title: `Undo ${VIA_UNDO[via]} — ${dollars(o.total_cents / 100)} from ${o.name}?`, body: "Only if it wasn't settled that way. You can collect it again after.", confirmLabel: "Undo it" }))) return;
     const res = await undoCollection(supabase, "pickup", o.id);
-    if (res.error) toast(`Couldn't undo it — ${res.error}`, "error");
+    if (res.error) toast(`Couldn't undo it — ${plainFailure(res.error)}`, "error");
     else toast(res.already ? "Nothing to undo — it wasn't taken at the window" : `${o.name} — back to unpaid`);
     reload();
   };
@@ -190,7 +191,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
       if (how !== "unpaid" && !(await takeMoney(o, how))) return;
     }
     const { error } = await supabase.from("drop_orders").update({ stage }).eq("id", o.id);
-    if (error) toast(`Didn't save — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Didn't save"), "error");
     reload();
   };
   // Recall traceability (0261, blind-spot round): stamp WHICH brew filled the pack at pack-out.
@@ -198,7 +199,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
   const setBatch = async (id: string, batchId: string) => {
     if (!supabase) return;
     const { error } = await supabase.from("drop_orders").update({ batch_id: batchId || null }).eq("id", id);
-    if (error) toast(`Didn't save — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Didn't save"), "error");
     reload();
   };
 
@@ -218,7 +219,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
     const nextLabel = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
     if (!(await confirm({ title: `Move ${o.name}'s ${o.size}-pack to ${nextLabel}'s drop?`, confirmLabel: "Move it" }))) return;
     const { error } = await supabase.from("drop_orders").update({ drop_date: nextISO }).eq("id", o.id);
-    if (error) { toast(`Couldn't move it — ${error.message}`, "error"); reload(); return; }
+    if (error) { toast(failureWords(error, "Couldn't move it"), "error"); reload(); return; }
     toast(`Moved to ${nextLabel} — it's under Upcoming drops`);
     reload();
   };
@@ -227,7 +228,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
   const pullBack = async (o: DropOrder) => {
     if (!supabase) return;
     const { error } = await supabase.from("drop_orders").update({ drop_date: dropISO }).eq("id", o.id);
-    if (error) { toast(`Couldn't move it — ${error.message}`, "error"); reload(); return; }
+    if (error) { toast(failureWords(error, "Couldn't move it"), "error"); reload(); return; }
     toast(`Back on ${satLabel}'s drop`);
     reload();
   };
@@ -249,7 +250,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
       : { title: `Cancel ${o.name}'s ${o.size}-pack?`, body: "Pay at pickup — nothing was charged.", confirmLabel: "Cancel pack", cancelLabel: "Keep it", danger: true }))) return;
     // Once: a pack already canceled (another phone, a second tap) is not canceled again.
     const { data: gone, error } = await supabase.from("drop_orders").update({ canceled_at: new Date().toISOString() }).eq("id", o.id).is("canceled_at", null).select("id");
-    if (error) { toast(`Couldn't cancel — ${error.message}`, "error"); reload(); return; }
+    if (error) { toast(failureWords(error, "Couldn't cancel"), "error"); reload(); return; }
     if (!gone?.length) { toast(`${o.name}'s pack was already canceled`, "info"); reload(); return; }
     toast(how === "cash" ? `Reservation canceled — hand back ${amt} cash` : "Reservation canceled");
     reload();
@@ -277,7 +278,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
     });
     const { error } = await supabase.from("brew_batches").insert(ins);
     setBusy(false);
-    if (error) { toast(`Couldn't queue the brew — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't queue the brew"), "error"); return; }
     toast(`Brew plan queued — ${ins.length} ${ins.length === 1 ? "batch" : "batches"} for Friday`);
     reload();
   };

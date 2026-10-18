@@ -10,6 +10,7 @@ import {
   slotsLeft, thumbOf, validateFile, type MediaItem,
 } from "@/lib/shopMedia";
 import Said from "./Said";
+import { plainFailure } from "@/lib/failureWords";
 
 // MEDIA STUDIO (0278) — the owner's side of shop media: pick real photos and clips, put them in the
 // order a shopper should see them, say which one leads, describe them.
@@ -56,7 +57,7 @@ export default function MediaStudio({ productId, value, onChange }: Props) {
     for (const { file, kind } of queue) {
       setBusy(file.name);
       const res = await uploadToBucket({ bucket: BUCKET, file, prefix: `p/${productId}`, cacheSeconds: 31536000 });
-      if ("error" in res) problems.push(`${file.name} — ${res.error}`);
+      if ("error" in res) problems.push(`${file.name} — ${plainFailure(res.error)}`);
       else added.push({ id: res.path, url: res.url, kind });
       setDone((n) => n + 1);
     }

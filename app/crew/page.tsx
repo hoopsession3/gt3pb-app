@@ -245,6 +245,7 @@ import { eventTotals, type EventTotals } from "@/lib/eventTotals";
 import Said from "@/components/Said";
 import type { TablesUpdate } from "@/lib/database.types";
 import { keyed } from "@/lib/dbTypes";
+import { plainFailure, failureWords, failureOr } from "@/lib/failureWords";
 
 // The sections' names have one home now (lib/routeTitles): this heading, the guide, and the title bar's
 // title and its ‹ read the same words (2026-10-08, the navigation round).
@@ -706,7 +707,7 @@ function AlertsInbox({ userId, compact = false, title = "Alerts", onNavigate }: 
         {prefsSheet}
         {/* "All caught up" is a claim about the inbox, so it needs the inbox to have answered. */}
         {readErr ? (
-          <EmptyState role="alert" title="Couldn't check your inbox" sub={`${readErr}. This is not "all caught up" — the read did not answer.`}
+          <EmptyState role="alert" title="Couldn't check your inbox" sub={`${failureWords(readErr)} This is not "all caught up" — the read did not answer.`}
             action={<button type="button" className="btn-ter" onClick={() => reload()}>Try again</button>} />
         ) : (
           <EmptyState title="You're all caught up" sub="No flags or pings need you right now." />
@@ -858,7 +859,7 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
     const mentionIds = resolveMentions(sent, staff, picked).ids;
     const { error } = await supabase.from("comments").insert({ ...keyed(subject.col, subject.id), body: sent, author_id: meId, mentions: mentionIds });
     setSending(false);
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setText(""); setPicked({});
     load();
     // Ping the counterparties + mentions (never myself) so the reply doesn't go unseen.
@@ -1023,7 +1024,7 @@ function MenuEditor({ ownerType, ownerId, isAdmin, onChanged }: { ownerType: "ev
     const before = f;
     setF({ ...f, ...patch });
     const { error } = await supabase.from(table).update(patch).eq("id", ownerId);
-    if (error) { setF(before); toast(`Couldn't save the menu — ${error.message}`, "error"); return; }
+    if (error) { setF(before); toast(failureWords(error, "Couldn't save the menu"), "error"); return; }
     onChanged();
   };
   if (!isAdmin || !f) return null;
@@ -1408,7 +1409,7 @@ function ReadinessAgent() {
     try {
       const r = await authedFetch("/api/agents/readiness", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const j = await r.json();
-      if (!j.ok) toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
+      if (!j.ok) toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : failureOr(j.error, "That didn't go through — try again in a moment."), "error");
       else if (j.skipped) { setRes(null); toast("No upcoming events to check"); }
       else setRes({ headline: j.headline, severity: j.severity, gaps: j.gaps ?? [] });
     } catch { toast("Couldn't reach the readiness agent", "error"); }
@@ -1487,7 +1488,7 @@ function InspectionPrep() {
     try {
       const r = await authedFetch("/api/agents/inspection", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state, county, event_id: eventId }) });
       const j = await r.json();
-      if (!j.ok) { toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error"); setBusy(false); return; }
+      if (!j.ok) { toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : failureOr(j.error, "That didn't go through — try again in a moment."), "error"); setBusy(false); return; }
       if (j.status === "pending" && j.job_id) {
         setWait("Researching the jurisdiction…");
         const done = await waitForJob(j.job_id);
@@ -1516,7 +1517,7 @@ function InspectionPrep() {
     const { error } = approve
       ? await supabase.from("compliance_rules").update({ active: true, verified: true }).eq("id", id)
       : await supabase.from("compliance_rules").delete().eq("id", id);
-    if (error) { toast(`Couldn't ${approve ? "approve" : "dismiss"} it — ${error.message}`, "error"); return; }
+    if (error) { toast(`Couldn't ${approve ? "approve" : "dismiss"} it — ${plainFailure(error)}`, "error"); return; }
     setRes((r) => r ? { ...r, proposed: r.proposed.filter((p) => p.id !== id) } : r);
     toast(approve ? "Approved — on the checklist. Check it with the authority to date it." : "Dismissed");
   };
@@ -1938,7 +1939,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       // First generation — straight insert.
       const { error } = await createEventTasks(rows);
       setGenerating(false);
-      toast(error ? `Error: ${error}` : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`, error ? "error" : undefined);
+      toast(error ? failureWords(error) : `Generated ${pack.length} pack${comp.length ? ` + ${comp.length} compliance` : ""} items`, error ? "error" : undefined);
       if (!error) load();
       return;
     }
@@ -1978,8 +1979,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       supabase.from("event_schedule_items").delete().eq(ownerCol, target.id),
     ]);
     setGenerating(false);
-    const e = t1.error || t2.error?.message;
-    toast(e ? `Reset failed — ${e}` : `Reset — this ${what}'s prep & schedule are cleared`, e ? "error" : undefined);
+    const e = t1.error || t2.error;
+    toast(e ? failureWords(e, "Reset failed") : `Reset — this ${what}'s prep & schedule are cleared`, e ? "error" : undefined);
     if (!e) load();
   };
   const toggle = async (t: EventTask) => {
@@ -1987,7 +1988,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const next = !t.done;
     setTasks((p) => p.map((x) => (x.id === t.id ? { ...x, done: next } : x)));
     const { error } = await supabase.from("event_tasks").update({ done: next, done_by: next ? user?.id ?? null : null, done_at: next ? new Date().toISOString() : null }).eq("id", t.id);
-    if (error) { toast(`Error: ${error.message}`, "error"); load(); }
+    if (error) { toast(failureWords(error), "error"); load(); }
   };
   const assign = async (t: EventTask, uid: string) => {
     if (!supabase) return;
@@ -1997,7 +1998,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     if (next === prev) return;
     setTasks((p) => p.map((x) => (x.id === t.id ? { ...x, assignee: next } : x))); // optimistic — the assignment shows immediately
     const { error } = await supabase.from("event_tasks").update({ assignee: next }).eq("id", t.id);
-    if (error) { toast(`Error: ${error.message}`, "error"); load(); return; }
+    if (error) { toast(failureWords(error), "error"); load(); return; }
     toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
     // Notify the newly-assigned member (best-effort; lights up once the push Edge Function is redeployed).
     if (next) {
@@ -2023,7 +2024,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const delta = (n ?? 0) - (t.actual_qty ?? 0);
     setTasks((p) => p.map((x) => (x.id === t.id ? { ...x, actual_qty: n, done: n != null } : x)));
     const { error } = await supabase.from("event_tasks").update({ actual_qty: n, done: n != null, done_at: n != null ? new Date().toISOString() : null, done_by: n != null ? user?.id ?? null : null }).eq("id", t.id);
-    if (error) { toast(`Couldn't confirm — ${error.message}`, "error"); load(); return; }
+    if (error) { toast(failureWords(error, "Couldn't confirm"), "error"); load(); return; }
     // back the clean UI with an append-only ledger entry (signed delta) for reports + carryover.
     //
     // ON THIS EVENT'S SHELF (2026-10-04, the form audit). The entry carried no market, so it took
@@ -2035,7 +2036,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         item: t.label.slice(0, 160), task_id: t.id, kind: "confirm", qty: delta, market,
         event_id: isEvent ? target.id : null, stop_id: isEvent ? null : target.id, created_by: user?.id ?? null,
       });
-      if (le) toast(`Confirmed, but on-hand didn't move — ${le.message}`, "error");
+      if (le) toast(failureWords(le, "Confirmed, but on-hand didn't move"), "error");
       loadOnHand();
     }
   };
@@ -2056,7 +2057,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       p_item: item, p_want: want, p_market: market,
       p_event: isEvent ? target.id : null, p_stop: isEvent ? null : target.id,
     });
-    if (error) { toast(`Couldn't correct ${item} — ${error.message}`, "error"); loadOnHand(); return; }
+    if (error) { toast(`Couldn't correct ${item} — ${plainFailure(error)}`, "error"); loadOnHand(); return; }
     // Show what the SERVER says the shelf holds, not what we assumed it would.
     const landed = Number(data);
     setOnHand((p) => p.map((o) => (o.item === item ? { ...o, bal: Number.isFinite(landed) ? landed : o.bal } : o)));
@@ -2066,12 +2067,12 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
     const due_at = newTaskDue.trim() === "" ? null : new Date(`${newTaskDue}T23:59:59`).toISOString();
     const { error } = await createEventTask({ parent: ownerParent, label: newTask.trim(), kind: "task", section: "Task", sort: tasks.length, dueISO: due_at });
     setNewTask(""); setNewTaskDue("");
-    if (error) toast(`Error: ${error}`, "error"); else load();
+    if (error) toast(failureWords(error), "error"); else load();
   };
   const addCrew = async (uid: string) => {
     if (!supabase || !uid) return;
     const { error } = await supabase.from("event_staff").insert({ ...keyed(ownerCol, target.id), user_id: uid });
-    if (error) toast(error.code === "23505" ? "Already on crew" : `Error: ${error.message}`, "error"); else load();
+    if (error) toast(error.code === "23505" ? "Already on crew" : failureWords(error), "error"); else load();
   };
   const removeCrew = async (id: string) => { if (supabase) { if (wrote(await supabase.from("event_staff").delete().eq("id", id), toast, "Couldn't take them off the crew")) load(); } };
   // Add supplies the crew must bring — picked from the Notion inventory catalog or typed
@@ -2085,7 +2086,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       .map((i, idx) => ({ parent: ownerParent, label: i.label.trim(), section: "Supplies", kind: "pack", critical: i.critical, sort: 40 + idx }));
     if (rows.length === 0) { toast("Those are already on the list"); return; }
     const { error } = await createEventTasks(rows);
-    toast(error ? `Error: ${error}` : `Added ${rows.length} suppl${rows.length === 1 ? "y" : "ies"}`, error ? "error" : undefined);
+    toast(error ? failureWords(error) : `Added ${rows.length} suppl${rows.length === 1 ? "y" : "ies"}`, error ? "error" : undefined);
     if (!error) load();
   };
   // Tag/untag a crew member as a manager — managers must approve the prep too.
@@ -2101,7 +2102,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       toast("Approval withdrawn");
     } else {
       const { error } = await supabase.from("event_approvals").insert({ ...keyed(ownerCol, target.id), approver_id: user.id });
-      toast(error ? `Error: ${error.message}` : "Prep approved", error ? "error" : undefined);
+      toast(error ? failureWords(error) : "Prep approved", error ? "error" : undefined);
     }
     load();
   };
@@ -2120,7 +2121,7 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
         link: "/crew", target_user_id: id, created_by: user?.id ?? null,
       })),
     );
-    if (error) { toast(`Couldn't request sign-off: ${error.message}`, "error"); return; }
+    if (error) { toast(`Couldn't request sign-off: ${plainFailure(error)}`, "error"); return; }
     toast("Sign-off requested");
   };
 
@@ -2683,7 +2684,7 @@ function MeetingNotes() {
         // (the rule /api/agents/recap already keeps) — My Tasks only shows what is assigned to you.
         setCActions(((j.actionItems ?? []) as { title: string; category: string; critical: boolean; assignee?: string | null }[]).map((a) => ({ ...a, assignee: a.assignee ?? meId })));
         toast(`Recap ready${j.actionItems?.length ? ` · ${j.actionItems.length} task${j.actionItems.length === 1 ? "" : "s"} to add on save` : ""}`);
-      } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error}`, "error");
+      } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : failureWords(j.error), "error");
     } catch { toast("Couldn't reach the summarizer", "error"); }
     setSummarizing(false);
   };
@@ -2755,12 +2756,15 @@ function MeetingNotes() {
     // land on its prep checklist); no link → note-owned as before. origin_note_id (0167) is pure
     // attribution — the note always knows the tasks it spawned, wherever they live.
     const noteId = (data as { id: string } | null)?.id;
+    // A refused follow-up insert is said (R34): it came back as no rows, and "Note saved · 3 tasks → the note" was said anyway.
+    let tasksErr: string | undefined;
     if (!error && noteId && cActions.length) {
       const owner: TaskParent = linkEvent ? { event: linkEvent } : linkStop ? { stop: linkStop } : { note: noteId };
-      const { rows: made } = await createEventTasks(cActions.map((a, i) => ({
+      const { rows: made, error: madeErr } = await createEventTasks(cActions.map((a, i) => ({
         parent: owner, originNoteId: noteId, label: a.title, kind: "task" as const, section: "Follow-up",
         critical: a.critical, assignee: a.assignee ?? null, sort: 1000 + i,
       })));
+      tasksErr = madeErr;
       // Assigned follow-ups ping their partner — the alert carries kind task_assigned, so it lands
       // in their My Day and is completable right on the card (0174). No leaving the note to delegate.
       const meFirst = (profile?.display_name || "A teammate").split(" ")[0];
@@ -2783,9 +2787,12 @@ function MeetingNotes() {
       }
     }
     setSaving(false);
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     const dest = linkEvent ? "the event's prep list" : linkStop ? "the stop's prep list" : "the note";
-    toast(`Note saved${cActions.length ? ` · ${cActions.length} task${cActions.length === 1 ? "" : "s"} → ${dest}` : ""}${filed ? ` · ${filed} file${filed === 1 ? "" : "s"} kept` : ""}${fileErr ? ` · ${fileErr} file${fileErr === 1 ? "" : "s"} couldn't upload` : ""}`, fileErr ? "error" : undefined);
+    const tasksWords = !cActions.length ? "" : tasksErr
+      ? ` · the follow-up${cActions.length === 1 ? "" : "s"} didn't save (${plainFailure(tasksErr)}) — add ${cActions.length === 1 ? "it" : "them"} from the note`
+      : ` · ${cActions.length} task${cActions.length === 1 ? "" : "s"} → ${dest}`;
+    toast(`Note saved${tasksWords}${filed ? ` · ${filed} file${filed === 1 ? "" : "s"} kept` : ""}${fileErr ? ` · ${fileErr} file${fileErr === 1 ? "" : "s"} couldn't upload` : ""}`, fileErr || tasksErr ? "error" : undefined);
     setCTitle(""); setCSummary(""); setCBody(""); setCLink(""); setCVis("private"); setVisTouched(false); setCActions([]); setCFiles([]); setComposing(false);
     load();
   };
@@ -2952,7 +2959,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     const v = titleDraft.trim().slice(0, 120);
     if (v === note.title) { setRenaming(false); return; }
     const { error } = await supabase.from("meeting_notes").update({ title: v }).eq("id", note.id);
-    toast(error ? `Couldn't rename — ${error.message}` : "Renamed", error ? "error" : undefined);
+    toast(error ? failureWords(error, "Couldn't rename") : "Renamed", error ? "error" : undefined);
     if (!error) { setRenaming(false); onRenamed?.(v); }
   };
   const [openThread, setOpenThread] = useState<string | null>(null);
@@ -3013,7 +3020,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     const parent: TaskParent = note.event_id ? { event: note.event_id } : note.stop_id ? { stop: note.stop_id } : { note: note.id };
     const { error } = await createEventTask({ parent, originNoteId: note.id, label: newItem.trim(), kind: "task", section: "Follow-up", sort: items.length, assignee: meId });
     setNewItem("");
-    if (error) toast(`Error: ${error}`, "error"); else load();
+    if (error) toast(failureWords(error), "error"); else load();
   };
   // ── 0262 continuation handlers ──
   // "Add to this note" — a new attributed, timestamped addendum row. The original body/summary are
@@ -3025,7 +3032,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (addDraft.trim()) {
       const { data, error } = await supabase.from("note_addenda")
         .insert({ note_id: note.id, body: addDraft.trim().slice(0, 8000), created_by: meId }).select("id").single();
-      if (error) { toast(`Couldn't add — ${error.message}`, "error"); setAddSaving(false); return; }
+      if (error) { toast(failureWords(error, "Couldn't add"), "error"); setAddSaving(false); return; }
       addendumId = (data as { id: string } | null)?.id ?? null;
     }
     let filed = 0, fileErr = 0;
@@ -3053,7 +3060,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (!supabase) return;
     if (!(await confirm({ title: `Remove “${f.name}” from this note?`, confirmLabel: "Remove", danger: true }))) return;
     const { error } = await supabase.from("note_files").delete().eq("id", f.id);
-    if (error) { toast(`Couldn't remove — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't remove"), "error"); return; }
     await supabase.storage.from("note-files").remove([f.path]);   // best-effort; the row is the gate
     toast("File removed"); load();
   };
@@ -3067,14 +3074,16 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     let follow_up_task_id: string | null = null;
     if (dec.fu.trim()) {
       // The follow-through is the decision-maker's until they hand it on — unassigned, it reached nobody.
-      const { id } = await createEventTask({ parent: { note: note.id }, label: dec.fu.trim(), kind: "task", section: "Follow-up", sort: 999, assignee: meId });
-      follow_up_task_id = id ?? null;
+      // Its follow-through is part of the record (R34): a refused task insert logged the decision with none, and said nothing.
+      const { id, error: fuErr } = await createEventTask({ parent: { note: note.id }, label: dec.fu.trim(), kind: "task", section: "Follow-up", sort: 999, assignee: meId });
+      if (fuErr || !id) { toast(failureWords(fuErr, "Nothing was logged — the follow-through couldn't be added"), "error"); return; }
+      follow_up_task_id = id;
     }
     const { error } = await supabase.from("strategy_decisions").insert({
       key: dec.key.trim().slice(0, 60) || note.title.slice(0, 60), decision: dec.decision.trim(), why: dec.why.trim() || null,
       author_id: meId, author_name: profile?.display_name ?? null, note_id: note.id, follow_up_task_id,
     });
-    if (error) { toast(`Couldn't log — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't log"), "error"); return; }
     toast("Logged — the record stands");
     setDec({ key: "", decision: "", why: "", fu: "" }); setLogging(false); load();
   };
@@ -3092,9 +3101,9 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
       const j = await r.json();
       if (j.ok && j.summary) {
         const { error } = await supabase.from("meeting_notes").update({ summary: j.summary }).eq("id", note.id);
-        if (error) toast(`Couldn't save the recap — ${error.message}`, "error");
+        if (error) toast(failureWords(error, "Couldn't save the recap"), "error");
         else { onSummary?.(j.summary); toast("Recap refreshed — additions folded in"); }
-      } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
+      } else toast(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key" : failureOr(j.error, "That didn't go through — try again in a moment."), "error");
     } catch { toast("Couldn't reach the summarizer", "error"); }
     setRefreshing(false);
   };
@@ -3119,7 +3128,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     try {
       const r = await authedFetch("/api/agents/recap", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note_id: note.id }) });
       const j = await r.json();
-      if (!j.ok) toast(j.error === "AI not configured (set ANTHROPIC_API_KEY)" ? "AI isn't switched on yet — add the API key" : `Error: ${j.error ?? r.status}`, "error");
+      if (!j.ok) toast(j.error === "AI not configured (set ANTHROPIC_API_KEY)" ? "AI isn't switched on yet — add the API key" : failureOr(j.error, "That didn't go through — try again in a moment."), "error");
       else {
         toast(j.added ? `Added ${j.added} follow-up${j.added === 1 ? "" : "s"} — proposing how to finish each…` : "No new action items found");
         await load();
@@ -3135,7 +3144,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     const next = !t.done;
     setItems((p) => p.map((x) => (x.id === t.id ? { ...x, done: next } : x)));
     const { error } = await supabase.from("event_tasks").update({ done: next, done_by: next ? user?.id ?? null : null, done_at: next ? new Date().toISOString() : null }).eq("id", t.id);
-    if (error) { toast(`Error: ${error.message}`, "error"); load(); }
+    if (error) { toast(failureWords(error), "error"); load(); }
   };
   const assign = async (t: EventTask, uid: string) => {
     if (!supabase) return;
@@ -3145,7 +3154,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
     if (next === prev) return;
     setItems((p) => p.map((x) => (x.id === t.id ? { ...x, assignee: next } : x))); // optimistic
     const { error } = await supabase.from("event_tasks").update({ assignee: next }).eq("id", t.id);
-    if (error) { toast(`Error: ${error.message}`, "error"); load(); return; }
+    if (error) { toast(failureWords(error), "error"); load(); return; }
     toast(next ? `Assigned to ${firstNameOf(next)}` : "Unassigned");
     if (next) {
       // Staff-wide alerts (0157): every assignee gets the flag; the trigger delivers the push.
@@ -3225,7 +3234,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                 if (!supabase) return;
                 const v = e.target.value as "private" | "team" | "collab";
                 const { error } = await supabase.from("meeting_notes").update({ visibility: v }).eq("id", note.id);
-                toast(error ? `Couldn't change — ${error.message}` : v === "private" ? "Now just for you" : v === "team" ? "Team can read it now" : "Team can read & comment now", error ? "error" : undefined);
+                toast(error ? failureWords(error, "Couldn't change") : v === "private" ? "Now just for you" : v === "team" ? "Team can read it now" : "Team can read & comment now", error ? "error" : undefined);
                 if (!error) onVisibility?.(v);
               }} aria-label="Who can see this note">
                 <option value="private">🔒 Just me</option>
@@ -3246,7 +3255,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
                   if (!supabase) return;
                   if (!(await confirm({ title: "Remove this addition?", body: "Files it brought stay on the note.", confirmLabel: "Remove", danger: true }))) return;
                   const { error } = await supabase.from("note_addenda").delete().eq("id", a.id);
-                  if (error) toast(`Couldn't remove — ${error.message}`, "error"); else { toast("Addition removed"); load(); }
+                  if (error) toast(failureWords(error, "Couldn't remove"), "error"); else { toast("Addition removed"); load(); }
                 }} aria-label="Remove this addition"><Icon name="close" /></button>}
               </div>
               <p className="note-addm-b">{a.body}</p>
@@ -3395,7 +3404,7 @@ function Bookings() {
 
   const setStatus = async (id: string, status: BookingRequest["status"]) => {
     const { error } = await supabase!.from("booking_requests").update({ status }).eq("id", id);
-    toast(error ? `Error: ${error.message}` : `Marked ${status}`, error ? "error" : undefined);
+    toast(error ? failureWords(error) : `Marked ${status}`, error ? "error" : undefined);
     if (!error) load();
   };
   // One tap: the request becomes a lead on the calendar/prep/economics rails — no retyping.
@@ -3406,7 +3415,7 @@ function Bookings() {
       title: r.name ? `${r.name} booking` : "Booking", stage: "lead", day, day_label,
       location_text: r.location_text ?? null, blurb: r.notes?.slice(0, 300) ?? null,
     });
-    if (error) { toast(`Couldn't create the event — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't create the event"), "error"); return; }
     toast("Added to Events as a lead — it's on the calendar now");
     if (r.status === "new") setStatus(r.id, "contacted");
   };
@@ -3437,14 +3446,14 @@ function Bookings() {
           extra: { poc_name: r.name, poc_email: r.email, poc_phone: r.phone, location_text: r.location_text ?? null },
         });
         if (res.kind === "similar") { setPromoteResolve({ req: r, name: nm, candidates: res.candidates }); return; }
-        if (res.kind === "error") { toast(`Couldn't create the account — ${res.message}`, "error"); return; }
+        if (res.kind === "error") { toast(failureWords(res, "Couldn't create the account"), "error"); return; }
         vendorId = res.id;
       }
       const { data: opp, error: oppErr } = await supabase.from("opportunities").insert({
         vendor_id: vendorId, stage: "warm", source: "inbound",
         next_step: "Reply to their request", created_by: user.id,
       }).select("id").single();
-      if (oppErr) { toast(`Couldn't open the opportunity — ${oppErr.message}`, "error"); return; }
+      if (oppErr) { toast(failureWords(oppErr, "Couldn't open the opportunity"), "error"); return; }
       const oppId = (opp as { id: string }).id;
       const when = [r.event_date, r.headcount ? `${r.headcount} ppl` : null, r.location_text].filter(Boolean).join(" · ");
       const who = [r.name, r.email, r.phone].filter(Boolean).join(" · ");
@@ -3455,10 +3464,10 @@ function Bookings() {
         r.notes?.trim() && `Notes: ${r.notes.trim().slice(0, 400)}`,
       ].filter(Boolean).join("\n");
       const { error: cErr } = await supabase.from("comments").insert({ strategy_key: `opp:${oppId}`, body: ctx, author_id: user.id });
-      if (cErr) toast(`Opportunity's up, but the context note didn't save — ${cErr.message}`, "error");
+      if (cErr) toast(failureWords(cErr, "Opportunity's up, but the context note didn't save"), "error");
       const { error: linkErr } = await supabase.from("booking_requests")
         .update({ opportunity_id: oppId, ...(r.status === "new" ? { status: "contacted" } : {}) }).eq("id", r.id);
-      if (linkErr) toast(`Opportunity's up, but the request didn't link — ${linkErr.message}`, "error");
+      if (linkErr) toast(failureWords(linkErr, "Opportunity's up, but the request didn't link"), "error");
       else toast("Promoted — the pursuit lives in Business › Pipeline now");
       load();
     } finally { setPromoting(null); }
@@ -3467,7 +3476,7 @@ function Bookings() {
     if (!(await confirm({ title: `Delete the booking request from ${r.name ?? "this contact"}?`, body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
     setReqs((p) => p.filter((x) => x.id !== r.id)); // optimistic
     const { error } = await supabase!.from("booking_requests").delete().eq("id", r.id);
-    if (error) { toast(`Couldn't delete — ${error.message}`, "error"); load(); } else toast("Booking request deleted");
+    if (error) { toast(failureWords(error, "Couldn't delete"), "error"); load(); } else toast("Booking request deleted");
   };
 
   const open = reqs.filter((r) => r.status === "new").length;
@@ -3573,10 +3582,10 @@ function ReservesAdmin() {
       if (!c.ok) { toast(c.reason, "error"); return false; }
       const { data, error } = await supabase.from("reserves").update(c.patch)
         .eq("id", cur.id).eq("stock_total", cur.stock_total).eq("stock_remaining", cur.stock_remaining).select("id");
-      if (error) { toast(`Couldn't update — ${error.message}`, "error"); load(); return false; }
+      if (error) { toast(failureWords(error, "Couldn't update"), "error"); load(); return false; }
       if (data && data.length) { toast(said(c)); load(); return true; }
       const { data: fresh, error: again } = await supabase.from("reserves").select("*").eq("id", cur.id).maybeSingle();
-      if (again || !fresh) { toast(`Couldn't update — ${again?.message ?? "that reserve is gone"}`, "error"); load(); return false; }
+      if (again || !fresh) { toast(`Couldn't update — ${again ? plainFailure(again) : "that reserve is gone"}`, "error"); load(); return false; }
       cur = fresh as Reserve;
     }
     toast("Claims kept landing while this saved — nothing changed. Try again.", "error");
@@ -3586,14 +3595,14 @@ function ReservesAdmin() {
 
   const update = async (id: string, patch: Partial<Reserve>) => {
     const { error } = await supabase!.from("reserves").update(patch).eq("id", id);
-    toast(error ? `Error: ${error.message}` : "Reserve updated", error ? "error" : undefined);
+    toast(error ? failureWords(error) : "Reserve updated", error ? "error" : undefined);
     if (!error) load();
   };
   const add = async () => {
     const { error } = await supabase!.from("reserves").insert({
       name: "", price_cents: 1200, stock_total: 12, stock_remaining: 12, status: "draft", sort: reservesState.data?.length ?? 0,
     });
-    toast(error ? `Error: ${error.message}` : "Reserve created — set details, then set it Live", error ? "error" : undefined);
+    toast(error ? failureWords(error) : "Reserve created — set details, then set it Live", error ? "error" : undefined);
     if (!error) load();
   };
   const archive = async (id: string) => {
@@ -3603,7 +3612,7 @@ function ReservesAdmin() {
   const remove = async (id: string, nm: string) => {
     if (!(await confirm({ title: `Delete “${nm}” for good?`, body: "This permanently removes the reserve and any claims on it. It can't be undone. Archive instead if you just want it hidden.", confirmLabel: "Delete for good", cancelLabel: "Keep it", danger: true }))) return;
     const { error } = await supabase!.from("reserves").delete().eq("id", id);
-    toast(error ? `Couldn't delete — ${error.message}` : "Reserve deleted", error ? "error" : undefined);
+    toast(error ? failureWords(error, "Couldn't delete") : "Reserve deleted", error ? "error" : undefined);
     if (!error) load();
   };
 
@@ -3806,7 +3815,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
   const toggleDriver = async () => {
     const next = !isDriver; setIsDriver(next);
     const { error } = await supabase!.rpc("admin_set_driver", { member: m.id, val: next });
-    if (error) { setIsDriver(!next); toast(`Error: ${error.message}`, "error"); }
+    if (error) { setIsDriver(!next); toast(failureWords(error), "error"); }
     else toast(next ? `${m.display_name ?? "Member"} tagged as driver 🚗` : "Driver tag removed");
   };
   const [busy, setBusy] = useState(false);
@@ -3831,7 +3840,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
       new_founding: founding !== m.founding_member ? founding : null,
     });
     setBusy(false);
-    toast(error ? `Error: ${error.message}` : `Saved ${m.display_name ?? "member"}`, error ? "error" : undefined);
+    toast(error ? failureWords(error) : `Saved ${m.display_name ?? "member"}`, error ? "error" : undefined);
     if (!error) onSaved();
   };
   const setRole = async (next: string) => {
@@ -3843,7 +3852,7 @@ function MemberRow({ m, isSelf, ownerCount, onPatch, onSaved }: { m: Profile; is
     else if (next === "owner" || next === "admin" || role === "owner") { if (!(await confirm({ title: `Set ${name} to ${roleLabel(next)}?`, confirmLabel: "Set role" }))) return; }
     onPatch(m.id, next); // optimistic — reflect the pick instantly
     const { error } = await supabase!.rpc("admin_set_role", { member: m.id, new_role: next });
-    if (error) { onPatch(m.id, role); toast(`Error: ${error.message}`, "error"); }
+    if (error) { onPatch(m.id, role); toast(failureWords(error), "error"); }
     else { toast(`${m.display_name ?? "Member"} → ${roleLabel(next)}`); onSaved(); }
   };
 
@@ -4070,7 +4079,7 @@ function EventHUD() {
       setArming(true);
       const { error } = await setEventLive(supabase, next.id, true);
       setArming(false);
-      if (error) { toast(`Couldn't make it live — ${error.message}`, "error"); return; }
+      if (error) { toast(failureWords(error, "Couldn't make it live"), "error"); return; }
       toast("Event is live — sales now track to it");
       load();
     };
@@ -4220,7 +4229,7 @@ function ProductCatalog() {
   }, []);
   const save = async (key: string, patch: Partial<ProductEcon>) => {
     const { error } = await supabase!.from("product_economics").update(patch).eq("product_key", key);
-    if (error) toast(`Error: ${error.message}`, "error"); else catalogState.reload();
+    if (error) toast(failureWords(error), "error"); else catalogState.reload();
   };
   return (
     <AsyncSection
@@ -4611,7 +4620,7 @@ function EventsAdmin() {
 
   const update = async (id: string, patch: TablesUpdate<"events">) => {
     const { error } = await supabase!.from("events").update(patch).eq("id", id);
-    toast(error ? `Error: ${error.message}` : "Event updated", error ? "error" : undefined);
+    toast(error ? failureWords(error) : "Event updated", error ? "error" : undefined);
     if (!error) load();
   };
   const addEvent = async (title: string) => {
@@ -4621,31 +4630,31 @@ function EventsAdmin() {
     // AddSheet, CalEdit's defTime all default here); a blank Start field was the one place an event
     // didn't match. Still just a starting point — fully editable on the card.
     const { data, error } = await supabase!.from("events").insert({ title, day_label: "SAT", day: nextSat, start_time: "11:00", sort: events.length }).select("id").single();
-    toast(error ? `Error: ${error.message}` : "Event added", error ? "error" : undefined);
+    toast(error ? failureWords(error) : "Event added", error ? "error" : undefined);
     if (!error) { if (data) setOpenId((data as { id: string }).id); load(); } // open the new one for editing
   };
   const remove = async (id: string) => {
     if (!(await confirm({ title: "Remove this event?", confirmLabel: "Remove", danger: true }))) return;
     const { error } = await supabase!.from("events").delete().eq("id", id);
-    toast(error ? `Error: ${error.message}` : "Event removed", error ? "error" : undefined);
+    toast(error ? failureWords(error) : "Event removed", error ? "error" : undefined);
     if (!error) load();
   };
   // Mark an event live — sales (POS + app) start tracking to it; only one live at a time.
   const setLive = async (id: string, live: boolean) => {
     const { error } = await setEventLive(supabase!, id, live);
-    toast(error ? `Error: ${error.message}` : live ? "Event is live — sales now track to it" : "Event closed", error ? "error" : undefined);
+    toast(error ? failureWords(error) : live ? "Event is live — sales now track to it" : "Event closed", error ? "error" : undefined);
     if (!error) load();
   };
   // Archive — closes the event (clears live) and files it out of the active workspace.
   // It stays in the DB for records/AAR; restore brings it back.
   const archive = async (id: string) => {
     const { error } = await archiveOwner(supabase!, { kind: "event", id });
-    toast(error ? `Error: ${error.message}` : "Event archived", error ? "error" : undefined);
+    toast(error ? failureWords(error) : "Event archived", error ? "error" : undefined);
     if (!error) { setOpenId(null); load(); }
   };
   const restore = async (id: string) => {
     const { error } = await supabase!.from("events").update({ archived_at: null }).eq("id", id);
-    toast(error ? `Error: ${error.message}` : "Event restored", error ? "error" : undefined);
+    toast(error ? failureWords(error) : "Event restored", error ? "error" : undefined);
     if (!error) load();
   };
 
@@ -4871,13 +4880,13 @@ function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; ven
     // Clear the old primary first — the partial unique index enforces ONE — and stop there if that was refused.
     if (!wrote(await supabase.from("vendor_locations").update({ is_primary: false }).eq("vendor_id", vendorId).eq("is_primary", true), toast, "Couldn't set primary")) return;
     const { error } = await supabase.from("vendor_locations").update({ is_primary: true }).eq("id", id);
-    toast(error ? `Couldn't set primary — ${error.message}` : "Primary location set", error ? "error" : undefined);
+    toast(error ? failureWords(error, "Couldn't set primary") : "Primary location set", error ? "error" : undefined);
     load();
   };
   const archiveLoc = async (id: string, label: string) => {
     if (!supabase) return;
     const { error } = await supabase.from("vendor_locations").update({ is_primary: false, archived_at: new Date().toISOString() }).eq("id", id);
-    toast(error ? `Couldn't remove — ${error.message}` : `${label} removed`, error ? "error" : undefined);
+    toast(error ? failureWords(error, "Couldn't remove") : `${label} removed`, error ? "error" : undefined);
     load();
   };
   return (
@@ -4954,7 +4963,7 @@ function VendorsAdmin() {
   const add = async (name: string, decision?: ResolveDecision) => {
     const r = await resolveVendor(name, { status: "approved", source: "the vendor book", sort: vendors.length, decision });
     if (r.kind === "similar") { setResolve({ name, candidates: r.candidates, ctx: { type: "add" } }); return; }
-    if (r.kind === "error") { toast(`Error: ${r.message}`, "error"); return; }
+    if (r.kind === "error") { toast(failureWords(r), "error"); return; }
     setResolve(null);
     toast(r.kind === "created" ? "Vendor added" : "Already in the book — opened it");
     setOpenId(r.id); load();
@@ -4975,7 +4984,7 @@ function VendorsAdmin() {
     }
     const r = await resolveVendor(sug.name, { status: "approved", source: "the vendor book", sort: vendors.length, extra: extra as Record<string, unknown>, decision });
     if (r.kind === "similar") { setResolve({ name: sug.name, candidates: r.candidates, ctx: { type: "from", sug } }); return; }
-    if (r.kind === "error") { toast(`Error: ${r.message}`, "error"); return; }
+    if (r.kind === "error") { toast(failureWords(r), "error"); return; }
     setResolve(null);
     const linked = await supabase!.from(sug.kind === "stop" ? "stops" : "events").update({ vendor_id: r.id }).eq("id", sug.id);
     if (!wrote(linked, toast, r.kind === "created" ? `Vendor created, but ${sug.name} isn't linked to it` : `Couldn't link ${sug.name}`)) { load(); return; }
@@ -4989,7 +4998,7 @@ function VendorsAdmin() {
     setMerging(true);
     const { data, error } = await supabase.rpc("merge_vendors", { p_keep: keep, p_dupes: [dupe] });
     setMerging(false);
-    if (error) { toast(`Couldn't merge — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't merge"), "error"); return; }
     const rep = (data as { repointed?: Record<string, number> })?.repointed ?? {};
     const moved = Object.entries(rep).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k.replace("_", " ")}`).join(" · ");
     toast(`Merged into ${keepName}${moved ? ` — repointed ${moved}` : ""}`);
@@ -5692,6 +5701,16 @@ export default function AdminPage() {
     if (firstSecRef.current) { firstSecRef.current = false; return; }
     opBodyRef.current?.focus();
   }, [section]);
+  // FROM THE TWO-STEP PROMPT TO THE CONSOLE, FOCUS GOES WITH IT (R34 — the audit's UX11-05): the code given (or "Not now"),
+  // the prompt's field and button went with the prompt and focus fell to the page — a screen reader heard nothing open.
+  // The console's section takes it, once, as a section change does.
+  const twoStepAskedRef = useRef(false);
+  useEffect(() => {
+    if (twoStep.need === "code" || twoStep.need === "setup") { twoStepAskedRef.current = true; return; }
+    if (twoStep.need !== "none" || !twoStepAskedRef.current) return;
+    twoStepAskedRef.current = false;
+    opBodyRef.current?.focus({ preventScroll: true });
+  }, [twoStep.need]);
   // deep-link from Studio's "Company calendar ↗" → land on the Plan calendar. Also listens for
   // gt3-plan-tab-set while ON Plan: the calendar's lead/pipeline chips jump to the Leads tab from
   // inside the section, where a sec change alone would never re-run this consume.
@@ -5760,13 +5779,15 @@ export default function AdminPage() {
   // Guard returns — all hooks live above (Rules of Hooks compliant). A message here is drawn in the theme's ink
   // (text-cream, R29): its title sets no colour of its own, and on the day console it inherited the body's night cream.
   if (!enabled) return <section className="screen text-cream"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
-  if (!ready) return <section className="screen" />;
+  // Opening, said (R34 — the audit's UX11-13): a blank screen while the session, the profile and two-step loaded — on a
+  // slow signal a crew member saw nothing and a screen reader heard nothing. The brand's loading mark is a status region.
+  if (!ready) return <section className="screen"><PourFill label="Opening the console…" /></section>;
   if (!user) return <SignIn context={{ title: "The GT3 console.", sub: "Sign in with your crew account — your shift, prep, plan and money are inside." }} />;
   // KNOWING NOTHING IS NOT THE SAME AS KNOWING YOU ARE A CUSTOMER. roleOf(null) is "member", and
   // `ready` only covers the auth session — so between session-ready and profile-loaded, and after
   // any failed profile read, an owner used to be shown "Staff only" and shut out of this console.
   const access = staffAccess(!!user, profileStatus, profile);
-  if (access === "wait") return <section className="screen" />;
+  if (access === "wait") return <section className="screen"><PourFill label="Opening the console…" /></section>;
   if (access === "failed") return (
     <section className="screen text-cream">
       <div className="toprow"><div className="eyb">Crew</div><Link className="k-icon-btn" href="/" aria-label="Back to the app"><Icon name="chevronLeft" /></Link></div>
@@ -5787,7 +5808,7 @@ export default function AdminPage() {
   }
   // An owner or admin who owes this sign-in their two-step code gives it first (R28) — or sets one up, where their
   // business requires it; "Not now" opens the console with the crew's tools.
-  if (twoStep.need === "checking") return <section className="screen" />;
+  if (twoStep.need === "checking") return <section className="screen"><PourFill label="Opening the console…" /></section>;
   if (twoStep.need === "code" || twoStep.need === "setup") return <TwoStepPrompt need={twoStep.need} onDone={twoStep.done} onLater={twoStep.later} />;
 
   // The lane the section is in (a section can live in two lanes — prep is Service's and Events' — so

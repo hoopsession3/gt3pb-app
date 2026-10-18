@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { errorMessage } from "@/lib/errorMessage";
 import type { BookSite, BookVenue } from "@/lib/venues";
+import { plainFailure } from "@/lib/failureWords";
 
 // THE VENUE BOOK, ONCE (2026-10-05, the form audit, part 4) — what components/VenuePick lists: every
 // vendor row (lib/venues decides which are venues, and names a linked one the pick no longer offers)
@@ -37,11 +38,11 @@ async function fetchBook(): Promise<State> {
       supabase.from("vendors").select(VENUE_COLS).order("name"),
       supabase.from("vendor_locations").select(SITE_COLS).is("archived_at", null),
     ]);
-    const error = v.error?.message ?? s.error?.message ?? null;
-    if (error) return { book: state.book, error, at: Date.now() };
+    const failed = v.error ?? s.error;
+    if (failed) return { book: state.book, error: plainFailure(failed), at: Date.now() };
     return { book: { venues: (v.data ?? []) as BookVenue[], sites: (s.data ?? []) as BookSite[] }, error: null, at: Date.now() };
   } catch (e) {
-    return { book: state.book, error: errorMessage(e), at: Date.now() };
+    return { book: state.book, error: plainFailure(errorMessage(e)), at: Date.now() };
   }
 }
 

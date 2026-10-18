@@ -12,6 +12,7 @@ import { nextIdem, type IdemState } from "@/lib/idempotency";
 import { isClosed, isGone, refusalText } from "@/lib/refusal";
 import { changeable, cutoffLabel, dayLabel, deliveryState, type OfficeDelivery } from "@/lib/officeStatus";
 import { OFFICE_REASONS, askOf, changePlan, draftOf, stepWords, type ChangeDraft, type ChangeStep, type OfficeReason } from "@/lib/officeChange";
+import { failureWords } from "@/lib/failureWords";
 
 // CHANGE IT IN ONE SHEET (2026-10-07, Phase 2A-2 — the mock's screen B). One delivery: its gallons,
 // skip it (or bring a skip back), move it to another morning, a note for the driver — saved by
@@ -127,7 +128,7 @@ export default function OfficeChangeSheet({ delivery: d, place, canChange, canRe
       if (isClosed(error)) {
         // Closed while the sheet was open (or the driver left): the rest goes to GT3 from here.
         setClosedNow(true);
-        toast(error.message, "error");
+        toast(failureWords(error), "error");
       } else if (isGone(error)) {
         toast("That delivery isn't on the schedule any more.", "error");
         onClose();

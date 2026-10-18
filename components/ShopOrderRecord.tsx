@@ -16,6 +16,7 @@ import {
 } from "@/lib/shopOrder";
 import Button from "./Button";
 import Said from "./Said";
+import { failureWords, plainFailure } from "@/lib/failureWords";
 
 // ONE SHOP ORDER, WHOLE (0313).
 //
@@ -117,7 +118,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
       order: (o.data as Order) ?? null,
       lines: (l.data as Line[]) ?? [],
       msgs: (m.data as Msg[]) ?? [],
-      msgsError: m.error ? m.error.message : null,
+      msgsError: m.error ? plainFailure(m.error) : null,
       at: Date.now(),
     };
   }, [orderId]);
@@ -164,7 +165,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
     setChecking(true);
     const { error } = await supabase.rpc("shop_apliiq_checked", { p_order: orderId, p_apliiq_id: id });
     setChecking(false);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast(id ? `At the printer — their order ${id}.` : "Cleared — it can be sent to the printer again.");
     cancelMove(); reload(); onChanged?.();
   };
@@ -195,7 +196,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
     setBusy(false);
     // supabase-js resolves with { error } rather than throwing — surface the database's own sentence
     // instead of a generic failure, because those sentences are written to be read by this crew.
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     const part = to === "refunded" && cents != null && left != null && cents < left;
     toast(part ? `${money(cents)} refund recorded — the order stays ${statusLabel(o.status).toLowerCase()}, ${money(left! - cents!)} still on it.` : `${statusLabel(to)}.`);
     cancelMove(); reload(); onChanged?.();

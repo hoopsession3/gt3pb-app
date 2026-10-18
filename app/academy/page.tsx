@@ -24,6 +24,7 @@ import Button from "@/components/Button";
 import Said from "@/components/Said";
 import { useMinute } from "@/lib/useMinute";
 import { useLatestRead } from "@/lib/useLatestRead";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
 // what the role owns, the non-negotiables, the rhythm it keeps, and how it is actually judged.
@@ -99,7 +100,7 @@ export default function AcademyPage() {
     // is a dropped connection or a policy, and reading it as nothing-done told a trained person they
     // were at 0%, owed the food-safety sign-off, and could serve no one. Keep what was last read.
     const failed = [pr, ce, asg, ak].find((r) => r.error)?.error;
-    if (failed) { setLoadErr(failed.message); return; }
+    if (failed) { setLoadErr(failureWords(failed)); return; }
     setLoadErr(null);
     const p: Record<string, { status: string; best_score: number | null; completed_at: string | null }> = {};
     (pr.data ?? []).forEach((r: { module_slug: string; status: string; best_score: number | null; completed_at: string | null }) => { p[r.module_slug] = { status: r.status, best_score: r.best_score, completed_at: r.completed_at }; });
@@ -127,7 +128,7 @@ export default function AcademyPage() {
   const signAck = useCallback(async (key: string, name: string) => {
     if (!supabase || !user) return;
     const { error } = await supabase.from("academy_acknowledgements").upsert({ user_id: user.id, doc_key: key, signed_name: name, signed_at: new Date().toISOString() }, { onConflict: "user_id,doc_key" });
-    if (error) { toast(`Not signed — ${error.message}. Try again.`, "error"); return; }
+    if (error) { toast(`Not signed — ${plainFailure(error)}. Try again.`, "error"); return; }
     toast("Signed — thank you");
     await load();
     setView({ k: "home" });
@@ -141,7 +142,7 @@ export default function AcademyPage() {
       { user_id: user.id, module_slug: slug, status: "complete", score, best_score: best, completed_at: new Date().toISOString() },
       { onConflict: "user_id,module_slug" }
     );
-    if (progErr) { toast(`Not saved — ${progErr.message}. Try again.`, "error"); return; }
+    if (progErr) { toast(`Not saved — ${plainFailure(progErr)}. Try again.`, "error"); return; }
     const nowComplete = new Set(completed); nowComplete.add(slug);
     // Against the RECORDED certs, not the ones the module list implies: a cert whose row never landed
     // (a failed write, or a module added to it later) is written now, where the team board and the
@@ -164,7 +165,7 @@ export default function AcademyPage() {
       });
       const { error: certErr } = await supabase.from("academy_certifications").upsert(rows, { onConflict: "user_id,cert_key" });
       if (certErr) {
-        toast(`Module complete, but ${award.map((c) => c.title).join(", ")} did not record — ${certErr.message}. It records the next time you finish a module.`, "error");
+        toast(`Module complete, but ${award.map((c) => c.title).join(", ")} did not record — ${plainFailure(certErr)}. It records the next time you finish a module.`, "error");
       } else {
         toast([
           newly.length ? `Certified — ${newly.map((c) => c.title).join(", ")}` : "",
@@ -604,7 +605,7 @@ function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor
     // A FAILED READ IS NOT AN EMPTY TEAM (2026-10-04): any one of these four not answering used to
     // read as "No team members yet", or as everybody at 0%.
     const failed = [profs, prog, cs, asg].find((r) => r.error)?.error;
-    if (failed) { setLoadErr(failed.message); setLoaded(true); return; }
+    if (failed) { setLoadErr(failureWords(failed)); setLoaded(true); return; }
     setLoadErr(null);
     const doneMods: Record<string, Set<string>> = {};
     (prog.data ?? []).forEach((r: { user_id: string; module_slug: string; status: string }) => { if (r.status === "complete") (doneMods[r.user_id] ??= new Set()).add(r.module_slug); });
@@ -633,7 +634,7 @@ function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor
     const target_type = target === "path" ? "path" : "cert";
     const target_key = target === "path" ? "path" : target;
     const { error } = await supabase.from("academy_assignments").insert({ user_id: chosen, target_type, target_key, due_at: due ? new Date(due).toISOString() : null, assigned_by: user.id });
-    if (error) toast(`Not assigned — ${error.message}`, "error"); else { toast("Training assigned"); setMemberId(""); setDue(""); load(); }
+    if (error) toast(failureWords(error, "Not assigned"), "error"); else { toast("Training assigned"); setMemberId(""); setDue(""); load(); }
   };
 
   return (

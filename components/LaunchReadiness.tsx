@@ -9,6 +9,7 @@ import InlineCreate from "./InlineCreate";
 import { SectionHeader } from "@/components/kit";
 import { wrote } from "@/lib/wrote";
 import { useLatestRead } from "@/lib/useLatestRead";
+import { failureWords } from "@/lib/failureWords";
 
 // LAUNCH READINESS — the go/no-go board. Distinct from milestone progress ("are the deliverables
 // done?"): this is the gating checklist ("is it actually safe to launch?"). Each critical check is
@@ -78,7 +79,7 @@ export function useLaunchReadiness(): Launch {
   const addCheck = async (label: string) => {
     if (!supabase || !launch) return;
     const { error } = await supabase.from("readiness_checks").insert({ initiative_id: launch.id, label, sort: rows.length * 10 + 10 });
-    if (error) toast(`Couldn't add — ${error.message}`, "error"); else load();
+    if (error) toast(failureWords(error, "Couldn't add"), "error"); else load();
   };
 
   const crit = rows.filter((r) => r.critical);

@@ -10,6 +10,7 @@ import { useAuth } from "./AuthProvider";
 import { haptic } from "@/lib/haptics";
 import { SectionHeader } from "@/components/kit";
 import { useLatestRead } from "@/lib/useLatestRead";
+import { plainFailure } from "@/lib/failureWords";
 
 // THE 86 BOARD — sell out of an item from where the rush actually happens (the Now screen, right
 // under the pass), not three taps deep in Money. One chip per active product: tap to 86, tap to
@@ -51,7 +52,7 @@ export default function EightySix() {
       if (next) haptic("toggleOn"); else haptic("toggleOff");
       setRows((r) => r.map((x) => (x.id === p.id ? { ...x, sold_out: next } : x))); // optimistic
       const { error } = await supabase.from("products").update({ sold_out: next }).eq("id", p.id);
-      if (error) { toast(`Couldn't flip ${p.name} — ${error.message}`, "error"); load(); return; }
+      if (error) { toast(`Couldn't flip ${p.name} — ${plainFailure(error)}`, "error"); load(); return; }
       toast(next ? `${p.name} 86'd — live menu updated` : `${p.name} back on`);
       return;
     }
@@ -61,7 +62,7 @@ export default function EightySix() {
     setHere((m) => { const n = new Map(m); if (next) n.set(p.id, new Date().toISOString()); else n.delete(p.id); return n; }); // optimistic
     const { data, error } = await supabase.rpc("set_eighty_six", { p_product: p.id, p_market: market, p_out: next });
     const r = (data ?? {}) as { ok?: boolean; words?: string };
-    if (error || !r.ok) { toast(`Couldn't flip ${p.name} — ${error?.message ?? r.words ?? "try again"}`, "error"); load(); return; }
+    if (error || !r.ok) { toast(`Couldn't flip ${p.name} — ${error ? plainFailure(error) : r.words ?? "try again"}`, "error"); load(); return; }
     toast(next ? `${p.name} 86'd in ${MARKET_LABEL[market]} — its menu updated` : `${p.name} back on in ${MARKET_LABEL[market]}`);
   };
 

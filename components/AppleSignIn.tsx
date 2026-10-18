@@ -5,6 +5,7 @@ import { trackFunnel } from "@/lib/funnel";
 import { supabase } from "@/lib/supabase";
 import { appleSignInFlow } from "@/lib/appleAuth";
 import { useAuth } from "./AuthProvider";
+import { authWords } from "@/lib/failureWords";
 
 // SIGN IN WITH APPLE — THE BUTTON (2026-10-11). In the iPhone app, first on the sign-in form and as plain as Apple asks:
 // its sheet makes the account or signs in to it with Face ID, nothing to type. Apple's own style — white, the system
@@ -27,7 +28,7 @@ export default function AppleSignIn({ onError }: { onError: (message: string) =>
     setBusy(true); onError("");
     const { error, cancelled } = await appleSignInFlow(supabase, refreshProfile);
     setBusy(false);
-    if (error) onError(error);
+    if (error) onError(authWords(error));
     else if (!cancelled) trackFunnel("signup", "signed_in");
   };
   return (

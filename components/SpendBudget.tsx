@@ -18,6 +18,7 @@ import { attachReceipt as fileReceipt } from "@/lib/receipts";
 import { usePrompt } from "@/components/PromptSheet";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
+import { failureWords } from "@/lib/failureWords";
 
 // SPEND & BUDGET (0209) — the procurement side of Money. Log what the business spends (optionally to a
 // real vendor / event) and track it against a per-category monthly budget. Reads report_spend(); every
@@ -143,7 +144,7 @@ export default function SpendBudget() {
       q = market ? q.eq("market", market) : q.is("market", null);
       const { error } = await q;
       // The delete is admin-only after 0308 — say so rather than failing silently.
-      if (error) { toast(`Couldn't clear it — ${error.message}`, "error"); return; }
+      if (error) { toast(failureWords(error, "Couldn't clear it"), "error"); return; }
       toast(`No budget on ${category} this month.`);
       reload();
       return;
@@ -173,7 +174,7 @@ export default function SpendBudget() {
       amount_cents: cents, category: ee.cat, description: ee.desc.trim() || null, vendor_id: ee.vendor || null,
     }).eq("id", id);
     setSavingExp(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     setEditExpId(null);
     toast("Expense updated");
     reload();
@@ -187,7 +188,7 @@ export default function SpendBudget() {
     const reason = (await prompt({ title: "Why is this being voided?", hint: "Duplicate, wrong amount, refunded… It goes on the record.", confirmLabel: "Void it" })) ?? "";
     if (!reason.trim()) { toast("Say why — it goes on the record.", "error"); return; }
     const { error } = await supabase.rpc("void_expense", { p_id: id, p_reason: reason.trim() });
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setConfirmDelId(null);
     toast("Voided — the record stays");
     reload();

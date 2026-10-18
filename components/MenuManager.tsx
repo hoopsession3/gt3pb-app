@@ -15,6 +15,7 @@ import {
 } from "@/lib/catalog";
 import AsyncSection from "./AsyncSection";
 import ProductPage, { AvailSwitch } from "./ProductPage";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
 // (name, line, price, description, ingredients), set the recipe (which inventory items a serving
@@ -100,7 +101,7 @@ export default function MenuManager() {
     // New products start as an OFF-menu draft with a blank name — they can't be charged from until
     // they're named, priced (> $0) and switched on, so a stray "+ New" click can't put junk on the live menu.
     const { data, error } = await supabase.from("products").insert({ slug, name: "", line: "Activation", price_cents: 0, active: false, sort: (products.at(-1)?.sort ?? 0) + 1 }).select("*").single();
-    if (error || !data) { toast(`Couldn't add an item — ${error?.message ?? "nothing came back"}`, "error"); return; }
+    if (error || !data) { toast(`Couldn't add an item — ${error ? plainFailure(error) : "nothing came back"}`, "error"); return; }
     // A filter on "On sale" would hide the draft it just made; show everything, and open it.
     setFilter("all"); setQ("");
     await reload();
@@ -119,7 +120,7 @@ export default function MenuManager() {
     const back = (data as CatalogProduct[] | null)?.[0];
     flying.current.delete(row.id);
     setPending((m) => without(m, row.id));
-    if (error) { toast(`Couldn't undo — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't undo"), "error"); return; }
     if (!back) { toast(`${nameOf(row)} changed again since — nothing to undo`, "info"); void reload(); return; }
     setHeld((m) => ({ ...m, [back.id]: back }));
   };
@@ -139,7 +140,7 @@ export default function MenuManager() {
     const row = (data as CatalogProduct[] | null)?.[0];
     flying.current.delete(p.id);
     setPending((m) => without(m, p.id));
-    if (error || !row) { toast(`Couldn't ${next ? "86" : "put back"} ${nameOf(p)} — ${error?.message ?? "the change didn't save"}`, "error"); return; }
+    if (error || !row) { toast(`Couldn't ${next ? "86" : "put back"} ${nameOf(p)} — ${error ? plainFailure(error) : "the change didn't save"}`, "error"); return; }
     setHeld((m) => ({ ...m, [row.id]: row }));
     const at = undoStart();
     toast(flipToast(nameOf(p), next), "success", { action: { label: "Undo", run: () => { void undo(row, next, at); } } });

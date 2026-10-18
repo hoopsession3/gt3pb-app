@@ -16,6 +16,7 @@ import { errorMessage } from "@/lib/errorMessage";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
 import { useChanged } from "@/lib/useChanged";
+import { failureWords } from "@/lib/failureWords";
 
 // What the load-out agent and the vehicle lookup answer (R16: typed, not any) — read as the screens below read them.
 type LoadPlan = { summary?: string; zones?: { zone: string; items?: string[]; note?: string }[]; at_risk?: { item: string; issue?: string; fix: string }[]; stacking?: string[]; load_order?: string[] };
@@ -142,7 +143,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
   const saveProfile = async () => {
     if (!supabase) return;
     const { error } = await supabase.from("trailer_profile").update({ ...form, updated_at: new Date().toISOString() }).eq("id", 1);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     toast("Trailer profile saved"); setEdit(false); setForm({}); reload();
   };
   // Vehicle-spec agent: look up the cargo bay + tow rating for a make/model, sized to the passenger

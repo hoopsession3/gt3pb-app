@@ -39,6 +39,8 @@ import { useAppStable } from "./AppProvider";
 import { useClientValue } from "@/lib/clientPage";
 import { useLatestRead } from "@/lib/useLatestRead";
 import { anyTable } from "@/lib/dbTypes";
+import Said from "@/components/Said";
+import { plainFailure } from "@/lib/failureWords";
 
 // COMPANY CALENDAR — one pane for everything dated: truck events, admin/ops work, scheduled content
 // (from Studio), and free-standing to-dos. Category-colored, filterable, click-through to source.
@@ -301,7 +303,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
       val = etInstantIso(dayKey, hh);   // moved to that day at its Eastern time, on any phone (R33)
     }
     // A move that did not take is said, and the calendar reads again where it really is (R12b, F4).
-    if (kind === "task") { const r = await updateTask("event", id, { dueISO: val }); if (r.error) toast(`Couldn't move it — ${r.error}`, "error"); }   // ONE write path (lib/tasks)
+    if (kind === "task") { const r = await updateTask("event", id, { dueISO: val }); if (r.error) toast(`Couldn't move it — ${plainFailure(r.error)}`, "error"); }   // ONE write path (lib/tasks)
     else wrote(await anyTable(supabase, cfg.table).update({ [cfg.dateCol]: val }).eq("id", id), toast, "Couldn't move it");
     reload();
   };
@@ -929,7 +931,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
     if (kind === "task") {
       // ONE write path (lib/tasks) — done carries done_at/done_by bookkeeping a raw update would miss
       const r = await updateTask("event", id, { title: name, dueISO: f.due_at || null, done: !!f.done });
-      if (r.error) { toast(`Couldn't save the task — ${r.error}`, "error"); setSaving(false); return; }
+      if (r.error) { toast(`Couldn't save the task — ${plainFailure(r.error)}`, "error"); setSaving(false); return; }
     } else {
       const patch: any = { [cfg.nameCol]: name || null, [cfg.dateCol]: f[cfg.dateCol] || null };
       if (kind === "todo") { patch.category = f.category || "ops"; patch.event_id = f.event_id || null; }
@@ -953,7 +955,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
       ? { title: "Unschedule this from the calendar?", body: "It stays in Brand.", confirmLabel: "Unschedule" }
       : { title: "Delete this to-do?", confirmLabel: "Delete", danger: true }))) return;
     setSaving(true);
-    if (kind === "todo") { const r = await deleteTask("todo", id); if (r.error) { toast(`Couldn't delete the to-do — ${r.error}`, "error"); setSaving(false); return; } }   // ONE write path (lib/tasks)
+    if (kind === "todo") { const r = await deleteTask("todo", id); if (r.error) { toast(`Couldn't delete the to-do — ${plainFailure(r.error)}`, "error"); setSaving(false); return; } }   // ONE write path (lib/tasks)
     else if (!wrote(await supabase.from("content_items").update({ scheduled_for: null }).eq("id", id), toast, "Couldn't unschedule it")) { setSaving(false); return; }
     setSaving(false); onSaved();
   };
@@ -1114,7 +1116,7 @@ function OutlookBar({ onSynced }: { onSynced: () => void }) {
           </div>
         </>
       )}
-      {msg && <div className="ol-msg">{msg}</div>}
+      {msg && <Said className="ol-msg">{msg}</Said>}
       <GoLine to="settings" anchor="set-outlook">Outlook</GoLine>
     </div>
   );
@@ -1150,15 +1152,15 @@ function AddSheet({ day, events, onClose, onDone }: { day: string; events: Ev[];
     else if (kind === "stop") {
       const r = await supabase.from("stops").insert({ name: title.trim(), location_text: where.trim() || null, address: address.trim() || null, lat: pin?.lat ?? null, lng: pin?.lng ?? null,
         starts_at: new Date(`${day}T11:00:00`).toISOString(), status: "upcoming", sort: 0, vendor_id: venueId });
-      error = r.error?.message ?? null;
+      error = r.error ? plainFailure(r.error) : null;
     }
     else {
       const r = await supabase.from("events").insert({ title: title.trim(), day, category: cat === "content" ? "event" : cat, location_text: where.trim() || null, vendor_id: venueId });
-      error = r.error?.message ?? null;
+      error = r.error ? plainFailure(r.error) : null;
     }
     setBusy(false);
     // A refused add stays open with what was typed, and says why — it used to close as if it had worked.
-    if (error) { setErr(`Couldn't add it — ${error}`); return; }
+    if (error) { setErr(`Couldn't add it — ${plainFailure(error)}`); return; }
     onDone();
   };
   return (

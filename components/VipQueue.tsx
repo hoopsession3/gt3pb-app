@@ -14,6 +14,7 @@ import { RecordLink } from "./RecordSheet";
 import PromptSheet from "./PromptSheet";
 import { SectionHeader } from "@/components/kit";
 import { wrote } from "@/lib/wrote";
+import { failureWords, plainFailure } from "@/lib/failureWords";
 
 // VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
 // staff either Reject with a reason, or Verify and choose which grant it earns — plain Founding, or
@@ -72,14 +73,14 @@ export default function VipQueue() {
     if (!supabase || busy) return;
     setBusy(v.id);
     const { error } = await supabase.from("vip_verifications").update({ status: "verified", reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), reward: reward.trim() || null, granted_tier: grant }).eq("id", v.id);
-    if (error) { toast(`Couldn't verify — ${error.message}`, "error"); setBusy(null); return; }
+    if (error) { toast(failureWords(error, "Couldn't verify"), "error"); setBusy(null); return; }
     // Promote to Founding either way — VIP is a layer on top of Founding, not a separate tier (0249/
     // 0250), so both outcomes need the tier grant; granted_tier alone decides whether the 0251 trigger
     // also flips vip_verified. Surface a failure — never claim the grant landed when it didn't, or
     // staff + the member both believe perks are live when they aren't.
     const { error: promoErr } = await supabase.rpc("admin_set_customer_tier", { p_user: v.user_id, p_tier: "founding" });
     const label = grant === "founding_vip" ? "Founding VIP" : "Founding";
-    toast(promoErr ? `Verified — but promotion to Founding failed: ${promoErr.message}. Set their tier by hand.` : `Verified — ${label}`, promoErr ? "error" : undefined);
+    toast(promoErr ? `Verified — but promotion to Founding failed: ${plainFailure(promoErr)}. Set their tier by hand.` : `Verified — ${label}`, promoErr ? "error" : undefined);
     setBusy(null); reload();
   };
   const doReject = async (v: Vip, note: string) => {

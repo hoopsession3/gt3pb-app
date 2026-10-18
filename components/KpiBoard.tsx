@@ -12,6 +12,7 @@ import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { CommandFold } from "./CommandFold";
 import { etToday, weekStartKey } from "@/lib/dates";
 import { toMarket, MARKET_LABEL } from "@/lib/markets";
+import { failureWords } from "@/lib/failureWords";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // THE TWELVE (0264 · Playbook v1 §12; 0268 flipped the board live) — every KPI in the strategy,
@@ -198,7 +199,7 @@ export default function KpiBoard() {
     const rows = typed.map(([key, raw]) => ({ metric: key, period: periodOf(key), value: Number(raw.trim()), market, created_by: user?.id ?? null }));
     const { error } = await supabase.from("kpi_snapshots").upsert(rows, { onConflict: "metric,period,market" });
     setSaving(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     setEntry({}); setLogging(false);
     toast(rows.length === 1 ? "Logged" : `Logged ${rows.length}`); state.reload();
   };

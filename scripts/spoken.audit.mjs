@@ -57,6 +57,48 @@ export function unheardIn(src, file = "x.tsx") {
   return out;
 }
 
+// ── AND ONE WITH NO VOICE AT ALL (R34 — the fresh audit's UX11-06) ──────────────────────────────────────────────────
+// The count above sees only a region that says it is one. A failure drawn as a plain line — {err && <div className="dp-err">
+// {err}</div>} — has no role and no aria-live, so it was never heard and never counted: twenty-three of them, "Couldn't
+// build the list" under Event prep AI among them. A line put on the page with a failure's or a warning's look (a class
+// named err or error, or ending -err or -error) or holding an err / error / msg / warn value is a Said, or role="alert". A
+// warning chip or a priority tag drawn with its row (a list's own content, not something that happened) isn't counted.
+export const SILENT_BASELINE = 0;
+const FAILURE_LOOK = /(^|[\s-])(err|error)($|\s)/;
+const FAILURE_VALUE = /^(err|error|msg|warn|errorMsg|errMsg)$/;
+
+/** Every failure or warning line put on the page with no voice — not a Said, no role="alert", no live region. Pure. */
+export function silentIn(src, file = "x.tsx") {
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const out = [];
+  const visit = (node) => {
+    if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const opening = ts.isJsxElement(node) ? node.openingElement : node;
+      const tag = opening.tagName.getText(sf);
+      const attr = (name) => opening.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText(sf) === name);
+      const text = (a) => !a?.initializer ? null : ts.isStringLiteral(a.initializer) ? a.initializer.text
+        : ts.isJsxExpression(a.initializer) && a.initializer.expression && ts.isStringLiteralLike(a.initializer.expression) ? a.initializer.expression.text : null;
+      const cls = text(attr("className")) ?? "";
+      // EditableCopy is the page's own words, editable by the owner — a state the page is in as it is drawn (checkout off),
+      // not something that just happened.
+      // A line whose words are a Said inside it (a button beside them) is voiced by that Said.
+      const holdsSaid = (n) => { let found = false; const look = (c) => { if (found) return; if ((ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) && (ts.isJsxElement(c) ? c.openingElement : c).tagName.getText(sf) === "Said") { found = true; return; } ts.forEachChild(c, look); }; ts.forEachChild(n, look); return found; };
+      const voiced = tag === "Said" || tag === "EditableCopy" || attr("role") || attr("aria-live") || holdsSaid(node);
+      const holdsFailure = ts.isJsxElement(node) && node.children.some((c) => ts.isJsxExpression(c) && c.expression && ts.isIdentifier(c.expression) && FAILURE_VALUE.test(c.expression.text));
+      if (!voiced && (FAILURE_LOOK.test(cls) || holdsFailure)) {
+        let child = node, parent = node.parent;
+        while (parent && ts.isParenthesizedExpression(parent)) { child = parent; parent = parent.parent; }
+        const conditional = parent && ((ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && parent.right === child)
+          || (ts.isConditionalExpression(parent) && (parent.whenTrue === child || parent.whenFalse === child)));
+        if (conditional) out.push({ line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1, tag, cls });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+
 export function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (/^(node_modules|\.next|\.git|\.smoke|dist|out|ios|android)$/.test(e.name)) continue;
@@ -67,15 +109,23 @@ export function walk(dir, out = []) {
   return out;
 }
 
-export function collect(root = ".") {
+export function collect(root = ".", find = unheardIn) {
   const hits = [];
   for (const dir of ["app", "components"]) {
-    for (const f of walk(join(root, dir))) for (const h of unheardIn(readFileSync(f, "utf8"), f)) hits.push({ file: f.replace(/^\.\//, ""), ...h });
+    for (const f of walk(join(root, dir))) for (const h of find(readFileSync(f, "utf8"), f)) hits.push({ file: f.replace(/^\.\//, ""), ...h });
   }
   return hits;
 }
 
 if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1] || "").href) {
+  const silent = collect(".", silentIn);
+  console.log(`SPOKEN AUDIT: ${silent.length} failure or warning line(s) put on the page with no voice (baseline ${SILENT_BASELINE})`);
+  if (process.argv.includes("--list") || silent.length > SILENT_BASELINE) for (const h of silent) console.log(`  ${h.file}:${h.line}  <${h.tag}${h.cls ? ` className="${h.cls}"` : ""}>`);
+  if (silent.length > SILENT_BASELINE) {
+    console.log(`\n  ✗ ${silent.length} > ${SILENT_BASELINE}. A failure or a warning that appears must be heard: draw it with components/Said`);
+    console.log(`    (<Said assertive className="dp-err">{err}</Said>), or give it role="alert".`);
+    process.exit(1);
+  }
   const hits = collect(".");
   console.log(`SPOKEN AUDIT: ${hits.length} status line(s) put on the page already holding their words (baseline ${UNHEARD_BASELINE})`);
   if (process.argv.includes("--list") || hits.length > UNHEARD_BASELINE) for (const h of hits) console.log(`  ${h.file}:${h.line}  <${h.tag}${h.role ? ` role="${h.role}"` : ""}${h.live ? ` aria-live="${h.live}"` : ""}>`);

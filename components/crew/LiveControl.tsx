@@ -33,6 +33,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { stopCanceledToast } from "@/lib/stopCancel";
 import { wrote } from "@/lib/wrote";
 import { useLatestRead } from "@/lib/useLatestRead";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // Go live's checks, loaded with the first tap on Go live (it opens on a tap, as the console's other sheets do).
 const GoLiveSheet = dynamic(() => import("@/components/crew/GoLiveSheet"), { ssr: false });
@@ -100,7 +101,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     if (!r) return;
     const [s, l, vs, tp] = r;
     const failed = s.error ?? l.error;
-    if (failed) { setErr(failed.message); setRead("failed"); return; }
+    if (failed) { setErr(failureWords(failed)); setRead("failed"); return; }
     setErr("");
     setRead("ready");
     setStops((s.data as Stop[] | null) ?? []);
@@ -125,8 +126,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     // one, upserts live_status) — same robustness path as go-offline, not piecemeal client writes.
     const { error } = await supabase!.rpc("admin_set_live", { stop: stopId, live: true });
     if (error) {
-      setErr(error.message);
-      toast(error.message.includes("not authorized") ? "Go live failed — your account isn't an owner/admin." : `Couldn't go live — ${error.message}`, "error");
+      setErr(failureWords(error));
+      toast(error.message.includes("not authorized") ? "Go live failed — your account isn't an owner/admin." : failureWords(error, "Couldn't go live"), "error");
       load();
       return;
     }
@@ -158,8 +159,8 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     // (Replaces the piecemeal client writes that could report success without sticking.)
     const { error } = await supabase!.rpc("admin_set_offline");
     if (error) {
-      setErr(error.message);
-      toast(error.message.includes("not authorized") ? "Go offline failed — your account isn't an owner/admin." : `Couldn't go offline — ${error.message}`, "error");
+      setErr(failureWords(error));
+      toast(error.message.includes("not authorized") ? "Go offline failed — your account isn't an owner/admin." : failureWords(error, "Couldn't go offline"), "error");
       load();
       return;
     }
@@ -185,10 +186,10 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
       async (p) => {
         const { error } = await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
         setPosBusy(false);
-        if (error) { setErr(error.message); toast(`Couldn't pin location — ${error.message}`, "error"); }
+        if (error) { setErr(failureWords(error)); toast(failureWords(error, "Couldn't pin location"), "error"); }
         else { setPinnedAt(new Date().toISOString()); toast("Location pinned"); }
       },
-      (e) => { setPosBusy(false); toast(`Location error: ${e.message}`, "error"); },
+      (e) => { setPosBusy(false); toast(`Location error: ${plainFailure(e)}`, "error"); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
@@ -217,7 +218,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
         const { error } = await supabase!.rpc("admin_set_truck_pos", { lat: p.coords.latitude, lng: p.coords.longitude });
         if (!error) setPinnedAt(new Date().toISOString());
       },
-      (e) => { toast(`Location error: ${e.message}`, "error"); stopBroadcast(); },
+      (e) => { toast(`Location error: ${plainFailure(e)}`, "error"); stopBroadcast(); },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
     );
     setBroadcasting(true);
@@ -237,7 +238,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
     : "";
   const addStop = async (name: string) => {
     const { data, error } = await supabase!.from("stops").insert({ name, status: "upcoming", sort: stops.length }).select("id").single();
-    if (error) { setErr(error.message); toast(`Couldn't add — ${error.message}`, "error"); }
+    if (error) { setErr(failureWords(error)); toast(failureWords(error, "Couldn't add"), "error"); }
     else { if (data) setOpenStopId((data as { id: string }).id); toast("Location added — fill in its details"); }
     load();
   };
@@ -257,7 +258,7 @@ export function LiveControl({ compact = false, manage = false }: { compact?: boo
       order_ahead_enabled: tpl.order_ahead_enabled ?? false, pickup_enabled: tpl.pickup_enabled ?? false,
       status: "upcoming", sort: stops.length, starts_at,
     }).select("id").single();
-    if (error) { toast(`Couldn't add the visit — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't add the visit"), "error"); return; }
     if (data) setOpenStopId((data as { id: string }).id);
     toast(starts_at
       ? `${tpl.name} — new visit added for ${new Date(starts_at).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}. Check the date & time.`

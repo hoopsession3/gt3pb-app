@@ -12,6 +12,7 @@ import { mondayLabel, windowHours } from "@/lib/office";
 import { isMissingColumn, isMissingFunction } from "@/lib/schemaSkew";
 import Icon from "@/components/Icon";
 import RunBar from "@/components/RunBar";
+import { failureWords } from "@/lib/failureWords";
 
 // OFFICE RUN — the office route on the driver's own phone (2026-10-07, the report's defect 11). The
 // driver's screen read home deliveries only, so Monday morning's offices lived in a crew panel on
@@ -92,7 +93,7 @@ export default function OfficeRun() {
     });
     setBusyId(null);
     if (error) {
-      toast(isMissingFunction(error) ? "Log this one on the crew's office route — the driver's log needs today's database update" : error.message, "error");
+      toast(isMissingFunction(error) ? "Log this one on the crew's office route — the driver's log needs today's database update" : failureWords(error), "error");
       reload(); return;
     }
     setOpenId(null);
@@ -103,7 +104,7 @@ export default function OfficeRun() {
     if (!supabase || busyId) return; setBusyId(o.id); haptic("light");
     const { error } = await supabase.rpc("office_reopen_delivery", { p_order: o.id, p_reason: "Mis-tap on the driver's run" });
     setBusyId(null);
-    if (error) toast(isMissingFunction(error) ? "Undo it on the crew's office route for now" : error.message, "error");
+    if (error) toast(isMissingFunction(error) ? "Undo it on the crew's office route for now" : failureWords(error), "error");
     reload();
   };
 

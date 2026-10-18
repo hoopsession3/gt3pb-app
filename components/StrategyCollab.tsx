@@ -9,6 +9,7 @@ import { useAuth } from "./AuthProvider";
 import { GTM_PLAYS, type GtmPlay } from "@/lib/strategy";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
+import { failureWords, plainFailure } from "@/lib/failureWords";
 
 // STRATEGY COLLABORATION — three small tools that make the playbook a working document:
 //  · StrategyThread — live discussion on any block/play (the comments engine + strategy_key, 0140);
@@ -48,7 +49,7 @@ export function StrategyThread({ k, label, link = "/playbook" }: { k: string; la
     if (!supabase || !text.trim()) return;
     const body = text.trim();
     const { error } = await supabase.from("comments").insert({ strategy_key: k, body, author_id: user?.id ?? null });
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setText(""); load();
     // ping the other owners/crews so collaboration is live even when the page isn't open
     const meFirst = (profile?.display_name || "Owner").split(" ")[0];
@@ -117,7 +118,7 @@ export function DecisionLog({ canWrite }: { canWrite: boolean }) {
       key: f.key.trim() || "general", decision: f.decision.trim(), why: f.why.trim() || null,
       author_id: user?.id ?? null, author_name: profile?.display_name ?? null,
     });
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setF({ key: "", decision: "", why: "" }); setAdding(false); reload();
     toast("Logged — the record stands");
   };
@@ -195,7 +196,7 @@ export function PlayBuilder({ prefill, onDone }: { prefill?: GtmPlay | null; onD
       projected_cac: f.cac.trim() || null, payback: f.payback.trim() || null, in_app: f.inApp.trim() || null,
       author_id: user?.id ?? null, author_name: profile?.display_name ?? null,
     });
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast(prefill ? "Overhaul drafted — discuss it, then log the decision" : "Play drafted — discuss it, then log the decision");
     onDone();
   };
@@ -265,7 +266,7 @@ export function useDrafts() {
     if (!supabase) return "offline";
     const { error } = await supabase.from("gtm_drafts").update({ status: "retired" }).eq("id", id);
     load();
-    return error ? (error.message || "try again") : null;
+    return error ? plainFailure(error) : null;
   }, [load]);
   return { drafts, reload: load, retire, state };
 }

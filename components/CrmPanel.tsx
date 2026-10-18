@@ -14,6 +14,7 @@ import { rovingKeys, rovingTab } from "./roving";
 import { downloadCsv } from "@/lib/csv";
 import { money, moneyPlain } from "@/lib/money";
 import { useChanged } from "@/lib/useChanged";
+import { failureWords } from "@/lib/failureWords";
 
 // The customer book — first reader of the identity spine. Rows are `customers` (canonical,
 // resolve_customer-backed): every human who's ever ordered, cup, pickup or delivery, whether or
@@ -138,7 +139,7 @@ export function CrmDetail({ c }: { c: Customer }) {
       new_founding: was && founding === Boolean(was.founding_member) ? null : founding,
     });
     setSaving(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     toast("Loyalty updated");
     void board.reload();   // what the next save compares against is what was just saved
   };
@@ -165,11 +166,11 @@ export function CrmDetail({ c }: { c: Customer }) {
     try {
       if (tierChanged) {
         const { error } = await supabase.rpc("admin_set_customer_tier", { p_user: c.user_id, p_tier: targetTier });
-        if (error) { setTier(was.tier); setVip(was.vip); setFounding(was.founding); toast(`Couldn't set tier — ${error.message}`, "error"); return; }
+        if (error) { setTier(was.tier); setVip(was.vip); setFounding(was.founding); toast(failureWords(error, "Couldn't set tier"), "error"); return; }
       }
       if (vipChanged) {
         const { error } = await supabase.rpc("admin_set_customer_vip", { p_user: c.user_id, p_vip: targetVip });
-        if (error) { setVip(was.vip); toast(`Couldn't set VIP — ${error.message}`, "error"); return; }
+        if (error) { setVip(was.vip); toast(failureWords(error, "Couldn't set VIP"), "error"); return; }
       }
       toast(target === "founding_vip" ? "★ Founding VIP — perks are live" : target === "founding" ? "★ Founding member — perks are live" : `Set to ${targetTier}`);
     } finally { setTierBusy(false); }

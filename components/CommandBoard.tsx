@@ -23,6 +23,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import dynamic from "next/dynamic";
 import { type PortfolioStream, milestoneStream } from "@/lib/portfolio";
 import Said from "./Said";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // The manage sheet is an admin's, opened from a milestone's ⋯ — loaded then, not with the board.
 const MilestoneSheet = dynamic(() => import("./MilestoneSheet"), { ssr: false });
@@ -169,10 +170,10 @@ export default function CommandBoard() {
       overdue,
       done: [...toWork(tDone.data as WorkRow[] | null, "todo"), ...toWork(eDone.data as WorkRow[] | null, "task")],
       streams: pf.error ? [] : ((pf.data as PortfolioStream[]) ?? []),
-      streamsErr: pf.error ? pf.error.message : null,
+      streamsErr: pf.error ? plainFailure(pf.error) : null,
       linkable: mil.linkable,
       names,
-      namesErr: ppl?.error ? ppl.error.message : null,
+      namesErr: ppl?.error ? plainFailure(ppl.error) : null,
     };
   }, [milesRead]);
   const board = useAsyncData(loader, []);
@@ -184,12 +185,12 @@ export default function CommandBoard() {
   const linkGoal = async (initiativeId: string, goalId: string) => {
     if (!supabase || !isAdmin || !goalId) return;
     const { error } = await supabase.from("initiative_goals").insert({ initiative_id: initiativeId, goal_id: goalId });
-    if (error) toast(`Couldn't link — ${error.message}`, "error"); else reload();
+    if (error) toast(failureWords(error, "Couldn't link"), "error"); else reload();
   };
   const unlinkGoal = async (initiativeId: string, goalId: string) => {
     if (!supabase || !isAdmin) return;
     const { error } = await supabase.from("initiative_goals").delete().eq("initiative_id", initiativeId).eq("goal_id", goalId);
-    if (error) toast(`Couldn't unlink — ${error.message}`, "error"); else reload();
+    if (error) toast(failureWords(error, "Couldn't unlink"), "error"); else reload();
   };
 
   // Memoised so the two maps below re-derive when the board does, not on every render.
@@ -214,13 +215,13 @@ export default function CommandBoard() {
   const toggleMile = async (m: Milestone) => {
     if (!supabase || !isAdmin) return;
     const { error } = await supabase.from("initiative_milestones").update({ done: !m.done, done_at: !m.done ? new Date().toISOString() : null }).eq("id", m.id);
-    if (error) toast(`Couldn't ${m.done ? "reopen" : "check off"} “${m.title}” — ${error.message}`, "error");
+    if (error) toast(`Couldn't ${m.done ? "reopen" : "check off"} “${m.title}” — ${plainFailure(error)}`, "error");
     reload();
   };
   const createInit = async (title: string) => {
     if (!supabase) return;
     const { error } = await supabase.from("initiatives").insert({ title, status: "active", created_by: user?.id ?? null });
-    if (error) toast(`Couldn't add — ${error.message}`, "error"); else { toast("Initiative added"); reload(); }
+    if (error) toast(failureWords(error, "Couldn't add"), "error"); else { toast("Initiative added"); reload(); }
   };
   // Finish the whole initiative — the true cascade: completes every open task assigned to it (both
   // engines) and closes the program. Admin-only, with a scope-explicit confirm (this is the deliberate
@@ -236,10 +237,10 @@ export default function CommandBoard() {
     if (!supabase) return;
     const n = (milesByInit.get(initId) ?? []).length;
     const { data, error } = await supabase.from("initiative_milestones").insert({ initiative_id: initId, title, sort: n }).select("id").single();
-    if (error || !data) { toast(`Couldn't add — ${error?.message ?? "error"}`, "error"); return; }
+    if (error || !data) { toast(`Couldn't add — ${error ? plainFailure(error) : "nothing came back"}`, "error"); return; }
     const { error: tie } = await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: (data as { id: string }).id });
     // It still shows under the initiative it was made in (milesByInit's created-under fallback).
-    if (tie) toast(`Added, but not tied to the initiative — ${tie.message}`, "error");
+    if (tie) toast(failureWords(tie, "Added, but not tied to the initiative"), "error");
     reload();
   };
   // Tie/untie a milestone to an initiative — this is BOTH "move" and "tie to multiple" in one control.
@@ -248,14 +249,14 @@ export default function CommandBoard() {
     const { error } = on
       ? await supabase.from("initiative_milestone_links").insert({ initiative_id: initId, milestone_id: mId })
       : await supabase.from("initiative_milestone_links").delete().eq("initiative_id", initId).eq("milestone_id", mId);
-    if (error) toast(`Couldn't ${on ? "tie it to" : "untie it from"} that initiative — ${error.message}`, "error");
+    if (error) toast(`Couldn't ${on ? "tie it to" : "untie it from"} that initiative — ${plainFailure(error)}`, "error");
     reload();
   };
   const deleteMile = async (m: Milestone) => {
     if (!supabase) return;
     if (!(await confirm({ title: `Delete “${m.title}”?`, confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase.from("initiative_milestones").delete().eq("id", m.id);   // cascades its links
-    if (error) { toast(`Couldn't delete “${m.title}” — ${error.message}`, "error"); return; }
+    if (error) { toast(`Couldn't delete “${m.title}” — ${plainFailure(error)}`, "error"); return; }
     setManage(null); reload();
   };
 

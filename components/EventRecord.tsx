@@ -17,6 +17,7 @@ import {
 } from "@/lib/eventRecord";
 import { evDate, evTime } from "@/lib/dates";
 import { MARKET_LABEL, isMarket } from "@/lib/markets";
+import { failureWords } from "@/lib/failureWords";
 
 // ONE EVENT, WHOLE (0314).
 //
@@ -108,7 +109,7 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
     setBusy(true);
     const { error } = await what();
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setWrapping(false); setNote(null);
     toast(done);
     reload();

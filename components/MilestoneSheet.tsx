@@ -7,6 +7,7 @@ import { useCrew } from "./useCrew";
 import { errorMessage } from "@/lib/errorMessage";
 import { type PortfolioStream, streamOwner } from "@/lib/portfolio";
 import { KEPT_WORDS, startingPick, streamChoices, streamNote, streamPatch } from "@/lib/milestonePick";
+import { failureWords } from "@/lib/failureWords";
 
 // ONE MILESTONE, MANAGED — rename it, re-date it, file it to a workstream, then MOVE or TIE it across
 // initiatives via checkboxes (checking several = tied to several — one control for both), or delete
@@ -55,7 +56,7 @@ export default function MilestoneSheet({ m, streams, streamsErr, linkable, initi
     setBusy(true); setErr(null);
     try {
       const { error } = await supabase.from("initiative_milestones").update(patch).eq("id", m.id);
-      if (error) { setErr(`Couldn't save — ${error.message}`); return; }
+      if (error) { setErr(failureWords(error, "Couldn't save")); return; }
       onSaved();
       onClose();
     } catch (e) {

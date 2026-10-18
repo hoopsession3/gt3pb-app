@@ -8,6 +8,7 @@ import { haptic } from "@/lib/haptics";
 import { apiUrl } from "@/lib/native";
 import { announce } from "@/components/Announcer";
 import { TOAST_AFTER_HOLD_MS, toastHoldMs } from "@/lib/toastTiming";
+import { sayable } from "@/lib/failureWords";
 import { useHydrated } from "@/lib/clientState";
 
 type ToastVariant = "success" | "error" | "info";
@@ -138,7 +139,12 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   // AN ERROR IS FELT (2026-10-05, the haptics round). Every error toast in the app comes through here,
   // so this is the one home for the error feel: a screen that says it with toast() is not to buzz it
   // again. An error shown inline, in the screen's own words, buzzes where it is set.
-  const toast = useCallback((msg: string, variant: ToastVariant = "success", opts?: { action?: ToastAction }) => {
+  //
+  // AN ERROR IS SAID IN PLAIN WORDS (R34 — the fresh audit's UX11-11): the screens say a failure in plain words
+  // (lib/failureWords), and this door holds them to it — a raw "JWT expired" or "Failed to fetch" that reached a toast,
+  // from a screen or a helper's text, is put in plain words before it is shown or said (lib/failureWords sayable).
+  const toast = useCallback((said: string, variant: ToastVariant = "success", opts?: { action?: ToastAction }) => {
+    const msg = variant === "error" ? sayable(said) : said;
     if (variant === "error") haptic("error");
     setToastMsg(msg);
     setToastVariant(variant);

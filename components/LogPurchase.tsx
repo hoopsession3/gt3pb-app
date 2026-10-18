@@ -20,6 +20,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import VendorResolve from "./VendorResolve";
 import { useUnsaved } from "./Sheet";
 import Button from "./Button";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // LOG A PURCHASE — the capture half of spend (2026-10-04).
 //
@@ -117,14 +118,14 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
     ]).then(([c, e, v]) => {
       if (gone) return;
       // A FAILED READ IS NOT AN EMPTY LIST: with no categories there is nothing honest to offer.
-      if (c.error) { setLoadErr(c.error.message); return; }
+      if (c.error) { setLoadErr(failureWords(c.error)); return; }
       // The last 90 days only ORDER things. If that read fails, the lists still come, alphabetical
       // and with no usual category — which is true of a business with no history yet, not a lie.
       const recent = e.error ? [] : ((e.data as RecentPurchase[]) ?? []);
       setCats(categoryOrder((c.data as SpendCategory[]) ?? [], recent.map((r) => ({ category: r.category ?? "" }))));
       // The vendor book failing is said, and the purchase can still be logged — with a supplier typed
       // by name, which the resolver reads the book for itself, or with none.
-      if (v.error) setVendErr(v.error.message);
+      if (v.error) setVendErr(failureWords(v.error));
       else setSuppliers(rankSuppliers((v.data as VendorRow[]) ?? [], recent));
     });
     return () => { gone = true; };
@@ -190,7 +191,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
         // approved supplier in this city.
         const r = await resolveSupplier(typed, market, "a purchase");
         if (r.kind === "similar") { setBusy(false); setAsking({ name: typed, candidates: r.candidates }); return; }
-        if (r.kind === "error") { setBusy(false); toast(`Not logged — couldn't add ${typed} as a supplier: ${r.message}`, "error"); return; }
+        if (r.kind === "error") { setBusy(false); toast(`Not logged — couldn't add ${typed} as a supplier: ${plainFailure(r)}`, "error"); return; }
         settled = { id: r.id, name: typed, added: r.created };
       }
     }
@@ -198,7 +199,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
       amount_cents: cents, category: cat, description: what.trim() || null,
       spent_on: spentOn, market, vendor_id: settled.id, created_by: user?.id ?? null,
     }).select("id, market").single();
-    if (error || !data) { setBusy(false); toast(`Not logged — ${error?.message ?? "no row came back"}`, "error"); return; }
+    if (error || !data) { setBusy(false); toast(`Not logged — ${error ? plainFailure(error) : "no row came back"}`, "error"); return; }
     try { localStorage.setItem(MARKET_KEY, market); } catch { /* a remembered city is a convenience */ }
     const label = categoryLabel(cat, cats ?? []);
     const at = settled.id && settled.name ? ` from ${settled.name}` : "";
@@ -213,7 +214,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
         p_expense_id: (data as { id: string }).id, p_received_on: spentOn, p_vendor_id: settled.id,
       });
       shelfMissed = !!recvErr;
-      onShelf = recvErr ? ` It isn't on ${shelf.name} — ${recvErr.message}.` : ` Added ${qtyWords(qty, shelf.unit)} to ${shelf.name}.`;
+      onShelf = recvErr ? ` It isn't on ${shelf.name} — ${plainFailure(recvErr)}.` : ` Added ${qtyWords(qty, shelf.unit)} to ${shelf.name}.`;
     }
     if (file) {
       const why = await attachReceipt(supabase, data as { id: string; market: string }, file);
@@ -315,7 +316,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
         <div className="lp-f" role="group" aria-label="Onto a shelf">
           <span>Onto a shelf <i>optional</i></span>
           {shelvesFailed ? (
-            <p className="lp-note">{`Couldn't read ${MARKET_LABEL[market]}'s shelves — ${shelfRead.error?.message ?? "no answer"}. The purchase still logs; count the shelf later.`}</p>
+            <p className="lp-note">{`Couldn't read ${MARKET_LABEL[market]}'s shelves — ${shelfRead.error ? plainFailure(shelfRead.error) : "no answer"}. The purchase still logs; count the shelf later.`}</p>
           ) : (
             <select className="note-in" value={shelf ? shelf.id : ""} aria-label="Which shelf it goes onto"
               onChange={(e) => { setShelfId(e.target.value); setQtyTyped(""); }}>
@@ -389,7 +390,7 @@ export default function LogPurchase({ onDone }: { onDone?: () => void }) {
             const r = await resolveSupplier(typed, market, "a purchase", { createDistinct: true });
             setBusy(false);
             if (r.kind === "linked" || r.kind === "created") save({ id: r.id, name: typed, added: r.created });
-            else toast(`Not logged — couldn't add ${typed} as a supplier${r.kind === "error" ? `: ${r.message}` : ""}`, "error");
+            else toast(`Not logged — couldn't add ${typed} as a supplier${r.kind === "error" ? `: ${plainFailure(r)}` : ""}`, "error");
           }}
           onSkip={() => { setAsking(null); save({ id: null }); }}
           onClose={() => setAsking(null)} />

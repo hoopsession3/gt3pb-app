@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMissingFunction } from "./schemaSkew";
 import { orderNo } from "./activeOrder";
+import { plainFailure } from "./failureWords";
 
 // THE PASS MOVES AN ORDER FROM WHAT IT SHOWED (2026-10-11).
 //
@@ -53,6 +54,6 @@ export type Refused = { kind: string; id: string; value: string; reason: string;
 /** The toast for what one replay could not save: "Couldn't save offline change: #AB12 → Ready (order is void now)". */
 export function refusedToast(list: readonly Refused[]): string {
   const what = (r: Refused) => (r.kind === "collect_cup" ? `${r.value === "cash" ? "cash" : "card-reader"} payment` : `→ ${STATUS_WORD[r.value] ?? r.value}`);
-  const why = (r: Refused) => (r.now === null ? r.reason : r.now ? `order is ${(STATUS_WORD[r.now] ?? r.now).toLowerCase()} now` : "the order had moved on");
+  const why = (r: Refused) => (r.now === null ? plainFailure(r.reason) : r.now ? `order is ${(STATUS_WORD[r.now] ?? r.now).toLowerCase()} now` : "the order had moved on");
   return `Couldn't save ${list.length === 1 ? "offline change" : `${list.length} offline changes`}: ${list.map((r) => `${ticketNo(r.id)} ${what(r)} (${why(r)})`).join("; ")}`;
 }

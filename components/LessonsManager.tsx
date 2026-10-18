@@ -10,6 +10,7 @@ import AsyncSection from "./AsyncSection";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { wrote } from "@/lib/wrote";
 import { useChanged } from "@/lib/useChanged";
+import { failureWords } from "@/lib/failureWords";
 
 // RETURN TO PRIMAL · lessons manager (0273) — author the customer nutrition academy the same way the
 // menu is managed: create a draft (born hidden, 0270 publish gate), fill it in, link the menu products
@@ -57,7 +58,7 @@ export default function LessonsManager() {
       module_id: newMod, slug: `${newTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "lesson"}-${rid()}`,
       title: newTitle.trim(), tier: "rookie", sort: (modLessons.at(-1)?.sort ?? 0) + 1,
     }).select("id").single();
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setNewTitle(""); await reload(); if (data?.id) setOpenId(data.id);
   };
 
@@ -138,7 +139,7 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
       title: d.title.trim(), subtitle: d.subtitle, tier: d.tier, est_minutes: d.est_minutes ? Math.round(Number(d.est_minutes)) : null,
       summary: d.summary, key_points, body: d.body, sort: d.sort, published_at: d.published_at,
     }).eq("id", l.id);
-    if (error) toast(`Error: ${error.message}`, "error"); else { toast("Saved"); onSaved(); }
+    if (error) toast(failureWords(error), "error"); else { toast("Saved"); onSaved(); }
   };
   const togglePublish = () => setD({ ...d, published_at: d.published_at ? null : new Date().toISOString() });
   const del = async () => {
@@ -150,7 +151,7 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
   const addLink = async () => {
     if (!supabase || !addSlug) return;
     const { error } = await supabase.from("primal_lesson_products").insert({ lesson_id: l.id, product_slug: addSlug, rationale: addWhy || null, sort: (links.at(-1)?.sort ?? 0) + 1 });
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setAddSlug(""); setAddWhy("");
     supabase.from("primal_lesson_products").select("id, product_slug, rationale, sort").eq("lesson_id", l.id).order("sort").then(({ data, error }) => { if (!error) setLinks((data as any[]) ?? []); });
   };
@@ -229,14 +230,14 @@ function StructureEditor({ pillars, modules, onSaved, toast }: { pillars: Pillar
   const addPillar = async () => {
     if (!supabase || isBlank(pTitle)) return;
     const { error } = await supabase.from("primal_pillars").insert({ slug: `${slugify(pTitle) || "pillar"}-${rid()}`, title: pTitle.trim(), sort: (pillars.at(-1)?.sort ?? 0) + 10 });
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setPTitle(""); onSaved();
   };
   const addModule = async (pillarId: string, title: string) => {
     if (!supabase || isBlank(title)) return;
     const kids = modules.filter((m) => m.pillar_id === pillarId);
     const { error } = await supabase.from("primal_modules").insert({ pillar_id: pillarId, slug: `${slugify(title) || "module"}-${rid()}`, title: title.trim(), sort: (kids.at(-1)?.sort ?? 0) + 10 });
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     onSaved();
   };
   const togglePub = async (table: "primal_pillars" | "primal_modules", id: string, cur: string | null) => {
@@ -272,7 +273,7 @@ function StructureEditor({ pillars, modules, onSaved, toast }: { pillars: Pillar
     }
     if (!(await confirm({ title: `Archive “${title}”?`, body: `${detail.trim()}${detail.trim() ? " " : ""}It comes off the academy. Nothing is deleted, and you can bring it back.`, confirmLabel: "Archive" }))) return;
     const { error } = await supabase.from(table).update({ archived_at: new Date().toISOString() }).eq("id", id);
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast(`${title} archived`);
     onSaved();
   };
@@ -280,7 +281,7 @@ function StructureEditor({ pillars, modules, onSaved, toast }: { pillars: Pillar
   const unarchive = async (table: "primal_pillars" | "primal_modules", id: string, title: string) => {
     if (!supabase) return;
     const { error } = await supabase.from(table).update({ archived_at: null }).eq("id", id);
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast(`${title} is back`);
     onSaved();
   };

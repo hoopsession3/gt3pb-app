@@ -12,6 +12,7 @@ import { brandMaster, brandThumb } from "@/lib/brandThumbs";
 import { APP_BUILD, publicOrigin } from "@/lib/native";
 import { useChanged } from "@/lib/useChanged";
 import Said from "./Said";
+import { failureWords } from "@/lib/failureWords";
 
 // BRAND KIT — GT3's logos, palette, fonts & voice, in the Studio. Seeded with the real brand;
 // leadership can edit voice/tagline, the wordmark, and the palette. The reference both of you
@@ -66,7 +67,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
       const ins = await supabase.from("brand_assets").insert({ label, kind, url: res.url, sort: 900 });
       if (ins.error) throw ins.error;
       await loadAssets();
-    } catch (e: any) { setUpErr(String(e?.message ?? "Upload failed").includes("Bucket not found") ? "Run migration 0064 (storage bucket) first." : `Upload: ${e?.message ?? e}`); }
+    } catch (e: any) { setUpErr(String(e?.message ?? "Upload failed").includes("Bucket not found") ? "Run migration 0064 (storage bucket) first." : failureWords(e, "Couldn't upload it")); }
     setUploading(false);
   };
   const delAsset = async (id: string) => {

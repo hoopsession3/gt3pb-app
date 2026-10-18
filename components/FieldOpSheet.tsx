@@ -17,6 +17,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { haptic } from "@/lib/haptics";
 import { anyTable } from "@/lib/dbTypes";
 import { etClockHm, etDayKey, etInstantIso, etToday } from "@/lib/dates";
+import { failureWords, plainFailure } from "@/lib/failureWords";
 
 // FIELD-OP SHEET — the ONE quick editor for a field op's core facts (name · date · time ·
 // place · status), reachable in two taps from anywhere a stop or event shows (calendar,
@@ -173,7 +174,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
     }
     const { error } = await anyTable(supabase, table).update(patch).eq("id", id);   // an event's or a stop's (lib/dbTypes)
     setSaving(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     toast(isEvent ? "Event saved" : "Stop saved — guests see the new time");
     onSaved();
   };
@@ -186,7 +187,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
     // event drops its live flag with it, which this copy used to leave set.
     const { error } = await archiveOwner(supabase, { kind, id });
     setSaving(false);
-    if (error) { toast(`Couldn't archive — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't archive"), "error"); return; }
     toast("Archived");
     onSaved();
   };
@@ -202,7 +203,7 @@ export default function FieldOpSheet({ kind, id, onClose, onSaved, onChanged, on
     if (next) haptic("toggleOn"); else haptic("toggleOff");
     set("published_at", next);
     const { error } = await anyTable(supabase, table).update({ published_at: next }).eq("id", id);
-    if (error) { set("published_at", f.published_at ?? null); toast(`Couldn't ${next ? "publish" : "hide"} — ${error.message}`, "error"); return; }
+    if (error) { set("published_at", f.published_at ?? null); toast(`Couldn't ${next ? "publish" : "hide"} — ${plainFailure(error)}`, "error"); return; }
     toast(next ? "Published — live to guests" : "Hidden from guests");
     onChanged?.();
   };

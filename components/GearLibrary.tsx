@@ -13,6 +13,8 @@ import {
   nextStates, toStatus, toCriticality, validateRetire, isDeployed, isOwned,
 } from "@/lib/equipment";
 import Button from "./Button";
+import Said from "@/components/Said";
+import { failureWords } from "@/lib/failureWords";
 
 // Gear & manuals — the GT3 asset register, read from Postgres (system-of-record). Staff can
 // add / edit inline; writes go straight to the `assets` table (RLS: staff-write).
@@ -112,7 +114,7 @@ export default function GearLibrary() {
       ? await supabase.from("assets").insert(row)
       : await supabase.from("assets").update(row).eq("id", editing);
     setBusy(false);
-    if (error) { setErr(error.message); return; }
+    if (error) { setErr(failureWords(error)); return; }
     setEditing(null); load();
   };
 
@@ -130,7 +132,7 @@ export default function GearLibrary() {
       retired_on: localToday(),
     }).eq("id", retiring.id);
     setBusy(false);
-    if (error) { setErr(error.message); return; }
+    if (error) { setErr(failureWords(error)); return; }
     setRetiring(null); setRetireDraft({ disposition: "", reason: "" }); load();
   };
 
@@ -143,7 +145,7 @@ export default function GearLibrary() {
       .update({ status: "reserve", disposition: null, retire_reason: null, retired_on: null })
       .eq("id", a.id);
     setBusy(false);
-    if (error) { setErr(error.message); return; }
+    if (error) { setErr(failureWords(error)); return; }
     load();
   };
 
@@ -206,7 +208,7 @@ export default function GearLibrary() {
           {KB_OPTS.map((k) => <option key={k} value={k}>{k}</option>)}
         </select>
       </label>
-      {err && <div className="gl-err">{err}</div>}
+      {err && <Said assertive className="gl-err">{err}</Said>}
       <div className="gl-form-actions">
         <Button kind="primary" compact onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
         <Button kind="quiet" onClick={cancel} disabled={busy}>Cancel</Button>
@@ -253,7 +255,7 @@ export default function GearLibrary() {
               <label className="gl-f"><span>Reason <i>(in a year this is the only explanation anyone will have)</i></span>
                 <input value={retireDraft.reason} onChange={(e) => setRetireDraft({ ...retireDraft, reason: e.target.value })} placeholder="Compressor failed, past economical repair" />
               </label>
-              {err && <div className="gl-err">{err}</div>}
+              {err && <Said assertive className="gl-err">{err}</Said>}
               <div className="gl-form-actions">
                 <Button kind="destructive" onClick={doRetire} disabled={busy}>{busy ? "Retiring…" : "Retire it"}</Button>
                 <Button kind="quiet" onClick={() => { setRetiring(null); setErr(null); }} disabled={busy}>Cancel</Button>

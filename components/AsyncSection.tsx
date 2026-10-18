@@ -5,6 +5,7 @@ import EmptyState from "./EmptyState";
 import PourFill from "./PourFill";
 import Said from "./Said";
 import type { AsyncData } from "@/lib/useAsyncData";
+import { failureWords } from "@/lib/failureWords";
 
 // Renders the three states of a useAsyncData() result as three VISIBLY DIFFERENT things — the
 // whole point (Wave 2, 2026-07-15). Loading and error and empty must never look the same, or a
@@ -30,7 +31,8 @@ export function AsyncSection<T>({
    * and does not mean, so callers whose empty state is genuinely reassuring — "nothing overdue" —
    * had no way to say "this is not the same as nothing being overdue; we could not read it." That
    * distinction is the entire subject of scripts/falseempty.audit.mjs, and the shared component
-   * could not express it. Defaults to the driver's message, so nothing that omits it changes.
+   * could not express it. Defaults to the failure in plain words (R34 — UX11-11: it was the driver's raw message —
+   * "JWT expired", "Failed to fetch", a table's name — under every section that failed to load).
    */
   errorSub?: string;
   children: (data: T) => ReactNode;
@@ -43,7 +45,7 @@ export function AsyncSection<T>({
       <EmptyState
         role="alert"
         title={errorTitle ?? "Couldn't load this"}
-        sub={errorSub ?? state.error?.message ?? "Something went wrong on that request."}
+        sub={errorSub ?? failureWords(state.error)}
         action={<button type="button" className="btn-ter" onClick={state.reload}>Try again</button>}
       />
     );

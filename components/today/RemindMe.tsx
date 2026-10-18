@@ -14,6 +14,7 @@ import { APP_BUILD, isNativeApp, publicOrigin } from "@/lib/native";
 import { NATIVE_PUSH_ON } from "@/lib/nativePush";
 import { clockTime } from "@/lib/dates";
 import { fillCopy } from "@/lib/copy";
+import { failureWords } from "@/lib/failureWords";
 
 // REMIND ME WHEN CUP ORDERS OPEN (2026-10-13, R3 of the customer audit — board 04, approved). With the truck off, Today
 // says when cup orders open; this is the one thing to do about it: a push at that minute (0394 keeps it, the minute's run
@@ -73,7 +74,7 @@ export default function RemindMe({ stopId, opensAt, stopName, where, t }: { stop
     try {
       if (!(await ask())) return;
       const { error } = await supabase.rpc("keep_cup_reminder", { p_stop: stopId, p_at: opensAt });
-      if (error) { toast(error.message, "error"); return; }
+      if (error) { toast(failureWords(error), "error"); return; }
       setKept(true);
       toast(fillCopy(t("today.remind_said"), { time: at }));
     } finally { setBusy(false); }
@@ -83,7 +84,7 @@ export default function RemindMe({ stopId, opensAt, stopName, where, t }: { stop
     setBusy(true);
     try {
       const { error } = await supabase.rpc("drop_cup_reminder", { p_stop: stopId });
-      if (error) { toast(error.message, "error"); return; }
+      if (error) { toast(failureWords(error), "error"); return; }
       setKept(false);
       toast(t("today.remind_off"), "info");
     } finally { setBusy(false); }

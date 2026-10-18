@@ -9,6 +9,8 @@ import { authedFetch } from "@/lib/authedFetch";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { errorMessage } from "@/lib/errorMessage";
+import Said from "@/components/Said";
+import { failureOr } from "@/lib/failureWords";
 
 // INVENTORY AI — describe an item and it drafts a COMPLETE inventory record (every attribute filled /
 // inferred). Review + tweak ANY field, then add it to the stock register. Reuses the .gl-* / .dp-*
@@ -47,14 +49,14 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
     if (!supabase || busy || !desc.trim()) return;
     setBusy(true); setErr(null);
     const j = await post({ description: desc }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Couldn't draft it."); else setItem(j.item);
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't draft it.")); else setItem(j.item);
     setBusy(false);
   };
   const save = async () => {
     if (!supabase || !item || busy || !item.name.trim()) return;
     setBusy(true); setErr(null);
     const j = await post({ commit: true, item }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Couldn't save."); else { setDone(true); onAdded(); }
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't save.")); else { setDone(true); onAdded(); }
     setBusy(false);
   };
   const set = (k: keyof Item, v: any) => setItem((p) => p ? { ...p, [k]: v } : p);
@@ -71,7 +73,7 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
             <>
               <div className="dp-hint">Describe an item — a box you just opened, a label, whatever. I&apos;ll draft a complete record (qty, unit, category, reorder point, what it&apos;s for, whether it&apos;s event-critical, a reorder link, and notes) for you to check.</div>
               <textarea className="note-in" rows={4} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="e.g. EcoFlow Delta 2 power station, 1 unit, runs the trailer when there's no shore power…" autoFocus disabled={busy} />
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
                 <button type="button" className="btn-pri" onClick={draft} disabled={busy || !desc.trim()}>{busy ? "Drafting…" : <><Icon name="sparkles" /> Draft it</>}</button>
@@ -109,7 +111,7 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
                 <label className="gl-f"><span>Reorder link</span><input value={item.reorder_link ?? ""} onChange={(e) => set("reorder_link", e.target.value)} placeholder="https://…" /></label>
                 <label className="gl-f"><span>Notes</span><textarea rows={4} value={item.notes ?? ""} onChange={(e) => set("notes", e.target.value)} /></label>
               </div>
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setItem(null)} disabled={busy}>‹ Redo</button>
                 <button type="button" className="btn-pri" onClick={save} disabled={busy || !item.name.trim()}>{busy ? "Adding…" : "Add to inventory"}</button>

@@ -10,6 +10,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { useChanged } from "@/lib/useChanged";
+import { failureWords } from "@/lib/failureWords";
 
 // PROPOSAL DESK (0180) — the reach-out strategy as a working, co-authored document that moves through
 // a real lifecycle. Any staffer edits the strategy; anyone advances it draft -> in_review -> sent ->
@@ -94,7 +95,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
     const row = { opportunity_id: oppId, strategy, updated_by: user?.id ?? null, updated_at: new Date().toISOString() };
     const { error } = await supabase.from("proposals").upsert(row, { onConflict: "opportunity_id" });
     setBusy(false); setDirty(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     reload();
   };
 
@@ -104,7 +105,7 @@ export default function ProposalDesk({ oppId, vendorName, isAdmin }: { oppId: st
     if (dirty) await saveStrategy();
     const { error } = await supabase.rpc("advance_proposal", { p_opportunity: oppId, p_to: to, p_note: note ?? null });
     setBusy(false);
-    if (error) { toast(`Couldn't move it — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't move it"), "error"); return; }
     if (to !== "won" && to !== "lost") setDecisionNote("");
     // Ping the right people so the lifecycle is live: owners when it needs review/decision, the whole
     // desk when the owner decides.

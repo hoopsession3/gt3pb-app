@@ -20,6 +20,7 @@ import {
   type AuditRow, type CatalogProduct, type City86, type Draft, type Flip, type MenuLink, type MenuStop,
   type CaffeineChoice,
 } from "@/lib/catalog";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // ONE PRODUCT, ITS OWN PAGE (2026-10-12, the Catalog round, approved). It was an expander inside the list: a card that
 // opened in place under its row, its Save the one primary on the screen, its recipe read on open — and lost on the
@@ -150,7 +151,7 @@ export default function ProductPage({ p, gone, cities = NO_CITIES, onCityBack, o
     const { data, error } = await supabase.rpc("set_eighty_six", { p_product: p.id, p_market: c.market, p_out: false });
     setBacking(null);
     const r = (data ?? {}) as { ok?: boolean; words?: string };
-    if (error || !r.ok) { toast(`Couldn't put ${title} back on in ${cityName(c.market)} — ${error?.message ?? r.words ?? "try again"}`, "error"); return; }
+    if (error || !r.ok) { toast(`Couldn't put ${title} back on in ${cityName(c.market)} — ${error ? plainFailure(error) : r.words ?? "try again"}`, "error"); return; }
     haptic("toggleOff");
     toast(`${title} is back on sale in ${cityName(c.market)}`, "success");
     onCityBack?.();
@@ -183,11 +184,11 @@ export default function ProductPage({ p, gone, cities = NO_CITIES, onCityBack, o
         const refused = invalid({ ...valuesOf(draftOf(against)), ...patch });
         if (refused) { toast(refused, "error"); return; }
         const { data, error } = await supabase.from("products").update(patch).eq("id", p.id).eq("updated_at", against.updated_at).select("*");
-        if (error) { toast(`Couldn't save ${title} — ${error.message}`, "error"); return; }
+        if (error) { toast(`Couldn't save ${title} — ${plainFailure(error)}`, "error"); return; }
         const row = (data as CatalogProduct[] | null)?.[0];
         if (row) { setBase(row); setDraft(draftOf(row)); setConflict(null); onSaved(row); toast("Saved"); return; }
         const now = await supabase.from("products").select("*").eq("id", p.id).maybeSingle();
-        if (now.error) { toast(`Couldn't save ${title} — ${now.error.message}`, "error"); return; }
+        if (now.error) { toast(`Couldn't save ${title} — ${plainFailure(now.error)}`, "error"); return; }
         const latest = (now.data as CatalogProduct | null) ?? null;
         const verdict = saveVerdict(against, latest);
         if (verdict === "gone" || !latest) { toast(`Couldn't save ${title} — someone deleted it`, "error"); return; }
@@ -210,7 +211,7 @@ export default function ProductPage({ p, gone, cities = NO_CITIES, onCityBack, o
     if (!(await confirm({ title: `Delete “${title}”?`, confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase.from("products").delete().eq("id", p.id);
     // The expander said "Deleted" whatever the database answered.
-    if (error) { toast(`Couldn't delete ${title} — ${error.message}`, "error"); return; }
+    if (error) { toast(`Couldn't delete ${title} — ${plainFailure(error)}`, "error"); return; }
     toast("Deleted"); onDeleted();
   };
 
@@ -222,7 +223,7 @@ export default function ProductPage({ p, gone, cities = NO_CITIES, onCityBack, o
     if (!supabase || !addInv) return;
     const unit = inv.find((x) => x.id === addInv)?.unit ?? null;
     const { error } = await supabase.from("product_components").insert({ product_id: p.id, inventory_item_id: addInv, qty_per_serving: addQty ? Number(addQty) : null, unit });
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setAddInv(""); setAddQty("");
     void recipe.reload();
   };
@@ -231,7 +232,7 @@ export default function ProductPage({ p, gone, cities = NO_CITIES, onCityBack, o
     setRemoving((s) => new Set(s).add(c.id));
     const { error } = await supabase.from("product_components").delete().eq("id", c.id);
     // A removal that did not happen puts the line back, and says so — it used to vanish either way.
-    if (error) { setRemoving((s) => { const n = new Set(s); n.delete(c.id); return n; }); toast(`Couldn't remove ${invLabel(c.inventory_item_id)} — ${error.message}`, "error"); return; }
+    if (error) { setRemoving((s) => { const n = new Set(s); n.delete(c.id); return n; }); toast(`Couldn't remove ${invLabel(c.inventory_item_id)} — ${plainFailure(error)}`, "error"); return; }
     void recipe.reload();
   };
 

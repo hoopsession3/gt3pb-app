@@ -29,6 +29,7 @@ import { canceledHere } from "@/lib/activeOrder";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { refusalText } from "@/lib/refusal";
 import Said from "@/components/Said";
+import { failureOr } from "@/lib/failureWords";
 
 // THE TICKET (2026-10-13, R3b of the customer audit — board 09 "Every order gets a ticket", approved). One order, to
 // whoever holds its link: a guest who paid had the "Order in." screen and nothing after it; a member had the bar and
@@ -113,7 +114,7 @@ function TicketView({ t, shared = false }: { t: string; shared?: boolean }) {
   const tk = ticket.data, reload = ticket.reload;
   // A first read that failed says so in the order's place. A later one that failed keeps the order on screen and says it
   // is the last word heard, as Today's card does — a guest at the truck on a bad signal is not shown a stale step as news.
-  const err = ticket.status === "error" ? ticket.error?.message ?? "We couldn't open this order just now — try again in a minute." : null;
+  const err = ticket.status === "error" ? failureOr(ticket.error, "We couldn't open this order just now — try again in a minute.") : null;
   const stale = !!tk && !!ticket.error;
   // It updates itself while the order is in progress — every 15 seconds the page is in front of someone, and on return.
   const live = !!tk && ACTIVE.has(tk.status);

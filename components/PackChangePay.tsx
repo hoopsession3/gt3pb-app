@@ -9,6 +9,7 @@ import { PAY_DEADLINE_MS } from "@/lib/deadline";
 import { squareClientReady } from "@/lib/square";
 import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
+import { failureOr } from "@/lib/failureWords";
 
 // The held-payment notice loads when something is held (components/HeldNotice) — a moment few customers see.
 const HeldNotice = dynamic(() => import("./HeldNotice"), { ssr: false });
@@ -112,7 +113,7 @@ export default function PackChangePay({ body, sig, bottles, dayLabel, codeBox, c
         // The difference moved since it was shown: ask again, and say so. The pack changed elsewhere: show it as it is.
         if (data.priceChanged) setQuoteTick((n) => n + 1);
         if (data.refresh) { onRefresh(data.error || "Your pack just changed."); return; }
-        setErr(data.error || "Something went wrong — try again.");
+        setErr(failureOr(data.error, "Something went wrong — try again."));
         return;
       }
       haptic("success");

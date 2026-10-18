@@ -6,6 +6,8 @@ import { authedFetch } from "@/lib/authedFetch";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { errorMessage } from "@/lib/errorMessage";
+import Said from "@/components/Said";
+import { failureOr } from "@/lib/failureWords";
 
 // EVENT PREP AI — tell it about a specific event and it builds a tailored prep / to-do list,
 // grounded in the event's config + run of show, current inventory, gear, jurisdiction compliance,
@@ -54,14 +56,14 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
     let j = await post({ notes }).catch((e) => ({ ok: false, error: errorMessage(e) }));
     // background-job flow: route returns a job id, then we poll for the result
     if (j.ok && j.status === "pending" && j.job_id) j = await waitForJob(j.job_id);
-    if (!j.ok) setErr(j.error || "Couldn't build the list."); else { setSummary(j.summary || ""); setTasks(j.tasks ?? []); }
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't build the list.")); else { setSummary(j.summary || ""); setTasks(j.tasks ?? []); }
     setBusy(false);
   };
   const add = async () => {
     if (!supabase || !tasks || busy) return;
     setBusy(true); setErr(null);
     const j = await post({ commit: { tasks } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Couldn't add."); else { setDone(j.added ?? 0); onAdded(); }
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't add.")); else { setDone(j.added ?? 0); onAdded(); }
     setBusy(false);
   };
   const toggle = (i: number) => setTasks((p) => p!.map((t, j) => j === i ? { ...t, _skip: !t._skip } : t));
@@ -80,7 +82,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
             <>
               <div className="dp-hint">Tell me about this event — anything beyond what&apos;s in the app (special menu, the venue, headcount, what you&apos;re worried about). I&apos;ll build the prep list from that plus the run of show, your inventory, gear, the jurisdiction&apos;s rules, and our SOPs.</div>
               <textarea className="note-in" rows={5} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Outdoor, no power or water on site, expecting ~300, pouring nitro + Nature Aide + bottles, 2 of us…" autoFocus disabled={busy} />
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
                 <button type="button" className="btn-pri" onClick={generate} disabled={busy}>{busy ? "Building…" : <><Icon name="sparkles" /> Build the prep list</>}</button>
@@ -98,7 +100,7 @@ export default function EventPrepAI({ ownerType, ownerId, title, onClose, onAdde
                   </span>
                 </button>
               ))}
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setTasks(null)} disabled={busy}>‹ Redo</button>
                 <button type="button" className="btn-pri" onClick={add} disabled={busy || keepCount === 0}>{busy ? "Adding…" : `Add ${keepCount} to prep`}</button>

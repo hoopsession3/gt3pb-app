@@ -16,6 +16,7 @@ import { addDays, localToday } from "@/lib/dates";
 import { errorMessage } from "@/lib/errorMessage";
 import PersonPick, { usePersonMe, type PersonValue } from "./PersonPick";
 import Button from "./Button";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // ASSET MAINTENANCE — upkeep log for the gear. Each asset shows its last service and what's due next
 // (or overdue); tap to see the full history and log a new service/repair/clean/inspection. Staff-gated
@@ -65,7 +66,7 @@ export default function AssetMaintenance() {
     if (!supabase) return;
     if (!(await confirm({ title: "Delete this maintenance record?", confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase.from("asset_maintenance").delete().eq("id", id);
-    if (error) { toast(`Couldn't delete it — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't delete it"), "error"); return; }
     reload();
   };
   // The same write My Day's "Done today" makes (lib/upkeep logDone), from the entry that governs.
@@ -75,7 +76,7 @@ export default function AssetMaintenance() {
     const res = await logDone(supabase, due.id, localToday(), { userId: user?.id ?? null, name: profile?.display_name ?? null });
     setDoing(null);
     if (res.error === null) { toast(res.already ? `${a.name} — already logged for today.` : `${a.name} — ${res.kind} logged for today.`); reload(); }
-    else toast(`Couldn't log it — ${res.error}`, "error");
+    else toast(`Couldn't log it — ${plainFailure(res.error)}`, "error");
   };
 
   return (

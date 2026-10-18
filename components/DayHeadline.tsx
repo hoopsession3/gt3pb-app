@@ -9,6 +9,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useRecord } from "./RecordSheet";
 import { useAppStable } from "./AppProvider";
 import Button from "./Button";
+import { failureWords } from "@/lib/failureWords";
 
 // THE DAY'S HEADLINE — what today is about, before the plates.
 //
@@ -85,7 +86,7 @@ export default function DayHeadline({ canGoLive }: { canGoLive: boolean }) {
     setArming(id);
     const { error } = await setEventLive(supabase, id, true);
     setArming(null);
-    if (error) { toast(`Couldn't make it live — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't make it live"), "error"); return; }
     toast("Event is live — sales now track to it");
     state.reload();
   };

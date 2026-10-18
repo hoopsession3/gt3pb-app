@@ -22,6 +22,7 @@ import { edited } from "@/lib/formGuard";
 import Said from "@/components/Said";
 import { useChanged } from "@/lib/useChanged";
 import { anyTable } from "@/lib/dbTypes";
+import { failureWords } from "@/lib/failureWords";
 
 // OWNER DETAILS — the edit sheet behind a truck stop or an event.
 //
@@ -89,7 +90,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     setSaving(true);
     const { error } = await archiveOwner(supabase, { kind: ownerType, id: ownerId });
     setSaving(false);
-    if (error) { toast(`Couldn't archive — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't archive"), "error"); return; }
     toast(`${isEvent ? "Event" : "Stop"} archived`); onRemoved();
   };
   // Hard delete — gone for good, plus its prep, schedule, crew, links (FK cascade).
@@ -99,7 +100,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     setSaving(true);
     const { error } = await supabase.from(table).delete().eq("id", ownerId);
     setSaving(false);
-    if (error) { toast(`Couldn't delete — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't delete"), "error"); return; }
     toast(`${isEvent ? "Event" : "Stop"} deleted`); onRemoved();
   };
 
@@ -125,7 +126,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
       const r = await supabase.from("stops").insert({ name: String(s.title || "Stop"), starts_at: startsAt, location_text: (s.location_text as string) ?? null, status: "upcoming", vendor_id: (s.vendor_id as string) ?? null, default_buffer_min: (s.default_buffer_min as number) ?? null, sort: 0 }).select("id").single();
       error = r.error;
     }
-    if (error) { setSaving(false); toast(`Couldn't convert — ${error.message}`, "error"); return; }
+    if (error) { setSaving(false); toast(failureWords(error, "Couldn't convert"), "error"); return; }
     await archiveOwner(supabase, { kind: ownerType, id: ownerId });
     setSaving(false); toast(`Changed to ${toLabel} — the original is archived`); onRemoved();
   };
@@ -141,7 +142,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     const now = new Date().toISOString();
     const { error } = await wrapOwner(supabase, { kind: ownerType, id: ownerId, recap, archive: alsoArchive, now });
     setSaving(false);
-    if (error) { toast(`Couldn't complete — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't complete"), "error"); return; }
     setWrapping(false);
     toast(alsoArchive ? `${isEvent ? "Event" : "Stop"} completed + archived` : `${isEvent ? "Event" : "Stop"} completed — nice work`);
     if (alsoArchive) { onRemoved(); return; }
@@ -157,7 +158,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
     setSaving(true);
     const { error } = await saveRecap(supabase, { kind: ownerType, id: ownerId, recap });
     setSaving(false);
-    if (error) { toast(`Couldn't save the note — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save the note"), "error"); return; }
     setWrapping(false);
     toast("After-action saved");
     setF((p) => ({ ...(p ?? {}), recap: cleanRecap(recap) }));
@@ -286,7 +287,7 @@ export function OwnerDetails({ ownerType, ownerId, isAdmin, onSaved, onRemoved }
       }
     }
     const { error } = await anyTable(supabase, table).update(patch).eq("id", ownerId);   // an event's or a stop's
-    if (error) { setSaving(false); toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { setSaving(false); toast(failureWords(error, "Couldn't save"), "error"); return; }
     // Re-sync the local draft with the server row BEFORE leaving edit mode — a skipped
     // stage/status write (guard just above) must not leave the read-only view showing a
     // derived-only default that was never actually persisted (it would otherwise hide the

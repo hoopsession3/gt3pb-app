@@ -28,6 +28,7 @@ import { readParam, dropParam } from "@/lib/urlParam";
 import { usePersonFacts, withFacts } from "@/lib/personFacts";
 import Said from "./Said";
 import type { ArgsOf } from "@/lib/dbTypes";
+import { failureWords } from "@/lib/failureWords";
 
 // OFFER LETTERS (0281) — the owner's side of hiring someone.
 //
@@ -195,7 +196,7 @@ export default function OfferLetters() {
     setBusy(true);
     const { error } = await supabase.rpc(fn, args);
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast(ok); board.reload();
   };
 
@@ -222,7 +223,7 @@ export default function OfferLetters() {
       ? await supabase.from("offer_letters").update(patch).eq("id", openId)
       : await supabase.from("offer_letters").insert({ ...patch, author_id: user?.id ?? null }).select("id").single();
     setBusy(false);
-    if ((res as any).error) { toast((res as any).error.message, "error"); return; }
+    if ((res as any).error) { toast(failureWords((res as any).error), "error"); return; }
     if (!openId && (res as any).data?.id) setOpenId((res as any).data.id);
     setDraft(null); toast("Saved"); board.reload();
   };
@@ -382,7 +383,7 @@ export default function OfferLetters() {
                     .update({ status: "sent", sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
                     .eq("id", open.id);
                   setBusy(false);
-                  if (error) { toast(error.message, "error"); return; }
+                  if (error) { toast(failureWords(error), "error"); return; }
                   toast(`Sent to ${open.candidate_name}`); board.reload();
                 }}>Send to {open.candidate_name.split(" ")[0]} <Icon name="arrowRight" /></button>
               )}
@@ -393,7 +394,7 @@ export default function OfferLetters() {
                   setBusy(true);
                   const { error } = await supabase.from("offer_letters").update({ status: "withdrawn", updated_at: new Date().toISOString() }).eq("id", open.id);
                   setBusy(false);
-                  if (error) { toast(error.message, "error"); return; }
+                  if (error) { toast(failureWords(error), "error"); return; }
                   toast("Withdrawn"); board.reload();
                 }}>Withdraw</button>
               )}

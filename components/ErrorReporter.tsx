@@ -6,6 +6,8 @@ import { APP_BUILD, apiUrl } from "@/lib/native";
 import { shareableUrl } from "@/lib/reportUrl";
 import { setFailureSender } from "@/lib/failureReport";
 
+// raw words (file): this is the error report's sending end — the raw text is what it is for (scripts/words.audit).
+//
 // ERROR REPORTER — the sending end of /api/errors/report. Catches what the console used to eat
 // (window errors + unhandled promise rejections) and what the error boundary catches (fatal), and
 // ships a capped, deduped report so a breakage in the field is VISIBLE in the crew alert inbox.

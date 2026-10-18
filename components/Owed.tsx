@@ -22,6 +22,7 @@ import AsyncSection from "./AsyncSection";
 import { dayKey, localToday } from "@/lib/dates";
 import { dueWord } from "@/lib/dayWords";
 import Said from "./Said";
+import { plainFailure } from "@/lib/failureWords";
 
 // WHAT NEEDS YOU — one panel, because My Day was carrying two.
 //
@@ -218,7 +219,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
       toast(res.already ? `${r.title} — already logged for today.`
         : `${r.title} — ${res.kind} logged for today${res.next_due_on ? `. Next due ${fmtDay(res.next_due_on)}.` : "."}`);
       state.reload();
-    } else toast(`Couldn't log it — ${res.error}`, "error");
+    } else toast(`Couldn't log it — ${plainFailure(res.error)}`, "error");
   };
   const markDone = async (r: Row) => {
     if (doing) return;
@@ -236,7 +237,7 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
     setDoing(keyOf(r));
     const res = await markInvoicePaid(supabase, r.subject_id);
     setDoing(null);
-    if (res.error) { toast(`Couldn't mark it paid — ${res.error}`, "error"); return; }
+    if (res.error) { toast(`Couldn't mark it paid — ${plainFailure(res.error)}`, "error"); return; }
     toast(res.already ? `${r.title} — already paid.` : `${r.title} — paid.`);
     state.reload();
   };

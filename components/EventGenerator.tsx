@@ -10,6 +10,8 @@ import { RecordLink } from "@/components/RecordSheet";
 import { useOperatorSection } from "@/components/OperatorNav";
 import { goPlanTab } from "@/lib/planNav";
 import { errorMessage } from "@/lib/errorMessage";
+import Said from "@/components/Said";
+import { failureOr } from "@/lib/failureWords";
 
 // EVENT GENERATOR — say hey, feed it notes: the agent drafts the events + a team collaboration note
 // (your house format) + an action-item to-do list, all linked. You get a quick review, untick
@@ -35,14 +37,14 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
     if (!supabase || !notes.trim() || busy) return;
     setBusy(true); setErr(null);
     const j = await post({ notes }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Couldn't read those notes."); else setPlan(j.plan);
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't read those notes.")); else setPlan(j.plan);
     setBusy(false);
   };
   const create = async () => {
     if (!supabase || !plan || busy) return;
     setBusy(true); setErr(null);
     const j = await post({ commit: plan }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Couldn't create it."); else { setDone(j.created); onCreated(); }
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't create it.")); else { setDone(j.created); onCreated(); }
     setBusy(false);
   };
   const toggle = (arr: "events" | "action_items", i: number) =>
@@ -77,7 +79,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
             <>
               <div className="dp-hint">Say what you talked through. It&apos;ll draft the event(s), a team note in your format, and a to-do list from the action items — all linked. You review before anything is created.</div>
               <textarea className="note-in" rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Talked with the crew about the Beltline event and Mercedes-Benz Buckhead this weekend — coffee cart only at Beltline, trailer at Buckhead…" autoFocus disabled={busy} />
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
                 <button type="button" className="btn-pri" onClick={draft} disabled={busy || !notes.trim()}>{busy ? "Reading your notes…" : <><Icon name="sparkles" /> Draft the plan</>}</button>
@@ -111,7 +113,7 @@ export default function EventGenerator({ onClose, onCreated, initialNotes }: { o
                 </button>
               ))}
 
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setPlan(null)} disabled={busy}>‹ Redo</button>
                 <button type="button" className="btn-pri" onClick={create} disabled={busy}>{busy ? "Creating…" : <>Create it <Icon name="arrowRight" /></>}</button>

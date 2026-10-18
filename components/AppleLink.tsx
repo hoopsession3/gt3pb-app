@@ -8,6 +8,7 @@ import { haptic } from "@/lib/haptics";
 import { appleIdentity, linkAppleHere, takeFreshApple, FRESH_APPLE, type FreshApple } from "@/lib/appleAuth";
 import { useAppStable } from "./AppProvider";
 import Said from "./Said";
+import { authWords } from "@/lib/failureWords";
 
 // AN APPLE SIGN-IN FINDS THE ACCOUNT IT BELONGS TO (2026-10-15, A3 of the account audit; decided by Ryan on 2026-10-13:
 // "right after a first Apple sign-in, offer 'Already a member with another email? Link it', verified by a code sent to
@@ -89,7 +90,7 @@ export default function AppleLink() {
       haptic("error");
       setErr(/signups? not allowed|otp_disabled|not found/i.test(error.message)
         ? "We couldn't find a GT3 account with that email. Check it, or tap I'm new here."
-        : error.message);
+        : authWords(error));
       return;
     }
     setCode(""); setStep("code");

@@ -15,6 +15,8 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { errorMessage } from "@/lib/errorMessage";
 import { wrote } from "@/lib/wrote";
 import { useChanged } from "@/lib/useChanged";
+import Said from "@/components/Said";
+import { failureWords, failureOr } from "@/lib/failureWords";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -65,7 +67,7 @@ export default function ShootPlanner() {
   const createShoot = async (title: string) => {
     if (!supabase) return;
     const { error } = await supabase.from("shoots").insert({ title });
-    if (error) toast(`Couldn't add — ${error.message}`, "error"); else reload();
+    if (error) toast(failureWords(error, "Couldn't add"), "error"); else reload();
   };
   const patchShoot = async (id: string, patch: Partial<Shoot>) => {
     if (!supabase) return;
@@ -177,7 +179,7 @@ function ShotDraftPanel({ shootId, onClose, onAdd }: { shootId: string; onClose:
     try {
       const r = await authedFetch("/api/agents/shotlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shoot_id: shootId, notes }) });
       const j = await r.json();
-      if (!j.ok) { setErr(j.error || "Draft failed"); setShotList(null); }
+      if (!j.ok) { setErr(failureOr(j.error, "Draft failed")); setShotList(null); }
       else { setShotList(j.shots ?? []); setPick(Object.fromEntries((j.shots ?? []).map((_: unknown, i: number) => [i, true]))); }
     } catch (e) {
       setErr(errorMessage(e));
@@ -191,7 +193,7 @@ function ShotDraftPanel({ shootId, onClose, onAdd }: { shootId: string; onClose:
         <>
           <div className="dp-hint">A few notes — the setting, what you want to show off, anything specific — and AI proposes a shot list. You approve what to keep.</div>
           <textarea className="note-in" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Sunset shots at the lake, 3-4 hero shots of the truck, action shots of pours, close-ups of the product" autoFocus />
-          {err && <div className="dp-err">{err}</div>}
+          {err && <Said assertive className="dp-err">{err}</Said>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
             <button type="button" className="btn-pri" onClick={run} disabled={loading}>{loading ? "Drafting…" : "Draft the shot list"}</button>

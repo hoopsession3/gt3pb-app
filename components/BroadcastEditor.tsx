@@ -13,6 +13,7 @@ import { btn } from "./Button";
 import { LINK_WORDS, safeLink } from "@/lib/safeLink";
 import { wrote } from "@/lib/wrote";
 import Said from "./Said";
+import { failureWords } from "@/lib/failureWords";
 
 // BROADCAST EDITOR (Settings) — compose an announcement/ad and put it live across the app to everyone.
 // The composer exposes every option: what it says, who sees it, how it looks, an optional call-to-
@@ -62,7 +63,7 @@ export default function BroadcastEditor() {
       ? await supabase.from("broadcasts").update(payload).eq("id", d.id)
       : await supabase.from("broadcasts").insert({ ...payload, created_by: user?.id ?? null });
     setSaving(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     toast(payload.active ? "Live across the app now" : "Saved as a draft");
     setD(BLANK); load();
   };

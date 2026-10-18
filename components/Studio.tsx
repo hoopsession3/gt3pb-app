@@ -15,7 +15,6 @@ import { usePagerLevel } from "@/components/SwipePager";
 import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 import { wrote } from "@/lib/wrote";
-import { refusalText } from "@/lib/refusal";
 import { useAppStable } from "./AppProvider";
 
 type CLink = { id: string; event_id: string | null; stop_id: string | null; play_key: string | null };
@@ -37,6 +36,7 @@ import { rovingKeys, rovingTab } from "./roving";
 import { segTabId, tabPanel } from "./controls";
 import { useLatestRead } from "@/lib/useLatestRead";
 import type { TablesInsert } from "@/lib/database.types";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -426,7 +426,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   const persist = useCallback(async (patch: Record<string, any>) => {
     if (!supabase) return;
     const { error } = await supabase.from("content_items").update({ ...patch, updated_by: me.id }).eq("id", id);
-    if (error) { setSaveErr(refusalText(error) ?? error.message ?? "try again"); return; }
+    if (error) { setSaveErr(plainFailure(error) ?? "try again"); return; }
     setSaveErr(null);
     setSavedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
   }, [id, me.id]);
@@ -445,7 +445,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     let firstImageMime = "";
     for (const file of Array.from(files)) {
       const res = await uploadToBucket({ bucket: "content", file, prefix: id });
-      if ("error" in res) { setPubErr(`Upload: ${res.error}`); continue; }
+      if ("error" in res) { setPubErr(failureWords(res.error, "Upload failed")); continue; }
       const type = file.type.startsWith("video") ? "video" : "image";
       added.push({ url: res.url, type });
       if (type === "image" && !firstImageMime) firstImageMime = file.type;
@@ -517,7 +517,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       content_id: id, title, hook, caption, status, label,
       hashtags: tags.split(",").map((s) => s.trim()).filter(Boolean), edited_by: me.id,
     });
-    if (error) setSaveErr(`the version wasn't kept — ${refusalText(error) ?? error.message}`);
+    if (error) setSaveErr(`the version wasn't kept — ${plainFailure(error)}`);
     loadVersions();
   };
 
@@ -571,7 +571,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       const j = await r.json();
       if (j.ok) setOptions(j.options ?? []);
       else setDraftErr(String(j.error ?? "the writer didn't answer").slice(0, 160));
-    } catch (e) { setDraftErr(e instanceof Error ? e.message : "the request didn't land"); }
+    } catch (e) { setDraftErr(e instanceof Error ? plainFailure(e) : "the request didn't land"); }
     setDrafting(false);
   };
 
@@ -584,14 +584,14 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setPubBusy("design"); setPubErr("");
     const j = await callStudio("/api/studio/canva", { content_id: id, action: "design" });
     if (j.ok) { setPub((p) => ({ ...p, edit: j.canva_edit_url })); if (j.canva_edit_url) window.open(j.canva_edit_url, "_blank"); }
-    else setPubErr(String(j.error ?? "").includes("not configured") ? "Canva isn't connected yet (token + brand template needed)." : `Canva: ${j.error}`);
+    else setPubErr(String(j.error ?? "").includes("not configured") ? "Canva isn't connected yet (token + brand template needed)." : `Canva: ${plainFailure(j.error)}`);
     setPubBusy("");
   };
   const exportCanva = async () => {
     if (!supabase || pubBusy) return;
     setPubBusy("export"); setPubErr("");
     const j = await callStudio("/api/studio/canva", { content_id: id, action: "export" });
-    if (j.ok) setPub((p) => ({ ...p, png: j.export_url })); else setPubErr(`Export: ${j.error}`);
+    if (j.ok) setPub((p) => ({ ...p, png: j.export_url })); else setPubErr(`Export: ${plainFailure(j.error)}`);
     setPubBusy("");
   };
   const unpublishSite = async () => {
@@ -600,7 +600,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setPubBusy("unpublish"); setPubErr("");
     const j = await callStudio("/api/studio/publish", { content_id: id, action: "unpublish" });
     if (j.ok) { setPub((p) => ({ ...p, live: null })); setStatus("approved"); loadVersions(); }
-    else setPubErr(`Unpublish: ${j.error}`);
+    else setPubErr(`Unpublish: ${plainFailure(j.error)}`);
     setPubBusy("");
   };
 
@@ -610,7 +610,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     setPubBusy("publish"); setPubErr("");
     const j = await callStudio("/api/studio/publish", { content_id: id });
     if (j.ok) { setPub((p) => ({ ...p, live: j.published_url })); setStatus("published"); loadVersions(); }
-    else setPubErr(String(j.error ?? "").includes("not configured") ? "Webflow isn't connected yet (token + site/collection needed)." : `Publish: ${j.error}`);
+    else setPubErr(String(j.error ?? "").includes("not configured") ? "Webflow isn't connected yet (token + site/collection needed)." : `Publish: ${plainFailure(j.error)}`);
     setPubBusy("");
   };
 
@@ -651,7 +651,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       const r = await authedFetch("/api/agents/campaign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event_id: eventId, channel: item?.channel }) });
       const j = await r.json();
       if (j.ok) onClose(); // back to the calendar to see the arc laid out
-      else setPubErr(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key." : `Campaign: ${j.error}`);
+      else setPubErr(String(j.error ?? "").includes("ANTHROPIC") ? "AI isn't switched on yet — add the API key." : `Campaign: ${plainFailure(j.error)}`);
     } catch { setPubErr("Couldn't reach the campaign agent."); }
     setCampBusy(false);
   };
@@ -663,7 +663,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     try {
       const r = await authedFetch("/api/agents/repurpose", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content_id: id, caption, title }) });
       const j = await r.json();
-      if (j.ok) setRep(j); else setPubErr(`Repurpose: ${j.error}`);
+      if (j.ok) setRep(j); else setPubErr(`Repurpose: ${plainFailure(j.error)}`);
     } catch { setPubErr("Couldn't reach the repurpose agent."); }
     setRepBusy(false);
   };
@@ -750,7 +750,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
                   if (!supabase) return;
                   setLinks((p) => p.filter((x) => x.id !== l.id));
                   const { error } = await supabase.from("content_links").delete().eq("id", l.id);
-                  if (error) { setLinks((p) => [...p, l]); setSaveErr(`couldn't unlink ${label} — ${refusalText(error) ?? error.message}`); return; }
+                  if (error) { setLinks((p) => [...p, l]); setSaveErr(`couldn't unlink ${label} — ${plainFailure(error)}`); return; }
                   if (l.event_id && l.event_id === eventId) { setEventId(""); persist({ event_id: null }); }
                   if (l.stop_id && l.stop_id === stopId) { setStopId(""); persist({ stop_id: null }); }
                 }}><Icon name="close" /></button>
@@ -870,7 +870,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       )}
 
       <input className={`studio-title${titleErr ? " err" : ""}`} value={title} onChange={(e) => { edit("title", e.target.value); if (titleErr) setTitleErr(false); if (aiFilled) setAiFilled(false); }} placeholder="Title — name it before it goes for review" />
-      {titleErr && <div className="studio-title-hint">Give this piece a title first.</div>}
+      {titleErr && <Said assertive className="studio-title-hint">Give this piece a title first.</Said>}
       {aiFilled && !titleErr && <div className="studio-ai-hint">✨ AI read the photo and filled this in — edit anytime.</div>}
       <input className="studio-hook" value={hook} onChange={(e) => { edit("hook", e.target.value); if (aiFilled) setAiFilled(false); }} placeholder="Hook — the scroll-stopping first line" />
       <textarea className="studio-caption" value={caption} onChange={(e) => edit("caption", e.target.value)} rows={7} placeholder="Caption…" />
@@ -931,7 +931,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         {status === "published" && <button type="button" className="btn-ter" onClick={() => setStage("approved", {}, "unpublished")}>↩ Unpublish</button>}
         <button type="button" className="btn-sec btn-sm" onClick={() => setKitOpen(true)}><Icon name="package" /> Post kit</button>
         <button type="button" className="btn-ter" onClick={() => setShowVers((s) => !s)}>History ({versions.length})</button>
-        <button type="button" className="btn-del" onClick={async () => { if (supabase && (await confirm({ title: "Delete this piece?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) { const { error } = await supabase.from("content_items").delete().eq("id", id); if (error) { setSaveErr(`not deleted — ${refusalText(error) ?? error.message}`); return; } onClose(); } }}>Delete</button>
+        <button type="button" className="btn-del" onClick={async () => { if (supabase && (await confirm({ title: "Delete this piece?", body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) { const { error } = await supabase.from("content_items").delete().eq("id", id); if (error) { setSaveErr(`not deleted — ${plainFailure(error)}`); return; } onClose(); } }}>Delete</button>
       </div>
       {status === "changes" && item.review_note && <p className="insp-foot">Requested: {item.review_note}</p>}
 

@@ -221,6 +221,7 @@ export default function DeleteAccount({ staff, onKeep, onDeleted, onBusy }: {
     return (
       <div ref={top} tabIndex={-1} role="alert" className="outline-none">
         <p className="cfm-body">Not yet.</p>
+        {/* raw words: the route's own sentence for each blocker (app/api/account/delete) */}
         {phase.blockers.map((b) => <p key={b.code} className="dp-hint">{b.message}</p>)}
         <div className="prod-actions cfm-actions">
           <button type="button" className="btn-pri" onClick={onKeep}>Back to your account</button>
@@ -255,6 +256,7 @@ export default function DeleteAccount({ staff, onKeep, onDeleted, onBusy }: {
   if (phase.at === "failed") {
     return (
       <div ref={top} tabIndex={-1} className="outline-none">
+        {/* raw words: our own sentence, set where the phase is chosen */}
         <p className="cfm-body" role="alert">{phase.message}</p>
         <div className="prod-actions cfm-actions">
           <button type="button" className="note-arch" onClick={onKeep}>Back</button>

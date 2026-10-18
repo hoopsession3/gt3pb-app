@@ -15,6 +15,7 @@ import { haptic } from "@/lib/haptics";
 import Button from "./Button";
 import { devicePref, useDevicePref } from "@/lib/devicePref";
 import { useChanged } from "@/lib/useChanged";
+import { plainFailure } from "@/lib/failureWords";
 
 const CARD_FINISH = devicePref("gt3-card-finish");
 
@@ -293,7 +294,7 @@ export default function StatusCard({ open, onClose, demo }: { open: boolean; onC
           await refreshProfile();  // so the account pill + home flag pick up the new portrait at once
           toast("Photo saved");
         }
-      } else toast(`Couldn't save the photo — ${up.error}`, "error");
+      } else toast(`Couldn't save the photo — ${plainFailure(up.error)}`, "error");
       setSaving(false);
       e.target.value = "";
     })();

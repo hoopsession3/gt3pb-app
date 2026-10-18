@@ -8,6 +8,7 @@ import Prose from "./Prose";
 import Icon from "./Icon";
 import { useDictation } from "./useDictation";
 import { scrollMotion } from "@/lib/motion";
+import { plainFailure } from "@/lib/failureWords";
 
 // Ask GT3 — the crew's grounded pocket-brain chat (recipes, the why, gear, stock, how-to).
 // Shared by the Ask tab and the floating QuickDock so there's ONE assistant, not two. Voice in
@@ -68,7 +69,7 @@ export default function AskGT3() {
       const j = await r.json();
       const reply = j.ok ? (j.reply || "…")
         : String(j.error ?? "").includes("ANTHROPIC") ? "I'm not switched on yet — an owner needs to add the API key, then I'll be ready."
-        : `Sorry — ${j.error ?? "something went wrong"}.`;
+        : `Sorry — ${j.error ? plainFailure(j.error) : "something went wrong"}.`;
       setMsgs((m) => [...m, { role: "assistant", content: reply }]);
     } catch { setMsgs((m) => [...m, { role: "assistant", content: "Couldn't reach me just now — try again in a sec." }]); }
     setBusy(false);

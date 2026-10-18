@@ -36,6 +36,7 @@ import { useBoardNow } from "./clock";
 import { useFollowFocus } from "./focus";
 import Said from "@/components/Said";
 import { ModalAnnouncer } from "@/components/Announcer";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // THE PASS (2026-10-11, the KDS program, wave 2). The crew console's service screen, in a module of its own: it was the
 // Kitchen function and the service-mode block inside app/crew/page.tsx, 6,500 lines that held everything else too. The
@@ -203,7 +204,7 @@ function PassBoard() {
     // Somebody moved it first (the other phone, a replay): say where it is and read the board again — news, not an error.
     release(o, "order_status");
     const now = movedTo(error);
-    toast(now === null ? `Couldn't update — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
+    toast(now === null ? failureWords(error, "Couldn't update") : movedLine(o.id, now), now === null ? "error" : "info");
     load();
   }, [apply, hold, release, toast, load, land]);
   // ── MONEY AT THE WINDOW (2026-10-04, 0341) ─────────────────────────────────────────────────────
@@ -226,7 +227,7 @@ function PassBoard() {
       if (isNetworkError(res.error)) { queueCollectCup(o.id, via); toast(`No signal — ${VIA_LABEL[via].toLowerCase()} saved, will sync`, "info"); return paidRow; }
       release(o, "collect_cup");
       apply(o, false);
-      toast(`Couldn't record it — ${res.error}`, "error"); load(); return null;
+      toast(`Couldn't record it — ${plainFailure(res.error)}`, "error"); load(); return null;
     }
     if (res.already) { release(o, "collect_cup"); toast(`${o.customer ?? "Guest"} had already paid — nothing taken`); load(); }
     return paidRow;
@@ -247,7 +248,7 @@ function PassBoard() {
     if (res.error) {
       release(o, "undo_collect");
       apply(o, false);
-      toast(isNetworkError(res.error) ? "No signal — undo it once you're back online" : `Couldn't undo it — ${res.error}`, "error");
+      toast(isNetworkError(res.error) ? "No signal — undo it once you're back online" : `Couldn't undo it — ${plainFailure(res.error)}`, "error");
       return;
     }
     if (res.already) release(o, "undo_collect");
@@ -296,7 +297,7 @@ function PassBoard() {
       // Moved on before the void landed (picked up meanwhile): nothing was voided, so there is no refund to flag.
       release(o, "order_status");
       const now = movedTo(error);
-      toast(now === null ? `Couldn't void — ${error.message}` : movedLine(o.id, now), now === null ? "error" : "info");
+      toast(now === null ? failureWords(error, "Couldn't void") : movedLine(o.id, now), now === null ? "error" : "info");
       load(); return;
     }
     // The member is told (R7): the push says it (supabase/functions/push), and this sends the email /api/orders/cancel sends

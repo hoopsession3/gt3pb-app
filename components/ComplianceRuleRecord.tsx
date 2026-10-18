@@ -15,6 +15,7 @@ import {
   LEAD_BASES, correctRule, correctionProblem, deadlineWords, lastCheckedWords, recheckProblem, recheckRule,
   type LeadBasis,
 } from "@/lib/complianceCheck";
+import { plainFailure } from "@/lib/failureWords";
 
 // ONE PERMIT RULE, OPENED — and re-checked (2026-10-04, 0342).
 //
@@ -107,7 +108,7 @@ function RuleBody({ d, admin, onDone }: { d: Data; admin: boolean; onDone: () =>
     setBusy(true); setErr(null);
     const res = await recheckRule(supabase, rule.id, outcome, against, note);
     setBusy(false);
-    if (res.error) { setErr(`Couldn't record it — ${res.error}`); return; }
+    if (res.error) { setErr(`Couldn't record it — ${plainFailure(res.error)}`); return; }
     toast(outcome === "confirmed" ? "Checked today — off the list." : "Recorded as changed — the owners have been told.");
     setAgainst(""); setNote(""); setChanged(false);
     onDone();
@@ -122,7 +123,7 @@ function RuleBody({ d, admin, onDone }: { d: Data; admin: boolean; onDone: () =>
     setBusy(true); setErr(null);
     const res = await correctRule(supabase, rule.id, c);
     setBusy(false);
-    if (res.error) { setErr(`Couldn't save the correction — ${res.error}`); return; }
+    if (res.error) { setErr(`Couldn't save the correction — ${plainFailure(res.error)}`); return; }
     toast("Corrected and dated today.");
     setFixing(false); setAgainst(""); setNote("");
     onDone();

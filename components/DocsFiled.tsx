@@ -8,6 +8,7 @@ import { relativeDay } from "@/lib/dates";
 import AsyncSection from "./AsyncSection";
 import { InfoRow, SectionHeader } from "@/components/kit";
 import Field from "./Field";
+import { plainFailure } from "@/lib/failureWords";
 
 // FILED — the other half of Smart Intake.
 //
@@ -96,7 +97,7 @@ export default function DocsFiled() {
     const { data, error } = await supabase.storage.from("intake").createSignedUrl(d.storage_path, 600);
     setOpening(null);
     // Say which one failed and why. "Couldn't open" on a list of forty is not an error message.
-    if (error || !data?.signedUrl) { setErr(`Couldn't open ${d.title} — ${error?.message ?? "no link came back"}.`); return; }
+    if (error || !data?.signedUrl) { setErr(`Couldn't open ${d.title} — ${error ? plainFailure(error) : "no link came back"}.`); return; }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
 

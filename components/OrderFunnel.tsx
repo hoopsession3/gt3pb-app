@@ -43,6 +43,7 @@ import Said from "./Said";
 import { rovingKeys } from "./roving";
 import { useHydrated } from "@/lib/clientState";
 import { useMinute } from "@/lib/useMinute";
+import { failureWords, failureOr } from "@/lib/failureWords";
 
 // ORDER FUNNEL — one screen, two fulfillment modes. Pickup (Saturday truck-stop reserve →
 // /api/reserve) and Delivery (Sunday prepaid → /api/delivery/checkout) were separate screens with
@@ -455,7 +456,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
     if (error) {
       toast(/sign in/i.test(error.message)
         ? "Sign in with that email to take it off, or email us and we'll do it."
-        : error.message, "error");
+        : failureWords(error), "error");
       return;
     }
     setWlSent(false); setWlEmail("");
@@ -506,7 +507,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       }, { deadlineMs: PAY_DEADLINE_MS });
       const data = await res.json(); setBusy(false);
       idem.settle(attempt.key, res.status, data);
-      if (!res.ok) { raisedTotal(data); setErr(data.error || "Something went wrong — try again."); return; }
+      if (!res.ok) { raisedTotal(data); setErr(failureOr(data.error, "Something went wrong — try again.")); return; }
       haptic("success");
       setDone({ total: typeof data.totalCents === "number" ? data.totalCents : payCents, paid: !!data.paid, ref: (data.id || data.ref || "").toString(), label: dayName(drop.sat) });
       invalidateCustomerKnown();   // the next form starts from this order
@@ -574,7 +575,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
           setWhen(0);
         }
         raisedTotal(data);
-        setErr(data.error || "Payment failed");
+        setErr(failureOr(data.error, "Payment failed"));
         return;
       }
       haptic("success");

@@ -8,6 +8,7 @@ import { uploadToBucket } from "@/lib/uploads";
 import Sheet, { CloseButton, LeaveButton } from "@/components/Sheet";
 import { edited } from "@/lib/formGuard";
 import { wrote } from "@/lib/wrote";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // Your GT3 profile — photo, name, title, bio. Team culture: a face + a line on who you are, feeding
 // the org chart in Leadership. Avatar goes to the 'avatars' bucket under your own uid folder.
@@ -31,7 +32,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
     setBusy(true);
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
     const up = await uploadToBucket({ bucket: "avatars", file, path: `${user.id}/avatar.${ext || "jpg"}`, upsert: true });
-    if ("error" in up) { toast(`Upload failed — ${up.error}`, "error"); setBusy(false); return; }
+    if ("error" in up) { toast(`Upload failed — ${plainFailure(up.error)}`, "error"); setBusy(false); return; }
     const url = `${up.url}?v=${Date.now()}`;
     // The photo is yours once the profile says so (R12b, F4): "Photo updated" was said over a refused update, and the
     // sheet showed a picture the account never kept.
@@ -49,7 +50,7 @@ export default function ProfileSheet({ onClose }: { onClose: () => void }) {
       ? { display_name: name.trim() || null, title: title.trim() || null, bio: bio.trim() || null }
       : { display_name: name.trim() || null }).eq("id", user.id);
     setBusy(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     await refreshProfile();
     toast("Profile saved"); onClose();
   };

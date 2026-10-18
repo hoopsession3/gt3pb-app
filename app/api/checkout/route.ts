@@ -287,7 +287,8 @@ async function post(req: Request) {
   // and the crew are told). A try let through still counts against a ceiling no rush at one truck reaches.
   if (paying) {
     const paused = await cardsPausedRefusal(supabaseAdmin, { userId: caller?.id ?? null, ip });   // this caller's refused cards (R32)
-    if (paused) return NextResponse.json({ error: paused, charged: false }, { status: 429 });
+    // `paused` names it, so the sheet can point at the way still open — paying at the truck, when the truck takes it (R34).
+    if (paused) return NextResponse.json({ error: paused, charged: false, paused: true }, { status: 429 });
     if (!(await limitsFit(supabaseAdmin, [{ bucket: "checkout:global", windowMs: 60_000, max: CARD_TRIES.allPerMinute }]))) {
       return NextResponse.json({ error: "Too many attempts — give it a minute.", charged: false }, { status: 429 });
     }

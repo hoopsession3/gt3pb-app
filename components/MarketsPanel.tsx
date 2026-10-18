@@ -10,6 +10,7 @@ import { SectionHeader } from "@/components/kit";
 import Icon from "./Icon";
 import Field from "./Field";
 import type { ArgsOf } from "@/lib/dbTypes";
+import { failureWords } from "@/lib/failureWords";
 
 // MARKETS — the readiness engine, finally on a screen.
 //
@@ -113,7 +114,7 @@ export default function MarketsPanel() {
     setBusy(false);
     // The RPCs refuse in sentences — "That market opens on 2026-12-01. Move the opening date first
     // if you mean to go live early." Show what they said rather than a generic failure.
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast(ok);
     setEditing(null);
     reload();

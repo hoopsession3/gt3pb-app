@@ -218,7 +218,7 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
       const { error } = await signInWithPassword(email.trim(), password);
       setBusy(false);
       if (error) {
-        const msg = error.includes("Invalid login credentials")
+        const msg = error.startsWith("Wrong email or password")   // lib/failureWords authWords (R34)
           ? (context ? "Wrong email or password. No password yet? Have us email you a link instead, below." : "Wrong email or password. New here? Join free, below.")
           : error;
         setErr(msg);

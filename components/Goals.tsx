@@ -19,6 +19,7 @@ import PersonPick, { type PersonValue } from "./PersonPick";
 import { useEtDay } from "@/lib/useEtDay";
 import { quietGoalDays } from "@/lib/rhythm";
 import { wrote } from "@/lib/wrote";
+import { failureWords } from "@/lib/failureWords";
 
 // GOALS — the true tracker (0163/0164). Three layers, top down:
 //   lane → goal → moves.
@@ -122,7 +123,7 @@ export default function Goals() {
     if (!Number.isFinite(v) || v < 0) { toast("Numbers only — the bar does the talking", "error"); return; }
     setLogging(null); setLogVal("");
     const { error } = await supabase.from("goals").update({ current_value: v, updated_at: new Date().toISOString() }).eq("id", g.id);
-    if (error) { toast(`Couldn't log it — ${error.message}`, "error"); reload(); return; }
+    if (error) { toast(failureWords(error, "Couldn't log it"), "error"); reload(); return; }
     toast(v >= g.target_value ? "Logged — that's the target. Mark it hit when it holds." : "Progress logged");
     reload();
   };
@@ -130,7 +131,7 @@ export default function Goals() {
   const setStatus = async (g: Goal, status: Goal["status"]) => {
     if (!supabase) return;
     const { error } = await supabase.from("goals").update({ status, updated_at: new Date().toISOString() }).eq("id", g.id);
-    if (error) { toast(`Couldn't update — ${error.message}`, "error"); }
+    if (error) { toast(failureWords(error, "Couldn't update"), "error"); }
     else if (status === "hit") toast("Goal hit — log the decision on the Playbook");
     else if (status === "archived") toast("Archived — off the board");
     reload();
@@ -146,7 +147,7 @@ export default function Goals() {
     const { error } = await supabase.from("goals").update({
       checkin_status: next, checkin_at: next ? new Date().toISOString() : null, checkin_by: next ? user?.id ?? null : null,
     }).eq("id", g.id);
-    if (error) toast(`Couldn't check in — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Couldn't check in"), "error");
     else if (next === "at_risk") toast("Flagged at risk — Command's Goals row names it now");
     else if (next === "on_track") toast("Checked in — on track");
     reload();
@@ -174,7 +175,7 @@ export default function Goals() {
       due_date: eg.due || null, play: eg.play.trim() || null, updated_at: new Date().toISOString(),
     }).eq("id", g.id);
     setSavingEdit(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     setEditingId(null);
     toast("Goal updated");
     reload();
@@ -266,7 +267,7 @@ export default function Goals() {
       created_by: user.id, author_name: profile?.display_name?.trim() || null,
     });
     setSavingGoal(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     setAdding(false); setNg({ title: "", target: "", unit: "", play: "", due: "", stream: "business", source: "" }); setOwnerChosen(null);
     toast("On the board");
     reload();

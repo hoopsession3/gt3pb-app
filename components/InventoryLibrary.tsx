@@ -19,6 +19,8 @@ import { rankSuppliers, readVendorBook, type VendorRow } from "@/lib/suppliers";
 import { resolveSupplier, type VendorMatch } from "@/lib/vendorLink";
 import VendorResolve from "./VendorResolve";
 import Button from "./Button";
+import Said from "@/components/Said";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // Inventory — the GT3 stock register, read from Postgres (system-of-record). Staff add / edit /
 // delete inline; writes go straight to `inventory_items` (RLS: staff-write). Lives next to the
@@ -124,7 +126,7 @@ export default function InventoryLibrary() {
   const settleSupplier = async (name: string, then: "save" | "link"): Promise<{ id: string; name: string } | null> => {
     const r = await resolveSupplier(name, draft.market, "the inventory register");
     if (r.kind === "similar") { setAsking({ name, candidates: r.candidates, then }); return null; }
-    if (r.kind === "error") { setErr(`Couldn't link ${name} — ${r.message}`); return null; }
+    if (r.kind === "error") { setErr(`Couldn't link ${name} — ${plainFailure(r)}`); return null; }
     if (r.created) book.reload();
     return { id: r.id, name };
   };
@@ -164,13 +166,13 @@ export default function InventoryLibrary() {
       // The hand count follows too: the brew planner and the agents still read `qty`, and a recount
       // made here should not leave them a number behind the shelf.
       : await supabase.from("inventory_items").update(count != null && Number.isFinite(count) ? { ...row, qty: count } : row).eq("id", editing as string);
-    if (error) { setBusy(false); setErr(error.message); return; }
+    if (error) { setBusy(false); setErr(failureWords(error)); return; }
     // A changed count on an existing shelf is a correction to the shelf, not a new hand count.
     if (editingItem && count != null && Number.isFinite(count) && count !== onHandOf(editingItem)) {
       const { error: countErr } = await supabase.rpc("set_on_hand", {
         p_item: row.name, p_want: count, p_market: toMarket(editingItem.market), p_note: "Counted on the inventory register",
       });
-      if (countErr) { setBusy(false); setErr(`Saved, but the count did not move — ${countErr.message}`); load(); return; }
+      if (countErr) { setBusy(false); setErr(failureWords(countErr, "Saved, but the count did not move")); load(); return; }
     }
     setBusy(false);
     setEditing(null); load();
@@ -180,7 +182,7 @@ export default function InventoryLibrary() {
     if (!supabase) return;
     if (!(await confirm({ title: `Delete “${r.name}”?`, body: "This can't be undone.", confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase.from("inventory_items").delete().eq("id", r.id);
-    if (error) { setErr(error.message); return; }
+    if (error) { setErr(failureWords(error)); return; }
     load();
   };
 
@@ -248,14 +250,14 @@ export default function InventoryLibrary() {
           <button type="button" className="gl-act" onClick={linkTyped} disabled={busy}>Link it</button>
         </div>
       )}
-      {book.status === "error" && <div className="gl-hint">{`Couldn't read the vendor book — ${book.error?.message ?? "no answer"}. The supplier can be typed and linked later.`}</div>}
+      {book.status === "error" && <div className="gl-hint">{`Couldn't read the vendor book — ${book.error ? plainFailure(book.error) : "no answer"}. The supplier can be typed and linked later.`}</div>}
       <div className="gl-frow">
         <label className="gl-f"><span>Reorder point</span><input type="number" inputMode="decimal" value={draft.reorderPoint} onChange={(e) => setDraft({ ...draft, reorderPoint: e.target.value })} /></label>
         <label className="gl-f gl-check"><input type="checkbox" checked={draft.critical} onChange={(e) => setDraft({ ...draft, critical: e.target.checked })} /><span>Event-critical</span></label>
       </div>
       <label className="gl-f"><span>Reorder link</span><input value={draft.reorderLink} onChange={(e) => setDraft({ ...draft, reorderLink: e.target.value })} placeholder="https://…" /></label>
       <label className="gl-f"><span>Notes</span><textarea rows={2} value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
-      {err && <div className="gl-err">{err}</div>}
+      {err && <Said assertive className="gl-err">{err}</Said>}
       <div className="gl-form-actions">
         <Button kind="primary" compact onClick={() => save()} disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
         <Button kind="quiet" onClick={cancel} disabled={busy}>Cancel</Button>
@@ -277,7 +279,7 @@ export default function InventoryLibrary() {
               if (r.created) book.reload();
               setDraft({ ...draft, vendorId: r.id, vendor: name, naming: false });
               if (then === "save") save({ id: r.id, name });
-            } else setErr(`Couldn't add ${name}${r.kind === "error" ? ` — ${r.message}` : ""}`);
+            } else setErr(`Couldn't add ${name}${r.kind === "error" ? ` — ${plainFailure(r)}` : ""}`);
           }}
           onClose={() => setAsking(null)} />
       )}

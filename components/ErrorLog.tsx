@@ -7,6 +7,8 @@ import AsyncSection from "./AsyncSection";
 import { downloadCsv } from "@/lib/csv";
 import { ageLabel } from "@/lib/dates";
 
+// raw words (file): the owner's own error log — the raw text is what it shows (scripts/words.audit).
+//
 // ERRORS — what broke, how often, where. The reading end of lib/errorIntake.ts (2026-10-02).
 //
 // 0133 built the intake ("Can you tell when it breaks?" — audit finding #6): one row per unique

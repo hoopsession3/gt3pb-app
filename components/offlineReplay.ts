@@ -64,6 +64,7 @@ export async function flushQueue(supabase: SupabaseClient | null): Promise<numbe
       if (!error && op.kind === "order_status" && op.value === "void") notifyVoid(op.id);
       if (!error) continue;
       const now = op.kind === "order_status" ? movedTo(error) : null;
+      // raw words: kept as it came for the error report — the toast says it plainly (lib/orderStatus refusedToast)
       refused.push({ kind: op.kind, id: op.id, value: op.value, reason: error.message, now });
       if (now === null) reportClientError({ message: `Offline change refused (${op.kind} → ${op.value}): ${error.message}` });
     }

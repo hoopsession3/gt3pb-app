@@ -7,6 +7,7 @@ import Icon from "@/components/Icon";
 import CookNeedList from "@/components/CookNeedList";
 import { useLatestRead } from "@/lib/useLatestRead";
 import { useChanged } from "@/lib/useChanged";
+import { failureWords } from "@/lib/failureWords";
 
 // BREW STEPS — the sheet you actually brew from.
 //
@@ -55,7 +56,7 @@ export default function BrewSteps({ batch, onClose, onChanged }: { batch: Batch;
   const load = useCallback(() => read(async () => (supabase ? await supabase.rpc("ensure_batch_steps", { p_batch_id: batch.id }) : null), (r) => {
     if (!r) return;
     setLoading(false);
-    if (r.error) { setErr(r.error.message); return; }
+    if (r.error) { setErr(failureWords(r.error)); return; }
     setSteps(((r.data as Step[]) ?? []).slice().sort((a, b) => a.step_no - b.step_no));
   }), [read, batch.id]);
 
@@ -69,7 +70,7 @@ export default function BrewSteps({ batch, onClose, onChanged }: { batch: Batch;
     const { error } = await supabase.rpc("set_batch_step", { p_batch_id: batch.id, p_step_no: s.step_no, p_done: next });
     if (error) {
       setSteps((xs) => xs.map((x) => (x.id === s.id ? { ...x, done_at: s.done_at } : x)));
-      setErr(error.message);
+      setErr(failureWords(error));
       return;
     }
     onChanged?.();

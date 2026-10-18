@@ -24,6 +24,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { scrollMotion } from "@/lib/motion";
 import { wrote } from "@/lib/wrote";
 import { useMinute } from "@/lib/useMinute";
+import { failureWords, plainFailure } from "@/lib/failureWords";
 
 // PIPELINE — the sales funnel (0165). Vendor (the account) × deal (from the owner's catalog,
 // gated per vendor type) × rep × stage. The owner articulates what's on the table in the Deal
@@ -200,7 +201,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
     const { error } = editing
       ? await supabase.from("account_activities").update({ ...row, updated_at: new Date().toISOString() }).eq("id", editing)
       : await supabase.from("account_activities").insert({ ...row, created_by: user?.id ?? null });
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     if (!editing) {
       const bits = [ACT_TYPES.find((t) => t.key === f.type)?.label ?? f.type];
       if (row.sampled) bits.push(`${row.sampled} sampled${row.buyers != null ? ` → ${row.buyers} bought` : ""}`);
@@ -217,7 +218,7 @@ function ActivityDesk({ o, rows, bizAccts, marginPct, onLog, onChanged, onWire }
     if (!supabase) return;
     if (!(await confirm({ title: "Remove this activity?", body: "The uplift math forgets it.", confirmLabel: "Remove", danger: true }))) return;
     const { error } = await supabase.from("account_activities").delete().eq("id", r.id);
-    if (error) toast(`Couldn't remove — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Couldn't remove"), "error");
     else { toast("Removed"); onChanged(); }
   };
   const actLine = (r: Activity) => {
@@ -394,7 +395,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const patch = async (id: string, p: Record<string, unknown>) => {
     if (!supabase) return;
     const { error } = await supabase.from("opportunities").update({ ...p, updated_at: new Date().toISOString() }).eq("id", id);
-    if (error) toast(`Couldn't save — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Couldn't save"), "error");
     reload();
   };
 
@@ -440,7 +441,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       // ONE resolver (0226): a look-alike account name pauses and asks instead of minting a copy.
       const r = await resolveVendor(no.newVendor.trim(), { status: "approved", vendorType: no.newType, source: "the pipeline", decision });
       if (r.kind === "similar") { setResolve({ name: no.newVendor.trim(), candidates: r.candidates }); return; }
-      if (r.kind === "error") { toast(`Couldn't add the account — ${r.message}`, "error"); return; }
+      if (r.kind === "error") { toast(failureWords(r, "Couldn't add the account"), "error"); return; }
       vendorId = r.id;
     }
     if (!vendorId) { toast("Pick an account or add a new one", "error"); return; }
@@ -449,7 +450,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       value_cents: no.value ? Math.round(Number(no.value) * 100) : null,
       next_step: no.nextStep.trim() || null, created_by: user.id,
     });
-    if (error) { toast(`Couldn't add — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't add"), "error"); return; }
     if (no.repId && no.repId !== user.id) {
       const vn = vendors.find((v) => v.id === vendorId)?.name ?? no.newVendor;
       raiseAlertClient({ severity: "important", category: "booking", title: `Pipeline: ${vn} is yours`.slice(0, 140), body: "New opportunity — make first contact.", link: "/crew?s=plan", targetUserId: no.repId });
@@ -468,7 +469,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       monthly_cents: (nd.model === "monthly" || nd.model === "flat") ? amount : null,
       price_label: nd.price_label.trim() || null, blurb: nd.blurb.trim() || null, sort: deals.length,
     });
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     if (rate != null) {
       const res = econ ? residualMargin({ model: nd.model, rate_pct: rate } as Deal, econ) : null;
       if (res != null && res < RESIDUAL_MARGIN_FLOOR) toast(`Heads up — that leaves ≈${res}% gross margin, below the ${RESIDUAL_MARGIN_FLOOR}% floor`, "error");
@@ -480,7 +481,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
   const toggleDeal = async (d: Deal) => {
     if (!supabase) return;
     const { error } = await supabase.from("deals").update({ active: !d.active, updated_at: new Date().toISOString() }).eq("id", d.id);
-    if (error) toast(`Couldn't save — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Couldn't save"), "error");
     reload();
   };
 
@@ -505,7 +506,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       price_label: ed.price_label.trim() || null, blurb: ed.blurb.trim() || null,
     };
     const { error } = await supabase.from("deals").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", editId);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); reload(); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); reload(); return; }
     if (fields.rate_pct != null) {
       const res = econ ? residualMargin({ model: fields.model, rate_pct: fields.rate_pct } as Deal, econ) : null;
       if (res != null && res < RESIDUAL_MARGIN_FLOOR) toast(`Heads up — that leaves ≈${res}% gross margin, below the ${RESIDUAL_MARGIN_FLOOR}% floor`, "error");
@@ -520,7 +521,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
     if (!(await confirm({ title: "Remove this deal from the table?", body: "Opportunities that used it keep their record.", confirmLabel: "Remove", danger: true }))) return;
     if (editId === d.id) setEditId(null);
     const { error } = await supabase.from("deals").delete().eq("id", d.id);
-    if (error) toast(`Couldn't remove — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Couldn't remove"), "error");
     else toast("Off the table");
     reload();
   };
@@ -541,7 +542,7 @@ export default function PipelinePanel({ isAdmin }: { isAdmin: boolean }) {
       supabase.from("deals").update({ sort: mySort, updated_at: stamp }).eq("id", d.id),
       supabase.from("deals").update({ sort: theirSort, updated_at: stamp }).eq("id", other.id),
     ]);
-    if (a.error || b.error) toast(`Couldn't reorder — ${(a.error ?? b.error)!.message}`, "error");
+    if (a.error || b.error) toast(`Couldn't reorder — ${plainFailure((a.error ?? b.error))}`, "error");
     reload();
   };
 

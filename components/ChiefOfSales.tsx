@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
 import { errorMessage } from "@/lib/errorMessage";
+import Said from "@/components/Said";
+import { failureOr } from "@/lib/failureWords";
 
 // CHIEF OF SALES — scouts the web for upcoming opportunities (fitness events, festivals, markets,
 // corporate, wellness expos, local newsletters) in the chosen markets, ranks the fit, and lets you
@@ -41,7 +43,7 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
     if (!supabase || busy || markets.length === 0) return;
     setBusy(true); setErr(null); setDone(null);
     const j = await call({ markets, focus }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Scout failed."); else { setSummary(j.summary || ""); setOpps(j.opportunities ?? []); }
+    if (!j.ok) setErr(failureOr(j.error, "Scout failed.")); else { setSummary(j.summary || ""); setOpps(j.opportunities ?? []); }
     setBusy(false);
   };
   const save = async () => {
@@ -50,7 +52,7 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
     if (!keep.length) return;
     setBusy(true); setErr(null);
     const j = await call({ commit: { opportunities: keep } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Couldn't save."); else { setDone(j.added ?? 0); setOpps(null); onLeads?.(); }
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't save.")); else { setDone(j.added ?? 0); setOpps(null); onLeads?.(); }
     setBusy(false);
   };
   const toggle = (i: number) => setOpps((p) => p!.map((o, j) => j === i ? { ...o, _skip: !o._skip } : o));
@@ -77,7 +79,7 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
                 {MARKETS.map((m) => <button key={m} type="button" className={`k-chip${markets.includes(m) ? " on" : ""}`} aria-pressed={markets.includes(m)} onClick={() => toggleMarket(m)}><Icon name="pin" /> {m}</button>)}
               </div>
               <input className="note-in" style={{ marginTop: 8 }} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="Focus (optional) — e.g. run clubs, wellness expos, fall festivals" />
-              {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
+              {err && <Said assertive className="dp-err" style={{ marginTop: 8 }}>{err}</Said>}
               <button type="button" className="btn-pri btn-wide mt-3" onClick={scout} disabled={busy || markets.length === 0}>{busy ? "Scouting the web…" : <><Icon name="target" /> Scout opportunities</>}</button>
             </>
           ) : (
@@ -95,7 +97,7 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
                   </span>
                 </button>
               ))}
-              {err && <div className="dp-err" style={{ marginTop: 8 }}>{err}</div>}
+              {err && <Said assertive className="dp-err" style={{ marginTop: 8 }}>{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 12 }}>
                 <button type="button" className="note-arch" onClick={() => setOpps(null)} disabled={busy}>‹ New scout</button>
                 <button type="button" className="btn-pri" onClick={save} disabled={busy || keepN === 0}>{busy ? "Saving…" : `Save ${keepN} to Bookings`}</button>

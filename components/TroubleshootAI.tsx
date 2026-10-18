@@ -6,6 +6,8 @@ import { authedFetch } from "@/lib/authedFetch";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon, { type IconName } from "@/components/Icon";
 import { errorMessage } from "@/lib/errorMessage";
+import Said from "@/components/Said";
+import { failureOr } from "@/lib/failureWords";
 
 // TROUBLESHOOT AI — the field-ops first responder. Something's going wrong at the event/stop RIGHT
 // NOW: pick the area, say what's happening, and the agent gives the most likely cause, an ordered
@@ -46,14 +48,14 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
     if (!supabase || busy || !problem.trim()) return;
     setBusy(true); setErr(null);
     const j = await post({ symptom, problem }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Couldn't diagnose."); else setDiag({ summary: j.summary || "", causes: j.causes ?? [], steps: j.steps ?? [], prevention: j.prevention ?? [] });
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't diagnose.")); else setDiag({ summary: j.summary || "", causes: j.causes ?? [], steps: j.steps ?? [], prevention: j.prevention ?? [] });
     setBusy(false);
   };
   const logIt = async () => {
     if (!supabase || !diag || busy) return;
     setBusy(true); setErr(null);
     const j = await post({ commit: { symptom, problem, severity: blocker ? "blocker" : "issue", resolved, diagnosis: diag, prevention: diag.prevention } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Couldn't log it."); else { setDone({ added: j.added ?? 0 }); onLogged?.(); }
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't log it.")); else { setDone({ added: j.added ?? 0 }); onLogged?.(); }
     setBusy(false);
   };
   const togglePrev = (i: number) => setDiag((p) => p ? { ...p, prevention: p.prevention.map((x, j) => j === i ? { ...x, _skip: !x._skip } : x) } : p);
@@ -78,7 +80,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
               </div>
               <textarea className="note-in" rows={4} value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="What's happening? e.g. Turned the water heater on and it tripped the generator breaker — had to cut the AC to get power back." autoFocus disabled={busy} />
               <label className="ts-toggle"><input type="checkbox" checked={blocker} onChange={(e) => setBlocker(e.target.checked)} /> This is stopping service (blocker)</label>
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
                 <button type="button" className="btn-pri" onClick={diagnose} disabled={busy || !problem.trim()}>{busy ? "Diagnosing…" : <><Icon name="wrench" /> Diagnose</>}</button>
@@ -119,7 +121,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
               )}
 
               <label className="ts-toggle"><input type="checkbox" checked={resolved} onChange={(e) => setResolved(e.target.checked)} /> Fixed — mark resolved</label>
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setDiag(null)} disabled={busy}>‹ Back</button>
                 <button type="button" className="btn-pri" onClick={logIt} disabled={busy}>{busy ? "Logging…" : keep > 0 ? `Log + add ${keep} to prep` : "Log to recap"}</button>

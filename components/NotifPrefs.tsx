@@ -8,6 +8,7 @@ import Sheet, { CloseButton } from "@/components/Sheet";
 import Icon from "@/components/Icon";
 import { RingThisPhone } from "@/components/RingThisPhone";
 import { withMuted, writeMuted } from "@/lib/notifMuted";
+import { failureWords, plainFailure } from "@/lib/failureWords";
 
 // Notification management (0177) — mute a category's non-critical pings, set a quiet window. Own-row
 // prefs. Criticals always come through; this only quiets the rest.
@@ -94,9 +95,9 @@ export function NotifPrefs({ userId }: { userId: string | null }) {
     const mute = !muted.includes(k);   // what they saw, turned over
     setMuted(withMuted(muted, k, mute));
     const r = await writeMuted(supabase, userId, (fresh) => withMuted(fresh, k, mute), { updated_at: new Date().toISOString() })
-      .catch((e: unknown) => ({ muted: null, error: e instanceof Error ? e.message : "the connection dropped" }) as const);
+      .catch((e: unknown) => ({ muted: null, error: e instanceof Error ? plainFailure(e) : "the connection dropped" }) as const);
     setWriting(false);
-    if (r.error !== null) { setMuted(before); toast(`Couldn't save — ${r.error}`, "error"); return; }
+    if (r.error !== null) { setMuted(before); toast(`Couldn't save — ${plainFailure(r.error)}`, "error"); return; }
     setMuted(r.muted);
     told(r.muted, qs, qe);
   };
@@ -106,7 +107,7 @@ export function NotifPrefs({ userId }: { userId: string | null }) {
     setQs(nqs); setQe(nqe);
     const { error } = await supabase.from("notif_prefs").upsert({ user_id: userId,
       quiet_start: nqs === "" ? null : Number(nqs), quiet_end: nqe === "" ? null : Number(nqe), updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-    if (error) { setQs(before[0]); setQe(before[1]); toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { setQs(before[0]); setQe(before[1]); toast(failureWords(error, "Couldn't save"), "error"); return; }
     told(muted, nqs, nqe);
     toast(nqs !== "" && nqe !== "" && nqs !== nqe ? `Quiet ${quietHourLabel(Number(nqs))}–${quietHourLabel(Number(nqe))}` : "Quiet hours off");
   };

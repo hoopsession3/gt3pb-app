@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { PRICING, fmtUSD } from "@/lib/aiPricing";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
+import { failureWords } from "@/lib/failureWords";
 
 // AI SPEND — the owner's answer to "how much am I spending when my AI is queried?" Reads ai_usage
 // (0190): every Claude call logs its tokens + computed cost here. Shows 30-day and today spend, the
@@ -33,7 +34,7 @@ export default function AiSpend() {
         .order("created_at", { ascending: false })
         .limit(5000);
       if (!live) return;
-      if (error) { setErr(error.message); setRows([]); return; }
+      if (error) { setErr(failureWords(error)); setRows([]); return; }
       setRows((data as Row[]) ?? []);
     })();
     return () => { live = false; };

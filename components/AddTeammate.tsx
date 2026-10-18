@@ -14,6 +14,7 @@ import Button from "./Button";
 import { useLatestRead } from "@/lib/useLatestRead";
 import { useChanged } from "@/lib/useChanged";
 import Said from "./Said";
+import { failureWords, plainFailure } from "@/lib/failureWords";
 
 // ADD A TEAMMATE — ONE DOOR (2026-10-07, Ryan: "Invite and bring team member on seems redundant").
 //
@@ -127,7 +128,8 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
     const [pp, mk, inv] = r;
     setLoading(false);
     // A failed read is said, never shown as "nobody to add" or "no invites".
-    setLoadErr(pp.error?.message ?? mk.error?.message ?? inv.error?.message ?? null);
+    const failed = pp.error ?? mk.error ?? inv.error;
+    setLoadErr(failed ? failureWords(failed) : null);
     const list = (pp.data as Person[]) ?? [];
     setPeople(list);
     setMarkets((mk.data as { slug: string; name: string }[]) ?? []);
@@ -161,7 +163,7 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
     if (!(await confirm({ title: `Bring ${name} onto the crew as ${roleLabel(role)}?`, body: city ? `In ${city}${lead ? `, leading ${city}` : ""}. They get a GT3 welcome letter.` : "They get a GT3 welcome letter.", confirmLabel: "Bring them on" }))) return;
     setBusy(true);
     const { data: came, error } = await supabase.rpc("promote_to_crew", { p_member: picked.id, p_role: role, p_market: market || null, p_lead: lead });
-    if (error) { setBusy(false); toast(`Couldn't bring ${name} on — ${error.message}`, "error"); return; }
+    if (error) { setBusy(false); toast(`Couldn't bring ${name} on — ${plainFailure(error)}`, "error"); return; }
     const letter = await sendLetter({ kind: "bring_on", user_id: picked.id });
     setBusy(false);
     // The password the account was made with, taken as it came on (0423, take_signup_password): said here, and in the letter.
@@ -188,7 +190,7 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
       return;
     }
     const { error } = await supabase.from("team_invites").insert({ email: inviting, role, invited_by: user?.id ?? null });
-    if (error) { setBusy(false); toast(`Couldn't invite — ${error.message}`, "error"); return; }
+    if (error) { setBusy(false); toast(failureWords(error, "Couldn't invite"), "error"); return; }
     const letter = await sendLetter({ kind: "invite", email: inviting });
     setBusy(false);
     setDone({ kind: "invite", email: inviting, role: roleLabel(role), letter });
@@ -205,7 +207,7 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
     if (!supabase) return;
     if (!(await confirm({ title: `Cancel the invite for ${i.email}?`, body: "If they sign up later, they arrive as a customer.", confirmLabel: "Cancel invite", danger: true }))) return;
     const { error } = await supabase.from("team_invites").delete().eq("id", i.id);
-    if (error) toast(`Couldn't cancel — ${error.message}`, "error");
+    if (error) toast(failureWords(error, "Couldn't cancel"), "error");
     load();
   };
 

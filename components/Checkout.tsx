@@ -34,6 +34,7 @@ import { holdTicket, isTicket, ticketPath } from "@/lib/tickets";
 import { holdRef } from "@/lib/paidRef";
 import { useChanged } from "@/lib/useChanged";
 import Said from "./Said";
+import { failureOr } from "@/lib/failureWords";
 
 // THE TIP SIGNS THE KEY (2026-10-12, C7 of the customer audit, approved). What is bought and what it costs — the items
 // and the tip — are the checkout key's whole signature (lib/idempotency attemptFor), and the key is kept beside the cart
@@ -335,7 +336,7 @@ export default function Checkout() {
       const { error, data } = await recordPreOrder();
       // The server's own words when it refused (the truck closed between the read and the tap — it
       // says when it opens); the generic retry only when there are none.
-      if (error) { setErr(error.message || "That didn't go through — give it another tap"); return; }
+      if (error) { setErr(failureOr(error, "That didn't go through — give it another tap")); return; }
       placed(data ?? {}, false);
     } finally {
       sending.current = false;
@@ -423,7 +424,11 @@ export default function Checkout() {
         if (data?.priceChanged && typeof data.subtotalCents === "number") {
           const next = data.subtotalCents + Math.round(data.subtotalCents * tipPct);
           setErr(`The price changed — your total is now ${money(next)}. Nothing was charged; tap Pay to pay ${money(next)}.`);
-        } else setErr(payErrorText(data.error));
+        }
+        // Card payments paused for this phone (its refused cards, R32): the way still open on this sheet is said with it —
+        // paying at the truck, when the truck takes it (R34 — the audit's UX11-11).
+        else if (data?.paused && payLater.on) setErr(`${payErrorText(data.error)} Paying at the truck still works — tap “pay at the truck” below.`);
+        else setErr(payErrorText(data.error));
         return;
       }
       placed(data, true);

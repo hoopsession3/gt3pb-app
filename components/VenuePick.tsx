@@ -16,6 +16,7 @@ import {
 import { useVenues } from "./useVenues";
 import VenueContact from "./VenueContact";
 import Button from "./Button";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // The look-alike sheet only opens when a new venue resembles one in the book.
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"));
@@ -133,7 +134,7 @@ export default function VenuePick({
     const c = (siteId ? list.find((x) => x.siteId === siteId) : null)
       ?? list.find((x) => x.vendorId === vendorId && x.primary) ?? list.find((x) => x.vendorId === vendorId) ?? null;
     setBusy(false);
-    if (!c) { setErr(`It is in the venue book, but the book did not come back with it${fresh.error ? ` (${fresh.error})` : ""} — pick it from the list.`); return; }
+    if (!c) { setErr(`It is in the venue book, but the book did not come back with it${fresh.error ? ` (${plainFailure(fresh.error)})` : ""} — pick it from the list.`); return; }
     setAdding(false); setNm(""); setSimilar(null);
     pick(c);
     toast(said);
@@ -154,7 +155,7 @@ export default function VenuePick({
     setBusy(true); setErr(null);
     const r = await resolveVendor(name, { source, extra: await seedFor(name), decision });
     if (r.kind === "similar") { setSimilar(r.candidates); setBusy(false); return; }
-    if (r.kind === "error") { setErr(`Couldn't add it — ${r.message}`); setBusy(false); return; }
+    if (r.kind === "error") { setErr(failureWords(r, "Couldn't add it")); setBusy(false); return; }
     await settle(r.id, null, r.kind === "created" ? `${name} is in the venue book — waiting on the owner's approval` : `${name} was already in the venue book — linked to it`);
   };
 

@@ -31,6 +31,7 @@ import { readPersonFacts, usePersonFacts, withFacts } from "@/lib/personFacts";
 import { fullestName } from "@/lib/customerKnown";
 import { readParam, dropParam } from "@/lib/urlParam";
 import Said from "./Said";
+import { failureWords } from "@/lib/failureWords";
 
 // OPERATOR DEAL — build, price and negotiate a market operator's agreement.
 //
@@ -175,7 +176,7 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
       package: DEFAULT_PACKAGE, created_by: user?.id ?? null,
     }).select("id").maybeSingle();
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setCreating(false);
     setDraftFor(null);
     setOpenId((data as any)?.id ?? null);
@@ -338,7 +339,7 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra, people
       ...extra,
     }).eq("id", row.id);
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast("Saved"); onSaved();
   };
 
@@ -369,7 +370,7 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra, people
     setBusy(true);
     const { error } = await supabase.rpc("respond_to_agreement", { p_id: row.id, p_action: action, p_note: note.trim() || null });
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast(action === "accept" ? "Accepted — thank you" : "Sent back to GT3"); onSaved();
   };
 
@@ -576,7 +577,7 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra, people
                 setBusy(true);
                 const { data, error } = await supabase.rpc("discard_agreement", { p_agreement: row.id, p_reason: why || null });
                 setBusy(false);
-                if (error) { toast(error.message, "error"); return; }
+                if (error) { toast(failureWords(error), "error"); return; }
                 toast(data === "deleted"
                   ? "Discarded — that draft is gone."
                   : "Withdrawn — it had already been seen, so the record stays on the trail.");
@@ -591,7 +592,7 @@ function AgreementRow({ row, open, onToggle, onSaved, toast, meId, extra, people
                 setBusy(true);
                 const { error } = await supabase.rpc("supersede_agreement", { p_id: row.id, p_why: why || null });
                 setBusy(false);
-                if (error) { toast(error.message, "error"); return; }
+                if (error) { toast(failureWords(error), "error"); return; }
                 toast("Version " + (Number(row.version) + 1) + " drafted — the old one is ended and linked.");
                 onSaved();
               }}>Draft a new version</button>
@@ -643,7 +644,7 @@ function LinkOperator({ row, toast, onSaved }: { row: Row; toast: (m: string, t?
       .update({ operator_user_id: who.id, ...(row.operator_email ? {} : { operator_email: f.email }) })
       .eq("id", row.id);
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast(`Linked — ${who.name || "they"} can open it now.`); onSaved();
   };
   return (
@@ -785,7 +786,7 @@ function HoursBlock({ agreementId, covers, basis, extra, canLog, toast, onSaved 
       // The unique key is the useful error here — say what it means rather than showing the constraint.
       toast(/duplicate|unique/i.test(error.message)
         ? "There is already an entry for that activity on that day — edit it rather than adding a second."
-        : error.message, "error");
+        : failureWords(error), "error");
       return;
     }
     setHrs(""); setNote(""); setOpen(false);
@@ -855,7 +856,7 @@ function SignBlock({ row, status, isMine, integrity, toast, onSaved }: {
     setBusy(true);
     const { error } = await supabase.rpc(fn, { p_id: row.id, p_typed_name: name.trim() });
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     setName("");
     toast(fn === "sign_agreement" ? "Signed — GT3 countersigns next." : "Countersigned. This agreement is now active.");
     onSaved();

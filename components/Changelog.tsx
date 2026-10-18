@@ -9,6 +9,7 @@ import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { localToday } from "@/lib/dates";
+import { failureWords } from "@/lib/failureWords";
 
 // CHANGELOG — "What we've built": the human-readable, categorized record of every improvement shipped,
 // so a cofounder (or any leader) can see the whole build without reading git. Newest first, grouped by
@@ -84,7 +85,7 @@ export default function Changelog() {
     const payload = { title: d.title.trim().slice(0, 160), category: d.category, area: d.area?.trim() || null, summary: d.summary.trim(), shipped_on: d.shipped_on || today(), highlight: !!d.highlight };
     const { error } = await supabase.from("changelog").insert({ ...payload, created_by: user?.id ?? null });
     setSaving(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     toast("Logged"); setD(BLANK); setComposing(false); reload();
   };
 

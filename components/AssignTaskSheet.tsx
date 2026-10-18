@@ -10,6 +10,7 @@ import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "@/components/useCrew";
 import { haptic } from "@/lib/haptics";
 import { wrote } from "@/lib/wrote";
+import { plainFailure } from "@/lib/failureWords";
 
 // REUSABLE buildout → task. Drop this after any buildout (bottle loadout, delivery loadout, event
 // prep) to offer "Create a task? Assign to…" without leaving the flow. It writes to the existing
@@ -46,7 +47,7 @@ export default function AssignTaskSheet({
     // ONE write path (lib/tasks) — the same helper every delegated-task surface uses.
     const r = await createTodo({ title, category, dueOn: due, assignee, eventId, visibility, createdBy: user?.id });
     setBusy(false);
-    if (r.error || !r.id) { toast(`Couldn't create the task — ${r.error ?? "try again"}`, "error"); return; }
+    if (r.error || !r.id) { toast(`Couldn't create the task — ${r.error ? plainFailure(r.error) : "try again"}`, "error"); return; }
     setCreatedId(r.id);
     onCreated?.();
   };

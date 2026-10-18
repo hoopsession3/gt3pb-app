@@ -11,6 +11,7 @@ import Icon from "./Icon";
 import { sendLetter } from "./AddTeammate";
 import { haptic } from "@/lib/haptics";
 import type { ArgsOf } from "@/lib/dbTypes";
+import { failureWords } from "@/lib/failureWords";
 
 // ONE PERSON, ONE PLACE (0311).
 //
@@ -137,7 +138,7 @@ export default function CrewPerson({ userId, onClose, onChanged }: {
     setBusy(true);
     const { error } = await supabase.rpc(fn, args);
     setBusy(false);
-    if (error) { toast(error.message, "error"); return; } // the RPC's own refusal, said out loud
+    if (error) { toast(failureWords(error), "error"); return; } // the RPC's own refusal, said out loud
     toast(ok);
     reload(); onChanged?.();
   };

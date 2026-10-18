@@ -19,6 +19,13 @@ type DbError = { code?: string | null; message?: string | null } | null | undefi
 
 const code = (e: DbError) => String(e?.code ?? "");
 
+// POSTGRES'S OWN "NO" SHARES OUR CODE (R34 — the fresh audit's UX11-11). 42501 is the code our functions raise with a
+// sentence ("Only an owner or admin can …"), and the code Postgres answers with in its own words: "new row violates
+// row-level security policy for table "events"", "permission denied for table orders". Those are the table's name, not a
+// sentence — said as what they mean for the person.
+export const ROW_SECURITY = /row-level security|permission denied for|violates row-level/i;
+export const NOT_YOURS = "That isn't yours to change — an owner or admin can.";
+
 /** The delivery's state refuses the change: closed, under way, paid, paused, the morning taken. */
 export function isClosed(e: DbError): boolean {
   const c = code(e);
@@ -40,5 +47,6 @@ export function refusalText(e: DbError): string | null {
   const msg = String(e?.message ?? "").trim();
   if (!msg) return null;
   const c = code(e);
+  if ((c === "42501" || c === "28000") && ROW_SECURITY.test(msg)) return NOT_YOURS;
   return c === "22023" || c === "42501" || c === "28000" || isClosed(e) || isGone(e) ? msg : null;
 }

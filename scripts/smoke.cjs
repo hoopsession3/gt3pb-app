@@ -1506,7 +1506,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     // A FAILED READ IS NOT AN EMPTY LIST. It used to "fail soft to []", which reads as 0% and owing
     // the food-safety sign-off — to someone who had done all of it.
     ok("academy page: a failed read keeps the last record and says so; nothing is claimed before the first read",
-      /const failed = \[pr, ce, asg, ak\]\.find\(\(r\) => r\.error\)\?\.error;/.test(page) && /if \(failed\) \{ setLoadErr\(failed\.message\); return; \}/.test(page)
+      /const failed = \[pr, ce, asg, ak\]\.find\(\(r\) => r\.error\)\?\.error;/.test(page) && /if \(failed\) \{ setLoadErr\(failureWords\(failed\)\); return; \}/.test(page)
       && /if \(!loaded\) return \(/.test(page) && !/queries fail soft to \[\]/.test(page));
 
     // ── ONE ANSWER TO "IS THIS ASSIGNMENT DONE?" ──────────────────────────────────────────────────
@@ -1534,7 +1534,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       everything.size > opPath.length && row.pct === 100 && row.held === 2 && row.overdue === 1, row);
     ok("academy page: the team board and the person's own page answer with lib/academy, and a failed read is not an empty team",
       /teamMemberRow\(\{ role: r, completed:/.test(page) && /assignmentDone\(a, role, completed, certOk\)/.test(page)
-      && /const failed = \[profs, prog, cs, asg\]\.find\(\(r\) => r\.error\)\?\.error;\s*if \(failed\) \{ setLoadErr\(failed\.message\); setLoaded\(true\); return; \}/.test(page)
+      && /const failed = \[profs, prog, cs, asg\]\.find\(\(r\) => r\.error\)\?\.error;\s*if \(failed\) \{ setLoadErr\(failureWords\(failed\)\); setLoaded\(true\); return; \}/.test(page)
       && /loaded && !loadErr && rows\.length === 0/.test(page) && !/overdueBy\[a\.user_id\]/.test(page));
   }
 }
@@ -5998,7 +5998,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(row\.status === "new" && !known\.current\.has\(row\.id\)\) announceNew\(row\);\s*known\.current\.add\(row\.id\);/.test(kit));
   ok("pass: a move and a void go from what the ticket showed (p_from), queued offline with it too; a ticket that moved first is a toast and a fresh board, not an error",
     (kit.match(/await setOrderStatus\(supabase, o\.id, (to|"void"), o\.status\)/g) || []).length === 2 && (kit.match(/queueOrderStatus\(o\.id, (to|"void"), o\.status\)/g) || []).length === 2
-    && (kit.match(/now === null \? `Couldn't (update|void) — \$\{error\.message\}` : movedLine\(o\.id, now\), now === null \? "error" : "info"/g) || []).length === 2
+    && (kit.match(/now === null \? failureWords\(error, "Couldn't (update|void)"\) : movedLine\(o\.id, now\), now === null \? "error" : "info"/g) || []).length === 2
     && !/rpc\("staff_set_order_status"/.test(kit));
   ok("pass: Ready reaches the customer once — after the write lands, and only on a move forward into Ready (not a recall from Picked up)",
     /if \(!error\) \{\s*if \(to === "ready" && \(o\.status === "new" \|\| o\.status === "preparing"\)\) \{/.test(kit)
@@ -6022,7 +6022,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   }
   ok("delivery boards: Cancel asks first (the confirm sheet) and says when it didn't; a status, a batch, a hold, not-home and undo are checked; the delivered text follows the save",
     /if \(!\(await confirm\(\{ title: `Cancel \$\{o\.company\}'s/.test(read("components/OfficeOrders.tsx")) && /authedFetch\("\/api\/office\/cancel", \{/.test(read("components/OfficeOrders.tsx"))
-    && /if \(!j\?\.ok\) \{ toast\(`Didn't cancel — \$\{j\?\.error \?\? "no answer came back; check the route before trying again"\}`, "error"\); reload\(\); return; \}/.test(read("components/OfficeOrders.tsx"))
+    && /if \(!j\?\.ok\) \{ toast\(`Didn't cancel — \$\{j\?\.error \? plainFailure\(j\.error\) : "no answer came back; check the route before trying again"\}`, "error"\); reload\(\); return; \}/.test(read("components/OfficeOrders.tsx"))
     && !/from\("business_orders"\)\.update\(\{ canceled_at/.test(read("components/OfficeOrders.tsx"))
     && (code(read("components/DeliveryOps.tsx")).match(/const \{ error \} = await supabase\.from\("delivery_orders"\)\.update\(/g) || []).length === 2
     && (code(read("components/DriverRun.tsx")).match(/const \{ error \} = await supabase\.from\("delivery_orders"\)\.update\(/g) || []).length === 5
@@ -6054,7 +6054,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.update\(\{ canceled_at: new Date\(\)\.toISOString\(\) \}\)\.eq\("id", o\.id\)\.is\("canceled_at", null\)\.select\("id"\);/.test(dops)
     && /create trigger drop_orders_refund_flag after update of canceled_at on public\.drop_orders/.test(read("supabase/migrations/0416_a_refund_is_flagged_where_the_money_goes_back.sql")));
   ok("pickup: a stage, a bottle check or a batch that did not save says so — they wrote and reloaded without looking",
-    (dops.match(/if \(error\) toast\(`Didn't save — \$\{error\.message\}`, "error"\);/g) || []).length === 3);
+    (dops.match(/if \(error\) toast\(failureWords\(error, "Didn't save"\), "error"\);/g) || []).length === 3);
   ok("pickup: 'paid' on the upcoming and past lists is settled, not paid-online", /\{isSettled\(o\) \? <> · paid <Icon name="check" \/><\/> : ""\}/.test(dops) && /\{isSettled\(o\) \? "" : " · unpaid"\}/.test(dops));
 
   // ── the customer ──
@@ -6166,7 +6166,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !/isMissingColumn/.test(officeRoute));
     ok("office run: the crew's button makes the week ahead from the programs (generate_office_deliveries) — the one-Monday call went with 0356 applied (R14)",
       /const res = await supabase\.rpc\("generate_office_deliveries"\);/.test(crewOffice) && !/generate_office_route/.test(crewOffice)
-      && /toast\(res\.error \? `Couldn't generate the route — \$\{refusalText\(res\.error\) \?\? res\.error\.message\}`/.test(crewOffice));
+      && /toast\(res\.error \? `Couldn't generate the route — \$\{plainFailure\(res\.error\)\}`/.test(crewOffice));
     ok("office run: no screen or alert of the office route hard-codes the window — it is the order's, read by windowHours",
       ![officeRoute, crewOffice].some((s) => /5–8 AM/.test(s)) && /\{windowHours\(o\.delivery_window\)\}/.test(crewOffice) && /windowHours\(windowCode\)/.test(officeRoute));
     ok("office run: one delivery per program date by construction, cutoffs in the market's time, a schedule that logs and alerts",
@@ -7200,7 +7200,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /: confirmWords\(done\.readyFrom, done\.paid\)\}/.test(co) && /\{ label: "Pickup", value: done\.pickup \}/.test(co)
     && !/Ready in ~8 min/.test(co.replace(/"Ready in ~8 min\."/g, "")) && /closedWords\(o, \{ closing: t\("findus\.cta_closed"\) \}\)/.test(co));
   ok("checkout: a refused pre-order shows the server's reason, not a generic retry",
-    /setErr\(error\.message \|\| "That didn't go through — give it another tap"\)/.test(co)
+    /setErr\(failureOr\(error, "That didn't go through — give it another tap"\)\)/.test(co)
     // R7: said in the sheet beside its button — the pay-later path draws the error too
     && /\) : payLater\.on \? \(\s*<>\s*\{blockedNote\}\s*\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(co));
   ok("order bar: an order placed ahead says when it is made, not 'Order received' for hours",
@@ -7402,7 +7402,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const prefsDoor = <button type="button" className="alert-prefs-btn" onClick=\{\(\) => setPrefsOpen\(true\)\} aria-label="Notification settings">/.test(inboxSrc)
     && /if \(mine\.length === 0 && held\.length === 0\) \{\s*return \(\s*<div className="adm-sec">\s*<SectionHeader label=\{title\} right=\{prefsDoor\} \/>\s*\{prefsSheet\}/.test(inboxSrc));
   ok("quiet hours: \"Saved\" is said only when it saved", !/onBlur=\{\(\) => \{ save\(/.test(np)
-    && /if \(error\) \{ setQs\(before\[0\]\); setQe\(before\[1\]\); toast\(`Couldn't save/.test(np) && /if \(r\.error !== null\) \{ setMuted\(before\); toast\(`Couldn't save/.test(np));
+    && /if \(error\) \{ setQs\(before\[0\]\); setQe\(before\[1\]\); toast\(failureWords\(error, "Couldn't save"\)/.test(np) && /if \(r\.error !== null\) \{ setMuted\(before\); toast\(`Couldn't save/.test(np));
   ok("quiet hours: the gear and Settings draw ONE component — the sheet wraps the same controls, and the crew page keeps no copy",
     /export function NotifPrefsSheet\([\s\S]*?<NotifPrefs userId=\{userId\} \/>/.test(np)
     && /const prefsSheet = prefsOpen && <NotifPrefsSheet userId=\{userId\}/.test(inboxSrc)
@@ -7510,7 +7510,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /<PersonPick label="Brewer"/.test(bp) && /\.\.\.\(extras\?\.brewer \? \{ brewer_id: extras\.brewer\.id \} : \{\}\)/.test(bp) && !/arrives-with: 03/.test(read("components/BrewPlanner.tsx")) && !/writeAcrossSkew/.test(bp));
   ok("brew: the batch log moves the id when the brewer is changed, and leaves it when not",
     /\.\.\.\(brewerSet \|\| brewer\.id \? \{ brewer_id: brewer\.id \} : \{\}\)/.test(bp));
-  ok("brew: a start or a log that fails says so — the sheet stays open", /if \(error\) \{ setMutErr\(error\.message\); return false; \}/.test(bp) && /if \(await startBrew\(starting, extras\)\) setStarting\(null\)/.test(bp) && /if \(error\) \{ setErr\(error\.message\); setBusy\(false\); return; \}/.test(bp));
+  ok("brew: a start or a log that fails says so — the sheet stays open", /if \(error\) \{ setMutErr\(failureWords\(error\)\); return false; \}/.test(bp) && /if \(await startBrew\(starting, extras\)\) setStarting\(null\)/.test(bp) && /if \(error\) \{ setErr\(failureWords\(error\)\); setBusy\(false\); return; \}/.test(bp));
   ok("brew: a batch planned on the brew sheet (through /api/agents/brew) or by the drop planner says who planned it — the alarms' fallback",
     /created_by: planner\?\.id \?\? null/.test(code(read("app/api/agents/brew/route.ts"))) && /created_by: me/.test(code(read("components/DropOps.tsx"))));
   ok("weight: the database-skew helpers live in lib/schemaSkew, out of the module app/error.tsx loads on every page",
@@ -7965,7 +7965,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /\.from\("vendors"\)\.select\("id, name, kind"\)\.is\("archived_at", null\)\.neq\("status", "archived"\)/.test(read("lib/suppliers.ts"))
     && /\.from\("expenses"\)\.select\("category, vendor_id"\)/.test(lp) && /rankSuppliers\(/.test(lp));
   ok("purchase sheet: a failed vendor read is said, and the purchase can still be logged",
-    /if \(v\.error\) setVendErr\(v\.error\.message\);/.test(lp) && /Couldn't load the vendor book/.test(lp));
+    /if \(v\.error\) setVendErr\(failureWords\(v\.error\)\);/.test(lp) && /Couldn't load the vendor book/.test(lp));
   ok("purchase sheet: the purchase records WHO — expenses.vendor_id is written",
     /spent_on: spentOn, market, vendor_id: settled\.id,/.test(lp));
   const vl = code(read("lib/vendorLink.ts"));
@@ -8196,7 +8196,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /shelfMissed = !!recvErr;/.test(lp) && (lp.match(/\$\{onShelf\}\$\{added\}`, shelfMissed \? "error" : undefined\)/g) || []).length === 2);
   ok("purchase sheet: what landed is said in the shelf's own words", /: ` Added \$\{qtyWords\(qty, shelf\.unit\)\} to \$\{shelf\.name\}\.`;/.test(lp));
   ok("purchase sheet: the shelf step is 0347's receive_lot, and a failure says why — the skew's own words went with 0347 applied (R14)",
-    /onShelf = recvErr \? ` It isn't on \$\{shelf\.name\} — \$\{recvErr\.message\}\.` : ` Added \$\{qtyWords\(qty, shelf\.unit\)\} to \$\{shelf\.name\}\.`;/.test(lp)
+    /onShelf = recvErr \? ` It isn't on \$\{shelf\.name\} — \$\{plainFailure\(recvErr\)\}\.` : ` Added \$\{qtyWords\(qty, shelf\.unit\)\} to \$\{shelf\.name\}\.`;/.test(lp)
     && !/isMissingFunction|arrives with the next database update/.test(lp) && /p_vendor_id: settled\.id/.test(lp));
   ok("purchase sheet: shelves belong to the city they were read for — the last city's are never offered, nor a pick among them carried over",
     /return \{ market, shelves:/.test(lp) && /const shelvesHere = shelfRead\.data && shelfRead\.data\.market === market \? shelfRead\.data : null;/.test(lp)
@@ -8522,7 +8522,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("brew lots: what the batch already says comes before any default", /if \(batch\.coffee_lot_id \|\| batch\.coffee_lot\?\.trim\(\)\) return lotOf\(batch\);/.test(bp));
   ok("brew lots: a start writes the link and the words together (0349 is applied: R14 took the skew out)",
     /const lot = extras\?\.lot \? \{ coffee_lot: extras\.lot\.text\.trim\(\) \|\| null, coffee_lot_id: extras\.lot\.id \} : \{\};/.test(bp)
-    && /alerted_hold_expired: false \}\)\.eq\("id", b\.id\);\s+if \(error\) \{ setMutErr\(error\.message\); return false; \}/.test(bp) && !/arrives-with: 03|writeAcrossSkew/.test(read("components/BrewPlanner.tsx")));
+    && /alerted_hold_expired: false \}\)\.eq\("id", b\.id\);\s+if \(error\) \{ setMutErr\(failureWords\(error\)\); return false; \}/.test(bp) && !/arrives-with: 03|writeAcrossSkew/.test(read("components/BrewPlanner.tsx")));
   ok("brew lots: the batch log keeps the record's lot — no default — and moves the link only when it is changed",
     /<CoffeeLotPick label="Coffee lot" value=\{lot\} onChange=\{pickLot\}[^>]*allowNone noneLabel="Not recorded"/.test(bp) && /\.\.\.\(lotSet \|\| lot\.id \? \{ coffee_lot_id: lot\.id \} : \{\}\)/.test(bp)
     && /coffee_lot: lot\.text\.trim\(\) \|\| null/.test(bp) && /useState<LotValue>\(\(\) => lotOf\(batch\)\)/.test(bp));
@@ -8531,7 +8531,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/return \{ \.\.\.prior, linkable: false \};/.test(bp) && /linkable: b\.linkable/.test(bp));
   ok("brew lots: the deliveries are read with their supplier, and a failed read is said in the pick — not thrown, not 'none'",
     /\.from\("inventory_lots"\)\.select\("id, market, item_name, lot_code, received_on, qty_received, unit, created_at, vendors\(name\)"\)/.test(bp)
-    && /const firstErr = \[r, b, e, v, st, ii\]\.find/.test(bp) && /lotsErr: lt\.error \? lt\.error\.message : null/.test(bp)
+    && /const firstErr = \[r, b, e, v, st, ii\]\.find/.test(bp) && /lotsErr: lt\.error \? plainFailure\(lt\.error\) : null/.test(bp)
     && /Couldn't load the deliveries — \$\{failed\}/.test(pick));
   ok("brew lots: the pick offers the city's coffee, then the rest, then 'A lot not on file…' — which says it links to nothing",
     /<optgroup label=\{`Coffee in \$\{cityName\}`\}>/.test(pick) && /A lot not on file…/.test(pick) && /Origin · roast date — not linked to a delivery/.test(pick)
@@ -8539,7 +8539,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("brew lots: the pick's line says a failed read — only when it failed — and picking a lot writes that lot's words",
     /const note = failed \? `Couldn't load the deliveries — \$\{failed\}/.test(pick) && /onChange\(\{ id: v, text: l \? lotLabel\(l\) : value\.text \}\);/.test(pick));
   ok("brew lots: a log save, like a start, writes the link with the words — and the coffee's gap is said once the link can be",
-    /\}\)\.eq\("id", batch\.id\);\s+if \(error\) \{ setErr\(error\.message\)/.test(bp)
+    /\}\)\.eq\("id", batch\.id\);\s+if \(error\) \{ setErr\(failureWords\(error\)\)/.test(bp)
     && /const gap = lotBoard\.linkable \? logResult\.gaps\.find\(\(g: any\) => isCoffee\(g\.ingredient\)\) : undefined;/.test(bp));
   ok("brew lots: the production log names a lot on file by its own words — linked, or kept as its words before 0349 — and typed words as before",
     /\(b\.coffee_lot_id \|\| lotBoard\.names\.has\(b\.coffee_lot\) \? ` · \$\{b\.coffee_lot\}` : ` · lot \$\{b\.coffee_lot\}`\)/.test(bp)
@@ -8648,7 +8648,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("workstream: the portfolio is read beside the goals, and a failed read is said in the pick — not thrown",
     /supabase\.from\("os_workstreams"\)\.select\("id, name, owner, owner_user_id, status, blocker, sort"\)\.order\("sort"\)/.test(cb)
     && /const firstErr = \[ini, mil, lnk, tThis, eThis, inc, tOver, eOver, tDone, eDone\]\.find/.test(cb)
-    && /streamsErr: pf\.error \? pf\.error\.message : null,/.test(cb) && /"incident_log", "os_workstreams"\], reload\)/.test(cb)
+    && /streamsErr: pf\.error \? plainFailure\(pf\.error\) : null,/.test(cb) && /"incident_log", "os_workstreams"\], reload\)/.test(cb)
     // …and the answer is used for exactly those two things — read, kept, said — and never thrown.
     && (cb.match(/\bpf\b/g) || []).length === 5);
   ok("workstream: the chip is the workstream by its portfolio name, and words that link to nothing are marked so",
@@ -8661,7 +8661,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/content · events · delivery/.test(ms + cb) && !/setWs\(/.test(ms + cb) && /\{note && <p className="lp-note">\{note\}<\/p>\}/.test(ms)
     && /useState\(\(\) => startingPick\(m, streams\)\)/.test(ms) && /streamPatch\(pick, m, streams, linkable\)/.test(ms));
   ok("workstream: a save waits, says why it failed and keeps the sheet open; the link is written with it (0350 applied)",
-    /if \(error\) \{ setErr\(`Couldn't save — \$\{error\.message\}`\); return; \}\s+onSaved\(\);\s+onClose\(\);/.test(ms)
+    /if \(error\) \{ setErr\(failureWords\(error, "Couldn't save"\)\); return; \}\s+onSaved\(\);\s+onClose\(\);/.test(ms)
     && /const \{ error \} = await supabase\.from\("initiative_milestones"\)\.update\(patch\)\.eq\("id", m\.id\);/.test(ms)
     && !/writeAcrossSkew|arrives-with/.test(msRaw)
     && /\{busy \? "Saving…" : "Save"\}/.test(ms) && /role="alert">\{err\}/.test(ms));
@@ -8671,8 +8671,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("workstream: a refused check-off, tie, untie or delete says so — none of them dropped its error any more",
     /if \(error\) toast\(`Couldn't \$\{m\.done \? "reopen" : "check off"\}/.test(cb)
     && /if \(error\) toast\(`Couldn't \$\{on \? "tie it to" : "untie it from"\} that initiative/.test(cb)
-    && /if \(error\) \{ toast\(`Couldn't delete “\$\{m\.title\}” — \$\{error\.message\}`, "error"\); return; \}/.test(cb)
-    && /if \(tie\) toast\(`Added, but not tied to the initiative/.test(cb)
+    && /if \(error\) \{ toast\(`Couldn't delete “\$\{m\.title\}” — \$\{plainFailure\(error\)\}`, "error"\); return; \}/.test(cb)
+    && /if \(tie\) toast\(failureWords\(tie, "Added, but not tied to the initiative"\)/.test(cb)
     && !/\n\s+await supabase\.from\("initiative_milestone(s|_links)"\)\.(update|insert|delete)\(/.test(cb));
   ok("workstream: who owns a workstream is lib/portfolio's — the portfolio's rows and the pick's line say the same name",
     /const ownerName = \(w: Ws\) => streamOwner\(w, crew\);/.test(code(read("components/OsRegistry.tsx"))) && /owner: \(s\) => streamOwner\(s, crew\)/.test(ms));
@@ -8866,7 +8866,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("venue pick: a look-alike is asked of the book's own rule (similar_vendors) and offered with one tap",
     /similarVendors\(typed\)/.test(vp) && /looks like \$\{suggestion\.label\} in the venue book/.test(vp) && /onClick=\{\(\) => pick\(suggestion\)\}/.test(vp));
   ok("venue pick: the book is read once for every pick on the screen, a failed read said, a write followed by a fresh read",
-    /useSyncExternalStore\(subscribe, snapshot, snapshot\)/.test(uv) && /if \(error\) return \{ book: state\.book, error, at: Date\.now\(\) \};/.test(uv)
+    /useSyncExternalStore\(subscribe, snapshot, snapshot\)/.test(uv) && /if \(failed\) return \{ book: state\.book, error: plainFailure\(failed\), at: Date\.now\(\) \};/.test(uv)
     && /useRealtimeTable\(\["vendors", "vendor_locations"\]/.test(uv) && /const fresh = await reload\(true\);/.test(vp)
     && /inflight \? \(after \? inflight\.then\(\(\) => reloadVenues\(\)\) : inflight\)|if \(inflight\) return after \? inflight\.then\(\(\) => reloadVenues\(\)\) : inflight;/.test(uv));
 
@@ -8897,7 +8897,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && !/resolveVendor|VendorResolve/.test(cc + ec)
     && /from\("stops"\)\.insert\(\{[^;]{0,400}?vendor_id: venueId \}\)/.test(cc) && /from\("events"\)\.insert\(\{[^;]{0,400}?vendor_id: venueId \}\)/.test(cc)
     && /from\("stops"\)\.insert\(\{[^;]{0,400}?vendor_id: venueId,/.test(ec) && /from\("events"\)\.insert\(\{[^;]{0,400}?vendor_id: venueId \}\)/.test(ec)
-    && /if \(error\) \{ setErr\(`Couldn't add it — \$\{error\}`\); return; \}/.test(cc));
+    && /if \(error\) \{ setErr\(`Couldn't add it — \$\{plainFailure\(error\)\}`\); return; \}/.test(cc));
   ok("venue pick: the old picker is gone, and no stop or event editor turns words into a vendor itself",
     !fs.existsSync(path.join(__dirname, "..", "components/crew/VendorPicker.tsx"))
     && [fo, od, le, lc, cc, ec, card].every((t) => !/resolveVendor\(/.test(t)));
@@ -9272,7 +9272,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // ── an error, felt ──
   const ap = code(read("components/AppProvider.tsx"));
   ok("toast: every error toast is felt, from the one place they all come through — AppProvider's toast()",
-    /const toast = useCallback\(\(msg: string, variant: ToastVariant = "success", opts\?: \{ action\?: ToastAction \}\) => \{\s+if \(variant === "error"\) haptic\("error"\);/.test(ap));
+    /const toast = useCallback\(\(said: string, variant: ToastVariant = "success", opts\?: \{ action\?: ToastAction \}\) => \{\s+const msg = variant === "error" \? sayable\(said\) : said;\s+if \(variant === "error"\) haptic\("error"\);/.test(ap));
 
   // ── the cart ──
   ok("cart: a drink in is firmer than a drink out, read from a mirror of the cart kept in an effect — not inside the updater, and no ref written while rendering",
@@ -9880,7 +9880,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && appFiles.filter((f) => /<CupOrderingDial \/>/.test(read(f))).length === 1);
   ok("cup-ordering dial: a save asks for the row back — no row is a refusal, said as an error, and the dial goes back to what the database holds",
     /\.update\(\{ preorder_lead_h: h \}\)\.eq\("id", 1\)\.select\("preorder_lead_h"\);/.test(dial) && /const refused = !error && !\(data && data\.length\);/.test(dial)
-    && /if \(error \|\| refused\) \{\s*setPicked\(null\);\s*toast\(error \? `Couldn't save — \$\{error\.message\}` : "Couldn't save — only an owner or an admin can set when cup orders open\. Nothing changed\.", "error"\);/.test(dial)
+    && /if \(error \|\| refused\) \{\s*setPicked\(null\);\s*toast\(error \? failureWords\(error, "Couldn't save"\) : "Couldn't save — only an owner or an admin can set when cup orders open\. Nothing changed\.", "error"\);/.test(dial)
     && /await state\.reload\(\);/.test(dial) && /useRealtimeTable\("live_status", state\.reload\);/.test(dial) && /<AsyncSection state=\{state\}/.test(dial));
 
   // ── the values on Settings' rows: the words have one home, and nothing unread is said ──
@@ -12549,7 +12549,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("truck: the words are live or off the road — the row never says OFFLINE or LIVE in capitals",
     !/OFFLINE|"LIVE"/.test(compact) && !/OFFLINE/.test(lib) && /<StatusRow label="The truck" says=\{says\}/.test(compact) && /const says = truckSays\(truck\);/.test(compact));
   ok("truck: every read says how it went — the stops or live_status not answering, the first time or any later, is a failed read; no row is a truck off the road",
-    /const failed = s\.error \?\? l\.error;\s*if \(failed\) \{ setErr\(failed\.message\); setRead\("failed"\); return; \}/.test(lc)
+    /const failed = s\.error \?\? l\.error;\s*if \(failed\) \{ setErr\(failureWords\(failed\)\); setRead\("failed"\); return; \}/.test(lc)
       && /setRead\("ready"\);\s*setStops\(\(s\.data as Stop\[\] \| null\) \?\? \[\]\);\s*setLive\(\(l\.data as LiveStatus \| null\) \?\? null\);/.test(lc)
       && /const \[read, setRead\] = useState<TruckRead>\("loading"\);/.test(lc) && !/if \(l\) setLive/.test(lc));
   ok("truck: a failed read's row is Try again — on its button and on its line — and folds nothing open",
@@ -12891,7 +12891,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("monday audit: one save — save_workstream_audit with the stream as it was read, the details, the five scores or none and the note only with them; a refusal said in its own words, a colleague's newer save read in; with 0405 live the function is the only writer of either",
     /const \{ data, error \} = await supabase\.rpc\("save_workstream_audit", \{\s*p_workstream: auditing\.id, p_seen: auditing\.updated_at \?\? null, p_details: details,/.test(maudRaw) && !/arrives-with: 0405/.test(maudRaw)
       && /p_scores: scored \? \{ c_owner: scores\.c_owner, c_next: scores\.c_next, c_blockers: scores\.c_blockers, c_artifacts: scores\.c_artifacts, c_signal: scores\.c_signal \} : null,\s*p_note: scored \? draft\.note\.trim\(\) \|\| null : null,/.test(maud)
-      && !/isMissingFunction/.test(maud) && /if \(error\) \{ setSaving\(false\); haptic\("error"\); toast\(`Couldn't save — \$\{error\.message\}`, "error"\); return; \}/.test(maud)
+      && !/isMissingFunction/.test(maud) && /if \(error\) \{ setSaving\(false\); haptic\("error"\); toast\(failureWords\(error, "Couldn't save"\), "error"\); return; \}/.test(maud)
       && /toast\(r\.words \|\| "Couldn't save — try again\.", "error"\);/.test(maud) && /if \(r\.code === "changed"\) onReload\(\);/.test(maud)
       && /toast\(!scored \? "Stream updated"/.test(maud)
       && writes(maud, "workstream_audits").length === 0 && writes(maud, "os_workstreams").join() === "delete"
@@ -12935,7 +12935,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{noteShown\(scores, draft\.note\) && \(/.test(maud) && /saves with all five scored/.test(maud) && /const verdict = saveVerdict\(scores, draft\.note, changedDetails\(draft, base\)\.length > 0\);/.test(maud));
   ok("monday audit: the next action dates itself seven days out as it is first written, and a date past seven warns under the field without holding the save",
     /onChange=\{\(e\) => set\(withNextAction\(draft, e\.target\.value, day\)\)\}/.test(maud) && /const warn = dueWarning\(draft\.due, day\);/.test(maud)
-      && /\{warn && <p className="[^"]*text-warn"><Icon name="warning" \/>\{warn\}<\/p>\}/.test(maud) && !/warn/.test((maud.match(/const why = [\s\S]*?;\n/) || [""])[0]));
+      && /\{warn && <Said as="p" className="[^"]*text-warn"><Icon name="warning" \/>\{warn\}<\/Said>\}/.test(maud) && !/warn/.test((maud.match(/const why = [\s\S]*?;\n/) || [""])[0]));
   ok("monday audit: the draft is kept as it is written, read back as a stream opens, and reaching the phone's storage is itself in a try",
     /const phone = \(\): DraftStore \| null => \{ try \{ return window\.localStorage; \} catch \{ return null; \} \};/.test(maud)
       && /setPage\(\{ \.\.\.p, kept: keepDraft\(phone\(\), draftKey\(me, p\.id\), draftOf\(p\.scores, p\.draft, p\.base, week\)\) \}\);/.test(maud)
@@ -13967,7 +13967,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const AddToCalendar = dynamic\(\(\) => import\("@\/components\/AddToCalendar"\)\);/.test(rm) && /uid: `cups-open-\$\{stopId\}@gt3pb`/.test(rm)
     && /if \(!\(webPush \|\| appPush\)\) return calendar;/.test(rm) && /url: `\$\{publicOrigin\(\)\}\/menu`/.test(rm));
   ok("remind me: the phone is asked first; the database keeps it (keep_cup_reminder) and takes it back (drop_cup_reminder); a refusal is said in its words",
-    /if \(!\(await ask\(\)\)\) return;\s+const \{ error \} = await supabase\.rpc\("keep_cup_reminder", \{ p_stop: stopId, p_at: opensAt \}\);\s+if \(error\) \{ toast\(error\.message, "error"\); return; \}/.test(rm)
+    /if \(!\(await ask\(\)\)\) return;\s+const \{ error \} = await supabase\.rpc\("keep_cup_reminder", \{ p_stop: stopId, p_at: opensAt \}\);\s+if \(error\) \{ toast\(failureWords\(error\), "error"\); return; \}/.test(rm)
     && /supabase\.rpc\("drop_cup_reminder", \{ p_stop: stopId \}\)/.test(rm) && !/arrives-with/.test(rm));
   ok("remind me: the push function sends a reminder marked sent to that member's devices only, saying the stop's name and nothing else",
     /table === "cup_reminders" && type === "UPDATE"/.test(fn) && /if \(!record\.fired_at \|\| \(old_record && old_record\.fired_at\)\) return new Response\("skip: not a reminder going out"\);/.test(fn)
@@ -14077,7 +14077,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const canCancel = !shared && tk\.status === "new" && !tk\.at_window;/.test(pg) && /\{active && !shared && <div className="grid grid-cols-2 gap-2"/.test(pg)
     && /isTicket\(s\) \? <TicketView t=\{s\} shared \/>/.test(pg));
   ok("the ticket: a first read that failed says so in the order's place; a later one keeps the order and says it is the last word heard",
-    /const err = ticket\.status === "error" \? ticket\.error\?\.message/.test(pg) && /const stale = !!tk && !!ticket\.error;/.test(pg));
+    /const err = ticket\.status === "error" \? failureOr\(ticket\.error, /.test(pg) && /const stale = !!tk && !!ticket\.error;/.test(pg));
   ok("the ticket: it updates itself only while the order is in progress and the page is in front of someone",
     /const live = !!tk && ACTIVE\.has\(tk\.status\);/.test(pg) && /if \(document\.visibilityState === "visible"\) void reload\(\);/.test(pg) && /setInterval\(tick, 15000\)/.test(pg));
   ok("the ticket: its card is Today's — the drinks, the state once on its tag, the line with the money beside it, the steps — and it tells the truck through the ticket",

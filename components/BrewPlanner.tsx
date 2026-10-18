@@ -31,6 +31,8 @@ import { RowMenu } from "@/components/LongPress";
 import { rovingKeys, rovingTab } from "./roving";
 import { wrote } from "@/lib/wrote";
 import { useMinute } from "@/lib/useMinute";
+import Said from "@/components/Said";
+import { plainFailure, failureWords, failureOr } from "@/lib/failureWords";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
 // recipe scales exactly to it and hits its OG/Signal-Score spec), tie it to the event it's for, and
@@ -183,7 +185,7 @@ export default function BrewPlanner() {
       });
     }
     return { recipes: (r.data as Recipe[]) ?? [], vessels: (v.data as Vessel[]) ?? [], batches: bb, events: (e.data as Ev[]) ?? [], stops: (st.data as St[]) ?? [], inv, demand,
-      lots, lotsErr: lt.error ? lt.error.message : null, linkable: b.linkable };
+      lots, lotsErr: lt.error ? plainFailure(lt.error) : null, linkable: b.linkable };
     // vesselsRead and batchesRead are themselves useCallback([]) and so stable; naming them here
     // keeps the dependency honest rather than relying on that from a distance.
   }, [vesselsRead, batchesRead]);
@@ -244,7 +246,7 @@ export default function BrewPlanner() {
     const { error } = await supabase.from("brew_batches").update({ status }).eq("id", id);
     if (error) {
       if (/log what this batch used/i.test(error.message)) setNeedsLog(id);
-      else setMutErr(error.message);
+      else setMutErr(failureWords(error));
       reload();
       return;
     }
@@ -260,7 +262,7 @@ export default function BrewPlanner() {
     setLogging(true);
     const { data, error } = await supabase.rpc("log_batch_consumption", { p_batch_id: id });
     setLogging(false);
-    if (error) { setMutErr(error.message); return; }
+    if (error) { setMutErr(failureWords(error)); return; }
     const r: any = data ?? {};
     setLogResult({ id, drawn: Number(r.drawn_count) || 0, gaps: Array.isArray(r.gaps) ? r.gaps : [], items: Array.isArray(r.drawn) ? r.drawn : [] });
     setNeedsLog(null);
@@ -286,7 +288,7 @@ export default function BrewPlanner() {
     setNow(at);
     const { error } = await supabase.from("brew_batches").update(
       { status: "brewing", brew_started_at: startIso, ready_at: readyIso, ...lot, brewer, ...(extras?.brewer ? { brewer_id: extras.brewer.id } : {}), alerted_soon: false, alerted_ready: false, alerted_started: false, alerted_overextract: false, alerted_hold_soon: false, alerted_hold_expired: false }).eq("id", b.id);
-    if (error) { setMutErr(error.message); return false; }
+    if (error) { setMutErr(failureWords(error)); return false; }
     reload();
     return true;
   };
@@ -336,7 +338,7 @@ export default function BrewPlanner() {
       confirmLabel: "Remove it", danger: true,
     }))) return false;
     const { data, error } = await supabase.rpc("discard_batch", { p_batch: b.id, p_reason: null });
-    if (error) { setMutErr(error.message); return false; }
+    if (error) { setMutErr(failureWords(error)); return false; }
     toast(data === "deleted"
       ? `${name} removed.`
       : `${name} marked discarded — orders or stock still point at it, so the record stays.`);
@@ -693,14 +695,14 @@ function BatchLog({ batch, events, stops, lotBoard, onClose, onSaved, onRemove }
       event_id: targets[0]?.startsWith("e:") ? targets[0].slice(2) : null,  // first selection = primary (back-schedule)
       stop_id: targets[0]?.startsWith("s:") ? targets[0].slice(2) : null,
     }).eq("id", batch.id);
-    if (error) { setErr(error.message); setBusy(false); return; }
+    if (error) { setErr(failureWords(error)); setBusy(false); return; }
     // Re-sync the links to the chosen set (clear + insert) — and say it if they did not take (R12b, F4): the sheet closed
     // on a batch that served nothing, or still served what it no longer should.
     const cleared = await supabase.from("brew_batch_links").delete().eq("batch_id", batch.id);
-    if (cleared.error) { setErr(`Saved the batch, but its events and stops didn't update — ${cleared.error.message}`); setBusy(false); return; }
+    if (cleared.error) { setErr(failureWords(cleared.error, "Saved the batch, but its events and stops didn't update")); setBusy(false); return; }
     if (targets.length) {
       const linked = await supabase.from("brew_batch_links").insert(targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: batch.id, stop_id: id } : { batch_id: batch.id, event_id: id }; }));
-      if (linked.error) { setErr(`Saved the batch, but it isn't linked to its events and stops — ${linked.error.message}. Save again.`); setBusy(false); return; }
+      if (linked.error) { setErr(`Saved the batch, but it isn't linked to its events and stops — ${plainFailure(linked.error)}. Save again.`); setBusy(false); return; }
     }
     setBusy(false); onSaved();
   };
@@ -797,7 +799,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
     try {
       const r = await authedFetch("/api/agents/loadout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ batch_id: batch.id, bottle_oz: oz, keg_gal: kg, vehicle }) });
       const j = await r.json();
-      if (!j.ok) setErr(j.error || "Couldn't plan the loadout."); else setRes(j);
+      if (!j.ok) setErr(failureOr(j.error, "Couldn't plan the loadout.")); else setRes(j);
     } catch (e) { setErr(errorMessage(e)); }
     setBusy(false);
   };
@@ -816,7 +818,7 @@ function BottleLoadout({ batch, onClose }: { batch: Batch; onClose: () => void }
                 <label className="prod-f"><span>Vehicle (optional)</span><input value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="SUV, 3-hr drive" /></label>
               </div>
               <div className="brew-spec" style={{ marginTop: 10 }}>Pack-out: <b>{prevBottles}</b> × {oz}oz bottles · <b>{prevBottles}</b> UVDTF labels{prevKegStr ? <> · <b>{prevKegStr}</b></> : ""}</div>
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
                 <button type="button" className="btn-pri" onClick={planIt} disabled={busy}>{busy ? "Planning…" : <><Icon name="package" /> Plan the pack</>}</button>
@@ -968,20 +970,20 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
     if (busy) return;
     setBusy(true); setErr(null);
     const j = await call({}).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) setErr(j.error || "Couldn't plan the batch."); else setRes(j);
+    if (!j.ok) setErr(failureOr(j.error, "Couldn't plan the batch.")); else setRes(j);
     setBusy(false);
   };
   const save = async () => {
     if (busy) return;
     setBusy(true); setErr(null);
     const j = await call({ commit: { og: res?.spec } }).catch((e) => ({ ok: false, error: errorMessage(e) }));
-    if (!j.ok) { setErr(j.error || "Couldn't save."); setBusy(false); return; }
+    if (!j.ok) { setErr(failureOr(j.error, "Couldn't save.")); setBusy(false); return; }
     // Link the new batch to EVERY event/stop it serves (many-to-many).
     if (j.batch_id && targets.length && supabase) {
       const links = targets.map((t) => { const [k, id] = t.split(":"); return k === "s" ? { batch_id: j.batch_id, stop_id: id } : { batch_id: j.batch_id, event_id: id }; });
       const linked = await supabase.from("brew_batch_links").insert(links);
       // The batch is made either way; a link that did not take is said, so it is linked from the batch (R12b, F4).
-      if (linked.error) setErr(`The batch is saved, but it isn't linked to everything it serves — ${linked.error.message}. Link it from the batch.`);
+      if (linked.error) setErr(`The batch is saved, but it isn't linked to everything it serves — ${plainFailure(linked.error)}. Link it from the batch.`);
     }
     setSaved(true);
     setBusy(false);
@@ -1112,7 +1114,7 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
                   {upcomingEvents.length === 0 && upcomingStops.length === 0 && <span className="dp-hint">No upcoming events or stops yet.</span>}
                 </div>
               </div>
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>
                 <button type="button" className="btn-pri" onClick={planIt} disabled={busy || !(gal > 0)}>{busy ? "Scaling…" : "Scale + schedule"}</button>
@@ -1142,7 +1144,7 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
                 <div className="brew-flags"><b>Stock to check:</b> {res.inventory_flags.join(" · ")}</div>
               )}
 
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={() => setRes(null)} disabled={busy}>‹ Change</button>
                 <button type="button" className="btn-pri" onClick={save} disabled={busy}>{busy ? "Saving…" : "Add to schedule"}</button>

@@ -8,6 +8,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import Icon from "@/components/Icon";
 import { haptic } from "@/lib/haptics";
 import { useLatestRead } from "@/lib/useLatestRead";
+import { failureWords } from "@/lib/failureWords";
 
 // PAYMENTS — the owner's checkout controls, in Settings › Ordering & payments (Money › Get paid until
 // 2026-10-06, the settings round; Money keeps the refunds door and a line here). Two facts, one switch:
@@ -56,7 +57,7 @@ export default function PaymentSettings() {
     setPayAtPickup(next); // optimistic
     const { error } = await supabase.from("live_status").update({ pay_at_pickup: next }).eq("id", 1);
     setBusy(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); load(); return; }
     toast(next ? "Pay-at-pickup is ON — customers can order and pay in person" : "Pay-at-pickup is OFF — card only");
   };
 
@@ -68,7 +69,7 @@ export default function PaymentSettings() {
     setSubsOn(next); // optimistic
     const { error } = await supabase.from("live_status").update({ subscriptions_enabled: next }).eq("id", 1);
     setBusy(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); load(); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); load(); return; }
     // "customers can start a recurring pack" overpromised: this flag only unlocks the server-side
     // gate in /api/subscriptions/create — nothing in the customer app calls that route yet, so
     // flipping this switch alone doesn't give a customer any way to actually sign up.

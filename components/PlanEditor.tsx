@@ -12,6 +12,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { usePrompt } from "@/components/PromptSheet";
 import { haptic } from "@/lib/haptics";
 import { useChanged } from "@/lib/useChanged";
+import { failureWords } from "@/lib/failureWords";
 
 // MEMBERSHIP PLAN editor — manage subscription tiers in-app (was SQL-only). CRUD on subscription_plans.
 // Fetch state via useAsyncData — a failed load is a real error now, not a silent "No plans yet".
@@ -35,7 +36,7 @@ export default function PlanEditor() {
     const key = (await prompt({ title: "New plan", hint: "A short lowercase key, e.g. “pro”. It becomes the plan's id.", placeholder: "pro", confirmLabel: "Create" }))?.trim().toLowerCase();
     if (!key) return;
     const { error } = await supabase.from("subscription_plans").insert({ key, label: "", price_cents: 0, period_days: 14, active: false });
-    if (error) toast(`Error: ${error.message}`, "error"); else reload();
+    if (error) toast(failureWords(error), "error"); else reload();
   };
 
   return (
@@ -72,13 +73,13 @@ function PlanRow({ p, onSaved, toast }: { p: Plan; onSaved: () => void; toast: (
     if (isBlank(d.label)) { toast("Name the plan first", "error"); return; }
     if (d.active && !(Number(d.price_cents) > 0)) { toast("Set a price above $0 before activating the plan", "error"); return; }
     const { error } = await supabase.from("subscription_plans").update({ label: d.label.trim(), price_cents: Math.round(Number(d.price_cents) || 0), period_days: Math.round(Number(d.period_days) || 1), active: d.active }).eq("key", p.key);
-    if (error) toast(`Error: ${error.message}`, "error"); else { toast("Saved"); onSaved(); }
+    if (error) toast(failureWords(error), "error"); else { toast("Saved"); onSaved(); }
   };
   const del = async () => {
     if (!supabase) return;
     if (!(await confirm({ title: `Delete plan “${d.label}”?`, confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase.from("subscription_plans").delete().eq("key", p.key);
-    if (error) toast(`Error: ${error.message}`, "error"); else onSaved();
+    if (error) toast(failureWords(error), "error"); else onSaved();
   };
 
   return (

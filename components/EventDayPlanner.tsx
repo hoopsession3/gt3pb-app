@@ -18,6 +18,8 @@ import { wrote } from "@/lib/wrote";
 import { useAppStable } from "./AppProvider";
 import { useChanged } from "@/lib/useChanged";
 import { keyed } from "@/lib/dbTypes";
+import Said from "@/components/Said";
+import { failureOr } from "@/lib/failureWords";
 
 // EVENT DAY PLANNER — a multi-day, time-by-time run of show for one event. Pick how many days the
 // event runs, then build each day block by block: leave home 9:00, drive, arrive Airbnb (address +
@@ -382,7 +384,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
     try {
       const r = await authedFetch("/api/agents/dayplan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [ownerType === "stop" ? "stop_id" : "event_id"]: eventId, day_index: dayIndex, notes }) });
       const j = await r.json();
-      if (!j.ok) { setErr(j.error || "Draft failed"); setRows(null); }
+      if (!j.ok) { setErr(failureOr(j.error, "Draft failed")); setRows(null); }
       else { setRows(j.items ?? []); setPick(Object.fromEntries((j.items ?? []).map((_: any, i: number) => [i, true]))); }
     } catch (e) { setErr(errorMessage(e)); }
     setLoading(false);
@@ -394,7 +396,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
             <>
               <div className="dp-hint">A few notes — where you&apos;re leaving from, when the event opens, where you&apos;re staying — and AI proposes the day. You approve what to keep.</div>
               <textarea className="note-in" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Leaving Greenville ~9am, ~3hr drive, market opens noon–6, Airbnb 2 nights, teardown after close" autoFocus />
-              {err && <div className="dp-err">{err}</div>}
+              {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose}>Cancel</button>
                 <button type="button" className="btn-pri" onClick={run} disabled={loading}>{loading ? "Drafting…" : "Draft the day"}</button>

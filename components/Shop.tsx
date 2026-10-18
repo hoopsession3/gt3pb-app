@@ -27,6 +27,7 @@ import { haptic } from "@/lib/haptics";
 import { Segmented, tabPanel } from "@/components/controls";
 import { useStuck } from "@/components/useStuck";
 import { useSearchParam } from "@/lib/clientPage";
+import Said from "@/components/Said";
 
 /** The most of one line the shop ships (app/api/shop/checkout clamps each to it). */
 const MAX_LINE = 20;
@@ -179,7 +180,7 @@ export default function Shop() {
         <>
           <EditableCopy k="shop.tagline" value={t("shop.tagline")} as="p" className="shop-stmt" multiline />
           {board.status === "loading" && <div className="shop-note">Loading the shop…</div>}
-          {board.status === "error" && <div className="shop-note err">Couldn’t load the shop. Try again in a moment.</div>}
+          {board.status === "error" && <Said assertive className="shop-note err">Couldn’t load the shop. Try again in a moment.</Said>}
           {board.status === "ready" && products.length === 0 && <EditableCopy k="shop.empty" value={t("shop.empty")} as="div" className="shop-note" />}
           <div className="shop-grid">
             {products.map((p) => (

@@ -9,6 +9,7 @@ import { haptic } from "@/lib/haptics";
 import { leadLabel } from "@/lib/settingsGlance";
 import AsyncSection from "@/components/AsyncSection";
 import { rovingKeys, rovingTab } from "@/components/roving";
+import { failureWords } from "@/lib/failureWords";
 
 // THE CUP-ORDERING DIAL (0137) — when cup pre-orders open: only while the truck is live, or 2, 4 or 8
 // hours before a stop starts. Same rule everywhere — the menu sheet, checkout and the charge API
@@ -48,7 +49,7 @@ export default function CupOrderingDial() {
     const refused = !error && !(data && data.length);
     if (error || refused) {
       setPicked(null);
-      toast(error ? `Couldn't save — ${error.message}` : "Couldn't save — only an owner or an admin can set when cup orders open. Nothing changed.", "error");
+      toast(error ? failureWords(error, "Couldn't save") : "Couldn't save — only an owner or an admin can set when cup orders open. Nothing changed.", "error");
     } else {
       toast(h === 0 ? "Cups sell only while you're live" : `Cup orders open ${h}h before a stop`);
     }

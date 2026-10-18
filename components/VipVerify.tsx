@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "./AuthProvider";
 import { uploadToBucket } from "@/lib/uploads";
@@ -8,6 +8,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Icon from "@/components/Icon";
 import Button from "./Button";
+import { failureWords } from "@/lib/failureWords";
 
 // VIP VERIFY — the customer side. A signed-in bottle owner uploads a proof photo; it lands in the staff
 // queue (pending). On verify they become a Founding VIP with a reward. Shows the live status. Reuses the
@@ -24,6 +25,10 @@ export default function VipVerify() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  // Sent, said where focus goes (R34 — the audit's UX11-05): the upload button went with the prompt as "in review" took its
+  // place, focus fell to the page and nothing was heard. The review line takes focus once, after the person's own upload.
+  const sentRef = useRef(false);
+  const waitRef = useRef<HTMLDivElement>(null);
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase || !user) return { status: "none", reward: null, note: null };
@@ -34,17 +39,24 @@ export default function VipVerify() {
   }, [user]);
   const board = useAsyncData(loader, [user]);
   const { reload } = board;
+  const shown = board.data?.status;
+  useEffect(() => {
+    if (!sentRef.current || shown !== "pending") return;
+    sentRef.current = false;
+    waitRef.current?.focus({ preventScroll: true });
+  }, [shown]);
 
   const submit = async (file: File) => {
     if (!supabase || !user || busy) return;
     setBusy(true); setErr("");
     const up = await uploadToBucket({ bucket: "vip", file, prefix: user.id });   // own-folder path satisfies the bucket RLS
-    if ("error" in up) { setErr(up.error); setBusy(false); return; }
+    if ("error" in up) { setErr(failureWords(up.error, "Couldn't upload the photo")); setBusy(false); return; }
     // customer_id is filled server-side by the link_vip_customer trigger (0204) — resolve_customer is
     // service-role only, so the client can't call it; the trigger folds this proof onto the canonical customer.
     const { error } = await supabase.from("vip_verifications").insert({ user_id: user.id, photo_url: up.url });
     setBusy(false);
-    if (error) { setErr(error.message); return; }
+    if (error) { setErr(failureWords(error)); return; }
+    sentRef.current = true;
     reload();
   };
 
@@ -58,7 +70,7 @@ export default function VipVerify() {
           return <div className="vipv done"><Icon name="star" /> You&rsquo;re a verified Founding VIP{data.reward ? ` — ${data.reward}` : ""}. Your perks are live.</div>;
         }
         if (data.status === "pending") {
-          return <div className="vipv wait">Your VIP proof is in review — we&rsquo;ll confirm you soon.</div>;
+          return <div ref={waitRef} tabIndex={-1} className="vipv wait">Your VIP proof is in review — we&rsquo;ll confirm you soon.</div>;
         }
         return (
           <div className="vipv">

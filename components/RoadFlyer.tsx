@@ -14,6 +14,7 @@ import Button from "./Button";
 import { Segmented, tabPanel } from "@/components/controls";
 import { devicePref, useDevicePref } from "@/lib/devicePref";
 import { useChanged } from "@/lib/useChanged";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 const FLYER_TPL = devicePref("gt3-flyer-tpl");
 /** The kept theme, if it names one; else the first. Pure. */
@@ -166,7 +167,7 @@ export default function RoadFlyer() {
   const uploadPhoto = async (file: File) => {
     if (!supabase) return; setBusy(true);
     const res = await uploadToBucket({ bucket: "content", file, prefix: "flyer" });
-    if ("error" in res) { toast(`Upload failed — ${res.error}`, "error"); setBusy(false); return; }
+    if ("error" in res) { toast(`Upload failed — ${plainFailure(res.error)}`, "error"); setBusy(false); return; }
     setF((p) => ({ ...p, photo: res.url })); setBusy(false);
   };
 
@@ -468,14 +469,14 @@ export default function RoadFlyer() {
     await draw(); const blob = await toBlob();
     if (!blob) { toast("Couldn't render — try a different photo.", "error"); setBusy(false); return; }
     const res = await uploadToBucket({ bucket: "content", file: blob, path: `flyer/feed-${new Date().getTime()}.png`, upsert: true });
-    if ("error" in res) { toast(`Save failed — ${res.error}`, "error"); setBusy(false); return; }
+    if ("error" in res) { toast(`Save failed — ${plainFailure(res.error)}`, "error"); setBusy(false); return; }
     const mediaUrl = res.url;
     const caption = tile === "menu" || tile === "submenu" ? "The pour list — every bottle made to order."
       : tile === "details" ? "Tasting notes — what's in the glass, and why."
       : f.place ? `Find us on the road — ${f.place}${f.date ? ` · ${f.date}` : ""}${f.time ? ` · ${f.time}` : ""}.` : "Find us on the road.";
     const { error } = await supabase.from("content_items").insert({ title: `${f.place || "Road"} — ${tile}`, kind: "post", caption, media: [{ url: mediaUrl, type: "image" }], media_url: mediaUrl, media_type: "image", created_by: user?.id ?? null, updated_by: user?.id ?? null });
     setBusy(false);
-    toast(error ? `Save failed — ${error.message}` : "Saved to the feed — schedule it in Board/Grid", error ? "error" : undefined);
+    toast(error ? failureWords(error, "Save failed") : "Saved to the feed — schedule it in Board/Grid", error ? "error" : undefined);
   };
 
   const field = (k: keyof typeof f, label: string, ph: string) => (

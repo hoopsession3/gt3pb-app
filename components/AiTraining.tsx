@@ -12,6 +12,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { scrollMotion } from "@/lib/motion";
 import { wrote } from "@/lib/wrote";
 import { useLatestRead } from "@/lib/useLatestRead";
+import { failureWords } from "@/lib/failureWords";
 
 // TRAIN THE AI (Settings › AI › Train the AI, owner — it was on Team until 2026-10-06, the settings
 // round; Team keeps a line to it) — the correction loop for the freeform agents.
@@ -82,7 +83,7 @@ export default function AiTraining() {
       created_by: user?.id ?? null, author_name: profile?.display_name?.trim() || null,
     });
     setBusy(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     setTitle(""); setBody(""); setMedia(null);
     if (fileRef.current) fileRef.current.value = "";
     toast("Taught — the agent will use this from now on");

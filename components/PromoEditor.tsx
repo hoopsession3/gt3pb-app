@@ -10,6 +10,7 @@ import AsyncSection from "./AsyncSection";
 import { haptic } from "@/lib/haptics";
 import { LINK_WORDS, safeLink } from "@/lib/safeLink";
 import { useChanged } from "@/lib/useChanged";
+import { failureWords } from "@/lib/failureWords";
 
 // SPLASH EDITOR (Studio) — the owner controls the marketing card the app opens to (promos, 0144).
 // Edit the copy + CTA, flip it live/off. The guest app shows the most recent active one, once a
@@ -44,7 +45,7 @@ export default function PromoEditor() {
       ? await supabase.from("promos").update(patch).eq("id", row.id)
       : await supabase.from("promos").insert(patch);
     setBusy(false);
-    if (error) { toast(String(error.message).includes("promos") ? "Run migration 0144 first (promos table)." : `Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(String(error.message).includes("promos") ? "Run migration 0144 first (promos table)." : failureWords(error, "Couldn't save"), "error"); return; }
     toast(d.active ? "Live — guests will see it" : "Saved (off)");
     reload();
   };

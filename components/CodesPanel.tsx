@@ -12,6 +12,7 @@ import { InfoRow } from "@/components/kit";
 import { money, moneyPlain } from "@/lib/money";
 import { haptic } from "@/lib/haptics";
 import { publicOrigin } from "@/lib/native";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // DISCOUNT CODES — the owner mints redeemable codes as data (member_benefits, scope='code'). A code
 // is a rule: kind (percent_off | price_override | free_refill) × target (whole order, the straight-
@@ -103,7 +104,7 @@ export default function CodesPanel() {
     };
     const { error } = await supabase.from("member_benefits").insert(row);
     setSaving(false);
-    if (error) { toast(`Couldn't mint — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't mint"), "error"); return; }
     toast(`Minted ${codeClean}`);
     setCode(""); setLabel(""); setOpen(false);
     reload();
@@ -113,7 +114,7 @@ export default function CodesPanel() {
     if (r.active) haptic("toggleOff"); else haptic("toggleOn");
     if (!supabase) return;
     const { error } = await supabase.from("member_benefits").update({ active: !r.active }).eq("id", r.id);
-    if (error) { toast(`Couldn't update — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't update"), "error"); return; }
     reload();
   };
 
@@ -184,7 +185,7 @@ export default function CodesPanel() {
             )}
           </div>
           <p className="codes-reach">{reachText(kind, tgt, products)}</p>
-          {menu.status === "error" && <p className="codes-warn">{`Couldn't read the menu — ${menu.error?.message ?? "no answer"}. A single drink can be chosen once it loads.`}</p>}
+          {menu.status === "error" && <p className="codes-warn">{`Couldn't read the menu — ${menu.error ? plainFailure(menu.error) : "no answer"}. A single drink can be chosen once it loads.`}</p>}
           {menuPrice && Number.isFinite(priceCents) && price.trim() !== "" && priceCents >= menuPrice.high && (
             <p className="codes-warn">{`That isn't below the menu price (${money(menuPrice.high)}), so the code would change nothing.`}</p>
           )}

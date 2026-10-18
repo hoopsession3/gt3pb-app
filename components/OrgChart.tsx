@@ -13,6 +13,7 @@ import { crewLabel } from "./useCrew";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import EmptyState from "./EmptyState";
+import { failureWords } from "@/lib/failureWords";
 
 // Dynamic org chart — reads every crew profile and lays them out by role tier (owner → admin →
 // event manager → operators → contractors). Updates live as people set their photo/title/role.
@@ -47,7 +48,7 @@ export default function OrgChart({ part = "people", bare = false }: { part?: "pe
   const assign = async (id: string | undefined, uid: string) => {
     if (!supabase || !id) return;
     const { data, error } = await supabase.from("work_streams").update({ owner_user_id: uid || null }).eq("id", id).select("id");
-    if (error || !data?.length) toast(error ? `Couldn't change the lane's owner — ${error.message}` : "Couldn't change the lane's owner — the database refused it.", "error");
+    if (error || !data?.length) toast(error ? failureWords(error, "Couldn't change the lane's owner") : "Couldn't change the lane's owner — the database refused it.", "error");
   };
   const loader = useCallback(async (): Promise<P[]> => {
     if (!supabase) return [];

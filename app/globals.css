@@ -1119,6 +1119,9 @@ textarea.auth-input{resize:vertical;min-height:64px;font-family:var(--sans);line
    its room is the scroller's padding now, not the target's margin. */
 .body:has(>[data-tbar][data-resting]){scroll-padding-top:calc(52px + env(safe-area-inset-top,0px))}
 .body:has(.menu-chips){scroll-padding-top:calc(env(safe-area-inset-top,0px) + 60px)}
+/* R34 (UX11-04): focus clear of the checkout's Pay footer and the calendar's month band (the Pass: .svc-full) */
+.sheet2-body:has(.co-foot){scroll-padding-bottom:132px}
+.body:has(.cal-sticky){scroll-padding-top:calc(env(safe-area-inset-top,0px) + 124px)}
 .menu [data-cat]{scroll-margin-top:0}
 /* Shop's two-aisle switch (Bottles · Merch) reuses the Menu category-chip grammar on the same light
    paper surface; just give the aisle content a little breathing room below the sticky chip band. */
@@ -2672,6 +2675,11 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
    silently beat .x.on state rules (0,2,0). Every .on/.done/.sel state a day override had killed
    gets its fill back here. */
 .app.crew-day .ev-golive.on{background:color-mix(in srgb, var(--brand-red) 12%, transparent);color:var(--red-onLight)}
+/* R34 (UX11-02): Day's status words in its own ink — they read 1.3–3.5:1 on paper */
+.app.crew-day :is(.ev-golive.on .ev-golive-state,.wl-over,.pbd-due.over,.pbd-crit,.fn-drop,.brew-del,.dp-err,.gl-err){color:var(--red-onLight)}
+.app.crew-day :is(.dops-owe,.studio-title-hint){color:var(--warn)}
+.app.crew-day :is(.adm-approve.ok .adm-approve-h b,.cos-doneflag){color:var(--ok)}
+.app.crew-day .brew-timer b{color:var(--cream)}
 .app.crew-day .dp-tab.on{background:color-mix(in srgb, var(--brand-gold) 14%, transparent)}
 .app.crew-day .offchip.on{background:#f0f6ec}
 /* day-mode contrast: status text + controls the packs missed */
@@ -2744,11 +2752,11 @@ body:has(.conc-sheet) .rail{display:flex}
 .rdg-size{flex:1;height:44px;border-radius:9px;border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:var(--serif);font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .rdg-size.on{border-color:var(--gold);background:rgba(184,144,47,.14);color:var(--gold)}
 .rdg-size-pct{font-family:var(--sans);font-size:12px;font-weight:650;letter-spacing:.2px}
-.rdg-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px;border-radius:var(--r-lg);border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:var(--sans);font-size:13px;cursor:pointer}
+.rdg-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:9px 11px;border-radius:var(--r-lg);border:1px solid var(--line2);background:transparent;color:var(--cream);font-family:var(--sans);font-size:13px;cursor:pointer}
 .rdg-opt.on{border-color:var(--gold);background:rgba(184,144,47,.14)}
 .rdg-opt>span:last-child{font-family:var(--mono);font-size:11px;color:var(--cream-m)}
 .rdg-opt.on>span:last-child{color:var(--gold)}
-.rdg-reset{padding:7px;border:none;background:transparent;color:var(--cream-m);font-family:var(--sans);font-size:12px;cursor:pointer;text-decoration:underline}
+.rdg-reset{min-height:44px;padding:7px;border:none;background:transparent;color:var(--cream-m);font-family:var(--sans);font-size:12px;cursor:pointer;text-decoration:underline}
 
 /* effects — applied to the scroll content so the nav/FABs stay fixed-size */
 .app.rd-t1 .body{zoom:1.08}
@@ -4440,7 +4448,7 @@ button.chub-link{width:100%;text-align:left;font:inherit;cursor:pointer;-webkit-
 .offchip.on .offchip-dot{background:var(--ok)}
 @keyframes offpulse{0%,100%{opacity:1}50%{opacity:.3}}
 /* Service mode — the KDS as its own full-screen surface (audit: "KDS needs its own mode"). */
-.svc-full{position:fixed;inset:0;z-index:85;background:#0f0e0b;overflow-y:auto;padding:14px 16px calc(24px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+.svc-full{position:fixed;inset:0;z-index:85;background:#0f0e0b;overflow-y:auto;scroll-padding-top:calc(env(safe-area-inset-top,0px) + 64px);padding:14px 16px calc(24px + env(safe-area-inset-bottom));overscroll-behavior:contain}
 .app.crew-day .svc-full{background:#f3efe6}
 .svc-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;background:inherit;padding:calc(6px + env(safe-area-inset-top)) 0 10px;border-bottom:1px solid var(--line)}
 .svc-bar b{font-family:var(--sans);font-weight:800;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:var(--gold)}

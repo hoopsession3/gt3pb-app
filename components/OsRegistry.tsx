@@ -15,6 +15,7 @@ import { useCrew } from "./useCrew";
 import { streamOwner, portfolioHead, freshnessOf, streamException, riskOrder } from "@/lib/portfolio";
 import { useEtDay } from "@/lib/useEtDay";
 import { auditQueue } from "@/lib/mondayAudit";
+import { failureWords } from "@/lib/failureWords";
 
 // The Monday audit loads when it is opened, not with Command (components/MondayAudit says what it is).
 const MondayAudit = dynamic(() => import("./MondayAudit"), { ssr: false });
@@ -85,7 +86,7 @@ export default function OsRegistry() {
   const addStream = async (name: string) => {
     if (!supabase || !name.trim()) return;
     const { error } = await supabase.from("os_workstreams").insert({ name: name.trim().slice(0, 80), owner: "", health: 0, sort: 1000 });
-    if (error) { toast(String(error.message).includes("unique") ? "That workstream already exists" : `Couldn't add — ${error.message}`, "error"); return; }
+    if (error) { toast(String(error.message).includes("unique") ? "That workstream already exists" : failureWords(error, "Couldn't add"), "error"); return; }
     toast("Added — open it to set the owner and next action"); reload();
   };
 

@@ -7,6 +7,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { AsyncSection } from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { type OptionSetKey } from "@/lib/options";
+import { failureWords } from "@/lib/failureWords";
 
 // THE LISTS, EDITABLE. 0306 moved the closed vocabularies — inventory units, inventory statuses,
 // document kinds, menu timing — out of lib/ constants and into public.option_sets, so every picker
@@ -56,7 +57,7 @@ export default function ListsPanel() {
     setBusy(true);
     const { error } = await supabase.from("option_sets").update(fields).eq("id", id);
     setBusy(false);
-    if (error) { toast(`Couldn't save — ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error, "Couldn't save"), "error"); return; }
     board.reload();
   };
 
@@ -73,7 +74,7 @@ export default function ListsPanel() {
     if (error) {
       // The unique (set_key, value) constraint is the useful error here — say what it means.
       toast(/duplicate|unique/i.test(error.message)
-        ? `"${value}" is already on this list.` : `Couldn't add — ${error.message}`, "error");
+        ? `"${value}" is already on this list.` : failureWords(error, "Couldn't add"), "error");
       return;
     }
     setNewValue(""); setNewLabel(""); setAdding(null);

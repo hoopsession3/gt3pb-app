@@ -16,6 +16,7 @@ import { takeReturn } from "@/lib/returnTo";
 import { markSigninAsked, takeSigninAsked, OPENED_WITH_SESSION } from "@/lib/linkSignin";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { authWords } from "@/lib/failureWords";
 
 // SET A NEW PASSWORD, LOADED WHEN IT IS NEEDED (R8, 2026-10-16). The overlay a reset code or link raises
 // (PASSWORD_RECOVERY) rode in every page's first download — the one bundle every route carries — for a screen a member
@@ -379,7 +380,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         data: { ...(displayName ? { display_name: displayName } : {}), joined_by_code: true },
       },
     });
-    return error ? { error: error.message } : {};
+    return error ? { error: authWords(error) } : {};
   }, []);
 
   const verifyCode = useCallback<AuthCtx["verifyCode"]>(async (email, token, kind = "email", opts) => {
@@ -390,7 +391,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const { error } = await supabase.auth.verifyOtp({ email, token, type: kind });
     if (error) chooseAsked.current = asked;
     else takeSigninAsked();   // the code was the sign-in this device asked for: a link after it is said (R24, lib/linkSignin)
-    return error ? { error: error.message } : {};
+    return error ? { error: authWords(error) } : {};
   }, []);
 
   // A sign-in URL carrying tokens becomes this page's session: the iPhone app's appUrlOpen hands it one
@@ -412,7 +413,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       const notice = !takeSigninAsked();
       if (notice) noticePending.current = true;
       const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
-      if (error) { if (notice) { noticePending.current = false; if (chooseAfterNotice.current) { chooseAfterNotice.current = false; setChoosePassword(true); } } return { error: error.message }; }
+      if (error) { if (notice) { noticePending.current = false; if (chooseAfterNotice.current) { chooseAfterNotice.current = false; setChoosePassword(true); } } return { error: authWords(error) }; }
       if (notice) setLinkNotice(data.user?.email ?? "another account");
       return {};
     } catch {
@@ -423,7 +424,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const signInWithPassword = useCallback<AuthCtx["signInWithPassword"]>(async (email, password) => {
     if (!supabase) return { error: "Sign-in isn't configured yet." };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? { error: error.message } : {};
+    return error ? { error: authWords(error) } : {};
   }, []);
 
   const signUp = useCallback<AuthCtx["signUp"]>(async (email, password, displayName) => {
@@ -437,7 +438,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         emailRedirectTo: typeof window !== "undefined" ? publicOrigin() : undefined,
       },
     });
-    if (error) return { error: error.message };
+    if (error) return { error: authWords(error) };
     // AN EMAIL THAT ALREADY HAS AN ACCOUNT (R8, 2026-10-16). Supabase answers a sign-up for it as if it were new — no
     // error, a user with no identities, and no email sent — so nobody can learn from the form who is a member. The screen
     // then said "We sent a code" and nothing came: the member waited on a code that was never sent. The address is sent a
@@ -463,7 +464,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: typeof window !== "undefined" ? publicOrigin() : undefined,
     });
-    return error ? { error: error.message } : {};
+    return error ? { error: authWords(error) } : {};
   }, []);
 
   // THE CONFIRMATION, SENT AGAIN (R8, 2026-10-16). The confirm screen had no Resend: an email that never came, or a
@@ -474,7 +475,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (!supabase) return { error: "Sign-in isn't configured yet." };
     markSigninAsked();   // this device asked: its link reads as its own (R9, lib/linkSignin)
     const { error } = await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: typeof window !== "undefined" ? publicOrigin() : undefined } });
-    return error ? { error: error.message } : {};
+    return error ? { error: authWords(error) } : {};
   }, []);
 
   // Set the new password (the recovery session's, or — R8 — a join that met the account it already had: SignIn). The
@@ -488,7 +489,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const { error } = await supabase.auth.updateUser({ password });
     if (!error) return {};
     if ((error as { code?: string }).code === "same_password" || /different from the old password/i.test(error.message)) return {};
-    return { error: error.message };
+    return { error: authWords(error) };
   }, []);
 
   const signOut = useCallback(async () => {

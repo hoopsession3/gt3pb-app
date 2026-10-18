@@ -127,7 +127,7 @@ function fakeSb(over = {}) {
   const at = (s) => crew.indexOf(s);
   ok("the console asks an owner or admin who owes the code before it reads anything — after who they are is known, before the console draws",
     /const twoStep = useTwoStep\(leader && profileStatus === "ready", user\?\.id \?\? null, \{ waiting: waitingForCode, wait: waitForCode \}\);/.test(crew)
-    && at('if (role === "member") {') < at('if (twoStep.need === "checking") return <section className="screen" />;')
+    && at('if (role === "member") {') < at('if (twoStep.need === "checking") return <section className="screen"><PourFill label="Opening the console…" /></section>;')
     && at('if (twoStep.need === "code" || twoStep.need === "setup") return <TwoStepPrompt need={twoStep.need} onDone={twoStep.done} onLater={twoStep.later} />;') < at("<CrumbProvider>")
     && /const TwoStepPrompt = dynamic\(\(\) => import\("@\/components\/TwoStepPrompt"\)/.test(crew) && !/^import TwoStepPrompt/m.test(crew));
   ok("…and \"Not now\" leaves a line that asks again", /\{twoStep\.deferred && \(/.test(crew) && /onClick=\{twoStep\.ask\}>Enter it<\/button>/.test(crew));

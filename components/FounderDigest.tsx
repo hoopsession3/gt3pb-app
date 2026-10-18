@@ -5,6 +5,7 @@ import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { DIGEST_LABELS, type DigestCadence } from "@/lib/settingsGlance";
+import { plainFailure } from "@/lib/failureWords";
 
 // Owner control for the founder digest (0208). Sets the cadence on the live_status singleton (the
 // pg_cron job honors it) and offers a "Send digest now" button that emails/texts the founders on
@@ -40,7 +41,7 @@ export default function FounderDigest() {
     try {
       const r = await authedFetch("/api/cron/digest", { method: "POST" });
       const j = await r.json();
-      if (!j.ok) toast(`Couldn't send — ${j.error ?? "try again"}`, "error");
+      if (!j.ok) toast(`Couldn't send — ${j.error ? plainFailure(j.error) : "try again"}`, "error");
       else if (j.emailConfigured === false) toast("Email isn't set up yet — add RESEND keys to send digests", "error");
       else if (j.sent === 0) toast("No founder accounts to send to yet", "error");
       else toast(`Digest sent to ${j.sent} founder${j.sent === 1 ? "" : "s"}`);

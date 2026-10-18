@@ -23,6 +23,7 @@ import { vendorKindLabel } from "@/lib/vendorKind";
 import { useLongPress, type MenuItem } from "@/components/LongPress";
 import Button from "../Button";
 import { anyTable } from "@/lib/dbTypes";
+import { failureWords, plainFailure } from "@/lib/failureWords";
 
 // LOCATION EDITOR — the address / pin / vendor-link row for a stop or a vendor place.
 //
@@ -50,7 +51,7 @@ async function moveUpcomingVisits(venue: Vendor | Stop, address: string, geo: { 
     eventIds.length ? supabase!.from("events").update({ location_text: address }).in("id", eventIds) : { error: null },
   ]);
   const failed = su.error ?? eu.error;
-  if (failed) return ` — couldn't move its upcoming visits (${failed.message})`;
+  if (failed) return ` — couldn't move its upcoming visits (${plainFailure(failed)})`;
   const n = stopIds.length + eventIds.length;
   return n ? ` — ${n} upcoming ${n === 1 ? "visit" : "visits"} moved with it` : " — no upcoming visits were at the old address";
 }
@@ -106,7 +107,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
   // every update carries a WHERE (id) — safe with the safeupdate guard
   const patch = async (p: Record<string, unknown>, msg = "Saved") => {
     const { error } = await anyTable(supabase!, table).update(p).eq("id", row.id);   // a stop's or a venue's (lib/dbTypes)
-    toast(error ? `Error: ${error.message}` : msg, error ? "error" : undefined);
+    toast(error ? failureWords(error) : msg, error ? "error" : undefined);
     if (!error) onChanged();
   };
   const saveName = () => { const nm = name.trim(); if (nm && nm !== row.name) patch({ name: nm }, "Name saved"); };
@@ -133,14 +134,14 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
     // and the calendar (eventIsPast) say which are still to come.
     const moved = !error && kind === "vendor" ? await moveUpcomingVisits(row, q, geo) : "";
     setBusy(false);
-    toast(error ? `Error: ${error.message}` : kind === "vendor" ? `Location saved${moved}` : "Location pinned — directions are now accurate", error ? "error" : undefined);
+    toast(error ? failureWords(error) : kind === "vendor" ? `Location saved${moved}` : "Location pinned — directions are now accurate", error ? "error" : undefined);
     if (!error) onChanged();
     return !error;
   };
   const remove = async () => {
     if (!(await confirm({ title: `Delete ${row.name}?`, body: kind === "stop" ? "This removes the record." : "Linked stops and events will unlink.", confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase!.from(table).delete().eq("id", row.id);
-    toast(error ? `Error: ${error.message}` : kind === "stop" ? "Location deleted" : "Vendor deleted", error ? "error" : undefined);
+    toast(error ? failureWords(error) : kind === "stop" ? "Location deleted" : "Vendor deleted", error ? "error" : undefined);
     if (!error) onChanged();
   };
   const showPoc = kind === "vendor";

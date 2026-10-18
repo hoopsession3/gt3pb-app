@@ -12,6 +12,7 @@ import MediaStudio from "@/components/MediaStudio";
 import { readMedia, toColumns, heroWasRemoved, type MediaItem } from "@/lib/shopMedia";
 import { parseSkuBlock, formatSkuBlock } from "@/lib/apliiqOrder";
 import { money, moneyPlain } from "@/lib/money";
+import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // THE SHOP · merch manager (0273/0274) — the crew's publish + curation surface for the storefront.
 // Products arrive three ways: the in-house studio capsule (seeded), a bulk Apliiq catalog sync, and a
@@ -107,7 +108,7 @@ export default function MerchManager() {
       image_url: image || null, images: image ? [image] : [],
       variants: variantsFrom(na.sizes, na.colors), published_at: null, sort: 100,
     });
-    if (error) { toast(`Error: ${error.message}`, "error"); return; }
+    if (error) { toast(failureWords(error), "error"); return; }
     toast("Added (hidden) — open it to confirm and publish");
     setNa({ title: "", price: "", apliiq: "", image: "", sizes: "", colors: "" }); setShowAdd(false); await reload();
   };
@@ -258,7 +259,7 @@ function MerchRow({ p, all, open, onToggle, onOpen, onSaved, toast }: {
       const { data: freed, error: freeErr } = await supabase.from("shop_products")
         .update({ apliiq_product_id: null, archived_at: absorbing.archived_at ?? now, updated_at: now })
         .eq("id", absorbing.id).eq("apliiq_product_id", typedId).select("id");
-      if (freeErr || !freed?.length) { toast(`Couldn't move the link — ${freeErr?.message ?? "that product changed since this loaded; reopen the shop"}`, "error"); return; }
+      if (freeErr || !freed?.length) { toast(`Couldn't move the link — ${freeErr ? plainFailure(freeErr) : "that product changed since this loaded; reopen the shop"}`, "error"); return; }
     }
     const skus = parseSkuBlock(skuText);
     const { error } = await supabase.from("shop_products").update({
@@ -279,9 +280,9 @@ function MerchRow({ p, all, open, onToggle, onOpen, onSaved, toast }: {
     // then on neither product (R12b, F4).
     if (error && absorbing) {
       const back = await supabase.from("shop_products").update({ apliiq_product_id: typedId, archived_at: absorbing.archived_at, updated_at: now }).eq("id", absorbing.id);
-      if (back.error) { toast(`Didn't save, and Apliiq #${typedId} couldn't go back to “${absorbing.public_title || absorbing.title}” — link it there by hand. (${back.error.message})`, "error"); return; }
+      if (back.error) { toast(`Didn't save, and Apliiq #${typedId} couldn't go back to “${absorbing.public_title || absorbing.title}” — link it there by hand. (${plainFailure(back.error)})`, "error"); return; }
     }
-    if (error) toast(`Error: ${error.message}`, "error");
+    if (error) toast(failureWords(error), "error");
     else { toast(absorbing ? `Saved — Apliiq #${typedId} is linked here, and “${absorbing.public_title || absorbing.title}” is archived.` : "Saved"); setAbsorb(null); onSaved(); }
   };
   // ONE LIFECYCLE, NOT TWO CHECKBOXES. This was a "Published" box and an "Archived" box, and the
