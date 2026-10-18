@@ -30,6 +30,7 @@ import { useCrew } from "./useCrew";
 import { readPersonFacts, usePersonFacts, withFacts } from "@/lib/personFacts";
 import { fullestName } from "@/lib/customerKnown";
 import { readParam, dropParam } from "@/lib/urlParam";
+import Said from "./Said";
 
 // OPERATOR DEAL — build, price and negotiate a market operator's agreement.
 //
@@ -216,12 +217,12 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
           </div>
 
           {draftFor && (
-            <div className="prod-recipe" style={{ marginTop: 12 }} role="status">
+            <div className="prod-recipe" style={{ marginTop: 12 }}>
               {draftFor === "unknown" ? (
-                <p className="h-sub" style={{ margin: 0 }}>That person isn&rsquo;t on the crew any more, so there is no agreement to open for them.</p>
+                <Said as="p" className="h-sub" style={{ margin: 0 }}>That person isn&rsquo;t on the crew any more, so there is no agreement to open for them.</Said>
               ) : (
                 <>
-                  <div className="insp-lbl">No agreement for {draftFor.name || "them"} yet</div>
+                  <Said as="div" className="insp-lbl">No agreement for {draftFor.name || "them"} yet</Said>
                   <div className="prod-actions">
                     <button type="button" className="note-arch" onClick={() => setDraftFor(null)}>Not now</button>
                     <button type="button" className="btn-pri btn-wide" disabled={busy} onClick={() => createDraft(draftFor)}>

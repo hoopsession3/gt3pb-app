@@ -64,6 +64,8 @@ export const ZERO = [
   "react-hooks/preserve-manual-memoization",
   "@typescript-eslint/no-explicit-any",
   "react/no-unescaped-entities",
+  // R25: a provider's value made new each render draws every reader again — the console, at each drink added (perf F19).
+  "react/jsx-no-constructed-context-values",
 ];
 
 export function countFrom(json) {

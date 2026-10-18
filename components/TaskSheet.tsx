@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import type { TaskSource } from "@/lib/tasks";
 
@@ -18,8 +18,11 @@ export const useTaskSheet = () => useContext(Ctx);
 export function TaskSheetProvider({ children }: { children: React.ReactNode }) {
   const [target, setTarget] = useState<{ id: string; source: TaskSource } | null>(null);
   const openTask = useCallback((id: string, source: TaskSource) => setTarget({ id, source }), []);
+  // One value per change (R25 — the 10/10 audit, performance F19): a new object each render re-drew every reader of this
+  // context whenever the shell drew again — the whole console among them.
+  const value = useMemo(() => ({ openTask }), [openTask]);
   return (
-    <Ctx.Provider value={{ openTask }}>
+    <Ctx.Provider value={value}>
       {children}
       {target && <TaskSheetBody id={target.id} source={target.source} onClose={() => setTarget(null)} />}
     </Ctx.Provider>

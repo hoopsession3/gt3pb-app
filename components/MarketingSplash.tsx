@@ -182,7 +182,10 @@ export default function MarketingSplash() {
 
       {/* Finale — the brand red "3" condenses out of the smoke, sharpens and glows, then fades. */}
       <div className="spl-finale" aria-hidden="true">
-        <img className="spl-three" src="/brand/gt3-3.png" alt="" />
+        {/* The master (public/brand/gt3-3.png, 1660 × 2197) exported at 960 wide — never redrawn (R25, performance F14): it
+            is drawn 300 CSS pixels wide at most, 900 on a 3× phone, and the master cost 122 KB and 14.6 MB once decoded for
+            it (this: 69 KB, 4.9 MB; over the splash's dark, 57 dB from the master at that size). */}
+        <img className="spl-three" src="/brand/gt3-3-960.png" width={960} height={1271} alt="" />
       </div>
       {/* …then ONE composed lockup resolves below the 3: the welcome over the signature, joined by a
           gold hairline — it holds and fades as a single title card, not two piecemeal reveals. */}

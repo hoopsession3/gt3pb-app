@@ -21,6 +21,7 @@ import { useCollectSheet } from "./CollectSheet";
 import FoldCard from "@/components/crew/FoldCard";
 import { dueLead, type PickupFeed } from "@/lib/dueNext";
 import ReserveClaims from "./crew/ReserveClaims";
+import Said from "./Said";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -463,7 +464,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
                 Past drops{histOpen && history && history.length > 0 ? ` · ${new Set(history.map((o) => o.drop_date)).size}` : ""} <span>{histOpen ? "▾" : "▸"}</span>
               </button>
               {histOpen && history === null && (board.error && !board.refreshing
-                ? <p className="load-failed" role="status">Couldn&apos;t read past drops — this is not &ldquo;none&rdquo;. <button type="button" className="btn-ter" onClick={() => void reload()}>Try again</button></p>
+                ? <p className="load-failed"><Said as="span" assertive>Couldn&apos;t read past drops — this is not &ldquo;none&rdquo;.</Said> <button type="button" className="btn-ter" onClick={() => void reload()}>Try again</button></p>
                 : <p className="cp-line dim">Reading past drops…</p>)}
               {histOpen && history?.length === 0 && <p className="cp-line dim">No past drops.</p>}
               {histOpen && history && Object.entries(history.reduce<Record<string, DropOrder[]>>((m, o) => { (m[o.drop_date] ??= []).push(o); return m; }, {})).map(([d, os]) => {

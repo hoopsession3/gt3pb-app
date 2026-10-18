@@ -11,6 +11,7 @@ import { useAppStable } from "./AppProvider";
 import { brandMaster, brandThumb } from "@/lib/brandThumbs";
 import { APP_BUILD, publicOrigin } from "@/lib/native";
 import { useChanged } from "@/lib/useChanged";
+import Said from "./Said";
 
 // BRAND KIT — GT3's logos, palette, fonts & voice, in the Studio. Seeded with the real brand;
 // leadership can edit voice/tagline, the wordmark, and the palette. The reference both of you
@@ -93,8 +94,8 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
   return (
     <div className="brand">
       {state.status === "error" && (
-        <p className="load-failed" role="status">
-          Couldn&apos;t load the brand kit — what you see below is a blank fallback, not your brand.{" "}
+        <p className="load-failed">
+          <Said as="span" assertive>Couldn&apos;t load the brand kit — what you see below is a blank fallback, not your brand.</Said>{" "}
           <button type="button" className="btn-ter" onClick={() => loadAssets()}>Try again</button>
         </p>
       )}

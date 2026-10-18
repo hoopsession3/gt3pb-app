@@ -12,6 +12,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { btn } from "./Button";
 import { LINK_WORDS, safeLink } from "@/lib/safeLink";
 import { wrote } from "@/lib/wrote";
+import Said from "./Said";
 
 // BROADCAST EDITOR (Settings) — compose an announcement/ad and put it live across the app to everyone.
 // The composer exposes every option: what it says, who sees it, how it looks, an optional call-to-
@@ -159,8 +160,8 @@ export default function BroadcastEditor() {
               same rule RsvpRow/OfficeOrders follow). No data fetching, state, or handlers changed. */}
           <div className="insp-lbl" style={{ marginTop: 16 }}>All broadcasts</div>
       {state.status === "error" && (
-        <p className="load-failed" role="status">
-          Couldn&apos;t load your broadcasts — this is not &ldquo;none&rdquo;.{" "}
+        <p className="load-failed">
+          <Said as="span" assertive>Couldn&apos;t load your broadcasts — this is not &ldquo;none&rdquo;.</Said>{" "}
           <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
         </p>
       )}

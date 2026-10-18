@@ -9,6 +9,7 @@ import {
   ACCEPT, BUCKET, MAX_ITEMS, makeCover, move, prettyBytes, removeAt, setAlt,
   slotsLeft, thumbOf, validateFile, type MediaItem,
 } from "@/lib/shopMedia";
+import Said from "./Said";
 
 // MEDIA STUDIO (0278) — the owner's side of shop media: pick real photos and clips, put them in the
 // order a shopper should see them, say which one leads, describe them.
@@ -136,9 +137,9 @@ export default function MediaStudio({ productId, value, onChange }: Props) {
       </div>
 
       {busy && (
-        <p className="ms-busy" aria-live="polite">
+        <Said as="p" className="ms-busy">
           Uploading {busy}{total > 1 ? ` — ${done + 1} of ${total}` : ""}…
-        </p>
+        </Said>
       )}
       {errs.length > 0 && (
         <ul className="ms-errs">{errs.map((e, n) => <li key={n}>{e}</li>)}</ul>

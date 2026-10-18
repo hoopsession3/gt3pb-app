@@ -13,6 +13,7 @@ import {
   type CupIn, type DueFeeds, type DueRow, type OfficeFeed, type PickupFeed, type PorchFeed,
 } from "@/lib/dueNext";
 import { dropSlot } from "@/lib/liveOps";
+import Said from "@/components/Said";
 
 // DUE NEXT, AS ONE LIST (2026-10-11, the dispatch round). Above Live Ops' three cards: every pickup pack, porch, office
 // stop and cup placed ahead, soonest first, one row each, in words (lib/dueNext says why, and why not all_orders). The
@@ -113,8 +114,8 @@ export default function DueList({ feeds, onOpenPass, drop }: { feeds: CardFeeds;
   return (
     <div className="mpanel px-3.5 pb-1">
       {list.failed.length > 0 && (
-        <p className="load-failed" role="status">
-          Couldn&rsquo;t load {feedsWord(list.failed)} — this is not &ldquo;nothing due&rdquo;.{" "}
+        <p className="load-failed">
+          <Said as="span" assertive>Couldn&rsquo;t load {feedsWord(list.failed)} — this is not &ldquo;nothing due&rdquo;.</Said>{" "}
           <button type="button" className="btn-ter" onClick={() => { void refreshLive(); }}>Try again</button>
         </p>
       )}

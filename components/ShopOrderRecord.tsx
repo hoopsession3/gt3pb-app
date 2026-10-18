@@ -15,6 +15,7 @@ import {
   moveVerb, moveWarning, needsReason, nextStatuses, refundLeft, shipLine, statusLabel, waitingOn,
 } from "@/lib/shopOrder";
 import Button from "./Button";
+import Said from "./Said";
 
 // ONE SHOP ORDER, WHOLE (0313).
 //
@@ -382,8 +383,8 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
                     answered clearly, takes the button's place: the order may be at the printer, and
                     a second press would be a second cap. The crew looks, then says what they found. */}
                 {ask === "out" ? (
-                  <div className="so-send" role="status">
-                    <p className="so-warn"><b>Being sent to Apliiq now</b> — waiting for its answer.</p>
+                  <div className="so-send">
+                    <Said as="p" className="so-warn"><b>Being sent to Apliiq now</b> — waiting for its answer.</Said>
                     <Button type="button" kind="quiet" onClick={reload}>Refresh</Button>
                   </div>
                 ) : ask === "unclear" ? (

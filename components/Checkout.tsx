@@ -33,6 +33,7 @@ import { Segmented } from "@/components/controls";
 import { holdTicket, isTicket, ticketPath } from "@/lib/tickets";
 import { holdRef } from "@/lib/paidRef";
 import { useChanged } from "@/lib/useChanged";
+import Said from "./Said";
 
 // THE TIP SIGNS THE KEY (2026-10-12, C7 of the customer audit, approved). What is bought and what it costs — the items
 // and the tip — are the checkout key's whole signature (lib/idempotency attemptFor), and the key is kept beside the cart
@@ -530,11 +531,11 @@ export default function Checkout() {
                   closing, a drink selling out — with the one action that answers it: ask about that payment, never pay again.
                   The drinks and the tip hold still until it is answered (and while this phone is sending, nothing is said). */}
               {held && !busy && (
-                <div className="honest" role="status">
-                  <b>{heldCard ? "Your last payment hasn't been confirmed yet." : "Your last order hasn't been confirmed yet."}</b>{" "}
+                <div className="honest">
+                  <Said as="span"><b>{heldCard ? "Your last payment hasn't been confirmed yet." : "Your last order hasn't been confirmed yet."}</b>{" "}
                   {heldCard
                     ? "Check on it before paying again — you won't be charged twice, and your drinks and tip stay as they are until it's answered."
-                    : "Check on it before sending it again — your drinks stay as they are until it's answered."}
+                    : "Check on it before sending it again — your drinks stay as they are until it's answered."}</Said>
                   <button type="button" className="btn-pri btn-wide mt-3" onClick={() => { void checkHeld(); }} disabled={checking}>
                     <span>{checking ? "Checking…" : heldCard ? "Check on my payment" : "Check on my order"}</span>
                   </button>
@@ -568,8 +569,8 @@ export default function Checkout() {
                 <>
                   <div className="co-line"><span>Subtotal</span><span>{money(subtotalCents)}</span></div>
                   {unquoted && (
-                    <p className="text-footnote text-cream-dim mt-1.5" role="status">
-                      These are the menu&apos;s prices — we couldn&apos;t check yours just now. Pay checks before your card is charged.{" "}
+                    <p className="text-footnote text-cream-dim mt-1.5">
+                      <Said as="span">These are the menu&apos;s prices — we couldn&apos;t check yours just now. Pay checks before your card is charged.</Said>{" "}
                       <button type="button" className="btn-ter" onClick={() => setQuoteTry((n) => n + 1)}>Check again</button>
                     </p>
                   )}

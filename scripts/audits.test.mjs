@@ -8,6 +8,7 @@
 // out of this repo rather than something shaped to pass.
 import { classifyEffect, effectAt } from "./render.audit.mjs";
 import { isFalseEmpty, catchesButHides, unreadWritesIn, collectUnreadWrites, FIRE_AND_FORGET } from "./falseempty.audit.mjs";
+import { unheardIn, collect as collectUnheard, UNHEARD_BASELINE } from "./spoken.audit.mjs";
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption, peelsErrorMessageByHand } from "./dupe.audit.mjs";
 import { envFindings, readsIn } from "./env.audit.mjs";
@@ -139,6 +140,27 @@ ok("a file that never loads anything is not in scope",
   const live = collectUnreadWrites(".");
   ok("unread: none in app, components or lib but the ones FIRE_AND_FORGET names, each with why",
     live.length === 0 && Object.values(FIRE_AND_FORGET).every((why) => typeof why === "string" && why.length > 20), live.map((h) => `${h.file}:${h.line} ${h.name}`));
+}
+
+// ── spoken.audit: a status line put on the page already holding its words (R25, A11Y F12) ─────────────────────────
+// The shapes are the ones R24's code carried (components/pass/ThePass, components/crew/DueList, app/crew/page), and the
+// shapes they became.
+{
+  const n = (jsx) => unheardIn(`export default function X() { return (<>${jsx}</>); }`).length;
+  ok("spoken: a status line rendered by && with its words is one (ThePass's 'Can't reach the pass', as it was)",
+    n(`{down && (<div className="adm-attn" role="status"><b>Can't reach the pass</b> — reconnecting…</div>)}`) === 1);
+  ok("spoken: …and by either side of a ternary (DropOps' past drops, the HUD's sales line)",
+    n(`{failed ? <p className="load-failed" role="status">Couldn't read past drops</p> : <p>Reading…</p>}`) === 1 && n(`{ok ? <p>Sales</p> : <p role="status">Couldn't read the sales yet</p>}`) === 1);
+  ok("spoken: aria-live polite is a live region too (MediaStudio's upload line); assertive as well", n(`{busy && <p aria-live="polite">Uploading…</p>}`) === 1 && n(`{busy && <p aria-live={"assertive"}>x</p>}`) === 1);
+  ok("spoken: a region that stays on the page and changes its words is how one is meant to work — not counted",
+    n(`<p className="sr-only" role="status" aria-live="polite">{blockedWords}</p>`) === 0);
+  ok("spoken: an alert is announced as it is inserted — not counted; aria-live off is no region", n(`{err && <div role="alert">{err}</div>}`) === 0 && n(`{x && <p aria-live="off">x</p>}`) === 0);
+  ok("spoken: the house's way — the words in Said, the button outside — is none",
+    n(`{failed && (<p className="load-failed"><Said as="span" assertive>Couldn't load the notes.</Said> <button>Try again</button></p>)}`) === 0);
+  ok("spoken: a region inside a part that comes and goes may arrive empty — not counted", n(`{open && (<section><p role="status">{said}</p></section>)}`) === 0);
+  ok("spoken: a role made up at run time may be a status — counted when rendered by a condition", n(`{x && <p role={kind}>words</p>}`) === 0 && n(`{x && <p aria-live={mode}>words</p>}`) === 1);
+  ok("spoken: words that only look like JSX, in a comment or a string, are not counted", n(`{/* {done && <p role="status">Free cup given</p>} */}<p>{"{done && <p role=\"status\">x</p>}"}</p>`) === 0);
+  ok("spoken: the app holds none (baseline zero)", UNHEARD_BASELINE === 0 && collectUnheard(join(import.meta.dirname, "..")).length === 0, collectUnheard(join(import.meta.dirname, "..")).slice(0, 3));
 }
 
 // ── the gate audit ─────────────────────────────────────────────────────────────────────────────

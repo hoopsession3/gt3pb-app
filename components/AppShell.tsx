@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { usePathname } from "next/navigation";
 import { keepPlace, placeFor, restorePlace, returnToPlace } from "@/lib/appScroll";
 import { HELP_EVENTS, type Asked, type HelpEvent } from "@/lib/helpSheets";
-import { useApp } from "./AppProvider";
+import { useApp, useAppStable } from "./AppProvider";
 import BottomNav from "./BottomNav";
 import { OperatorSectionProvider } from "./OperatorSection";
 import { TaskSheetProvider } from "./TaskSheet";
@@ -106,15 +106,32 @@ function NotOpened({ open, close, what, toast }: { open: boolean; close: () => v
   return null;
 }
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+// THE CART'S OWN CHROME (R25 — the 10/10 audit, performance F19). The shell read the cart to know whether to mount
+// Checkout and which drink was open — so every drink tapped into the cart drew the whole shell again: the title bar, the
+// nav, the notifications, the sheets' providers and, through their values, the console beneath. Only these two sheets
+// and the cart's own screens hear the cart now; the shell reads what never changes with it (useAppStable).
+function CartChrome() {
   const pathname = usePathname();
-  const bodyRef = useRef<HTMLElement>(null);
-  const appOnly = useSyncExternalStore(noSubscribe, noBrowser, onServer);
   const { closeDrink, cartCount, coOpen, closeCheckout, openId, toast } = useApp();
   // Latched during render (React's "adjust state when an input changes"), not in an effect: once
   // wanted it stays mounted, and an effect would paint one frame without it after the first add.
   const [checkoutWanted, setCheckoutWanted] = useState(false);
   if (!checkoutWanted && (cartCount > 0 || coOpen)) setCheckoutWanted(true);
+  // Close any open drink sheet on navigation (the prototype's go()).
+  useEffect(() => { closeDrink(); }, [pathname, closeDrink]);
+  return (
+    <>
+      <Fence name="drink" again={openId} fallback={() => <NotOpened open={openId != null} close={closeDrink} what="That drink" toast={toast} />}><DrinkSheet /></Fence>
+      {checkoutWanted && <Fence name="checkout" again={coOpen} fallback={() => <NotOpened open={coOpen} close={closeCheckout} what="Checkout" toast={toast} />}><Checkout /></Fence>}
+    </>
+  );
+}
+
+export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const bodyRef = useRef<HTMLElement>(null);
+  const appOnly = useSyncExternalStore(noSubscribe, noBrowser, onServer);
+  const { toast } = useAppStable();
 
   // A new screen opens at its top — unless the move was a tab bar tap or a step back through history,
   // which come back to where that screen was left (lib/appScroll, EACH TAB KEEPS ITS PLACE). The key is
@@ -137,8 +154,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (!body) return;
     return restorePlace(body, placeFor(pathname));
   }, [pathname]);
-  // Close any open drink sheet on navigation (the prototype's go()).
-  useEffect(() => { closeDrink(); }, [pathname, closeDrink]);
 
   // The menus' sheets, asked for by an event (lib/helpSheets); the first ask loads them.
   const [asked, setAsked] = useState<Asked | null>(null);
@@ -254,8 +269,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </main>
         {/* ONE PIECE FAILS ALONE (R11, components/Fence): each piece of chrome steps aside on a crash, is reported, and is
             tried again on the next screen; one a person asked for says it didn't open, and the next ask tries again. */}
-        <Fence name="drink" again={openId} fallback={() => <NotOpened open={openId != null} close={closeDrink} what="That drink" toast={toast} />}><DrinkSheet /></Fence>
-        {checkoutWanted && <Fence name="checkout" again={coOpen} fallback={() => <NotOpened open={coOpen} close={closeCheckout} what="Checkout" toast={toast} />}><Checkout /></Fence>}
+        <CartChrome />
         {/* The app's one pair of live regions (R12, F12): what is said without moving focus — toasts, a drink added, a
             step that replaced the last. Always on the page, empty until something is said. */}
         <Fence name="announcer"><Announcer /></Fence>

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useLatest } from "@/lib/useLatest";
 
 // BREADCRUMBS — orientation for deep crew views (e.g. Prep › Atlanta BeltLine). A deep view
@@ -15,7 +15,10 @@ export function CrumbProvider({ children }: { children: React.ReactNode }) {
   const [crumbs, setCrumbs] = useState<Crumb[]>([]);
   const push = useCallback((c: Crumb) => setCrumbs((cur) => [...cur.filter((x) => x.id !== c.id), c]), []);
   const remove = useCallback((id: string) => setCrumbs((cur) => cur.filter((x) => x.id !== id)), []);
-  return <Ctx.Provider value={{ crumbs, push, remove }}>{children}</Ctx.Provider>;
+  // One value per change (R25 — the 10/10 audit, performance F19): a new object each render re-drew every reader of this
+  // context whenever the shell drew again — the whole console among them.
+  const value = useMemo(() => ({ crumbs, push, remove }), [crumbs, push, remove]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 // Register a crumb while this component is mounted. Pass label=null to show none. `go` steps back to

@@ -238,6 +238,7 @@ import { STATUS_WORD } from "@/lib/orderStatus";
 import { scrollMotion } from "@/lib/motion";
 import { rovingKeys, rovingTab } from "@/components/roving";
 import { eventTotals, type EventTotals } from "@/lib/eventTotals";
+import Said from "@/components/Said";
 
 // The sections' names have one home now (lib/routeTitles): this heading, the guide, and the title bar's
 // title and its ‹ read the same words (2026-10-08, the navigation round).
@@ -873,8 +874,8 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
   return (
     <div className="cmt">
       {cmtFailed && (
-        <p className="load-failed" role="status">
-          Couldn&apos;t load the notes — this is not &ldquo;no notes&rdquo;.{" "}
+        <p className="load-failed">
+          <Said as="span" assertive>Couldn&apos;t load the notes — this is not &ldquo;no notes&rdquo;.</Said>{" "}
           <button type="button" className="btn-ter" onClick={() => load()}>Try again</button>
         </p>
       )}
@@ -906,10 +907,10 @@ function CommentThread({ subject, notifyIds, label, meId, meName }: {
         </div>
       )}
       {(reachIds.length > 0 || reach.unresolved.length > 0) && (
-        <p className="od-note" role="status" style={{ marginTop: 4 }}>
+        <Said as="p" className="od-note" style={{ marginTop: 4 }}>
           {reachIds.length > 0 && <>Notifies {reachIds.map((id) => firstOf(id)).join(", ")}. </>}
           {reach.unresolved.length > 0 && <>{reach.unresolved.join(", ")} {reach.unresolved.length === 1 ? "reaches" : "reach"} nobody — pick from the list after typing @.</>}
-        </p>
+        </Said>
       )}
     </div>
   );
@@ -1175,8 +1176,8 @@ function MyDay({ userId, canGoLive, canBrew }: { userId: string | null; canGoLiv
       <Column>
       <DayHeadline canGoLive={canGoLive} />
       {rhythmState.status === "error" && (
-        <p className="load-failed" role="status">
-          Couldn&apos;t read today&apos;s stops, drops and brews — this is not &ldquo;nothing on&rdquo;.{" "}
+        <p className="load-failed">
+          <Said as="span" assertive>Couldn&apos;t read today&apos;s stops, drops and brews — this is not &ldquo;nothing on&rdquo;.</Said>{" "}
           <button type="button" className="btn-ter" onClick={() => rhythmState.reload()}>Try again</button>
         </p>
       )}
@@ -1201,8 +1202,8 @@ function MyDay({ userId, canGoLive, canBrew }: { userId: string | null; canGoLiv
           but a manager the bell itself never loaded, so the card was papering over that. The bell
           loads for everyone now. What stays is the one thing the bell cannot say: that it failed. */}
       {flagsErr && flags.length === 0 && (
-        <p className="load-failed" role="status">
-          Couldn&apos;t check your flags &amp; pings — this is not &ldquo;nothing for you&rdquo;.{" "}
+        <p className="load-failed">
+          <Said as="span" assertive>Couldn&apos;t check your flags &amp; pings — this is not &ldquo;nothing for you&rdquo;.</Said>{" "}
           <button type="button" className="btn-ter" onClick={() => reloadFlags()}>Try again</button>
         </p>
       )}
@@ -1529,8 +1530,8 @@ function InspectionPrep() {
           <button type="button" className="btn-pri btn-sm shrink-0" onClick={run} disabled={busy || !state.trim()}>{busy ? "Researching…" : <><Icon name="sparkles" /> Research</>}</button>
         </div>
         {wait && (
-          <div className="insp-wait" role="status" aria-live="polite">
-            <span className="insp-wait-dot" /><span>{wait}</span><span className="insp-wait-sub">this can take a minute or two — you can keep working</span>
+          <div className="insp-wait">
+            <span className="insp-wait-dot" /><Said as="span" className="contents"><span>{wait}</span><span className="insp-wait-sub">this can take a minute or two — you can keep working</span></Said>
           </div>
         )}
         {res && (
@@ -2333,8 +2334,8 @@ function PrepDetail({ target, onBack }: { target: { kind: "event" | "stop"; id: 
       )}
 
       {onHandFailed && (
-        <div className="onhand carryin" role="status">
-          <div className="onhand-h"><Icon name="package" /> On hand now <span>couldn&apos;t load carried-in stock — this is not &ldquo;nothing on hand&rdquo;</span></div>
+        <div className="onhand carryin">
+          <div className="onhand-h"><Icon name="package" /> On hand now <Said as="span" assertive>couldn&apos;t load carried-in stock — this is not &ldquo;nothing on hand&rdquo;</Said></div>
           <button type="button" className="btn ghost sm" onClick={() => loadOnHand()}>Try again</button>
         </div>
       )}
@@ -4091,7 +4092,7 @@ function EventHUD() {
         <div className="adm-hud-hero"><b>{took ? moneyRound(took.cents) : "—"}</b><span>in sales</span></div>
         {took
           ? <p className="adm-hud-line">{took.orders} order{took.orders === 1 ? "" : "s"} · {moneyRound(perHr)}/hr{hasPlan && <> · {pctOfPlan}% of plan · est. net <b className={netUp ? "ok" : "red"}>{moneyRound(recon.actualNetCents)}</b></>}</p>
-          : <p className="adm-hud-line" role="status">Couldn&apos;t read the sales yet — trying again.</p>}
+          : <Said as="p" className="adm-hud-line" assertive>Couldn&apos;t read the sales yet — trying again.</Said>}
         {hasPlan && !econ && <p className="cp-line dim">Estimated on the default plan: {planWords()}. Save this event&apos;s economics to use its own.</p>}
       </div>
     </FoldCard>

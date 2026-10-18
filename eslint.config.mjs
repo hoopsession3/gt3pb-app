@@ -35,6 +35,14 @@ const eslintConfig = defineConfig([
   // the correct act of writing another test, and a number that goes up when you do the right thing
   // is a number people stop reading. Scoped OFF here, and only here — .ts/.tsx still error on
   // require(), which is where the rule means something.
+  // ONE CONTEXT VALUE PER CHANGE (R25 — the 10/10 audit, performance F19). A provider handed a new object each render
+  // draws every reader of it again whenever it draws — four of the shell's did, and through them the whole console
+  // beneath, at every drink added to the cart. Held at zero (scripts/lint.ratchet.mjs ZERO).
+  {
+    files: ["**/*.tsx"],
+    rules: { "react/jsx-no-constructed-context-values": "error" },
+  },
+
   {
     files: ["**/*.cjs", "scripts/**/*.js"],
     languageOptions: { sourceType: "commonjs" },

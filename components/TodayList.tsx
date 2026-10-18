@@ -23,6 +23,7 @@ import { useAppStable } from "./AppProvider";
 import { useOperatorSection, sectionsForRole } from "./OperatorNav";
 import { useTaskSheet } from "./TaskSheet";
 import { loadOwed, useObligationGo, type OwedData, type OwedRow } from "./Owed";
+import Said from "./Said";
 
 // TODAY, ON THE HOME (2026-10-09, One home — round 2 of the UX plan, approved). My Day opened on two
 // panels and thirty-one rows: My tasks, all of them, and Needs you, with "18 late · 6 due soon" and
@@ -275,7 +276,7 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
                 <button type="button" className="k-chip sm" onClick={() => setSheet("all")} aria-label={`All tasks, ${s.total}`}>All tasks · {s.total} ›</button>
               </div>
               {owed.extrasFailed && (
-                <p className="pnl-note" role="status">Restock and booking replies couldn&rsquo;t be read just now — the rest is current.</p>
+                <Said as="p" className="pnl-note" assertive>Restock and booking replies couldn&rsquo;t be read just now — the rest is current.</Said>
               )}
 
               {sheet === "all" && (

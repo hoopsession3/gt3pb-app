@@ -21,6 +21,7 @@ import { useTaskSheet } from "./TaskSheet";
 import AsyncSection from "./AsyncSection";
 import { dayKey, localToday } from "@/lib/dates";
 import { dueWord } from "@/lib/dayWords";
+import Said from "./Said";
 
 // WHAT NEEDS YOU — one panel, because My Day was carrying two.
 //
@@ -350,10 +351,10 @@ export default function Owed({ compact = false }: { compact?: boolean }) {
                 swallowed it, and seven past-due tasks rendered as silence. Never again silently —
                 the overdue list above still stands on its own, and this says what is missing. */}
             {extrasFailed && (
-              <p className="pnl-note" role="status">
+              <Said as="p" className="pnl-note" assertive>
                 Restock and booking replies couldn&rsquo;t be read just now — the overdue list above is
                 still current.
-              </p>
+              </Said>
             )}
 
             {low.length > 0 && (

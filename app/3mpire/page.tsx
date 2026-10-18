@@ -27,6 +27,7 @@ import { publicOrigin } from "@/lib/native";
 import { shareLink } from "@/lib/deviceActions";
 import { cardOf, freeWords, STAMP_GOAL } from "@/lib/loyalty";
 import { scrollMotion } from "@/lib/motion";
+import Said from "@/components/Said";
 
 const RING = 232; // 2πr for r=37, matches prototype stroke-dasharray
 
@@ -192,8 +193,8 @@ function MpireReal() {
           {creditCents > 0 && <><span className="memline-dot">·</span><span><b>${credit}</b> credit · use it at the window</span></>}
         </div>
       ) : profileStatus === "error" ? (
-        <div id="rewards" className="memline acs-anchor" role="status">
-          <span>We couldn&apos;t load your card just now.</span>
+        <div id="rewards" className="memline acs-anchor">
+          <Said as="span" assertive>We couldn&apos;t load your card just now.</Said>
           <button type="button" className="btn-ter" onClick={() => { void refreshProfile(); }}>Try again</button>
         </div>
       ) : profileStatus === "loading" ? (

@@ -12,6 +12,7 @@ import { SectionHeader } from "./kit";
 import { useAuth } from "./AuthProvider";
 import { useRecord } from "./RecordSheet";
 import { useTaskSheet } from "./TaskSheet";
+import Said from "./Said";
 
 // COMING UP (2026-10-12, the My Day audit, approved). My Day is three questions — what needs me, what
 // should I do next, what's coming — and it answered the third nowhere: a task due in two days was out of
@@ -88,7 +89,7 @@ export default function ComingUp() {
         errorSub="This is not the same as nothing coming up — we could not read it just now."
       >
         {({ lines, today }) => lines.length === 0 ? (
-          <p className="pnl-note" role="status">Nothing of yours in the next {COMING_DAYS} days — no event or stop you&rsquo;re on, and no task of yours dated in them.</p>
+          <Said as="p" className="pnl-note">Nothing of yours in the next {COMING_DAYS} days — no event or stop you&rsquo;re on, and no task of yours dated in them.</Said>
         ) : (
           <div className="owed">
             {lines.map((l) => {

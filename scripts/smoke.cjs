@@ -12135,7 +12135,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const now = useMinute\(\);/.test(list) && /useSyncExternalStore\(subscribe, read, read\)/.test(minute) && !/useEffect|useState/.test(minute)
       && /const now = useMinute\(\);/.test(del) && /const now = useMinute\(\);/.test(off));
   ok("dispatch: a read that failed is said, never 'nothing due'; nothing due is said only when every read worked",
-    /\{list\.failed\.length > 0 && \(\s*<p className="load-failed" role="status">/.test(list) && /this is not &ldquo;nothing due&rdquo;/.test(list)
+    /\{list\.failed\.length > 0 && \(\s*<p className="load-failed">\s*<Said as="span" assertive>Couldn&rsquo;t load \{feedsWord\(list\.failed\)\}/.test(list) && /this is not &ldquo;nothing due&rdquo;\.<\/Said>/.test(list)
       && /list\.failed\.length === 0 && <p className="load-failed">Nothing due next\.<\/p>/.test(list) && /const cupFailed = cups\.error !== null;/.test(list));
 
   // A row opens its card, at the row.

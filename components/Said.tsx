@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ElementType, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ElementType, type ReactNode } from "react";
 import { announce } from "./Announcer";
 
 // A LINE THAT IS SAID WHEN IT APPEARS OR CHANGES (R12 — the 10/10 audit's accessibility pass, F12). Twenty-one status
@@ -11,8 +11,10 @@ import { announce } from "./Announcer";
 // This draws its words where they belong, as plain text, and hands them to the app's live region (components/Announcer)
 // whenever they appear or change: a failure assertively, anything else politely. `quietFirst` holds the first reading —
 // for a line on a card that was already on the screen when the page came, which the page's own reading covers.
+// R25 (the 10/10 audit, A11Y F12 again): `style` passes through, for the few lines drawn with one, and scripts/spoken.audit.mjs
+// holds the count of status lines put on the page already holding their words at zero.
 export default function Said({
-  children, as = "div", className, assertive = false, quietFirst = false, id,
+  children, as = "div", className, assertive = false, quietFirst = false, id, style,
 }: {
   children: ReactNode;
   as?: ElementType;
@@ -20,6 +22,7 @@ export default function Said({
   assertive?: boolean;
   quietFirst?: boolean;
   id?: string;
+  style?: CSSProperties;
 }) {
   const As = as;
   const ref = useRef<HTMLElement>(null);
@@ -31,5 +34,5 @@ export default function Said({
     last.current = words;
     announce(words, assertive ? "assertive" : "polite");
   });
-  return <As ref={ref} className={className} id={id}>{children}</As>;
+  return <As ref={ref} className={className} id={id} style={style}>{children}</As>;
 }

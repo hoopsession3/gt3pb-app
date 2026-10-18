@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useHydrated } from "@/lib/clientState";
 
 // THE OPERATOR SECTION — which console section is open, shared by the nav (rendered in the shell)
@@ -122,6 +122,10 @@ export function OperatorSectionProvider({ children }: { children: React.ReactNod
     if (depthRef.current > 0) { try { window.history.back(); } catch { /* ignore */ } return true; }
     return false;
   }, []);
-  return <Ctx.Provider value={{ section, setSection, back, canGoBack: depth > 0, groupId, setGroupId: setGroup }}>{children}</Ctx.Provider>;
+  // One value per change (R25 — the 10/10 audit, performance F19): a new object each render re-drew every reader of this
+  // context whenever the shell drew again — the whole console among them.
+  const canGoBack = depth > 0;
+  const value = useMemo(() => ({ section, setSection, back, canGoBack, groupId, setGroupId: setGroup }), [section, setSection, back, canGoBack, groupId, setGroup]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

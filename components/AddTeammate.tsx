@@ -13,6 +13,7 @@ import Icon from "@/components/Icon";
 import Button from "./Button";
 import { useLatestRead } from "@/lib/useLatestRead";
 import { useChanged } from "@/lib/useChanged";
+import Said from "./Said";
 
 // ADD A TEAMMATE — ONE DOOR (2026-10-07, Ryan: "Invite and bring team member on seems redundant").
 //
@@ -221,9 +222,9 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
       {open && (
         <div className="tm-hire-body">
           {done?.kind === "bring_on" && (
-            <div className="tm-hired" role="status">
-              <b>{done.name} is on the crew.</b> {done.role}{done.city ? ` · ${done.city}` : ""}{done.lead ? " · leads the city" : ""}. {letterLine(done.letter, "Welcome letter")}
-              {done.passwordTaken && <> Their old password stops working with the new role — they sign in with the code we email them, then choose a new one.</>}
+            <div className="tm-hired">
+              <Said as="span"><b>{done.name} is on the crew.</b> {done.role}{done.city ? ` · ${done.city}` : ""}{done.lead ? " · leads the city" : ""}. {letterLine(done.letter, "Welcome letter")}
+              {done.passwordTaken && <> Their old password stops working with the new role — they sign in with the code we email them, then choose a new one.</>}</Said>
               <div className="tm-hired-next">
                 <a className="tm-hire-open" href={`/crew?s=team&a=offers&offer_for=${done.id}`}>
                   Draft their offer letter <span className="ev-chev" aria-hidden="true">›</span>
@@ -236,14 +237,14 @@ export default function AddTeammate({ promoteFor, onDone }: { promoteFor: string
             </div>
           )}
           {done?.kind === "invite" && (
-            <div className="tm-hired" role="status">
-              <b>{done.email} is invited as {done.role}.</b> {letterLine(done.letter, "Invite letter")}{" "}
-              {!done.letter.sent && <>Tell them to sign up at app.gt3pb.com with that email — they land in the role.</>}
+            <div className="tm-hired">
+              <Said as="span"><b>{done.email} is invited as {done.role}.</b> {letterLine(done.letter, "Invite letter")}{" "}
+              {!done.letter.sent && <>Tell them to sign up at app.gt3pb.com with that email — they land in the role.</>}</Said>
               <button type="button" className="note-arch tm-again" onClick={() => setDone(null)}>Add someone else</button>
             </div>
           )}
           {loadErr && (
-            <p className="load-failed" role="status">Couldn&apos;t load who can be added — this is not &ldquo;nobody&rdquo;. <button type="button" className="btn-ter" onClick={retry}>Try again</button></p>
+            <p className="load-failed"><Said as="span" assertive>Couldn&apos;t load who can be added — this is not &ldquo;nobody&rdquo;.</Said> <button type="button" className="btn-ter" onClick={retry}>Try again</button></p>
           )}
           {!done && (picked || inviting ? (
             <>

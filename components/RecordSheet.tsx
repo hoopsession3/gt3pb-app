@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { parseRecordParam, recordParam, type RecordKind, type RecordRef } from "@/lib/records";
 
@@ -70,8 +70,11 @@ export function RecordProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // One value per change (R25 — the 10/10 audit, performance F19): a new object each render re-drew every reader of this
+  // context whenever the shell drew again — the whole console among them.
+  const value = useMemo(() => ({ openRecord, closeRecord }), [openRecord, closeRecord]);
   return (
-    <RecordCtx.Provider value={{ openRecord, closeRecord }}>
+    <RecordCtx.Provider value={value}>
       {children}
       {ref?.kind === "person"     && <CrewPerson      userId={ref.id}     onClose={closeRecord} />}
       {ref?.kind === "customer"   && <CustomerRecord  customerId={ref.id} onClose={closeRecord} />}

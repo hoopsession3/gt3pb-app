@@ -339,11 +339,11 @@ function PassBoard() {
 
       {/* A read that failed says so in words, and how old the board under it is — never a raw "Backend error". */}
       {down && (
-        <div className="adm-attn" role="status">
+        <Said as="div" className="adm-attn" assertive>
           <b>{down === "auth" ? "Signed out" : "Can't reach the pass"}</b>
           {boardAt > 0 ? ` — showing the board from ${clockTime(new Date(boardAt).toISOString())}.` : "."}{" "}
           {down === "auth" ? "Sign in again to see new orders." : down === "net" && boardAt > 0 ? "Taps still work and will sync when the signal returns." : "Reconnecting…"}
-        </div>
+        </Said>
       )}
       {late.length > 0 && (
         <div className="adm-attn" role="alert">
@@ -353,13 +353,13 @@ function PassBoard() {
       {/* NEVER AN OPEN ORDER HIDDEN IN SILENCE (2026-10-11): the read stops at OPEN_CAP open tickets, and "Here" leaves out
           what was sold elsewhere — each says how many, one tap from the rest. */}
       {more > 0 && (
-        <div className="adm-attn" role="status">
-          <b>{moreLine(more)}</b> not on the board yet. <button type="button" className="btn-ter" onClick={showMore}>Show them</button>
+        <div className="adm-attn">
+          <Said as="span"><b>{moreLine(more)}</b> not on the board yet.</Said> <button type="button" className="btn-ter" onClick={showMore}>Show them</button>
         </div>
       )}
       {elsewhere > 0 && (
-        <div className="adm-attn" role="status">
-          <b>{elsewhereLine(elsewhere)}</b> not shown. <button type="button" className="btn-ter" onClick={() => setPassScope("all")}>Show all</button>
+        <div className="adm-attn">
+          <Said as="span"><b>{elsewhereLine(elsewhere)}</b> not shown.</Said> <button type="button" className="btn-ter" onClick={() => setPassScope("all")}>Show all</button>
         </div>
       )}
 

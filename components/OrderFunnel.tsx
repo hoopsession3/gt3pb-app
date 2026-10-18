@@ -684,9 +684,9 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
       {!codeOpen && codeState !== "ok" ? (
         <button type="button" className="oa-code-toggle hit-44 disabled:opacity-40" onClick={() => setCodeOpen(true)} disabled={payFrozen}>{t("funnel.have_code")}</button>
       ) : codeState === "ok" && codeBenefit ? (
-        <div className="oa-code-ok" role="status">
-          <span className="oa-code-tag">{codeClean}</span>
-          <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${money(codeDiscountCents)} off applied` : codeBenefit.label}</span>
+        <div className="oa-code-ok">
+          <Said as="span" className="contents"><span className="oa-code-tag">{codeClean}</span>
+          <span className="oa-code-lbl">{codeDiscountCents > 0 ? `${money(codeDiscountCents)} off applied` : codeBenefit.label}</span></Said>
           <button type="button" className="oa-code-x hit-44 disabled:opacity-40" onClick={clearCode} disabled={payFrozen} aria-label="Remove code"><Icon name="close" /></button>
         </div>
       ) : (
@@ -843,10 +843,10 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
               <EditableCopy k="funnel.pickup_one_label" value={t("funnel.pickup_one_label")} as="div" className="oa-slabel" />
               <div className="dl-days">
                 {packsPaused ? (
-                  <div className="oa-day cursor-default active:transform-none" role="status">
+                  <Said as="div" className="oa-day cursor-default active:transform-none">
                     <b>Packs are paused</b>
                     <span>We&apos;re not taking pack orders right now — check back soon.</span>
-                  </div>
+                  </Said>
                 ) : (
                   <div className="oa-day sel cursor-default active:transform-none">
                     <b>{dayName(drop.sat)}</b>
@@ -1029,7 +1029,7 @@ export default function OrderFunnel({ initialMode, syncUrl = true, initialAudien
               <AddressField id="pk-street" autoComplete="shipping address-line1" className="auth-input" label={t("funnel.f_street")} value={street} onChange={setStreet} near={zip}
                 onPick={(a) => { setStreet(a.street); if (a.city) setCity(a.city); setPickedZip(a.zip); }} />
               {pickedZip && zip && pickedZip !== zip && (
-                <p className="dl-sub" role="status">That address is in {pickedZip}. Delivery was checked for {zip}: pick an address in {zip}, or go back and check {pickedZip}.</p>
+                <Said as="p" className="dl-sub">That address is in {pickedZip}. Delivery was checked for {zip}: pick an address in {zip}, or go back and check {pickedZip}.</Said>
               )}
               <div className="dl-ziprow">
                 <div className="min-w-0 flex-1">

@@ -239,7 +239,8 @@ const load = routeLoader({ react: React, "@/lib/failureReport": { reportFailure:
 {
   const { countFrom, verdict, CEILING, ZERO } = await import("./lint.ratchet.mjs");
   const file = (rules) => ({ filePath: "x.tsx", errorCount: rules.length, warningCount: 0, messages: rules.map((ruleId) => ({ ruleId, severity: 2 })) });
-  ok("lint: set-state-in-effect joins the seven held at zero", ZERO.includes("react-hooks/set-state-in-effect") && ZERO.length === 8, ZERO);
+  // R25 put a ninth beside them (react/jsx-no-constructed-context-values): the list grows; set-state-in-effect stays on it.
+  ok("lint: set-state-in-effect joins the seven held at zero (and stays held as others join)", ZERO.includes("react-hooks/set-state-in-effect") && ZERO.length >= 8, ZERO);
   ok("lint: one set-state-in-effect fails the gate under any ceiling", !verdict(countFrom(JSON.stringify([file(["react-hooks/set-state-in-effect"])])), { errors: 100, warnings: 100 }, ZERO).ok);
   // R18 took the warnings down to 46 (the pack change's failed step, said in the log); what R17 set still stands as a floor.
   ok("lint: the ceilings are no higher than R17 left them — 0 errors, 47 warnings", CEILING.errors === 0 && CEILING.warnings <= 47, CEILING);
