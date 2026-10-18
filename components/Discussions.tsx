@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -84,11 +85,13 @@ export default function Discussions({ onOpenNotes }: { onOpenNotes: () => void }
   const state = useAsyncData(loader, []);
   useRealtimeTable(["comments"], state.reload);
 
+  // The playbook is a page of its own: the router opens it (R30) — a page load was only slower.
+  const router = useRouter();
   const go = (r: Row) => {
     if (r.kind === "task") openTask(r.id, "event");
     else if (r.kind === "note") onOpenNotes();
     else if (r.kind === "alert") window.dispatchEvent(new Event("gt3-open-inbox"));
-    else window.location.assign("/playbook");
+    else router.push("/playbook");
   };
 
   return (

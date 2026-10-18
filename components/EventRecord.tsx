@@ -97,6 +97,7 @@ export default function EventRecord({ eventId, onClose }: { eventId: string; onC
   // five drifted apart. A full navigation (not setSection) so the section param lands in the URL.
   const openPrep = () => {
     try { localStorage.setItem(prepHandoffKey, prepHandoffValue("event", eventId)); } catch { /* ignore */ }
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the console reads ?s= and the handoff once, at load
     window.location.assign("/crew?s=prep");
   };
 

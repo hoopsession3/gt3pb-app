@@ -98,10 +98,11 @@ jobs:
     outputs:
       runner: ${{ steps.launch.outputs.runner }}
     steps:
-      - uses: actions/checkout@v4
+      # Every action by the commit it is, not by a tag that can be moved (R30 — operations F21; see ci.yml).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       # The Node production runs (R14 — the 10/10 audit, F24): .nvmrc, the same major as package.json's engines, which
       # Vercel builds and serves with. This said 22 while production ran 24 — the gate checked a different runtime.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -325,7 +326,7 @@ jobs:
 
       - name: Keep the first screens and the logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: iphone-simulator
           path: |
@@ -384,10 +385,10 @@ jobs:
             echo "::error::Not set on the repository yet:$missing — the top of .github/workflows/ios.yml says where each comes from."
             exit 1
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       # The Node production runs (R14 — the 10/10 audit, F24): .nvmrc, the same major as package.json's engines, which
       # Vercel builds and serves with. This said 22 while production ran 24 — the gate checked a different runtime.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -525,7 +526,7 @@ jobs:
 
       - name: Keep the logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: testflight-logs
           path: |

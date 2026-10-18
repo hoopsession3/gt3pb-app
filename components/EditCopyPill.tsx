@@ -22,6 +22,8 @@ export default function EditCopyPill({ group, label }: { group: string; label?: 
   // writing the row's remembered state before leaving — and since the settings round (2026-10-06)
   // Settings' rows remember nothing, so the jump landed on a closed list and found no group. The
   // jump opens the row itself now: lib/anchors asks lib/settingsLayout which row holds a copy group.
+  // A page load on purpose: the console takes ?s= and ?a= from its address once, as it loads.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the console reads its address once, at load
   const go = () => { window.location.href = `/crew?s=settings&a=${copyGroupAnchor(group)}`; };
 
   return (

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/authedFetch";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -311,6 +312,10 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
   // Business-rhythm rollups deep-link to the lane page that owns them.
   const openBrew = () => setSection("brew");
   const openNow = () => setSection("now");
+  // Today's delivery run opens the driver's own page through the router (R30): a route of its own, which reads nothing
+  // from its address once as it loads, so a page load there was only slower.
+  const router = useRouter();
+  const openDriver = () => router.push("/driver");
 
   const streams = useWorkStreams();
   const laneFilter = filter.startsWith("lane:") ? streams.find((s) => s.key === filter.slice(5)) : null;
@@ -378,7 +383,7 @@ export default function CompanyCalendar({ readOnly = false }: { readOnly?: boole
     if (pass("delivery")) {
       const agg: Record<string, number> = {};
       for (const d of dels) agg[d.delivery_date] = (agg[d.delivery_date] || 0) + 1;
-      for (const [dk, n] of Object.entries(agg)) push(dk, { id: `del-${dk}`, title: `Delivery run · ${n} porch${n === 1 ? "" : "es"}`, cat: "delivery", kind: "delivery", go: dk === etToday() ? () => { window.location.href = "/driver"; } : openNow });
+      for (const [dk, n] of Object.entries(agg)) push(dk, { id: `del-${dk}`, title: `Delivery run · ${n} porch${n === 1 ? "" : "es"}`, cat: "delivery", kind: "delivery", go: dk === etToday() ? openDriver : openNow });
     }
     if (pass("delivery")) {
       const agg: Record<string, number> = {};

@@ -254,6 +254,8 @@ export function CrmDetail({ c }: { c: Customer }) {
                   v_promotable applies. */}
               {board.data?.loyalty?.role === "member" && c.user_id && (
                 <button type="button" className="tm-hire-open" style={{ marginTop: 10 }}
+                        // A page load on purpose: the console reads ?promote= once, as it loads (useState(readParam)).
+                        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the console reads its address once, at load
                         onClick={() => { window.location.href = `/crew?s=team&promote=${c.user_id}`; }}>
                   Bring {c.name || "them"} onto the crew
                   <span className="ev-chev" aria-hidden="true">›</span>

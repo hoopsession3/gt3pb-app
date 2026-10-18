@@ -1126,6 +1126,8 @@ function MyDay({ userId, canGoLive, canBrew }: { userId: string | null; canGoLiv
   const { openRecord } = useRecord();
   const streams = useWorkStreams();
   const laneColor = (cat: string) => streamOfCategory(cat, streams)?.color;
+  // The driver's page is a route of its own: the router opens it (R30) — a page load was only slower.
+  const router = useRouter();
   // The day's rhythm — the same anchors the company calendar carries.
   // A FAILED READ IS NOT A QUIET DAY (2026-10-04): these four read .data straight through PostgREST
   // error objects, so a failure drew no stop, no drop, no brew — exactly what an empty day draws.
@@ -1192,7 +1194,7 @@ function MyDay({ userId, canGoLive, canBrew }: { userId: string | null; canGoLiv
             </button>
           ))}
           {rhythm.dropPacks > 0 && <button type="button" className="k-chip sm" onClick={() => setSection("now")}><Icon name="package" style={{ color: laneColor("drop") }} /> Drop today · {rhythm.dropPacks} pack{rhythm.dropPacks === 1 ? "" : "s"} ›</button>}
-          {rhythm.porches > 0 && <button type="button" className="k-chip sm" onClick={() => { window.location.href = "/driver"; }}><Icon name="compass" style={{ color: laneColor("delivery") }} /> Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
+          {rhythm.porches > 0 && <button type="button" className="k-chip sm" onClick={() => router.push("/driver")}><Icon name="compass" style={{ color: laneColor("delivery") }} /> Delivery run · {rhythm.porches} porch{rhythm.porches === 1 ? "" : "es"} ›</button>}
           {canBrew && rhythm.brews.map((b) => (
             <button key={b.id} type="button" className={`k-chip sm${b.warn ? " warn" : ""}`} onClick={() => setSection("brew")}>
               <Icon name="coffee" style={b.warn ? undefined : { color: laneColor("brew") }} /> Brew · {b.recipe_name} {b.batch_gal} gal{b.warn ? " — start now" : ""} ›

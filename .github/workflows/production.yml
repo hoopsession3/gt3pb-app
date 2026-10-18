@@ -62,10 +62,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      # Every action by the commit it is, not by a tag that can be moved (R30 — operations F21; see ci.yml).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       # The Node production runs (R14 — the 10/10 audit, F24): .nvmrc, the same major as package.json's engines, which
       # Vercel builds and serves with. This said 22 while production ran 24 — the gate checked a different runtime.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -121,3 +122,19 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: npm run smoke:authed
+
+  # WHAT SHIPS, ASKED EVERY MORNING (R30 — the 10/10 audit, operations F24). ci.yml asks npm's advisory database on every
+  # push; an advisory published in a quiet week would wait for the next push to be heard. The daily full run asks again,
+  # as a job of its own, so its red says "an advisory", not "the site". It reads the lockfile only — nothing installed,
+  # no secret on it.
+  advisories:
+    if: (github.event_name == 'schedule' && github.event.schedule == '10 6 * * *') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: npm audit (what ships)
+        run: npm audit --omit=dev --audit-level=high

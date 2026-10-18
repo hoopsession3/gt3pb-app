@@ -36,6 +36,8 @@ export default function GlobalError({ error, unstable_retry }: { error: Error & 
   const reload = () => window.location.reload();
   // A way off a screen that crashes every time it is drawn: in the iPhone app there is no browser around the page to go
   // back with. Where this screen was reached from, or the front door when it was the first.
+  // A page load on purpose: the whole tree threw, and the router is part of what threw.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the app crashed; only a fresh load is sure to draw
   const back = () => { if (window.history.length > 1) window.history.back(); else window.location.assign("/"); };
   return (
     <html lang="en">

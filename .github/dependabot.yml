@@ -1,0 +1,40 @@
+# KEEPING WHAT RUNS CURRENT (R30 — the 10/10 audit, operations F24 and F21).
+#
+# Once a month, at most one pull request for each kind, grouped — never a stream of them:
+#   · github-actions — the commits .github/workflows pins. Every `uses:` names a commit, with the release it is in a
+#     comment beside it; this moves both together.
+#   · npm — the app's dependencies, their minor and patch releases in one pull request.
+# A major version of either is a decision, not an update, so it is left out here and made on purpose: Next.js's own
+# `next upgrade` path, the weight ceilings measured again, before-and-after screens on both iPhones.
+#
+# A published advisory doesn't wait for the month: ci.yml fails a push and the Production workflow's morning run fails on
+# a high or critical advisory in what ships (`npm audit --omit=dev --audit-level=high`). GitHub's own security pull
+# requests come apart from this file, once "Dependabot security updates" is on in the repository's settings
+# (Settings → Code security).
+#
+# Every pull request this opens is run through ci.yml's whole gate before anyone reads it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

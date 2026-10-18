@@ -726,31 +726,38 @@ export const PROD_ROUTE = {
 // stacks and their stand-ins (app/globals.css --sans and friends, +4.6 KB before gzip), which crossed the rounding line up
 // on /truck, /events and /driver (89 → 90) and on /order (88 → 90). Measured by scripts/smoke.ui.mjs on this commit's
 // build, route by route.
+// 2026-10-18 (R30 of the 10/10 audit — Next.js 16.2.12 → 16.4.2, past every advisory npm's database held against 16.2;
+// operations F24): every route's script −10 to −11 KB (gzip), in one or two requests more — the framework's own runtime is
+// cut into more, smaller files by 16.4's bundler (/privacy 276 261 → 265 775 bytes, 14 → 15 files; / 286 520 → 275 814,
+// 15 → 17; /menu 281 018 → 270 438, 15 → 16; /shop 311 594 → 300 613, 17 → 19). Of the app's own, only three page loads
+// moved to the router (the driver's page from My Day and the calendar, the playbook from Discussions); the stylesheet is
+// the same (+1 byte). Lowered to what they weigh and the files raised to what they are, route by route, from this tree's
+// build; /offer is 274.42 KB, near a rounding line — its ceiling is the line above, 275.
 export const WEIGHT = {
-  "/truck":                    { js: 287, css: 90, chunks: 16 },
-  "/events":                   { js: 287, css: 90, chunks: 16 },
-  "/menu":                     { js: 274, css: 90, chunks: 15 },
-  "/reserve":                  { js: 298, css: 90, chunks: 17 },
-  "/delivery":                 { js: 296, css: 90, chunks: 17 },
-  "/3mpire":                   { js: 288, css: 90, chunks: 15 },
-  "/craft":                    { js: 273, css: 90, chunks: 15 },
-  "/book":                     { js: 274, css: 90, chunks: 15 },
-  "/academy":                  { js: 327, css: 90, chunks: 16 },
-  "/office":                   { js: 283, css: 90, chunks: 15 },
-  "/scan":                     { js: 274, css: 90, chunks: 15 },
-  "/architecture":             { js: 283, css: 90, chunks: 15 },
-  "/playbook":                 { js: 281, css: 90, chunks: 15 },
-  "/driver":                   { js: 280, css: 90, chunks: 15 },
-  "/agreement":                { js: 275, css: 90, chunks: 15 },
-  "/offer":                    { js: 285, css: 90, chunks: 15 },
-  "/built/gt3-built-k7m9x4q2": { js: 271, css: 90, chunks: 15 },
-  "/display":                  { js: 272, css: 90, chunks: 15 },
-  "/shop":                     { js: 304, css: 90, chunks: 17 },
-  "/primal":                   { js: 274, css: 90, chunks: 15 },
-  "/privacy":                  { js: 270, css: 90, chunks: 14 },
-  "/terms":                    { js: 270, css: 90, chunks: 14 },
-  "/":                         { js: 280, css: 90, chunks: 15 },
-  "/order":                    { js: 278, css: 90, chunks: 15 },
+  "/truck":                    { js: 276, css: 90, chunks: 17 },
+  "/events":                   { js: 276, css: 90, chunks: 17 },
+  "/menu":                     { js: 264, css: 90, chunks: 16 },
+  "/reserve":                  { js: 288, css: 90, chunks: 18 },
+  "/delivery":                 { js: 285, css: 90, chunks: 18 },
+  "/3mpire":                   { js: 277, css: 90, chunks: 17 },
+  "/craft":                    { js: 263, css: 90, chunks: 16 },
+  "/book":                     { js: 264, css: 90, chunks: 16 },
+  "/academy":                  { js: 316, css: 90, chunks: 18 },
+  "/office":                   { js: 272, css: 90, chunks: 17 },
+  "/scan":                     { js: 264, css: 90, chunks: 16 },
+  "/architecture":             { js: 273, css: 90, chunks: 17 },
+  "/playbook":                 { js: 271, css: 90, chunks: 17 },
+  "/driver":                   { js: 270, css: 90, chunks: 17 },
+  "/agreement":                { js: 265, css: 90, chunks: 16 },
+  "/offer":                    { js: 275, css: 90, chunks: 17 },
+  "/built/gt3-built-k7m9x4q2": { js: 261, css: 90, chunks: 16 },
+  "/display":                  { js: 262, css: 90, chunks: 16 },
+  "/shop":                     { js: 294, css: 90, chunks: 19 },
+  "/primal":                   { js: 264, css: 90, chunks: 16 },
+  "/privacy":                  { js: 260, css: 90, chunks: 15 },
+  "/terms":                    { js: 260, css: 90, chunks: 15 },
+  "/":                         { js: 269, css: 90, chunks: 17 },
+  "/order":                    { js: 268, css: 90, chunks: 17 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).

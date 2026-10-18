@@ -46,6 +46,11 @@ import { execFileSync } from "node:child_process";
 //   lookup, the brew planner's handoff, two of the trailer's reads).
 //   R18 (2026-10-17): 47 → 46 warnings. The pack change's failed step caught its error and said it nowhere; it says it in
 //   the platform's log now (app/api/reserve/change, [pack-change-step]), so the error it named is used.
+//   R30 (2026-10-18): Next.js 16.4's rules brought @next/next/no-location-assign-relative-destination — eight page loads
+//   to the app's own pages. Three were loads of a route of its own (the driver's page from My Day and the calendar, the
+//   playbook from Discussions) and go through the router now; five are page loads on purpose and say so where they
+//   stand (the console reads ?s=, ?a=, ?promote= and the prep handoff once, as it loads; the crash screen's way back
+//   can't trust the router that threw). 46 stays 46.
 export const CEILING = { errors: 0, warnings: 46 };
 /** @deprecated the single total; kept so a reader of the old name still gets the sum. */
 export const LINT_CEILING = CEILING.errors + CEILING.warnings;
