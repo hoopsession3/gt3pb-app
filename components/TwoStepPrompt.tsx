@@ -13,6 +13,9 @@ import TwoStepSetup from "./TwoStepSetup";
 // business requires two-step and they have no authenticator ("setup"), the setup itself. "Not now" opens the console
 // with the crew's tools: the owner's and admin's wait for the code (the database holds them to it), and a line at the top
 // of the console asks again.
+//
+// Its text is the theme's ink (R29: text-cream on the section): set on no colour of its own, the title inherited the
+// body's — the night theme's cream — and drew cream on the day console's ground.
 
 export default function TwoStepPrompt({ need, onDone, onLater }: { need: "code" | "setup"; onDone: () => void; onLater: () => void }) {
   const { signOut } = useAuth();
@@ -36,8 +39,8 @@ export default function TwoStepPrompt({ need, onDone, onLater }: { need: "code" 
 
   if (need === "setup") {
     return (
-      <section className="screen">
-        <div className="eyb">Crew</div>
+      <section className="screen text-cream">
+        <div className="toprow"><div className="eyb">Crew</div></div>
         <h1 className="h-title">Set up two-step sign-in.</h1>
         <p className="h-sub">
           Your business asks every owner and admin for an authenticator&rsquo;s code once each sign-in. Set yours up — it
@@ -50,9 +53,9 @@ export default function TwoStepPrompt({ need, onDone, onLater }: { need: "code" 
   }
 
   return (
-    <section className="screen">
+    <section className="screen text-cream">
       <form noValidate onSubmit={(e) => { e.preventDefault(); void give(); }}>
-        <div className="eyb">Crew</div>
+        <div className="toprow"><div className="eyb">Crew</div></div>
         <h1 className="h-title">Your two-step code.</h1>
         <p className="h-sub" id="ts-code-for">
           The money, the books, customers and the crew&rsquo;s roles ask for the six-digit code from your authenticator app,

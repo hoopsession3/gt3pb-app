@@ -24,6 +24,7 @@ import { chargeOnce, checkOnly, claimKey, couldNotConfirm, placeOnce, seenBefore
 import { checkoutClaims } from "@/lib/checkoutClaims";
 import { CONNECT_APP } from "@/lib/connect";
 import { callerIp, limitsFit } from "@/lib/rateLimit";
+import { CARD_TRIES, cardsPausedRefusal } from "@/lib/cardGuard";
 
 // public: a cup order — a guest orders and pays as anyone at the window may (who is calling prices the order and keeps it on their account, never permits it); a member whose sign-in can't be checked is refused (503), every card try is bounded per caller and for the app before the card is asked, and a key is charged once
 
@@ -137,9 +138,9 @@ async function post(req: Request) {
   if (who.kind === "unavailable") return NextResponse.json({ error: SIGN_IN_UNCHECKED }, { status: 503 });
   const caller = who.kind === "user" ? { id: who.id, email: who.email } : null;
   if (paying) {
+    // The address's own burst here; everyone's ceiling further down (R29), once the menu, the stop and the price say yes.
     if (!(await limitsFit(supabaseAdmin, [
       { bucket: `checkout:${ip}`, windowMs: 60_000, max: 6 },
-      { bucket: "checkout:global", windowMs: 60_000, max: 60 },
     ]))) {
       return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
     }
@@ -276,6 +277,19 @@ async function post(req: Request) {
   const due = paying ? amount : subtotal;
   if (expected !== null && expected !== due) {
     return NextResponse.json({ error: priceChangedWords(due, paying), priceChanged: true, subtotalCents: subtotal, amountCents: due, lines: priced.lines }, { status: 409 });
+  }
+
+  // EVERYONE'S CEILING, ASKED OF A TRY THAT WOULD REACH SQUARE (R29 — the 10/10 audit, API F1). It was asked before the
+  // menu was read, of every try: ten addresses, each under its own six a minute, kept card checkout shut for every
+  // customer. Now after the menu, the stop and the price have said yes — an order they refuse spends nothing everyone
+  // shares — and of what happened: card payments pause while a minute holds twenty cards Square refused (lib/cardGuard,
+  // and the crew are told). A try let through still counts against a ceiling no rush at one truck reaches.
+  if (paying) {
+    const paused = await cardsPausedRefusal(supabaseAdmin);
+    if (paused) return NextResponse.json({ error: paused, charged: false }, { status: 429 });
+    if (!(await limitsFit(supabaseAdmin, [{ bucket: "checkout:global", windowMs: 60_000, max: CARD_TRIES.allPerMinute }]))) {
+      return NextResponse.json({ error: "Too many attempts — give it a minute.", charged: false }, { status: 429 });
+    }
   }
 
   // Canonical customer link (0151) + who's ordering — shared by both branches below.

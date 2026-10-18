@@ -35,7 +35,7 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPAB
 // WHICH BUILD OF THIS FUNCTION IS DEPLOYED (R21 — operations F12). It is deployed by hand, apart from every push to
 // main, and nothing said when the deployed one lagged the repo. A GET answers this; verify:prod asks it and fails when it
 // isn't this tree's. Change this file or ./policy.ts and scripts/push.function.test.mjs asks for a new one.
-const PUSH_VERSION = "2026-10-18 R27";
+const PUSH_VERSION = "2026-10-18 R29";
 
 // No call out of here waits for ever (R21, as the app's since R20): Teams, Resend, Twilio, Apple and the browsers' push
 // services are each given ten seconds. One that hung held every send after it, for as long as the platform let it run.
@@ -436,6 +436,9 @@ async function handle(req: Request, faults: Faults): Promise<Response> {
       targets = await subsFor((q) => q.eq("user_id", record.user_id), faults);
 
     } else if (table === "booking_requests" && type === "INSERT") {
+      // A lead kept past the hour's ceiling (R29 — API F1, 0434: /api/book marks it quiet) is announced to nobody: a burst
+      // is told to the crew once an hour, by the door that kept it, and each lead waits in Plan › Leads.
+      if (record.quiet === true) return new Response("skip: quiet — part of a burst, told once");
       // No direct push targets here (2026-07-30, Ryan's screenshot: "Should I have gotten three?").
       // insertAlert below fans out to leadership via the alerts webhook — pushing directly here TOO
       // meant every booking notified twice from this function alone. One event, one push. And one Teams card

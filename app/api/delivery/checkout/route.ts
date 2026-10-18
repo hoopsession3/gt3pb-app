@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callerFromRequest, SIGN_IN_UNCHECKED } from "@/lib/apiAuth";
-import { cardTryFits, callerAddress, CARD_TRIES_WORDS } from "@/lib/cardGuard";
+import { cardTryRefusal, callerAddress } from "@/lib/cardGuard";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { notifyCustomer, accountEmail, whoAsked, sayTextYes } from "@/lib/notify";
 import { textsOn } from "@/lib/texts";
@@ -178,7 +178,8 @@ async function post(req: Request) {
   // first is still out hears "still confirming", and an answer Square never gave stays "we couldn't confirm" — the crew
   // told once, nothing under that key sent to Square again.
   // A card try, counted at every card door (R9, lib/cardGuard): after a seen key is answered, before it is claimed.
-  if (!(await cardTryFits(supabaseAdmin, { userId: user.id, ip: callerAddress(req) }))) return NextResponse.json({ error: CARD_TRIES_WORDS, charged: false }, { status: 429 });
+  const cardRefusal = await cardTryRefusal(supabaseAdmin, { userId: user.id, ip: callerAddress(req) });
+  if (cardRefusal) return NextResponse.json({ error: cardRefusal, charged: false }, { status: 429 });
   const held = await claimKey(seen.claims, idemKey, { channel: "delivery", card: true, amountCents: quote.totalCents }, now, stopped, say);
   if ("answer" in held) return reply(held.answer);
 

@@ -2251,6 +2251,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const asked = await page.waitForSelector("#ts-code", { timeout: 8000 }).then(() => true, () => false);
     const drawnFirst = await page.locator("section.screen.admin").count();
     const focused = await page.evaluate(() => document.activeElement?.id ?? null);
+    // R29: its title is the theme's ink — dark on the day ground, cream on the night one — never cream on the day ground
+    // (R28 drew it so: text with no colour of its own inherited the body's, the night theme's cream).
+    const ink = await page.evaluate(() => {
+      const h = document.querySelector("section.screen h1.h-title"), app = document.querySelector(".app");
+      const rgb = (h ? getComputedStyle(h).color : "").match(/[\d.]+/g)?.map(Number) ?? [];
+      return { day: !!app?.classList.contains("crew-day"), luma: rgb.length >= 3 ? Math.round(0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) : null };
+    });
+    ok("two-step: the code's title is the theme's ink — dark on the day ground, light on the night one", ink.luma !== null && (ink.day ? ink.luma < 110 : ink.luma > 150), JSON.stringify(ink));
     if (SHOTS && asked) await page.screenshot({ path: shotPath(MAIN, "two-step--code") }).catch(() => {});
     ok("two-step: an owner with an authenticator, on a sign-in without its code, is asked for it before the console draws — the caret in the field",
       asked && drawnFirst === 0 && focused === "ts-code", JSON.stringify({ asked, drawnFirst, focused }));

@@ -428,6 +428,19 @@ const leaders = () => [web(1, { user_id: OWNER }), web(2, { user_id: CREW }), we
     && /Manage it: https:\/\/app\.gt3pb\.com\/crew\?s=plan/.test(lead.text)
     && ["Dana Whitfield", "dana@example.test", "864-555-0142", "Made-up Lane", "Gate code"].every((x) => !JSON.stringify(lead).includes(x))
     && /Dana Whitfield/.test(w.tables.alerts[0]?.body ?? ""), { lead, inbox: w.tables.alerts[0]?.body });
+  // R29 (API F1, 0434): a lead kept past the hour's ceiling is announced to nobody — no inbox line, no mail, no push; the
+  // door that kept it tells the crew once an hour that a burst came. Its row read like any other (quiet false) still rings.
+  fresh({ booking_requests: [{ id: BOOK, created_at: ago(60_000), name: "Made-up Person", email: "person@example.test", tenant_id: FOUNDING, quiet: true }] });
+  const hushed = await post({ type: "INSERT", table: "booking_requests", record: { id: BOOK } });
+  ok("R29 booking: a lead kept quiet (part of a burst) — no inbox line, no email, nothing pushed",
+    hushed.text === "skip: quiet — part of a burst, told once" && w.tables.alerts.length === 0 && !sent("api.resend.com").length && !sent(TEAMS).length, hushed);
+  fresh({ booking_requests: [{ id: BOOK, created_at: ago(60_000), name: "Made-up Person", email: "person@example.test", tenant_id: FOUNDING, quiet: false }] });
+  const rings = await post({ type: "INSERT", table: "booking_requests", record: { id: BOOK } });
+  ok("R29 booking: …one that isn't quiet is announced as ever (and the body's own claim of quiet is not read — the row is)",
+    rings.text === "ok: booking" && w.tables.alerts.length === 1, rings);
+  fresh({ booking_requests: [{ id: BOOK, created_at: ago(60_000), name: "Made-up Person", email: "person@example.test", tenant_id: FOUNDING }] });
+  const told = await post({ type: "INSERT", table: "booking_requests", record: { id: BOOK, quiet: true } });
+  ok("R29 booking: …a webhook body that says quiet can't hush a lead the database holds as loud", told.text === "ok: booking" && w.tables.alerts.length === 1, told);
   fresh({ booking_requests: [{ id: BOOK, created_at: ago(60_000), name: "Made-up Person", tenant_id: FOUNDING }] });
   w.fail.alerts = { insert: { error: { code: "23514", message: "violates check constraint" } } };
   const lost = await post({ type: "INSERT", table: "booking_requests", record: { id: BOOK } });

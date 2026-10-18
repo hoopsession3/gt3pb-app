@@ -14951,9 +14951,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R8 packs: passing the glass step is a choice — a guest's Need new glass stays new glass after signing in",
     /disabled=\{!glassReady\} onClick=\{\(\) => \{ glassTouched\.current = true; setStep\("details"\); \}\}/.test(of));
   const shop = rd("app/api/shop/checkout/route.ts");
-  ok("R8 shop: a card-testing guard — six a minute an address, sixty for everyone — after a seen key is answered, before the cart is read",
-    /\{ bucket: `shop-checkout:\$\{ip\}`, windowMs: 60_000, max: 6 \},\s+\{ bucket: "shop-checkout:global", windowMs: 60_000, max: 60 \},\s+\]\)\)\) return NextResponse\.json\(\{ error: "Too many attempts — give it a minute\." \}, \{ status: 429 \}\);/.test(shop)
-    && shop.indexOf("await seenBefore(") < shop.indexOf('"shop-checkout:global"') && shop.indexOf('"shop-checkout:global"') < shop.indexOf("const rawItems ="));
+  // R29 (API F1): everyone's ceiling moved down the route — asked once the cart is priced and agreed (r29.test holds it).
+  ok("R8 shop: a card-testing guard — six a minute an address — after a seen key is answered, before the cart is read",
+    /\{ bucket: `shop-checkout:\$\{ip\}`, windowMs: 60_000, max: 6 \},\s+\]\)\)\) return NextResponse\.json\(\{ error: "Too many attempts — give it a minute\." \}, \{ status: 429 \}\);/.test(shop)
+    && shop.indexOf("await seenBefore(") < shop.indexOf("shop-checkout:${ip}") && shop.indexOf("shop-checkout:${ip}") < shop.indexOf("const rawItems =")
+    && shop.indexOf("const rawItems =") < shop.indexOf('"shop-checkout:global"'));
   ok("R8 shop: a paid order's lines and its printer mark are checked and tried twice; still refused, the crew is told what to do",
     /let \{ error: itemsErr \} = await db\.from\("shop_order_items"\)\.insert\(itemRows\);\s+if \(itemsErr\) \(\{ error: itemsErr \} = await db\.from\("shop_order_items"\)\.insert\(itemRows\)\);/.test(shop)
     && /title: "Paid shop order saved without its items — add them"/.test(shop)
@@ -15008,7 +15010,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R9 doors: a booking goes through /api/book — counted, a field only a bot fills, the fields cut — never straight from the browser",
     /authedFetch\("\/api\/book", \{/.test(bookPage) && !/from\("booking_requests"\)/.test(bookPage) && /<input id="b-hp-leave" name="hp_leave_empty" tabIndex=\{-1\}/.test(rd("app/book/page.tsx"))
     && /if \(str\(b\.website, 200\)\) \{ console\.warn\("\[book\] a request with the hidden field filled was dropped"\); return NextResponse\.json\(\{ ok: true \}\); \}/.test(bookRoute)
-    && /\{ bucket: `book:\$\{ip\}`, windowMs: 600_000, max: 3 \},/.test(bookRoute) && /\{ bucket: "book:global", windowMs: 3_600_000, max: 30 \},\s+\]\)\)\) \{/.test(bookRoute)
+    && /\{ bucket: `book:\$\{ip\}`, windowMs: 600_000, max: 3 \},/.test(bookRoute)
+    // R29 (API F1): everyone's thirty an hour is a hush — past it a lead is kept, quiet (0434) — not a door (r29.test runs it).
+    && /const quiet = !\(await limitsFit\(supabaseAdmin, \[\{ bucket: "book:global", windowMs: 3_600_000, max: BURST_PER_HOUR \}\]\)\);/.test(bookRoute) && /const BURST_PER_HOUR = 30;/.test(bookRoute)
     && /booking_requests_throttle/.test(rd("supabase/migrations/0418_every_public_door_that_rings_is_counted.sql")));
   const packR = strip(rd("app/api/reserve/route.ts")), officeR = strip(rd("app/api/office/route.ts"));
   ok("R9 doors: a pack to pay at pickup is counted, and three at most still to pay; an office booking is counted",
@@ -15016,10 +15020,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && packR.indexOf("reserve-later:") < packR.indexOf("const held = await claimKey(") && /p_bucket: `office:u:\$\{caller\.id\}`, p_window_ms: 3_600_000, p_max: 5/.test(officeR));
   const doors = ["app/api/reserve/route.ts", "app/api/delivery/checkout/route.ts", "app/api/reserves/pay/route.ts", "app/api/reserve/change/route.ts", "app/api/subscriptions/create/route.ts"];
   const sq = strip(rd("lib/squareServer.ts"));
+  // R29 (API F1): asked through cardTryRefusal — card payments paused while a minute holds twenty refused cards, then the
+  // person's, the address's and everyone's tries — and chargeCard counts each refusal of a card (r29.test runs both).
   ok("R9 doors: a card try is counted at every card door (lib/cardGuard), and a decline is one sentence — never Square's reason",
-    doors.every((f) => /await cardTryFits\(/.test(strip(rd(f))) && /CARD_TRIES_WORDS/.test(strip(rd(f))))
-    && /return \{ ok: false, error: refusalWords\(res\.status, data\) \};/.test(sq) && /if \(category === "PAYMENT_METHOD_ERROR"\) return DECLINE_WORDS;/.test(sq) && !/errors\?\.\[0\]\?\.detail \|\| "Payment declined"/.test(sq)
-    && /if \(!cardRes\.ok\) throw new Error\(refusalWords\(cardRes\.status, cardData\)\);/.test(strip(rd("app/api/subscriptions/create/route.ts"))), doors.filter((f) => !/await cardTryFits\(/.test(strip(rd(f)))));
+    doors.every((f) => /await cardTryRefusal\(/.test(strip(rd(f))) && /if \(cardRefusal\) return NextResponse\.json\(\{ error: cardRefusal/.test(strip(rd(f))))
+    && /const words = refusalWords\(res\.status, data\);/.test(sq) && /return \{ ok: false, error: words \};/.test(sq) && /if \(category === "PAYMENT_METHOD_ERROR"\) return DECLINE_WORDS;/.test(sq) && !/errors\?\.\[0\]\?\.detail \|\| "Payment declined"/.test(sq)
+    && /if \(!cardRes\.ok\) throw new Error\(refusalWords\(cardRes\.status, cardData\)\);/.test(strip(rd("app/api/subscriptions/create/route.ts"))), doors.filter((f) => !/await cardTryRefusal\(/.test(strip(rd(f)))));
   ok("R9 doors: a code is counted where a price would say it is real — the coupon page, and both quotes when a code is sent",
     /p_bucket: `coupon:\$\{ip\}`, p_window_ms: 600_000, p_max: 60/.test(strip(rd("app/api/coupon/[code]/route.ts")))
     && /return NextResponse\.json\(\{ ok: false, busy: true \}, \{ status: 429 \}\);/.test(strip(rd("app/api/coupon/[code]/route.ts")))
@@ -15238,10 +15244,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R10 limits: no file asks the limiter inside a Promise.all — every door with two limits asks them in order (lib/rateLimit)", together.length === 0, together);
   const ordered = ["app/api/checkout/route.ts", "app/api/shop/checkout/route.ts", "app/api/book/route.ts", "app/api/orders/ticket-cancel/route.ts", "app/api/concierge/route.ts",
     "app/api/map/route.ts", "app/api/address/route.ts", "app/api/delivery/waitlist/route.ts", "lib/anthropic.ts", "lib/cardGuard.ts"];
+  // R29 (API F1): the checkouts' and the booking door's shared ceilings are asked in a limitsFit of their own, further down
+  // the route than the caller's — the caller's own still first, the shared one only once the request has earned it.
+  const apart = { "checkout:global": "checkout:${ip}", "shop-checkout:global": "shop-checkout:${ip}", "book:global": "book:${ip}" };
   ok("R10 limits: every door with a caller's limit and a shared one asks through limitsFit, the shared one last",
     ordered.every((f) => { const c = strip(rd(f)); return /limitsFit\(/.test(c) && !/\.rpc\(\s*"rate_limit_hit"/.test(c); })
     && ["checkout:global", "shop-checkout:global", "book:global", "ticket-cancel:global", "concierge:global", "map:all", "address:all", "ai:all"].every((g) => {
       const f = ordered.find((x) => rd(x).includes(`"${g}"`)); const c = f ? strip(rd(f)) : ""; const at = c.indexOf(`"${g}"`);
+      if (apart[g]) return at > 0 && c.indexOf(apart[g]) > 0 && c.indexOf(apart[g]) < at && c.lastIndexOf("limitsFit(", at) > c.indexOf(apart[g]);
       return at > 0 && c.lastIndexOf("bucket: `", at) > c.lastIndexOf("limitsFit(", at);
     }), ordered.filter((f) => !/limitsFit\(/.test(strip(rd(f)))));
   const wl = strip(rd("app/api/delivery/waitlist/route.ts"));

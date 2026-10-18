@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-18T01:06:26.120Z",
+    "pulled_at": "2026-10-18T17:33:07.324Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
-    "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 228,
-    "columns": 2904
+    "source": "sql fallback (pg_class/pg_attribute), through the Supabase MCP (execute_sql): every relation's columns fingerprinted against production's, and the two that differed — message_sent (0429), push_subscriptions.seen_at (0428) — read in full",
+    "relations": 229,
+    "columns": 2908
   },
   "academy_acknowledgements": [
     "user_id",
@@ -1648,6 +1648,11 @@
     "shipped_at",
     "created_at"
   ],
+  "message_sent": [
+    "event_key",
+    "claimed_at",
+    "sent_at"
+  ],
   "note_addenda": [
     "id",
     "note_id",
@@ -2163,7 +2168,8 @@
     "created_at",
     "tenant_id",
     "wants_live",
-    "platform"
+    "platform",
+    "seen_at"
   ],
   "rate_limit_hits": [
     "bucket",

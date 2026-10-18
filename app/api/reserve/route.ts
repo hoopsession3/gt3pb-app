@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { chargeCard, safeIdemKey } from "@/lib/squareServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callerFromRequest, SIGN_IN_UNCHECKED } from "@/lib/apiAuth";
-import { cardTryFits, callerAddress, CARD_TRIES_WORDS } from "@/lib/cardGuard";
+import { cardTryRefusal, callerAddress } from "@/lib/cardGuard";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail, whoAsked, sayTextYes } from "@/lib/notify";
@@ -171,7 +171,8 @@ async function post(req: Request) {
   // pickup — charged nothing, and each an alert on the crew's phones and an email to every admin — four an hour a member,
   // and no more than three still to be paid at the window at once. After a seen key is answered, before it is claimed.
   if (charging) {
-    if (!(await cardTryFits(supabaseAdmin, { userId: user.id, ip: callerAddress(req) }))) return NextResponse.json({ error: CARD_TRIES_WORDS, charged: false }, { status: 429 });
+    const cardRefusal = await cardTryRefusal(supabaseAdmin, { userId: user.id, ip: callerAddress(req) });
+    if (cardRefusal) return NextResponse.json({ error: cardRefusal, charged: false }, { status: 429 });
   } else {
     const fits = await supabaseAdmin.rpc("rate_limit_hit", { p_bucket: `reserve-later:u:${user.id}`, p_window_ms: 3_600_000, p_max: 4 });
     if (fits.data === false) return NextResponse.json({ error: "That's a lot of packs in one go — pay for this one by card, or give it a while.", charged: false }, { status: 429 });

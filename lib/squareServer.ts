@@ -126,7 +126,23 @@ export async function chargeCard(opts: {
     const said = String(data?.errors?.[0]?.code || data?.errors?.[0]?.detail || "");
     throw new ChargeUnknown(`Square answered ${res.status}${said ? ` (${said})` : ""}`);
   }
-  return { ok: false, error: refusalWords(res.status, data) };
+  const words = refusalWords(res.status, data);
+  if (isCardRefusal(words)) await countCardRefused();
+  return { ok: false, error: words };
+}
+
+/** A refusal of the card itself — its decline, or a card entry Square would not take — not Square's own trouble. */
+export const isCardRefusal = (words: string): boolean => words === DECLINE_WORDS || words === CARD_ENTRY_WORDS;
+
+/** Counted for everyone together (R29 — API F1: lib/cardGuard cardRefused; twenty in a minute pause card payments for the
+ *  rest of it). In the running app only — a test compiles this file alone. Never throws: a refusal uncounted is still a
+ *  refusal said. */
+async function countCardRefused(): Promise<void> {
+  if (typeof process === "undefined" || !process.env.NEXT_RUNTIME) return;
+  try {
+    const [{ supabaseAdmin }, { cardRefused }] = await Promise.all([import("./supabaseAdmin"), import("./cardGuard")]);
+    if (supabaseAdmin) await cardRefused(supabaseAdmin);
+  } catch { /* uncounted */ }
 }
 
 /** What a refused card is told, at every card door. */

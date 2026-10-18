@@ -18,6 +18,7 @@ import { errorMessage } from "@/lib/errorMessage";
 import { chargeOnce, claimKey, seenBefore, type Answer, type Say, type Stopped } from "@/lib/chargeOnce";
 import { checkoutClaims } from "@/lib/checkoutClaims";
 import { callerIp, limitsFit } from "@/lib/rateLimit";
+import { CARD_TRIES, cardsPausedRefusal } from "@/lib/cardGuard";
 
 // public: a shop order — a guest buys merch with a card and an address (who is calling fills in their email, never permits it); a member whose sign-in can't be checked is refused (503), every card try is bounded per caller and for the app before the card is asked, and a key is charged once
 
@@ -101,15 +102,13 @@ async function post(req: Request) {
   if ("answer" in seen) return reply(seen.answer);
 
   // Card-testing guard (R8, as /api/checkout's): a guest pays here by card with no sign-in, which makes this the natural
-  // place to run stolen cards through Square — and every try wrote a claim. A tight burst per address and a ceiling for
-  // everyone, in the store every instance shares (rate_limit_hit, 0154 — true is UNDER the cap, false the refusal). Asked
-  // after a seen key is answered, so a retry of a payment already made is never turned away. Fails open if the limiter
-  // can't be asked: Square's own fraud tools are the backstop. The address is asked before the ceiling (lib/rateLimit,
-  // R10), so one address past its own six never spends the sixty every customer shares.
+  // place to run stolen cards through Square — and every try wrote a claim. A tight burst per address, in the store every
+  // instance shares (rate_limit_hit, 0154 — true is UNDER the cap, false the refusal). Asked after a seen key is answered,
+  // so a retry of a payment already made is never turned away. Fails open if the limiter can't be asked: Square's own
+  // fraud tools are the backstop. Everyone's ceiling is asked further down (R29), once the cart is priced.
   const ip = callerIp(req);
   if (!(await limitsFit(supabaseAdmin, [
     { bucket: `shop-checkout:${ip}`, windowMs: 60_000, max: 6 },
-    { bucket: "shop-checkout:global", windowMs: 60_000, max: 60 },
   ]))) return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
 
   // Rebuild the cart from trusted product ids only, and price it from the catalog.
@@ -161,6 +160,17 @@ async function post(req: Request) {
   // the new price, under a button that said the old one.
   const raised = aboveShown(total, shownCents(body.expectedCents));
   if (raised) return NextResponse.json(raised, { status: 409 });
+
+  // EVERYONE'S CEILING, ASKED OF A TRY THAT WOULD REACH SQUARE (R29 — the 10/10 audit, API F1). It was asked before the
+  // cart was read, of every try: ten addresses, each under its own six, kept the shop's card checkout shut for everyone.
+  // Now after the cart is priced and agreed — a cart refused spends nothing everyone shares — and of what happened: card
+  // payments pause while a minute holds twenty cards Square refused (lib/cardGuard). A try let through still counts against
+  // a ceiling no rush reaches.
+  const paused = await cardsPausedRefusal(supabaseAdmin);
+  if (paused) return NextResponse.json({ error: paused }, { status: 429 });
+  if (!(await limitsFit(supabaseAdmin, [{ bucket: "shop-checkout:global", windowMs: 60_000, max: CARD_TRIES.allPerMinute }]))) {
+    return NextResponse.json({ error: "Too many attempts — give it a minute." }, { status: 429 });
+  }
 
   const held = await claimKey(seen.claims, idemKey, { channel: "shop", card: true, amountCents: total }, now, stopped, say);
   if ("answer" in held) return reply(held.answer);

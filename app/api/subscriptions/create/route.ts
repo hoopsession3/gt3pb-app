@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
-import { cardTryFits, callerAddress, CARD_TRIES_WORDS } from "@/lib/cardGuard";
+import { cardTryRefusal, callerAddress } from "@/lib/cardGuard";
 import { chargeVerdict, refusalWords, squareDeadline } from "@/lib/squareServer";
 import { SQUARE_BASE, squareHeaders, planForPack, subsConfigured, mapSubStatus } from "@/lib/squareServer";
 import { raiseAlert, raiseAlertOnce } from "@/lib/serverAlerts";
@@ -65,7 +65,8 @@ async function post(req: Request) {
   const planId = planForPack(pack);
   if (!["6", "12", "18"].includes(pack) || !planId) return NextResponse.json({ error: "Choose a pack size (6, 12, or 18)." }, { status: 400 });
   // A card try, counted at every card door (R9, lib/cardGuard): saving a card at Square is one.
-  if (!(await cardTryFits(supabaseAdmin, { userId: user.id, ip: callerAddress(req) }))) return NextResponse.json({ error: CARD_TRIES_WORDS }, { status: 429 });
+  const cardRefusal = await cardTryRefusal(supabaseAdmin, { userId: user.id, ip: callerAddress(req) });
+  if (cardRefusal) return NextResponse.json({ error: cardRefusal }, { status: 429 });
 
   // A TRY SQUARE NEVER ANSWERED, ASKED ABOUT FIRST (R10b). A row of this member's that Square was asked about and never
   // answered is settled by Square's own word before anything else: a subscription it started is taken up — the member

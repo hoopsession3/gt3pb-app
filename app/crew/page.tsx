@@ -3475,7 +3475,7 @@ function Bookings() {
         <div className={`adm-req${r.status === "new" ? " new" : ""}`} key={r.id}>
           <div className="adm-member-top">
             <b>{r.name ?? "—"}{r.event_date && <span className="k-count ml-2" title={`Requested event date: ${r.event_date}`}>Event {relativeDay(r.event_date)}</span>}</b>
-            <span className="adm-ref">{[r.headcount ? `${r.headcount} ppl` : null, `submitted ${relativeDay(r.created_at)}`].filter(Boolean).join(" · ")}</span>
+            <span className="adm-ref">{[r.headcount ? `${r.headcount} ppl` : null, `submitted ${relativeDay(r.created_at)}`, r.quiet ? "came in a burst, not announced" : null].filter(Boolean).join(" · ")}</span>
           </div>
           <div className="meta">
             {r.email && <><a href={`mailto:${r.email}`}>{r.email}</a>{r.phone ? " · " : ""}</>}{r.phone}
@@ -5744,8 +5744,9 @@ export default function AdminPage() {
     if (enabled && ready && user && staffAccess(true, profileStatus, profile) === "allow") rememberMode("crew");
   }, [enabled, ready, user, profileStatus, profile]);
 
-  // Guard returns — all hooks live above (Rules of Hooks compliant).
-  if (!enabled) return <section className="screen"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
+  // Guard returns — all hooks live above (Rules of Hooks compliant). A message here is drawn in the theme's ink
+  // (text-cream, R29): its title sets no colour of its own, and on the day console it inherited the body's night cream.
+  if (!enabled) return <section className="screen text-cream"><div className="h-title">Admin</div><div className="h-sub">The live backend isn&apos;t configured here.</div></section>;
   if (!ready) return <section className="screen" />;
   if (!user) return <SignIn context={{ title: "The GT3 console.", sub: "Sign in with your crew account — your shift, prep, plan and money are inside." }} />;
   // KNOWING NOTHING IS NOT THE SAME AS KNOWING YOU ARE A CUSTOMER. roleOf(null) is "member", and
@@ -5754,7 +5755,7 @@ export default function AdminPage() {
   const access = staffAccess(!!user, profileStatus, profile);
   if (access === "wait") return <section className="screen" />;
   if (access === "failed") return (
-    <section className="screen">
+    <section className="screen text-cream">
       <div className="toprow"><div className="eyb">Crew</div><Link className="k-icon-btn" href="/" aria-label="Back to the app"><Icon name="chevronLeft" /></Link></div>
       <div className="h-title">Couldn&apos;t load your account.</div>
       <div className="h-sub">This is not a permissions problem — we couldn&apos;t read your profile just now, so we don&apos;t know what you can see. Nothing has changed.</div>
@@ -5763,7 +5764,7 @@ export default function AdminPage() {
   );
   if (role === "member") {
     return (
-      <section className="screen">
+      <section className="screen text-cream">
         <div className="toprow"><div className="eyb">Crew</div><Link className="k-icon-btn" href="/" aria-label="Back to the app"><Icon name="chevronLeft" /></Link></div>
         <div className="h-title">Staff only.</div>
         <div className="h-sub">This area is for GT3PB staff. If that&apos;s you, ask the owner to add you — then tap below.</div>

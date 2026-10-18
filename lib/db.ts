@@ -130,6 +130,7 @@ export interface BookingRequest {
   notes: string | null;
   status: "new" | "contacted" | "booked" | "declined";
   opportunity_id?: string | null; // set when promoted to the pipeline (0171) — the bridge, not a merge
+  quiet?: boolean;                 // kept past the hour's ceiling and not announced (0434, /api/book) — part of a burst
   created_at: string;
 }
 

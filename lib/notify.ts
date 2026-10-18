@@ -265,7 +265,6 @@ async function claimText(key: string): Promise<"claimed" | "sent" | "going" | "u
     if (taken.error) return "unknown";
     if (taken.data?.length) return "claimed";
     // scoped-by: the same one key
-    // arrives-with: 0429 — until it is pasted the claim's insert above already failed (no table), so this is never asked
     const { data: row, error: unread } = await supabaseAdmin.from("message_sent").select("sent_at").eq("event_key", k).maybeSingle();
     if (unread) return "unknown";
     return (row as { sent_at?: string | null } | null)?.sent_at ? "sent" : "going";

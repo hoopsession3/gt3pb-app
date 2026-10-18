@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
-import { cardTryFits, callerAddress, CARD_TRIES_WORDS } from "@/lib/cardGuard";
+import { cardTryRefusal, callerAddress } from "@/lib/cardGuard";
 import { raiseAlert } from "@/lib/serverAlerts";
 import { benefitsForUser, acceptedCode } from "@/lib/benefits";
 import { notifyCustomer, accountEmail } from "@/lib/notify";
@@ -53,7 +53,8 @@ async function post(req: Request) {
   const key = safeIdemKey(body.idempotencyKey);
   const sourceId = typeof body.sourceId === "string" && body.sourceId ? body.sourceId : null;
   // A card try, counted at every card door (R9, lib/cardGuard); a quote, or a change with no card, is not one.
-  if (sourceId && !quote && !(await cardTryFits(sb, { userId: user.id, ip: callerAddress(req) }))) return NextResponse.json({ error: CARD_TRIES_WORDS, charged: false }, { status: 429 });
+  const cardRefusal = sourceId && !quote ? await cardTryRefusal(sb, { userId: user.id, ip: callerAddress(req) }) : null;
+  if (cardRefusal) return NextResponse.json({ error: cardRefusal, charged: false }, { status: 429 });
 
   const token = process.env.SQUARE_ACCESS_TOKEN;
   const locationId = process.env.NEXT_PUBLIC_SQUARE_LOCATION_ID;
