@@ -19,9 +19,9 @@
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.108.2";
 import {
-  alertShown, channelsFor, escalationShown, eventKey, freshRow, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown,
+  alertOutside, alertShown, bookingOutside, channelsFor, escalationShown, eventKey, freshRow, isEscalation, liveShown, mayEmail, newOrderShown, orderStatusShown,
   orderVoidShown, packNoticeShown, packNoticeTold, reminderShown, severityOf, sitePath, stillUnanswered, stopCanceledShown,
-  subscriptionShown, taskShown, CUSTOMER_MUTE, EVENT_TABLES, LIVE_NEWS_MS, pushHostOk, SEND_AT_ONCE, smsPlain, textNumber,
+  subscriptionShown, taskOutside, taskShown, CUSTOMER_MUTE, EVENT_TABLES, LIVE_NEWS_MS, pushHostOk, SEND_AT_ONCE, smsPlain, textNumber,
   textQuiet, usTextable, whoRings, type NotifPrefsRow, type Shown,
 } from "./policy.ts";
 
@@ -35,7 +35,7 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPAB
 // WHICH BUILD OF THIS FUNCTION IS DEPLOYED (R21 — operations F12). It is deployed by hand, apart from every push to
 // main, and nothing said when the deployed one lagged the repo. A GET answers this; verify:prod asks it and fails when it
 // isn't this tree's. Change this file or ./policy.ts and scripts/push.function.test.mjs asks for a new one.
-const PUSH_VERSION = "2026-10-18 R21";
+const PUSH_VERSION = "2026-10-18 R27";
 
 // No call out of here waits for ever (R21, as the app's since R20): Teams, Resend, Twilio, Apple and the browsers' push
 // services are each given ten seconds. One that hung held every send after it, for as long as the platform let it run.
@@ -65,8 +65,6 @@ function fault(faults: Faults, where: string, what: string): void {
   console.error(`[push] ${line}`);
 }
 const codeOf = (error: { code?: string | null } | null | undefined) => error?.code || "no code";
-
-const firstName = (full?: string | null) => (full || "").trim().split(/\s+/)[0] || "";
 
 // ONE BUSINESS AT A TIME (2026-10-11). A row's tenant, as 0134 stamps it — the founding tenant when there is none.
 // The crew's devices and the leadership a broadcast reaches are looked up in THIS tenant: they used to be every
@@ -177,11 +175,6 @@ async function firstSend(key: string, faults: Faults): Promise<boolean> {
   if (error.code === "23505") return false;
   fault(faults, "sent once", `the event's key could not be kept (${codeOf(error)})`);
   return true;
-}
-
-async function nameForUser(userId: string) {
-  const { data } = await supabase.from("profiles").select("display_name").eq("id", userId).maybeSingle();
-  return firstName(data?.display_name);
 }
 
 // WHO AN ALERT REACHES (2026-10-11). Its own person when it has one; a broadcast, the leadership of its tenant
@@ -453,23 +446,10 @@ async function handle(req: Request, faults: Faults): Promise<Response> {
       if (!freshRow(record.created_at, nowMs) || !(await once())) return new Response("skip: not news, or sent already");
       const message = `${record.name ?? "Someone"}${record.event_date ? " - " + record.event_date : ""}${record.location_text ? " - " + record.location_text : ""}`;
       await insertAlert({ severity: "important", category: "booking", title: "New booking lead", body: message, tenant_id: record.tenant_id }, faults);
-      if (mayEmail("important", true)) await emailAdmins(
-        `New booking request${record.name ? ` — ${record.name}` : ""}`,
-        [
-          `${record.name ?? "Someone"} wants to book GT3PB.`,
-          "",
-          `Submitted: ${new Date(record.created_at ?? Date.now()).toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" })} ET`,
-          record.event_date ? `Event date: ${record.event_date}` : null,
-          record.headcount ? `Headcount: ${record.headcount}` : null,
-          record.location_text ? `Location: ${record.location_text}` : null,
-          record.email ? `Email: ${record.email}` : null,
-          record.phone ? `Phone: ${record.phone}` : null,
-          record.notes ? `Notes: ${record.notes}` : null,
-          "",
-          "Manage it: https://app.gt3pb.com/crew?s=plan",
-        ].filter((line) => line !== null).join("\n"),
-        faults,
-      );
+      // The email says a lead came in, for which day, and when — who, their number, the place and their notes stay in the
+      // app (R27, API F17: ./policy.ts bookingOutside). The inbox line above is the app's own, and keeps them.
+      const lead = bookingOutside(record, new Date(record.created_at ?? Date.now()).toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" }));
+      if (mayEmail("important", true)) await emailAdmins(lead.subject, lead.text, faults);
       return new Response("ok: booking");
 
     } else if (table === "profiles" && type === "INSERT") {
@@ -482,8 +462,9 @@ async function handle(req: Request, faults: Faults): Promise<Response> {
       const role = record.role && record.role !== "member" ? ` (${record.role})` : "";
       const severity: string = "fyi";
       await insertAlert({ severity, category: "system", title: "New member signed up", body: `${who}${role} just joined.`, link: "/crew?s=customers", tenant_id: record.tenant_id }, faults);
+      // Their name stays in the app (R27, API F17): the email says someone joined, and where to see who.
       if (mayEmail(severity, true)) await emailAdmins("New member signed up", [
-        `${who}${role} just created an account.`,
+        `Someone new${role} just created an account.`,
         "",
         "Customer book: https://app.gt3pb.com/crew?s=customers",
       ].join("\n"), faults);
@@ -527,27 +508,12 @@ async function handle(req: Request, faults: Faults): Promise<Response> {
       url = "/admin";
       targets = await subsFor((q) => q.eq("user_id", record.assignee), faults);
       // Critical tasks EMAIL their owner too (push alone depends on a subscribed device) — both
-      // when a critical task is assigned and when an assigned task turns critical. The email says what the task is;
-      // the lock screen does not (a label or an event's title can be a client's name).
+      // when a critical task is assigned and when an assigned task turns critical. Neither the email nor the lock screen
+      // says what the task is (R27, API F17: a label or an event's title can be a client's name): that it is theirs, and
+      // the link (./policy.ts taskOutside).
       if (record.critical) {
-        let ctx = " - an event";
-        if (record.event_id) {
-          const { data: e } = await supabase.from("events").select("title").eq("id", record.event_id).maybeSingle();
-          if (e?.title) ctx = ` - ${e.title}`;
-        } else if (record.meeting_note_id) {
-          // follow-up captured from a meeting note (0049)
-          const { data: m } = await supabase.from("meeting_notes").select("title").eq("id", record.meeting_note_id).maybeSingle();
-          ctx = m?.title ? ` - follow-up - ${m.title}` : " - meeting follow-up";
-        }
-        const name = await nameForUser(record.assignee);
-        const said = becameCritical && !assigneeChanged
-          ? `Critical now: ${record.label}${ctx}`
-          : `${name ? name + ", you're" : "You're"} on: ${record.label}${ctx}`;
-        await emailUser(record.assignee, `Critical task — ${record.label}`, [
-          said + ".",
-          "",
-          "Your day: https://app.gt3pb.com/crew?s=day",
-        ].join("\n"), faults);
+        const told = taskOutside(becameCritical && !assigneeChanged);
+        await emailUser(record.assignee, told.subject, told.text, faults);
       }
 
     } else if (table === "live_status" && type === "UPDATE") {
@@ -620,18 +586,21 @@ async function handle(req: Request, faults: Faults): Promise<Response> {
       const ownTest = record.kind === "device_test";
       if (ownTest && !record.target_user_id) return new Response("skip: a device test is someone's own");
       if (!ch.push && !ownTest) return new Response("ok: fyi stays in the inbox");
+      // What leaves the app (R27, API F17; Ryan: "Order # + link only"): the card and the email say what kind of thing
+      // happened, the number it is about, and the link — the alert's own title and body (a customer's name, email, phone,
+      // street, what they ordered) stay in the app's inbox (./policy.ts alertOutside; its link a path on this site and
+      // nothing else, sitePath).
+      const outside = alertOutside(record);
       // 1) Teams (classic Incoming Webhook / MessageCard). If you wired a Power Automate
       // "Workflows" webhook instead, it expects an Adaptive Card — say so and I'll switch it.
-      if (!ownTest) await postTeams(record.severity, record.title, record.body || "", faults);
+      if (!ownTest) await postTeams(record.severity, outside.line, outside.text, faults);
       // Critical alerts EMAIL as well (2026-07-30, Ryan: "emails on critical notes... owners of
       // those should get"): the alert's own target user when there is one, the admin list when
       // there isn't. Push needs a subscribed device; a critical can't depend on that.
       if (!ownTest && mayEmail(record.severity)) {
-        const subj = `Critical — ${record.title}`;
-        // A path on this site, and nothing else (./policy.ts sitePath): "@other.example/x" made this link another site's.
-        const bodyTxt = [record.body || record.title, "", `Open it: https://app.gt3pb.com${sitePath(record.link, "/crew?s=day")}`].join("\n");
-        if (record.target_user_id) await emailUser(record.target_user_id, subj, bodyTxt, faults);
-        else await emailAdmins(subj, bodyTxt, faults);
+        const subj = `Critical — ${outside.line}`;
+        if (record.target_user_id) await emailUser(record.target_user_id, subj, outside.text, faults);
+        else await emailAdmins(subj, outside.text, faults);
       }
       // 2) Push: to the target user, or all leadership of the alert's business when there's no specific target —
       // each of them asked first whether this alert may ring them now (ringingNow: their mutes, their quiet hours;

@@ -14,7 +14,7 @@ import Icon from "@/components/Icon";
 import PourFill from "@/components/PourFill";
 import Sheet, { CloseButton, sheetOpen } from "@/components/Sheet";
 import { queueOrderStatus, queueCollectCup, isNetworkError } from "@/components/offline";
-import { canCollect, collectPayment, undoCollection, collectedPatch, undonePatch, paidHow, viaOf, VIA_LABEL, VIA_UNDO, type CollectVia } from "@/lib/collect";
+import { canCollect, collectPayment, undoCollection, collectedPatch, undonePatch, paidHow, viaOf, settleOf, VIA_LABEL, VIA_UNDO, type CollectVia, type OnTheHouse } from "@/lib/collect";
 import { authedFetch } from "@/lib/authedFetch";
 import { clockTime } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
@@ -209,15 +209,18 @@ function PassBoard() {
   // mark a pay-at-pickup order paid. Taking it is instant like a move — the ticket says PAID the
   // moment the crew taps and the database answers after — and with no signal the tap is parked and
   // replayed, because the till does not wait for bars. Returns the row as now painted, or null.
-  const takeMoney = useCallback(async (o: Order, via: CollectVia): Promise<Order | null> => {
+  const takeMoney = useCallback(async (o: Order, how: CollectVia | OnTheHouse): Promise<Order | null> => {
     if (!supabase) return null;
+    const { via, reason } = settleOf(how);   // on the house (0432): covered, with an owner's reason
     const paid = collectedPatch(o, via, new Date().toISOString(), me);
     const paidRow = { ...o, ...paid } as Order;
     hold(o, "collect_cup", paid as Partial<Order>);
     apply(paidRow, false);
     haptic("paid");
-    const res = await collectPayment(supabase, "cup", o.id, via);
+    const res = await collectPayment(supabase, "cup", o.id, via, reason);
     if (res.error) {
+      // On the house is said with signal (0432): the queue keeps a way to pay, not an owner's reason — it isn't parked.
+      if (reason && isNetworkError(res.error)) { release(o, "collect_cup"); apply(o, false); toast("No signal — put it on the house once you're back online", "info"); return null; }
       if (isNetworkError(res.error)) { queueCollectCup(o.id, via); toast(`No signal — ${VIA_LABEL[via].toLowerCase()} saved, will sync`, "info"); return paidRow; }
       release(o, "collect_cup");
       apply(o, false);
@@ -227,9 +230,9 @@ function PassBoard() {
     return paidRow;
   }, [apply, hold, release, me, toast, load]);
   const collect = useCallback(async (o: Order) => {
-    const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents });
+    const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents, house: admin });
     if (how && how !== "unpaid") await takeMoney(o, how);
-  }, [askCollect, takeMoney]);
+  }, [askCollect, takeMoney, admin]);
   // A wrong tap is put right by the one who made it, inside the hour (or an admin) — the database's
   // rule (staff_undo_collection), mirrored by canUndo so the button is only where it will work.
   const undoTake = useCallback(async (o: Order) => {
@@ -254,14 +257,14 @@ function PassBoard() {
     if (bounce(o)) return;
     const to = NEXT[o.status];
     if (to === "done" && canCollect(o)) {
-      const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents, handOff: true });
+      const how = await askCollect({ who: o.customer ?? "Guest", cents: o.total_cents, handOff: true, house: admin });
       if (!how) return;
       const row = how === "unpaid" ? o : await takeMoney(o, how);
       if (!row) return;
       return move(row, to);
     }
     return move(o, to);
-  }, [askCollect, takeMoney, move, bounce]);
+  }, [askCollect, takeMoney, move, bounce, admin]);
   // ↩ takes a ticket back a stage; on a picked-up ticket it is Recall — done → ready, from the status it showed.
   const recall = useCallback((o: Order) => (bounce(o) ? undefined : move(o, PREV[o.status])), [move, bounce]);
   // Voiding a paid order is a refund somebody has to make. It used to say only "This can't be

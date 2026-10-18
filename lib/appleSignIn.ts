@@ -79,9 +79,10 @@ async function appleKeys(): Promise<AppleJwk[]> {
 }
 
 /** Apple's `sub` for the person, when the identity token is Apple's, for this app, current, and made for this nonce;
- *  null otherwise. `keys` and `now` stand in for Apple's published keys and the clock in tests. */
+ *  null otherwise — with when Apple made it (`iat`, seconds; R27: a delete takes only a token made just now).
+ *  `keys` and `now` stand in for Apple's published keys and the clock in tests. */
 export async function verifyIdentityToken(token: unknown, rawNonce: unknown,
-  opts: { keys?: AppleJwk[]; now?: number } = {}): Promise<{ sub: string; email: string | null } | null> {
+  opts: { keys?: AppleJwk[]; now?: number } = {}): Promise<{ sub: string; email: string | null; iat: number | null } | null> {
   if (typeof token !== "string" || typeof rawNonce !== "string" || !rawNonce || token.length > 4096) return null;
   const parts = token.split(".");
   if (parts.length !== 3) return null;
@@ -108,5 +109,5 @@ export async function verifyIdentityToken(token: unknown, rawNonce: unknown,
   if (typeof claims.exp !== "number" || claims.exp <= now) return null;
   if (typeof claims.iat === "number" && claims.iat > now + 300) return null;
   if (claims.nonce !== nonce || typeof claims.sub !== "string" || !claims.sub) return null;
-  return { sub: claims.sub, email: typeof claims.email === "string" ? claims.email : null };
+  return { sub: claims.sub, email: typeof claims.email === "string" ? claims.email : null, iat: typeof claims.iat === "number" ? claims.iat : null };
 }

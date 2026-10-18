@@ -16,7 +16,7 @@ import Icon from "@/components/Icon";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useAuth } from "./AuthProvider";
 import { canOf } from "@/lib/roles";
-import { canCollect, canUndo, collectPayment, undoCollection, isSettled, paidHow, viaOf, VIA_CHIP, VIA_UNDO, type CollectVia } from "@/lib/collect";
+import { canCollect, canUndo, collectPayment, undoCollection, isSettled, paidHow, viaOf, settleOf, VIA_CHIP, VIA_UNDO, type CollectVia, type OnTheHouse } from "@/lib/collect";
 import { useCollectSheet } from "./CollectSheet";
 import FoldCard from "@/components/crew/FoldCard";
 import { dueLead, type PickupFeed } from "@/lib/dueNext";
@@ -154,16 +154,19 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
   // ── MONEY AT THE WINDOW (2026-10-04, 0341) ─────────────────────────────────────────────────────
   // A pack reserved "pay at pickup" could never be marked paid — nothing in the app wrote paid but
   // the online reserve — so "still to collect at the window" counted packs paid an hour earlier.
-  const takeMoney = async (o: DropOrder, via: CollectVia): Promise<boolean> => {
+  const takeMoney = async (o: DropOrder, how: CollectVia | OnTheHouse): Promise<boolean> => {
     if (!supabase) return false;
-    const res = await collectPayment(supabase, "pickup", o.id, via);
+    const { via, reason } = settleOf(how);   // on the house (0432): covered, with an owner's reason
+    const res = await collectPayment(supabase, "pickup", o.id, via, reason);
     if (res.error) { toast(`Couldn't record it — ${res.error}`, "error"); reload(); return false; }
-    toast(res.already ? `${o.name} had already paid — nothing taken` : `${o.name} — ${dollars(o.total_cents / 100)} ${via === "cash" ? "cash" : "on the card reader"}`);
+    // Each way said as what it was (R27: covered was said "on the card reader").
+    const said = reason ? "on the house" : via === "cash" ? "cash" : via === "card_reader" ? "on the card reader" : "covered by their free cup or credit";
+    toast(res.already ? `${o.name} had already paid — nothing taken` : `${o.name} — ${dollars(o.total_cents / 100)} ${said}`);
     reload();
     return true;
   };
   const collect = async (o: DropOrder) => {
-    const how = await askCollect({ who: o.name, cents: o.total_cents });
+    const how = await askCollect({ who: o.name, cents: o.total_cents, house: admin });
     if (how && how !== "unpaid") await takeMoney(o, how);
   };
   const undoTake = async (o: DropOrder) => {
@@ -181,7 +184,7 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
   const setStage = async (o: DropOrder, stage: PackStage) => {
     if (!supabase) return;
     if (stage === "picked_up" && canCollect(o)) {
-      const how = await askCollect({ who: o.name, cents: o.total_cents, handOff: true });
+      const how = await askCollect({ who: o.name, cents: o.total_cents, handOff: true, house: admin });
       if (!how) return;
       if (how !== "unpaid" && !(await takeMoney(o, how))) return;
     }

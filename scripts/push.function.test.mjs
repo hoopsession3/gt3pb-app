@@ -378,12 +378,56 @@ const leaders = () => [web(1, { user_id: OWNER }), web(2, { user_id: CREW }), we
     unsaid.status === 502 && unsaid.text === "ok — but teams: HTTP 500" && !faultLines().length && logged.some(([, l]) => l === "[push] the fault line could not be written (57014)"), { unsaid, logged });
 }
 
+// ── 5b · WHAT LEAVES THE APP (R27, 2026-10-18 — the 10/10 audit, API F17; Ryan: "Order # + link only") ──────────────
+// A card and an email carry the kind's words, the number it is about and the link — never the alert's own title or
+// body. Made-up names, emails, phones, streets and items are sent through, and looked for outside.
+{
+  const PII = ["Dana Whitfield", "dana@example.test", "864-555-0142", "14 Made-up Lane", "Rise and Flow", "made-up-job", "Made-up body"];
+  const none = (x) => PII.every((w) => !JSON.stringify(x).includes(w));
+  const paid = alertRow({ severity: "critical", kind: null, category: "money", title: "Paid order didn't record — add it",
+    body: "A card payment succeeded (sq-pay-1, $12.00) but the order didn't save. Name: Dana Whitfield. dana@example.test, 864-555-0142, 14 Made-up Lane. Items: Rise and Flow.",
+    subject_id: "3f2a9c10-0000-4000-8000-000000000001", link: "/crew?s=now" });
+  fresh({ alerts: [paid], push_subscriptions: leaders() });
+  await post({ type: "INSERT", table: "alerts", record: { id: ALERT } });
+  const card = JSON.parse(sent(TEAMS)[0]?.body ?? "{}"), mail = JSON.parse(sent("api.resend.com")[0]?.body ?? "{}");
+  ok("R27 alert: the Teams card says the kind and the order's number, and links to it — none of the alert's own words",
+    card.title === "🔴 Paid order didn't record — add it · #3F2A" && card.summary === "Paid order didn't record — add it · #3F2A"
+    && /What it says is in the app — it isn't sent outside it\./.test(card.text) && /Open it: https:\/\/app\.gt3pb\.com\/crew\?s=now/.test(card.text) && none(card), card);
+  ok("R27 alert: the critical's email — the kind, the number, the link — and nothing the alert said",
+    mail.subject === "Critical — Paid order didn't record — add it · #3F2A" && /Open it: https:\/\/app\.gt3pb\.com\/crew\?s=now/.test(mail.text) && none(mail), mail);
+  ok("R27 alert: …while the inbox keeps every word — it is the app's own", w.tables.alerts.some((a) => a.id === ALERT && /Dana Whitfield/.test(a.body)));
+
+  fresh({ alerts: [alertRow({ title: "A scheduled job is failing — made-up-job", body: "Made-up body. dana@example.test" })], push_subscriptions: leaders() });
+  await post({ type: "INSERT", table: "alerts", record: { id: ALERT } });
+  const kinded = JSON.parse(sent(TEAMS)[0]?.body ?? "{}");
+  ok("R27 alert: a kind with its own words is said in them — its title's job name and its body stay in the app; no subject, no number",
+    kinded.title === "🟠 A scheduled job is failing" && none(kinded) && /Open it: https:\/\/app\.gt3pb\.com\/crew\?s=settings/.test(kinded.text), kinded);
+
+  fresh({ alerts: [alertRow({ severity: "critical", kind: null, category: "order", title: "Dana Whitfield's order is late", body: "Made-up body.", link: "https://evil.example.test/x", subject_id: "square" })], push_subscriptions: leaders() });
+  await post({ type: "INSERT", table: "alerts", record: { id: ALERT } });
+  const named = JSON.parse(sent(TEAMS)[0]?.body ?? "{}"), namedMail = JSON.parse(sent("api.resend.com")[0]?.body ?? "{}");
+  ok("R27 alert: a title that isn't a fixed sentence is its category's words; a subject that isn't an id gives no number; a link off this site is the day's",
+    named.title === "🔴 An order needs you" && namedMail.subject === "Critical — An order needs you" && none([named, namedMail])
+    && /Open it: https:\/\/app\.gt3pb\.com\/crew\?s=day/.test(namedMail.text) && !/evil/.test(JSON.stringify([named, namedMail])), { named, namedMail });
+}
+
 // ── 6 · A BOOKING, A SIGN-UP: THE INBOX LINE AND THE MAIL ────────────────────────────────────────────────────────────
 {
   const BOOK = "b0000000-0000-4000-8000-000000000001";
   fresh({ booking_requests: [{ id: BOOK, created_at: ago(60_000), name: "Made-up Person", email: "person@example.test", tenant_id: FOUNDING }] });
   const got = await post({ type: "INSERT", table: "booking_requests", record: { id: BOOK } });
   ok("booking: an inbox line (category booking) and an email to the admin list", got.text === "ok: booking" && w.tables.alerts.length === 1 && w.tables.alerts[0].category === "booking" && sent("api.resend.com").length === 1, got);
+  // R27 (API F17): the email says a lead came in, the day, how many, and when — who, how to reach them, where and what
+  // they wrote stay in the app (the inbox line keeps them).
+  fresh({ booking_requests: [{ id: BOOK, created_at: ago(60_000), name: "Dana Whitfield", email: "dana@example.test", phone: "864-555-0142",
+    location_text: "14 Made-up Lane, Greenville", notes: "Gate code 4411", event_date: "2026-11-07", headcount: 40, tenant_id: FOUNDING }] });
+  await post({ type: "INSERT", table: "booking_requests", record: { id: BOOK } });
+  const lead = JSON.parse(sent("api.resend.com")[0]?.body ?? "{}");
+  ok("R27 booking: the email — a lead, its day and headcount, the link — and not who, their email or phone, the place or their notes",
+    lead.subject === "New booking lead — 2026-11-07" && /Event date: 2026-11-07/.test(lead.text) && /Headcount: 40/.test(lead.text)
+    && /Manage it: https:\/\/app\.gt3pb\.com\/crew\?s=plan/.test(lead.text)
+    && ["Dana Whitfield", "dana@example.test", "864-555-0142", "Made-up Lane", "Gate code"].every((x) => !JSON.stringify(lead).includes(x))
+    && /Dana Whitfield/.test(w.tables.alerts[0]?.body ?? ""), { lead, inbox: w.tables.alerts[0]?.body });
   fresh({ booking_requests: [{ id: BOOK, created_at: ago(60_000), name: "Made-up Person", tenant_id: FOUNDING }] });
   w.fail.alerts = { insert: { error: { code: "23514", message: "violates check constraint" } } };
   const lost = await post({ type: "INSERT", table: "booking_requests", record: { id: BOOK } });
@@ -391,6 +435,19 @@ const leaders = () => [web(1, { user_id: OWNER }), web(2, { user_id: CREW }), we
   fresh({ profiles: [{ id: MEMBER, role: "member", tenant_id: FOUNDING, display_name: "Made-up Member", created_at: ago(60_000) }] });
   const join = await post({ type: "INSERT", table: "profiles", record: { id: MEMBER } });
   ok("sign-up: an fyi line in the inbox and nothing else (no mail)", join.text === "ok: signup" && w.tables.alerts[0]?.severity === "fyi" && !sent("api.resend.com").length, join);
+  // R27 (API F17): a critical task's email says it is theirs and links to their day — never its label, which can name a
+  // client, nor its event's title.
+  const TASK = "e7000000-0000-4000-8000-000000000001";
+  fresh({ event_tasks: [{ id: TASK, assignee: CREW, critical: true, label: "Call Dana Whitfield at 864-555-0142", event_id: null, meeting_note_id: null }] });
+  const task = await post({ type: "UPDATE", table: "event_tasks", record: { id: TASK, assignee: CREW }, old_record: { id: TASK, assignee: null, critical: true } });
+  const taskMail = JSON.parse(sent("api.resend.com")[0]?.body ?? "{}");
+  ok("R27 task: a critical task's email — that it is theirs, to them alone, and their day's link — never its label",
+    task.status === 200 && taskMail.to?.join() === "crew@example.test" && taskMail.subject === "A critical task is yours"
+    && /Your day: https:\/\/app\.gt3pb\.com\/crew\?s=day/.test(taskMail.text) && !/Dana|864-555/.test(JSON.stringify(taskMail)), { task, taskMail });
+  fresh({ event_tasks: [{ id: TASK, assignee: CREW, critical: true, label: "Call Dana Whitfield", event_id: null }] });
+  await post({ type: "UPDATE", table: "event_tasks", record: { id: TASK, assignee: CREW }, old_record: { id: TASK, assignee: CREW, critical: false } });
+  ok("R27 task: …and one of theirs turned critical says so, in the same few words",
+    JSON.parse(sent("api.resend.com")[0]?.body ?? "{}").subject === "A task of yours is critical now" && !/Dana/.test(sent("api.resend.com")[0]?.body ?? ""));
 }
 
 // ── 7 · A PACK HEARS ABOUT ITS DAY: PUSH, EMAIL, TEXT, AND WHAT WENT WRITTEN BACK ───────────────────────────────────

@@ -592,3 +592,61 @@ export function smsPlain(text: string): string {
 
 /** Night on the market's clock — 9pm to 8am, as lib/texts quietHours: no text goes then (0399 releases nothing then). */
 export const textQuiet = (at: Date): boolean => { const h = hourOn(at, MARKET_ZONE); return h >= 21 || h < 8; };
+
+// ── 5 · WHAT LEAVES THE APP (R27, 2026-10-18 — the 10/10 audit, API F17; Ryan: "Order # + link only") ───────────────────
+// A Teams card is read in a channel, on every phone the channel reaches; an email sits in mailboxes, and in the mail
+// provider's logs, for good. Both carried the alert's own words out of the app — a customer's name, email, phone and
+// street, what they ordered, what somebody typed — and a booking's email carried the lead's name, number and notes. Now a
+// card and an email say what kind of thing happened (the lock screen's words: alertWords), the number it is about — as
+// the Pass prints an order's — and the link; the words themselves stay in the app, behind the crew's sign-in. Every
+// sentence below is fixed (scripts/push.function.test.mjs sends made-up names, numbers and streets through each one and
+// finds none of them outside).
+export const APP_ORIGIN = "https://app.gt3pb.com";
+export const STAYS_IN_APP = "What it says is in the app — it isn't sent outside it.";
+
+/** The number an alert is about: its subject's id as the Pass prints an order's (#ABCD); none for a subject that isn't
+ *  an id. */
+export function refOf(id: unknown): string {
+  return typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id) ? `#${id.slice(0, 4).toUpperCase()}` : "";
+}
+
+export type Outside = { line: string; text: string };
+
+/** An alert as a Teams card or an email carries it: the words for its kind, its number, and its link — never its own
+ *  title or body. (A critical's email says "Critical — " before the line; the card's colour says it.) */
+export function alertOutside(a: { kind?: unknown; category?: unknown; title?: unknown; subject_id?: unknown; link?: unknown }, fallback = "/crew?s=day"): Outside {
+  const ref = refOf(a.subject_id);
+  return {
+    line: `${alertWords(a)}${ref ? ` · ${ref}` : ""}`,
+    text: `${STAYS_IN_APP}\n\nOpen it: ${APP_ORIGIN}${sitePath(a.link, fallback)}`,
+  };
+}
+
+/** A booking lead's email: that one came in, for which day and how many, and when — never who, how to reach them, where,
+ *  or what they wrote. `submitted` is the time, as the function words it. */
+export function bookingOutside(b: { event_date?: unknown; headcount?: unknown }, submitted: string): { subject: string; text: string } {
+  const day = typeof b.event_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.event_date) ? b.event_date : "";
+  const people = typeof b.headcount === "number" && Number.isFinite(b.headcount) && b.headcount > 0 ? Math.round(b.headcount) : 0;
+  return {
+    subject: `New booking lead${day ? ` — ${day}` : ""}`,
+    text: [
+      "Someone wants to book GT3PB.",
+      "",
+      `Submitted: ${submitted} ET`,
+      day ? `Event date: ${day}` : null,
+      people ? `Headcount: ${people}` : null,
+      "",
+      "Who they are, how to reach them and what they asked are in the app — they aren't sent outside it.",
+      `Manage it: ${APP_ORIGIN}/crew?s=plan`,
+    ].filter((l) => l !== null).join("\n"),
+  };
+}
+
+/** A critical task's email to the person it is on: that it is theirs, and the link — not its label or its event, which
+ *  can be a client's name. */
+export function taskOutside(nowCritical: boolean): { subject: string; text: string } {
+  return {
+    subject: nowCritical ? "A task of yours is critical now" : "A critical task is yours",
+    text: [`${nowCritical ? "A task you're on is critical now." : "You're on a critical task."} ${STAYS_IN_APP}`, "", `Your day: ${APP_ORIGIN}/crew?s=day`].join("\n"),
+  };
+}

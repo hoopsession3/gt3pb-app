@@ -5963,7 +5963,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /\{canCollect\(o\) && <button type="button" className="btn-sec shrink-0" onClick=\{\(\) => act\.collect\(o\)\}>Collect \{money\(o\.total_cents\)\}<\/button>\}/.test(kit)
     && (kit.match(/canCollect\(o\) && <button/g) || []).length === 2);
   ok("pass: 'Picked up' on an owed ticket asks how they paid first — hand-off is when the money is asked about",
-    /if \(to === "done" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.customer \?\? "Guest", cents: o\.total_cents, handOff: true \}\);\s*if \(!how\) return;\s*const row = how === "unpaid" \? o : await takeMoney\(o, how\);\s*if \(!row\) return;\s*return move\(row, to\);/.test(kit));
+    /if \(to === "done" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.customer \?\? "Guest", cents: o\.total_cents, handOff: true, house: admin \}\);\s*if \(!how\) return;\s*const row = how === "unpaid" \? o : await takeMoney\(o, how\);\s*if \(!row\) return;\s*return move\(row, to\);/.test(kit));
   ok("pass: taking money is instant like a move, and with no signal it is parked and replayed — the till does not wait for bars",
     /apply\(paidRow, false\);/.test(kit) && /if \(isNetworkError\(res\.error\)\) \{ queueCollectCup\(o\.id, via\);/.test(kit) && /apply\(o, false\);\s*toast\(`Couldn't record it/.test(kit));
   ok("pass: the money word is lib/collect's — 'PAID · cash', 'PAID · reader' — on the board and in the picked-up tray",
@@ -6046,7 +6046,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const dueAtWindow = rows\.filter\(\(o\) => !isSettled\(o\)\)/.test(dops) && !/rows\.filter\(\(o\) => !o\.paid\)/.test(dops));
   ok("pickup: a pack can be collected, and handing it over asks first — whichever button got it to picked up",
     /\{canCollect\(o\) && <button type="button" className="btn-sec btn-sm flex-1" onClick=\{\(\) => collect\(o\)\}>/.test(dops)
-    && /if \(stage === "picked_up" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.name, cents: o\.total_cents, handOff: true \}\);/.test(dops)
+    && /if \(stage === "picked_up" && canCollect\(o\)\) \{\s*const how = await askCollect\(\{ who: o\.name, cents: o\.total_cents, handOff: true, house: admin \}\);/.test(dops)
     && (dops.match(/setStage\(o, /g) || []).length === 2 && !/setStage\(o\.id,/.test(dops) && /\{collectSheet\}/.test(dops));
   ok("pickup: a canceled pack's refund is what its payment was — cash back across the window, a card in Square, flagged critical by the database (0242's rule, 0416's trigger), once",
     /how === "cash" \? \{ title: `Cancel \$\{o\.name\}'s \$\{o\.size\}-pack, paid \$\{amt\} cash\?`, body: "Hand the cash back — nothing to refund in Square\."/.test(dops)
@@ -10119,7 +10119,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /supabase\?\.auth\.signOut\(\{ scope: "local" \}\)/.test(del));
   ok("delete: the screen asks the server first, says what goes and what stays, and only then offers the red words (the kit's destructive)",
     /authedFetch\("\/api\/account\/erase"\)\s*\.then/.test(del) && />Deleted<\/div>/.test(del) && />Kept, without your name<\/div>/.test(del)
-    && /className="btn-del" onClick=\{\(\) => erase\(phase\.membership, phase\.office\)\}/.test(del) && /body: JSON\.stringify\(\{ confirm: true \}\)/.test(del)
+    && /className="btn-del" onClick=\{\(\) => void prove\(phase\.membership, phase\.office\)\}/.test(del) && /body: JSON\.stringify\(\{ confirm: true, \.\.\.\(apple \? \{ apple \} : \{\}\) \}\)/.test(del)
     && /phase\.at === "blocked"/.test(del) && !/window\.location\.reload/.test(del));
   // A3 of the account audit (2026-10-15): the database goes first — 0353's erasure and 0404's queue of what is outside it,
   // in one transaction — and only then the steps outside, from the queue (lib/accountErase decides the order).
@@ -11868,6 +11868,15 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const \{ status, reason \} = await sendApns\(s\.endpoint, \{ title, body: message, url \}\);/.test(fn)
     && !/\blet\s+(title|message)\b/.test(fn) && !/\b(title|message)\s*=\s*(\(sev|map\[|record\.(title|body|customer))/.test(fn)
     && !/\bDRINKS\b|total_cents \/ 100/.test(fn));
+  // R27 (2026-10-18 — the 10/10 audit, API F17; Ryan: "Order # + link only"): a Teams card and an email are built from
+  // policy.ts's words too — the kind, the number, the link — never from an alert's title or body, a lead's contact, a
+  // task's label (scripts/push.function.test.mjs sends made-up ones through and finds none outside).
+  ok("R27 alerts: the card and the email say policy.ts's words — alertOutside, bookingOutside, taskOutside — never a row's own",
+    /const outside = alertOutside\(record\);/.test(fn) && /const subj = `Critical — \$\{outside\.line\}`;/.test(fn)
+    && /await emailUser\(record\.target_user_id, subj, outside\.text, faults\);/.test(fn) && /await emailAdmins\(subj, outside\.text, faults\);/.test(fn)
+    && /const lead = bookingOutside\(record, /.test(fn) && /const told = taskOutside\(becameCritical && !assigneeChanged\);/.test(fn)
+    && !/record\.(name|email|phone|notes|location_text|label|body)\b[^\n]*emailAdmins|emailAdmins\([^\n]*record\.(name|email|phone|notes|location_text|label|body)\b/.test(fn)
+    && !/`Critical — \$\{record\.title\}`/.test(fn) && !/nameForUser/.test(fn));
   ok("alerts: a go-live push names the stop and never its street; a task's push names no label or event",
     /select\("name"\)\.eq\("id", record\.current_stop_id\)/.test(fn) && !/location_text"\)\.eq\("id", record\.current_stop_id/.test(fn)
     && !/shown = taskShown\([^)]*label/.test(fn));
@@ -11887,7 +11896,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(!stillUnanswered\(record, reads\)\) return new Response\("skip: acknowledged"\);/.test(fn)
     && /const ids = await peopleFor\(record, faults, true\);/.test(fn));
   ok("alerts: a device test goes to its person's devices alone — never Teams, never email",
-    /const ownTest = record\.kind === "device_test";/.test(fn) && /if \(!ownTest\) await postTeams\(record\.severity, record\.title, record\.body \|\| "", faults\);/.test(fn)
+    /const ownTest = record\.kind === "device_test";/.test(fn) && /if \(!ownTest\) await postTeams\(record\.severity, outside\.line, outside\.text, faults\);/.test(fn)
     && /if \(ownTest && !record\.target_user_id\) return new Response\("skip: a device test is someone's own"\);/.test(fn));
   {
     const canon = (/const ALERT_CATEGORIES = \{([\s\S]*?)\} as const;/.exec(read("lib/alertKinds.ts")) || [])[1] || "";
@@ -15251,8 +15260,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     ["freshRow(record.created_at, nowMs)", "freshRow(record.status_changed_at, nowMs)", "freshRow(record.updated_at, nowMs)", "freshRow(record.live_since, nowMs, LIVE_NEWS_MS)",
       "freshRow(record.fired_at, nowMs)", "freshRow(record.sent_at, nowMs)", "freshRow(record.escalated_at, nowMs)"].every((c) => pfn.includes(c))
     && (pfn.match(/freshRow\(/g) || []).length === 12);
+  // R27 (API F17): the email's link is built with the card's and the email's words, in policy.ts (alertOutside), through the
+  // same sitePath.
+  const ppol = rd("supabase/functions/push/policy.ts");
   ok("R10 push: a link is a path on this site — the tap and the email's link both go through sitePath, never the row's link as it is",
-    (pfn.match(/sitePath\(record\.link, "\/admin"\)/g) || []).length === 2 && /https:\/\/app\.gt3pb\.com\$\{sitePath\(record\.link, "\/crew\?s=day"\)\}/.test(pfn)
+    (pfn.match(/sitePath\(record\.link, "\/admin"\)/g) || []).length === 2 && /const outside = alertOutside\(record\);/.test(pfn)
+    && /Open it: \$\{APP_ORIGIN\}\$\{sitePath\(a\.link, fallback\)\}/.test(ppol) && /export function alertOutside\([^)]*fallback = "\/crew\?s=day"\)/.test(ppol)
     && !/record\.link \|\|/.test(pfn));
   const m419 = rd("supabase/migrations/0419_a_push_is_sent_once_for_what_happened_and_a_limit_counts_what_it_lets_in.sql");
   ok("R10 push: the go-live is stamped by the database alone, on every write — set on the flip, kept while live, cleared offline",
@@ -15478,7 +15491,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /underHeld\(rows, held\.current, Date\.now\(\), new Set\(readQueue\(\)\.map\(\(q\) => q\.key\)\)\)/.test(pb));
   ok("R11 pass: a move, a collection, an undo and a void are each held from the tap, and let go when the database refuses them",
     /hold\(o, "order_status", patch\);/.test(tps) && /hold\(o, "collect_cup", paid as Partial<Order>\);/.test(tps) && /hold\(o, "undo_collect", undonePatch\(o\) as Partial<Order>\);/.test(tps)
-      && /hold\(o, "order_status", \{ status: "void" \}\);/.test(tps) && (tps.match(/release\(o, "order_status"\);/g) || []).length === 2 && (tps.match(/release\(o, "collect_cup"\);/g) || []).length === 2
+      // R27: three let-gos for a collection — refused, and on the house without a signal (never parked: 0432's reason).
+      && /hold\(o, "order_status", \{ status: "void" \}\);/.test(tps) && (tps.match(/release\(o, "order_status"\);/g) || []).length === 2 && (tps.match(/release\(o, "collect_cup"\);/g) || []).length === 3
       && (tps.match(/release\(o, "undo_collect"\);/g) || []).length === 2);
   ok("R11 pass: a bounce off a ticket that just moved is not a tap on the one that slid under it",
     /settle\.current = \{ lane: left, id: o\.id, until: Date\.now\(\) \+ TAP_SETTLE_MS \};/.test(tps) && /const advance = useCallback\(async \(o: Order\) => \{\n\s+if \(bounce\(o\)\) return;/.test(tps)

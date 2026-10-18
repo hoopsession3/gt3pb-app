@@ -52,6 +52,12 @@ export type EraseAnswer = {
 export const ERASE_WORDS = {
   unavailable: "Deleting an account isn't available yet. Try again later today.",
   busy: "We couldn't start deleting your account just now. Nothing was deleted — try again in a minute.",
+  // R27 (app/api/account/erase): the delete takes a proof from the last five minutes — the emailed code, or Apple's sheet.
+  // Today's screen answers `prove` with its own code step and never shows these words; they are for a screen that has no
+  // code step — the iPhone app built before R27 (its screens are its own until a new build is installed), or a web page
+  // loaded before R27 went out. For them a fresh sign-in is the proof: signing in writes its time into the new session
+  // (lib/freshProof), so the older app still deletes in the app (Guideline 5.1.1(v)), and nothing is let through unproved.
+  prove: "To keep your account safe, deleting it needs a fresh sign-in. Sign out, sign back in, and delete it within five minutes. Nothing was deleted.",
 } as const;
 
 const TRIES = 2;

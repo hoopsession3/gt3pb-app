@@ -1858,16 +1858,45 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await crew.close();
   }
 
+  // R27 (2026-10-18 — the 10/10 audit, security F7): the delete's code. Supabase's own email code, stood in — what the app
+  // asked to be sent, and what it checked; the check answers the owner's session again, as Supabase's does.
+  const deleteCodeStandIn = async (page) => {
+    const sent = { otp: null, verify: null };
+    const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET, POST, OPTIONS" };
+    await page.route((u) => u.host === BACKEND_HOST && (u.pathname === "/auth/v1/otp" || u.pathname === "/auth/v1/verify"), async (route) => {
+      const req = route.request(), u = new URL(req.url());
+      if (req.method() === "OPTIONS") return route.fallback();
+      const json = (body) => route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json" }, body: JSON.stringify(body) });
+      if (u.pathname === "/auth/v1/otp") { sent.otp = req.postDataJSON(); return json({}); }
+      sent.verify = req.postDataJSON();
+      return json(SESSION);
+    });
+    return sent;
+  };
+  // The code's step, as a person meets it: the field, the words that the code went, then the code and the red words.
+  // `before` is asked once the step is up, before the code is typed (what the page has done by then).
+  const enterDeleteCode = async (page, before = () => {}) => {
+    const asked = await page.waitForSelector("#del-code", { timeout: 8000 }).then(() => true, () => false);
+    if (!asked) return false;
+    await page.waitForFunction(() => /We sent an 8-digit code/.test(document.body.innerText), null, { timeout: 5000 }).catch(() => {});
+    await before();
+    await page.fill("#del-code", "12345678").catch(() => {});
+    await page.locator("form", { has: page.locator("#del-code") }).getByRole("button", { name: "Delete my account" }).click().catch(() => {});
+    return true;
+  };
+
   // ── 6 · deleting your account, in the app (App Store Review Guideline 5.1.1(v)) ──
   // Signed in, from the avatar's menu: Settings & privacy, then the row — three taps (A2 of the account audit) — its
   // screen (loaded when tapped — so it must be in the export), what it asks the web's API, and after the red button a
   // phone that is signed out and home.
-  // The stand-in API answers {} — nothing stands in the way — so this walks the whole way through.
+  // The stand-in API answers {} — nothing stands in the way — so this walks the whole way through. Since R27 the red
+  // button emails a code first, and the delete goes when it is entered.
   {
     const ctx = await phoneContext(MAIN, { owner: true });
     const page = await ctx.newPage();
     await insetsOn(page, MAIN.top, MAIN.bottom);
     const errors = watch(page);
+    const code = await deleteCodeStandIn(page);
     const from = apiCalls.length;
     const asked = (method) => apiCalls.slice(from).some((c) => c.method === method && new URL(c.url).pathname === "/api/account/erase");
     await page.goto(`${BASE}/book`, { waitUntil: "load" });
@@ -1890,13 +1919,23 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("delete account: nothing on its screen is under the system's bars", under.length === 0, findings(under));
     const red = page.getByRole("button", { name: "Delete my account" });
     if (said) await red.click();
+    let postedEarly = null, focusedCode = null;
+    const coded = said && await enterDeleteCode(page, async () => {
+      postedEarly = asked("POST");
+      focusedCode = await page.evaluate(() => document.activeElement?.id ?? null);
+      if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete-code") }).catch(() => {});
+    });
+    ok("delete account: the red button emails a code first — to the account's own email, never making an account — and asks nothing of the web's API until it is entered",
+      coded && code.otp?.email === OWNER.email && code.otp?.create_user === false && postedEarly === false, JSON.stringify({ otp: code.otp, postedEarly }));
+    ok("delete account: the code's step has the caret in the code field (its words read with it)", focusedCode === "del-code", String(focusedCode));
     await page.waitForURL((u) => ["/", "/menu"].includes(new URL(u).pathname), { timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(500);
     const after = await page.evaluate((key) => ({ path: location.pathname, session: localStorage.getItem(key), told: document.body.innerText.includes("Your account is deleted.") }),
       `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
     // home sends a guest in the app on to the menu (app/page.tsx — the app opens on the menu since 2026-10-08), so either is home
-    ok("delete account: the red button asks the web's API, then this phone is signed out and home, and told",
-      asked("POST") && ["/", "/menu"].includes(after.path) && after.session === null && after.told, JSON.stringify({ posted: asked("POST"), ...after, session: after.session ? "still here" : null }));
+    ok("delete account: the code is checked as an email code (the one typed), then the web's API is asked, then this phone is signed out and home, and told",
+      code.verify?.type === "email" && code.verify?.token === "12345678" && code.verify?.email === OWNER.email
+      && asked("POST") && ["/", "/menu"].includes(after.path) && after.session === null && after.told, JSON.stringify({ verify: code.verify, posted: asked("POST"), ...after, session: after.session ? "still here" : null }));
     ok("delete account: no errors", errors.length === 0, errors.join(" | "));
     await ctx.close();
   }
@@ -2121,6 +2160,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const page = await ctx.newPage();
     await insetsOn(page, MAIN.top, MAIN.bottom);
     const errors = watch(page);
+    await deleteCodeStandIn(page);
     await page.route((u) => u.origin === API_ORIGIN && u.pathname === "/api/account/erase", async (route) => {
       const req = route.request(), cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type, authorization", "access-control-allow-methods": "GET, POST, OPTIONS" };
       if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
@@ -2138,6 +2178,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const cancelled = await page.locator("text=Your membership is cancelled too").count();
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete-office") });
     if (office) await page.getByRole("button", { name: "Delete my account" }).click();
+    if (office) await enterDeleteCode(page);
     const pending = await page.waitForSelector("text=still going through with Square", { timeout: 8000 }).then(() => true, () => false);
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete-pending") });
     ok("delete account: a company's weekly office order under their name is said before the red button, and the membership's cancel", office && cancelled === 1);

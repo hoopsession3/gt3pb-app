@@ -2,6 +2,7 @@ import { supabaseAdmin } from "./supabaseAdmin";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { authUnavailable } from "./authAnswer";
 import { SignInUnchecked } from "./signInUnchecked";
+import { claimsOf, provedWithin, PROVED_FOR_S } from "./freshProof";
 
 // Verify the caller's Supabase access token (sent as Authorization: Bearer <jwt>)
 // and return their user id and verified email. Server-only. Returns null if missing/invalid.
@@ -29,6 +30,15 @@ export async function userFromRequest(req: Request): Promise<{ id: string; email
   if (data?.user) return { id: data.user.id, email: data.user.email ?? null };
   if (authUnavailable(error)) throw new SignInUnchecked(error?.message?.slice(0, 120));
   return null;
+}
+
+// PROVED JUST NOW (R27 — the 10/10 audit, security F7; lib/freshProof). Whether the caller proved it is them in the last
+// few minutes — an emailed code, Apple, a password — read from the same bearer userFromRequest checked. Ask it only after
+// userFromRequest answered a person for this same request: the claims are read here, not checked.
+export function bearerProvedWithin(req: Request, windowS: number = PROVED_FOR_S): boolean {
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  return !!token && provedWithin(claimsOf(token), Date.now(), windowS);
 }
 
 // THE CALLER OF A CARD DOOR (R15, 2026-10-17 — the 10/10 audit, API F13). userFromRequest answers null for no session AND

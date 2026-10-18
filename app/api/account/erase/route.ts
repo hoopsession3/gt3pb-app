@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { userFromRequest } from "@/lib/apiAuth";
+import { userFromRequest, bearerProvedWithin } from "@/lib/apiAuth";
 import { SQUARE_BASE, squareHeaders, squareDeadline } from "@/lib/squareServer";
 import { route } from "@/lib/apiRoute";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { revoke, siwaConfigured } from "@/lib/appleSignIn";
+import { revoke, siwaConfigured, verifyIdentityToken } from "@/lib/appleSignIn";
+import { PROVED_FOR_S } from "@/lib/freshProof";
 import { eraseAccount, ERASE_WORDS, type Blocker, type EraseSteps, type Followup } from "@/lib/accountErase";
 
 // DELETE MY ACCOUNT — the route behind "Delete account" in the account menu, on the web and in the
@@ -15,6 +16,17 @@ import { eraseAccount, ERASE_WORDS, type Blocker, type EraseSteps, type Followup
 //   GET                     → what deleting would mean for the caller, before anything changes:
 //                             { blockers: [{ code, message }], membership: boolean, office: string[] }
 //   POST { confirm: true }  → it happens: { ok: true, appleManual, membershipPending }
+//        { …, apple: { idToken, nonce } } — Apple's sheet, just now, for an account that signs in with Apple
+//                          → 403 { error, prove: true } when the caller hasn't proved it is them just now (below)
+//
+// PROVED JUST NOW (R27, 2026-10-18 — the 10/10 audit, security F7; Ryan: "Yes, a fresh code"). A session was enough to
+// delete an account for good, so a phone left unlocked, or lent for a minute, could delete its owner's. The delete asks
+// for a proof from the last five minutes before anything changes: the session's own — the 8-digit code emailed when they
+// press Delete (components/DeleteAccount), which Supabase writes into the token with its time (lib/freshProof) — or
+// Apple's word, just now, for this account's Apple ID (Face ID on the iPhone: lib/appleSignIn verifyIdentityToken).
+// A screen with no code step — the iPhone app built before R27, or a web page loaded before it — shows the 403's words,
+// which ask for a fresh sign-in: that proves it just the same (a sign-in writes its time into the new session), so the
+// older app keeps its delete with no door left open for it (lib/accountErase ERASE_WORDS.prove).
 //
 // THE DATABASE GOES FIRST (2026-10-15, A3 of the account audit). Supabase's admin API deletes the account — the
 // documented way, which takes the sign-ins and sessions with it — and in that one transaction 0353's trigger erases the
@@ -56,6 +68,17 @@ async function get(req: Request) {
   });
 }
 
+/** Apple's word, just now, that the person is this account's Apple ID: Apple's signed token, made for the nonce the phone
+ *  asked with, in the last five minutes, naming an Apple identity this account holds. */
+async function appleSaysNow(userId: string, apple: unknown): Promise<boolean> {
+  if (!supabaseAdmin || !apple || typeof apple !== "object" || Array.isArray(apple)) return false;
+  const { idToken, nonce } = apple as { idToken?: unknown; nonce?: unknown };
+  const got = await verifyIdentityToken(idToken, nonce).catch(() => null);
+  if (!got || got.iat === null || got.iat < Math.floor(Date.now() / 1000) - PROVED_FOR_S) return false;
+  const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
+  return !!data?.user?.identities?.some((i) => i.provider === "apple" && String(i.identity_data?.sub ?? i.id ?? "") === got.sub);
+}
+
 /** One step outside the database, for a deleted account. */
 async function run(f: Followup): Promise<{ ok: boolean; error?: string }> {
   const token = process.env.SQUARE_ACCESS_TOKEN;
@@ -92,10 +115,14 @@ async function post(req: Request) {
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ error: "Sign in." }, { status: 401 });
 
-  let body: { confirm?: unknown };
+  let body: { confirm?: unknown; apple?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Bad request" }, { status: 400 });   // a literal null is valid JSON (R10b): a 400, not a TypeError's 500
   if (body.confirm !== true) return NextResponse.json({ error: "Confirm to delete your account." }, { status: 400 });
+  // Proved just now (R27, above) — before anything is asked, marked or deleted.
+  if (!bearerProvedWithin(req) && !(await appleSaysNow(user.id, body.apple))) {
+    return NextResponse.json({ error: ERASE_WORDS.prove, prove: true }, { status: 403 });
+  }
 
   const steps: EraseSteps = {
     blockers: blockersFor,

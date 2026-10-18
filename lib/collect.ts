@@ -51,8 +51,20 @@ export const VIA_LABEL: Record<CollectVia, string> = { cash: "Cash", card_reader
 export const VIA_HINT: Record<CollectVia, string> = {
   cash: "In the till. Don't ring it on Square too — it counts here.",
   card_reader: "Rung on the Square reader — it counts there.",
-  covered: "Their free cup or credit — take it off on the scan screen first. No money changes hands, and none is counted.",
+  covered: "Their free cup or credit — take it off on the scan screen first, and this finds it. No money changes hands, and none is counted.",
 };
+/** ON THE HOUSE (0432 — R27 of the 10/10 audit, database F17; Ryan: "Owner/admin, with a reason"). Covered with nothing
+ *  taken off for the member — no free cup redeemed, no credit used today — is an owner's or admin's to give, and their
+ *  reason is the record (covered_settles). The answer CollectSheet gives for it: the reason, said as typed. */
+export type OnTheHouse = { house: string };
+export const HOUSE_LABEL = "On the house";
+export const HOUSE_HINT = "Nothing taken off for them? Say why — the reason is kept with it. No money changes hands.";
+/** A reason the database takes: three characters or more, kept to 200 (0432). */
+export const houseReasonOk = (why: string): boolean => why.trim().length >= 3;
+/** What a settle sends: the way, and the reason when it is on the house. */
+export function settleOf(how: CollectVia | OnTheHouse): { via: CollectVia; reason?: string } {
+  return typeof how === "object" ? { via: "covered", reason: how.house.trim().slice(0, 200) } : { via: how };
+}
 /** The chip a settled ticket wears, and what its undo takes back. */
 export const VIA_CHIP: Record<CollectVia, string> = { cash: "Cash", card_reader: "Reader", covered: "Covered" };
 export const VIA_UNDO: Record<CollectVia, string> = { cash: "the cash payment", card_reader: "the card-reader payment", covered: "the covered settle" };
@@ -142,9 +154,10 @@ export function canUndo(r: Collectable, me: string | null, admin: boolean, now =
 
 export type CollectResult = { error: string | null; already: boolean };
 
-/** Take the money. `already` = it was settled before this tap (a second tap, or paid online since). */
-export async function collectPayment(sb: SupabaseClient, kind: CollectKind, id: string, via: CollectVia): Promise<CollectResult> {
-  const { data, error } = await sb.rpc("staff_collect_payment", { p_kind: kind, p_id: id, p_via: via });
+/** Take the money. `already` = it was settled before this tap (a second tap, or paid online since). `reason`: on the
+ *  house (0432) — sent only then, so every other settle is the three arguments it always was. */
+export async function collectPayment(sb: SupabaseClient, kind: CollectKind, id: string, via: CollectVia, reason?: string): Promise<CollectResult> {
+  const { data, error } = await sb.rpc("staff_collect_payment", { p_kind: kind, p_id: id, p_via: via, ...(reason ? { p_reason: reason } : {}) });
   if (error) return { error: error.message, already: false };
   return { error: null, already: data === "already settled" };
 }

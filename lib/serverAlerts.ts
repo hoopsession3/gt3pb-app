@@ -54,18 +54,28 @@ export async function raiseAlert(a: {
 
 /** An alert the database would not take: one line in the platform's log always, and a critical emailed straight to
  *  ALERT_FALLBACK_EMAIL when it is set — not through the database that just refused it. True when it went out that way.
- *  Never throws. */
+ *  Never throws.
+ *
+ *  WHAT LEAVES THE APP (R27 — the 10/10 audit, API F17; Ryan: "Order # + link only"). The email said the alert's own title
+ *  and body — a paid order's customer, their email and street — to a mailbox outside the app. It says which kind of alert
+ *  could not be written and when, now; its title is in the platform's log line above, under the same time, and Square
+ *  holds the payment. The push function's cards and emails keep the same rule (supabase/functions/push/policy.ts). */
 async function alertNotWritten(a: { severity: AlertSeverity; category: AlertCategory; title: string; body: string; kind?: string }, why: string): Promise<boolean> {
-  console.error(`[alert-not-written] ${JSON.stringify({ severity: a.severity, category: a.category, kind: a.kind ?? null, title: a.title.slice(0, 180), why: why.slice(0, 200) })}`);
+  const at = new Date();
+  console.error(`[alert-not-written] ${JSON.stringify({ at: at.toISOString(), severity: a.severity, category: a.category, kind: a.kind ?? null, title: a.title.slice(0, 180), why: why.slice(0, 200) })}`);
   const to = process.env.ALERT_FALLBACK_EMAIL, key = process.env.RESEND_API_KEY, from = process.env.NOTIFY_FROM_EMAIL;
   if (a.severity !== "critical" || !to || !key || !from) return false;
+  const when = at.toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" });
+  const kindOf = `${/^[aeiou]/i.test(a.category) ? "an" : "a"} ${a.category} alert`;
   try {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from, to: [to], subject: `Critical — ${a.title}`.slice(0, 200),
-        text: `${a.body}\n\nThis alert could not be written to the app (the database refused it: ${why.slice(0, 160)}). Open the crew app once it is back, and check Square.`,
+        from, to: [to], subject: `Critical — ${kindOf} couldn't reach the app`,
+        text: `A critical ${a.category} alert couldn't be written to the app at ${when} ET — the database refused it (${why.slice(0, 160)}). `
+          + `What it said is in the platform's log, under [alert-not-written] at that time; it isn't sent outside the app. `
+          + `Open the crew app once it is back, and check Square for payments around then.`,
       }),
       signal: AbortSignal.timeout(10_000),
     });
