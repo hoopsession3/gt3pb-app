@@ -5389,7 +5389,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       /\.or\(`status\.neq\.new,ready_from\.is\.null,ready_from\.lte\.\$\{nowISO\}`\)/.test(read("lib/passBoard.ts")) && /\.eq\("status", "new"\)\.gt\("ready_from", nowISO\)/.test(read("lib/passBoard.ts"))
       // 2026-10-12: the count is the Pass's row's now (components/crew/LiveOpsRows), its words lib/liveOps passSays'.
       && /readPulse\(supabase, Date\.now\(\)\)/.test(code(read("components/crew/LiveOpsRows.tsx"))) && /if \(p\.ahead > 0\) parts\.push\(`\$\{p\.ahead\} ahead`\);/.test(read("lib/liveOps.ts")));
-    ok("live ops: only a live event is polled", /if \(!liveId\) return;\s*const recon = setInterval\(load, 15000\);/.test(hud));
+    // R38 (PERF F6): and only while the console is on screen — a return reads it again (lib/realtime's resume).
+    ok("live ops: only a live event is polled, and only while the console is on screen", /if \(!liveId\) return;\s*const recon = setInterval\(\(\) => \{ if \(document\.visibilityState === "visible"\) load\(\); \}, 15000\);/.test(hud));
     ok("live ops: the drop is one row until drop day — or the brew day, while the brew isn't queued",
       /<FoldCard title="Pickup drop" label="Pickup drop" today=\{isDropDay \|\| brewDue\}/.test(dropSrc)
         && /const brewDay = addDays\(dropISO, -1\);/.test(dropSrc) && /const brewDue = bottles > 0 && batches\.length === 0 && etToday\(\) >= brewDay && etToday\(\) <= dropISO;/.test(dropSrc));
@@ -7137,7 +7138,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const fu = code(read("components/FindUs.tsx")), menu = code(read("app/menu/page.tsx")), sheet = code(read("components/DrinkSheet.tsx"));
   const co = code(read("components/Checkout.tsx")), bar = code(read("components/OrderStatus.tsx")), crew = code(read("app/crew/page.tsx"));
   ok("one rule: the phone and the server read with lib/orderingRead and decide with lib/ordering",
-    /readOrdering\(supabase!, market\)/.test(hook) && /orderingFrom\(inputs, now\)/.test(hook)
+    /readOrdering\(supabase, market as Market\)/.test(hook) && /orderingFrom\(inputs, now\)/.test(hook)
     && /const market = toMarket\(\(body as \{ market\?: unknown \}\)\.market\);/.test(api) && /readOrdering\(supabaseAdmin, market, nowMs\)/.test(api)
     && /orderingFrom\(read\.inputs, nowMs\)/.test(api)
     && /export const orderingFrom = \(i: OrderingInputs, nowMs: number\): Ordering => orderingNow\(nowMs, i\.isLive, i\.stops, i\.liveStopId, i\.named, i\.held\);/.test(read("lib/orderingRead.ts"))
@@ -7148,7 +7149,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /select\("starts_at, ends_at, archived_at, status, completed_at"\)\s*\.eq\("id", liveStopId\)\.eq\("market", market\)\.maybeSingle\(\);/.test(read("lib/orderingRead.ts"))
     && /if \(r\.error\) return \{ inputs: null, error: r\.error\.message \};/.test(read("lib/orderingRead.ts"))
     && /select\("starts_at, ends_at, archived_at, status, completed_at, market"\)\.eq\("id", pointed\)\.maybeSingle\(\);\s*if \(e3\) throw new Error\(e3\.message\);/.test(fu)
-    && /const liveId = liveSwitchOn\(Date\.now\(\), !!lstat\?\.is_live, pointed, named\) \? pointed : null;/.test(fu)
+    && /const liveId = liveSwitchOn\(nowMs, !!lstat\?\.is_live, pointed, named\) \? pointed : null;/.test(fu)
     && /const switchOn = liveSwitchOn\(nowMs, Boolean\(live\?\.is_live\), live\?\.current_stop_id \?\? null, named && rowInMarket\(named, viewerMarket\) \? named : null\);/.test(fu)
     && /const isLive = switchOn && \(liveEndsMs == null \|\| nowMs < liveEndsMs - LIVE_OFF_BEFORE_MS\);/.test(fu));
   ok("one rule: no second copy — the server no longer reads the singleton's switch or calls preorderWindow",
@@ -9158,7 +9159,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /useGesture\("root", \{\s+axis: "x",\s+capture: true,\s+begin: \(target, x\) => x <= BACK\.edge && !!way && !sheetOpen\(\) && !deskNow\(\) && !target\.closest\('\[role="dialog"\]'\),/.test(read("components/SwipeBack.tsx"))
     && /const way = useBack\(\);/.test(read("components/SwipeBack.tsx")) && /if \(!cancelled && backGoes\(d\.dx, d\.vx\)\) way\?\.go\(\);/.test(read("components/SwipeBack.tsx")));
   ok("refresh: the pull reads every live screen again (lib/realtime's loaders), and so does coming back to the app after 30s away",
-    /export function refreshLive\(\): Promise<void>/.test(read("lib/realtime.ts")) && /loaders\.add\(read\);/.test(read("lib/realtime.ts")) && /const RESUME_MS = 30_000;/.test(read("lib/realtime.ts"))
+    /export function refreshLive\(opts: \{ skipRejoining\?: boolean \} = \{\}\): Promise<void>/.test(read("lib/realtime.ts")) && /loaders\.add\(entry\);/.test(read("lib/realtime.ts")) && /const RESUME_MS = 30_000;/.test(read("lib/realtime.ts"))
     && /\{inAdmin && <PullToRefresh \/>\}/.test(read("components/AppShell.tsx")) && /refreshLive\(\)/.test(read("components/PullToRefresh.tsx")));
   ok("haptics: an iPhone before iOS 26.5 ticks (the switch's own haptic) where vibrate does not exist, and nothing buzzes before a tap",
     /input\.setAttribute\("switch", ""\);/.test(read("lib/haptics.ts")) && /navigator\.userActivation && !navigator\.userActivation\.hasBeenActive/.test(read("lib/haptics.ts")));
@@ -12475,7 +12476,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("needs sorting: the list reads again on a change to the tables its diagnoses come from — and with every refresh (lib/realtime)",
     /useRealtimeTable\(SCHEDULE_GAP_TABLES, state\.reload\);/.test(sg)
       && tables.join() === "events,event_ops,event_tasks,event_sales,stops,stop_ops,vendors,live_status"
-      && /loaders\.add\(read\);/.test(rd("lib/realtime.ts")) && /export function refreshLive\(\)/.test(rd("lib/realtime.ts")), tables);
+      && /loaders\.add\(entry\);/.test(rd("lib/realtime.ts")) && /export function refreshLive\(/.test(rd("lib/realtime.ts")), tables);
   const views = ["0348_tonight_is_not_the_past", "0315_a_stop_is_a_visit_not_a_name", "0316_a_list_that_says_what_it_found", "0324_one_schedule_one_list"]
     .map((f) => rd(`supabase/migrations/${f}.sql`)).join("\n");
   ok("needs sorting: each table it listens to is one those views read", tables.length === 8 && tables.every((t) => new RegExp(`(from|join) public\\.${t}\\b`).test(views)),
@@ -13336,7 +13337,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── live ──
   ok("catalog: the list is live — every change to products reads it again, so the crew's 86 from the Pass shows at once, and it is on the app's refresh (lib/realtime)",
-    /useRealtimeTable\("products", reload\);/.test(mm) && /loaders\.add\(read\);/.test(rd("lib/realtime.ts")));
+    /useRealtimeTable\("products", reload\);/.test(mm) && /loaders\.add\(entry\);/.test(rd("lib/realtime.ts")));
   const row = (o) => ({ id: "p", sold_out: false, updated_at: "2026-10-12T14:03:22.123456+00:00", ...o });
   ok("catalog: the newest version of a row is the one on screen — the list's, or the answer to this screen's own write, whichever is later — with an 86 on its way on top",
     K.freshest(row({}), row({ updated_at: "2026-10-12T14:05:00+00:00", sold_out: true })).sold_out === true
@@ -13847,7 +13848,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /return NextResponse\.json\(\{ prices, items, source: "products" \}\);/.test(api));
   ok("app: one menu for every screen — the Catalog's (menuOf), the code list's until it is read; drinkOf never throws; a drink taken off leaves the cart, said once",
     /const menu = useMemo\(\(\) => \(rows \? menuOf\(rows\) : seedMenu\(\)\), \[rows\]\);/.test(ap) && /const drinkOf = useCallback\(\(id: string\) => drinkFrom\(bySlug\.get\(id\) \?\? null, id\), \[bySlug\]\);/.test(ap)
-    && /if \(Array\.isArray\(d\.items\)\) \{\s+setRows\(d\.items as MenuRow\[\]\);\s+if \(!pruned\.current\) \{ pruned\.current = true; pruneCart\.current\(d\.items as MenuRow\[\]\); \}/.test(ap)
+    && /if \(Array\.isArray\(d\.items\)\) \{\s+const nextRows = d\.items as MenuRow\[\];\s+setRows\(\(was\) => \(was !== null && sameJson\(was, nextRows\) \? was : nextRows\)\);\s+if \(!pruned\.current\) \{ pruned\.current = true; pruneCart\.current\(d\.items as MenuRow\[\]\); \}/.test(ap)
     && /const onMenu = new Set\(menuOf\(read\)\.map\(\(d\) => d\.slug\)\);/.test(ap) && /on the menu any more — taken out of your order/.test(ap) && !/from "@\/lib\/menu"/.test(ap));
   ok("menu page: sections and drinks from the menu, read again on open; a stop's menu says Not at this stop; caffeine when the Catalog says",
     /useEffect\(\(\) => \{\s+refreshMenu\(\);\s+const tick = \(\) => \{ if \(document\.visibilityState === "visible"\) refreshMenu\(\); \};\s+const id = setInterval\(tick, 60_000\);/.test(menuPage) && /const sections = sectionsOf\(menu\);/.test(menuPage)
@@ -14661,7 +14662,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /Yours <Icon name="check" \/>/.test(rv) && /r\.open \|\| called \|\| !ready/.test(rv) && /Ask the crew to change it/.test(rv) && /confirmLabel: paid > 0 \? "Cancel and refund" : "Cancel it"/.test(rv)
     && /authedFetch\("\/api\/reserves\/cancel"/.test(rv) && /Confirming your payment…/.test(rv));
   ok("the card: signed out, the tap signs in right there and its pay step opens once signed in — no effect, no ref",
-    /const payFor = paying \?\? \(user \? signInFor : null\);/.test(rv) && !/useRef/.test(rv) && !/useEffect/.test(rv) && /<SignIn compact \/>/.test(rv));
+    /const payFor = paying \?\? \(user \? signInFor : null\);/.test(rv) && /<SignIn compact \/>/.test(rv)
+    // R38: the one effect and the one ref are the held place's (lib/holds) — the sign-in-then-pay still has neither.
+    && (rv.match(/useEffect\(/g) || []).length === 1 && /useEffect\(\(\) => \{\s*if \(board\.status === "loading"\) return;/.test(rv)
+    && (rv.match(/useRef[<(]/g) || []).length === 1 && /const slot = useRef<HTMLDivElement>\(null\);/.test(rv));
   ok("pay: one key per checkout, the shown total sent and a raised one agreed to, the words of Square's no",
     /useIdemKey\("gt3-rsv-idem"\)/.test(rp) && /expectedCents: totalCents/.test(rp) && /if \(data\.totalChanged && typeof data\.totalCents === "number"\) setAgreed\(\{ n, cents: data\.totalCents \}\);/.test(rp)
     && /setErr\(payErrorText\(data\.error\)\);/.test(rp) && /idem\.settle\(attempt\.key, null, null\);/.test(rp));
@@ -15487,8 +15491,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // the feed
   const rt = strip(rd("lib/realtime.ts")), nt = strip(rd("components/Notifications.tsx"));
   ok("R11 feed: a burst of changes is one read, a rejoin after a break reads once, and the signal coming back reads every screen",
-    /import \{ coalesce \} from "\.\/rush";/.test(rt) && /const rush = coalesce\(\(\) => read\.current\(\)\);/.test(rt) && /\(\) => rush\.poke\(\)\);/.test(rt)
-      && /if \(status === "SUBSCRIBED"\) \{ if \(broke\) \{ broke = false; read\.current\(\); \} \}/.test(rt) && /window\.addEventListener\("online", \(\) => \{ void refreshLive\(\); \}\);/.test(rt));
+    /import \{ coalesce \} from "\.\/rush";/.test(rt) && /const rush = coalesce\(\(\) => read\.current\(\)\);/.test(rt) && /\(p\) => \{ if \(!when \|\| when\(changedRow\(p\)\)\) rush\.poke\(\); \}\);/.test(rt)
+      // R38 (PERF11-13): the rejoin's read through the coalescer, and the signal's refresh leaving a rejoining screen to it
+      && /if \(status === "SUBSCRIBED"\) \{ if \(entry\.rejoining\) \{ entry\.rejoining = false; rush\.poke\(\); \} \}/.test(rt) && /window\.addEventListener\("online", \(\) => \{ void refreshLive\(\{ skipRejoining: true \}\); \}\);/.test(rt));
   ok("R11 feed: the member's and the admin's alerts open a channel of their own each time, keyed on the person — never a name still being left",
     /\.channel\(`notify-me-\$\{\+\+notifySeq\}`\)/.test(nt) && /\.channel\(`notify-admin-\$\{\+\+notifySeq\}`\)/.test(nt) && /\}, \[uid\]\);/.test(nt) && /\}, \[isAdmin\]\);/.test(nt)
       && /filter: `user_id=eq\.\$\{uid\}`/.test(nt));
@@ -15764,7 +15769,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("R13 races: the Pass reads the newest open tickets and keeps its board when it changed; a banner comes down at its end; the inbox counts only its alerts' comments",
     /\.neq\("status", "done"\)\.order\("created_at", \{ ascending: false \}\)\.limit\(cap\),/.test(pb)
       && /if \(snapDue\(lastSnap\.current, rows, at\)\) \{ saveSnapshot\("gt3-kds-snap", forTheSnapshot\(rows\)\); lastSnap\.current = \{ rows, at \}; \}/.test(upb)
-      && /const at = nextEdge\(rows, now\);/.test(bc) && /return useMemo\(\(\) => rows\.filter\(\(b\) => inWindow\(b, now\)\), \[rows, now\]\);/.test(bc)
+      && /const at = nextEdge\(rows, now\);/.test(bc) && /const live = useMemo\(\(\) => rows\.filter\(\(b\) => inWindow\(b, now\)\), \[rows, now\]\);\s*return \{ live, state \};/.test(bc)   // R38: with where the read stands (lib/holds)
       && /useRealtimeTable\(\{ table: "comments", filter: `alert_id=in\.\(\$\{ids\}\)` \}, loadCounts, \{ enabled: !!ids \}\);/.test(crew));
   // operations: the heartbeat and the failures
   const hl = rd("app/api/health/route.ts");
@@ -16173,7 +16178,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // performance F6: the live event's takings.
   const cp = strip(rd("app/crew/page.tsx")), et = strip(rd("lib/eventTotals.ts")), m25 = rd("supabase/migrations/0426_an_events_takings_are_counted_where_they_are.sql");
   ok("R20 takings: the live-event card asks the database for its three numbers (0426) — not every order and sale of the event on every change; unread, its numbers stay — and none read is a dash, never $0, never another event's (the review)",
-    cp.includes("eventTotals(supabase, eid),") && !cp.includes('supabase.from("orders").select("total_cents, paid, payment_id, created_at").eq("event_id", eid)')
+    cp.includes("const totals = await eventTotals(supabase, eid);") && !cp.includes('supabase.from("orders").select("total_cents, paid, payment_id, created_at").eq("event_id", eid)')
       && cp.includes("if (r.live.stats) setStats({ eid: r.live.ev.id, totals: r.live.stats });") && cp.includes("const took = stats && stats.eid === ev.id ? stats.totals : null;")
       && cp.includes('<b>{took ? moneyRound(took.cents) : "—"}</b>') && !/useState<\{ cents: number; orders: number; firstAt: string \| null \}>\(\{ cents: 0/.test(cp)
       && et.includes('sb.rpc("event_totals", { p_event: eventId })') && !/arrives-with/.test(rd("lib/eventTotals.ts")) && !et.includes('.from("orders")')   // 0426 applied: the rows are never read here (R21)

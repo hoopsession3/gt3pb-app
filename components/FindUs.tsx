@@ -29,6 +29,7 @@ import { apiUrl } from "@/lib/native";
 import Said from "./Said";
 import { useMinute } from "@/lib/useMinute";
 import { useRealtimeTable } from "@/lib/realtime";
+import { useAuth } from "@/components/AuthProvider";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
 // live on two strangers of pages; they're one chronological road now, each row self-typing:
@@ -135,14 +136,30 @@ function toEventRow(r: FieldOp): EventRow {
   return { ...(r as unknown as Record<string, unknown>), title: r.name } as unknown as EventRow;
 }
 
+// Explicit display columns only — NOT select("*"): matches the FieldOp type exactly, so a column added to `field_ops`
+// later doesn't silently reach this public customer road unreviewed.
+const ROAD_COLS = "id, kind, name, public_title, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public, published_at, market";
+
 // Shared query, used by both the error-aware initial load and the silent background refresh.
 async function fetchRoad(): Promise<Board> {
   // Explicit display columns only — NOT select("*"): matches the FieldOp type exactly, so a column
   // added to `field_ops` later doesn't silently reach this public customer road unreviewed. (The
   // venue POC contact columns this comment used to warn about — poc_name/phone/email/service_dates —
   // were dropped from the table entirely in migration 0240; there's nothing left to leak.)
-  const [{ data: fo, error: e1 }, { data: l, error: e2 }, { data: cx }] = await Promise.all([
-    supabase!.from("field_ops").select("id, kind, name, public_title, day, starts_at, ends_at, start_time, end_time, day_label, when_label, time_label, location_text, address, lat, lng, member_only, going_count, capacity, blurb, menu_tier, notes, note, status, completed_at, archived_at, is_public, published_at, market").eq("is_public", true),
+  // THE ROAD AHEAD, ASKED FOR AS SUCH (R38 — the fresh audit's PERF11-03). This read had every public stop and event ever
+  // held, archived ones included, filtered here — a payload that grew with every stop the truck made (~250 a year) and was
+  // read again on every change. Stops now: not archived, and started in the last day and a half, or still running by
+  // their close time, or with no date yet (lib/road shows those) — every stop isStopAhead could show. Events: not
+  // completed (the done ones are dropped below, as before). The switch's own stop, if the road doesn't have it, is read
+  // by id below (C1).
+  const nowMs = Date.now();
+  const since = new Date(nowMs - 36 * 3600 * 1000).toISOString(), nowIso = new Date(nowMs).toISOString();
+  const [{ data: st, error: e1 }, { data: ev, error: e0 }, { data: l, error: e2 }, { data: cx }] = await Promise.all([
+    supabase!.from("field_ops").select(ROAD_COLS).eq("is_public", true).eq("kind", "stop").is("archived_at", null)
+      .or(`starts_at.gte.${since},ends_at.gte.${nowIso},starts_at.is.null`).order("starts_at", { ascending: true }).limit(100),
+    // Newest first: events nobody marked done (this page still shows them) can't push one ahead past the bound.
+    supabase!.from("field_ops").select(ROAD_COLS).eq("is_public", true).eq("kind", "event").is("completed_at", null)
+      .order("day", { ascending: false }).limit(100),
     // Named columns, never * (R6): this page is read signed out, and the switch and its stop are all it needs.
     supabase!.from("live_status").select("id, is_live, current_stop_id").maybeSingle(),
     // Called off lately or ahead (0391; stops are public). A read that fails shows none called off — never a page that
@@ -151,11 +168,12 @@ async function fetchRoad(): Promise<Board> {
       .gte("starts_at", new Date(Date.now() - 36 * 3600 * 1000).toISOString()).order("starts_at", { ascending: true }).limit(5),
   ]);
   if (e1) throw new Error(e1.message);
+  if (e0) throw new Error(e0.message);
   if (e2) throw new Error(e2.message);
   const lstat = l as LiveStatus | null;
-  const raw = (fo as FieldOp[]) ?? [];
-  // THE STOP THE SWITCH NAMES (C1, 2026-10-12): its own row, closed out or not — this read has every public stop,
-  // archived ones included; one that isn't public is read by id. lib/ordering's liveSwitchOn, the rule the order button
+  const raw = [...((st as FieldOp[]) ?? []), ...((ev as FieldOp[]) ?? [])];
+  // THE STOP THE SWITCH NAMES (C1, 2026-10-12): its own row, closed out or not — the road above has it while it is ahead;
+  // one it doesn't have (archived, long started, not public) is read by id. lib/ordering's liveSwitchOn, the rule the order button
   // asks, says whether the switch is still a truck pouring — and only then is that stop on the road "however late it
   // runs" (lib/road). A switch left on at a stop archived outside Live Ops kept this page saying Live, with nobody there.
   const pointed = lstat?.is_live ? lstat.current_stop_id : null;
@@ -165,7 +183,7 @@ async function fetchRoad(): Promise<Board> {
     if (e3) throw new Error(e3.message);
     named = (s as Named | null) ?? null;
   }
-  const liveId = liveSwitchOn(Date.now(), !!lstat?.is_live, pointed, named) ? pointed : null;
+  const liveId = liveSwitchOn(nowMs, !!lstat?.is_live, pointed, named) ? pointed : null;
   // the road AHEAD: hide completed/past (8h grace for stops through their evening; events
   // stay through their whole day) — the live stop always shows. Publish gate (0270): RLS already
   // hides unpublished events from guests; this mirrors it client-side so a STAFF preview of Find Us
@@ -183,8 +201,12 @@ async function fetchRoad(): Promise<Board> {
   return { ops, live: lstat, named, canceled: (cx as Canceled[] | null) ?? [] };
 }
 
+/** The road's safety read while the page is on screen: the channel carries the changes; this is for one it missed. */
+const ROAD_SAFETY_MS = 5 * 60_000;
+
 export default function FindUs() {
   const router = useRouter();
+  const { user } = useAuth();
   const t = useSiteCopy();
   const avail = useCupAvailability();
   const [openStop, setOpenStop] = useState<string | null>(null);
@@ -207,7 +229,8 @@ export default function FindUs() {
   const ops = road?.ops ?? NO_OPS;
   const live = road?.live ?? null;
 
-  // Silent background refresh — realtime + 20s poll + focus/visibility. Deliberately independent
+  // Silent background refresh — realtime, a return to the page, and a safety read every five minutes while it is on screen
+  // (R38 — PERF11-03: it was every 20 seconds, hidden or not, on top of the channel). Deliberately independent
   // of `board`/AsyncSection: a dropped socket or a missed poll must never reject unhandled or flip
   // an already-rendered page back to a loading/error state; it keeps the last-known road instead.
   const refreshQuietly = useCallback(async () => {
@@ -225,7 +248,7 @@ export default function FindUs() {
   useRealtimeTable(["field_ops", "live_status"], refreshQuietly);
   useEffect(() => {
     if (!supabase) return;
-    const poll = setInterval(refreshQuietly, 20000);
+    const poll = setInterval(() => { if (document.visibilityState === "visible") void refreshQuietly(); }, ROAD_SAFETY_MS);
     const onVis = () => { if (typeof document !== "undefined" && document.visibilityState === "visible") refreshQuietly(); };
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
@@ -302,6 +325,28 @@ export default function FindUs() {
   const rest = hero?.kind === "stop" ? upcoming.filter((r) => r.id !== hero.id) : upcoming;
   // With nothing after the hero, "On the road" would be a heading over nothing.
   const showRoad = board.status === "error" || upcoming.length === 0 || rest.length > 0;
+  // ONE READ FOR EVERY EVENT'S RSVP (R38 — the fresh audit's PERF11-11): each event row asked for this person's own, one
+  // query a row. Read here once for the events on the road and handed to the rows; until it lands they say "I'm in" (as
+  // each did until its own read landed), and a read that failed leaves each row to read its own.
+  const uid = user?.id ?? null;
+  const eventIds = rest.filter((r) => r.kind === "event").map((r) => r.id).join(",");
+  const rsvpKey = uid && eventIds ? `${uid}|${eventIds}` : "";
+  const [rsvps, setRsvps] = useState<{ uid: string; going: ReadonlySet<string> | null } | null>(null);
+  useEffect(() => {
+    if (!supabase || !rsvpKey || !uid) return;
+    let alive = true;
+    supabase.from("rsvps").select("event_id").eq("user_id", uid).eq("status", "going").in("event_id", eventIds.split(","))
+      .then(({ data, error }) => {
+        if (alive) setRsvps({ uid, going: error ? null : new Set((data ?? []).map((r) => String((r as { event_id: string }).event_id))) });
+      });
+    return () => { alive = false; };
+  }, [rsvpKey, uid, eventIds]);
+  const goingAt = (id: string): boolean | undefined => {
+    // Another person's answer is never theirs. A road that changed is read again, and until that lands each row keeps the
+    // last answer for this person — a row they're going to doesn't flicker to "I'm in" and back.
+    if (!uid || !rsvps || rsvps.uid !== uid) return false;
+    return rsvps.going ? rsvps.going.has(id) : undefined;
+  };
   // Humanize the hero's "when" (the one "where's the truck next" answer): relativeDay returns an
   // unambiguous near-term qualifier — "Today" / "This Sat" — which we pair with the numeric date for
   // clarity ("This Sat · 7/18"). Anything a week or more out (or with no date) keeps the original
@@ -467,7 +512,7 @@ export default function FindUs() {
           <>
             {rest.length > 0 && <div className="k-rows">
               {rest.map((r) => {
-                if (r.kind === "event") return <RsvpRow key={r.id} ev={toEventRow(r)} />;
+                if (r.kind === "event") return <RsvpRow key={r.id} ev={toEventRow(r)} going={goingAt(r.id)} />;
                 const rowLive = !!liveId && r.id === liveId;
                 const isOpen = openStop === r.id;
                 return (

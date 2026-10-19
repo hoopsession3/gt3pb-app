@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { type Ordering, type OrderingStop } from "@/lib/ordering";
 import { orderingFrom, readOrdering, readStopMenu, type OrderingInputs } from "@/lib/orderingRead";
 import { FOUNDING_MARKET, type Market } from "@/lib/markets";
+import { sharedStore } from "@/lib/shared";
+import { sameJson } from "@/lib/sharedCore";
+import { useMinute } from "@/lib/useMinute";
 
 // IS THE TRUCK TAKING CUP ORDERS? — every ordering surface asks here (Find Us, the menu, the drink
 // sheet, checkout). The rule is lib/ordering's and the read is lib/orderingRead's, the same two
@@ -28,31 +31,40 @@ export type OrderingOpen = {
   stopMenu: ReadonlySet<string> | null;
 };
 
-const REREAD_MS = 60_000;
-const TICK_MS = 30_000;
+// ONE READ FOR EVERY SCREEN THAT ASKS (R38 — the fresh audit's PERF11-10, the shared read audit-10 F5 left out). Each
+// caller read the three rows for itself, every minute, hidden or not: /menu with a drink sheet open read them twice a
+// minute, and a tab in the background kept polling. One store per city now (lib/shared): the first screen to ask reads and
+// hears the road and the truck's switch live (stops, live_status); the city's own switch (market_live) isn't in the
+// realtime publication, so the minute still reads — only while the page is on screen — and a return to the page reads at
+// once. A read that fails keeps the last answer (the server holds the gate either way).
+const ORDERING = sharedStore<OrderingInputs | null>({
+  initial: null,
+  read: async (market) => {
+    if (!supabase) return undefined;
+    const r = await readOrdering(supabase, market as Market).catch(() => null);
+    return r?.inputs ?? undefined;
+  },
+  tables: () => ["live_status", "stops"],
+  every: { ms: 60_000 },
+  back: true,
+  equal: sameJson,
+});
 
 // MARKET (0279): "the next stop" means the next stop IN THIS CITY. Defaults to the founding market,
 // so every caller that passes nothing behaves exactly as it did. `refreshKey`: a page that already
 // hears the road in realtime (Find Us) passes what it heard, so going live re-reads at once instead
 // of on the next minute.
 export function useOrderingOpen(active: boolean, market: Market = FOUNDING_MARKET, refreshKey: string = ""): OrderingOpen {
-  const [inputs, setInputs] = useState<OrderingInputs | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const inputs = ORDERING.use(active && supabase ? market : null);
+  // The answer moves with the clock too — a stop's window opens at start − lead with nothing written anywhere — read as
+  // the screen renders (lib/useMinute: the same minute for every screen, no timer of each one's own).
+  const now = useMinute();
+  // What a page heard of the road changed: read again at once (not on the first draw — the store's own first read is that).
+  const heard = useRef(refreshKey);
   useEffect(() => {
-    if (!active || !supabase) return;
-    let alive = true;
-    const read = async () => {
-      const r = await readOrdering(supabase!, market).catch(() => null);
-      if (!alive || !r?.inputs) return;
-      setInputs(r.inputs);
-      setNow(Date.now());
-    };
-    void read();
-    const reread = setInterval(read, REREAD_MS);
-    const tick = setInterval(() => setNow(Date.now()), TICK_MS);
-    const onVis = () => { if (document.visibilityState === "visible") void read(); };
-    document.addEventListener("visibilitychange", onVis);
-    return () => { alive = false; clearInterval(reread); clearInterval(tick); document.removeEventListener("visibilitychange", onVis); };
+    if (heard.current === refreshKey) return;
+    heard.current = refreshKey;
+    if (active && supabase) void ORDERING.reload(market);
   }, [active, market, refreshKey]);
   const o = inputs ? orderingFrom(inputs, now) : null;
   // The stop's menu, read once per stop (it changes when the crew edits the stop, not with the clock). A failed read keeps

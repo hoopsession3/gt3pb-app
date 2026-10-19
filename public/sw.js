@@ -44,7 +44,11 @@
 // the cache. Past the deadline the cached page answers, and the fetch, still under way, refreshes the cache for the next
 // load; with nothing cached it goes on waiting. And a subscription the push service renews is kept again
 // (pushsubscriptionchange, below).
-const CACHE = "gt3pb-v30";
+// v31 (2026-10-19, R38 · the fresh audit's PERF11-07): a navigation no longer waits for the worker to start before it
+// asks the network — navigation preload starts the page's fetch beside the worker's own start, and the worker answers
+// with that response (the deadline above stands). And the fonts, served from the cache with no fetch behind them on every
+// page: a font changes only with a new worker, whose name sweeps it away. Nothing else changed.
+const CACHE = "gt3pb-v31";
 const NAV_DEADLINE_MS = 3500;
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/crew", "/driver", "/manifest.webmanifest"];
 
@@ -70,9 +74,11 @@ self.addEventListener("message", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-  );
+  event.waitUntil(Promise.all([
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))),
+    // v31: the page's fetch starts beside the worker's own start (a browser without it answers nothing here).
+    Promise.resolve(self.registration.navigationPreload && self.registration.navigationPreload.enable()).catch(() => {}),
+  ]));
   self.clients.claim();
 });
 
@@ -90,7 +96,9 @@ self.addEventListener("fetch", (event) => {
   // Network-first for navigations (fresh content) — for NAV_DEADLINE_MS (v30); then, or offline, the cached shell.
   if (request.mode === "navigate") {
     let kept = Promise.resolve();
-    const network = fetch(request).then((res) => {
+    // v31: the preloaded response when the browser started one; else the worker asks itself.
+    const asked = Promise.resolve(event.preloadResponse).then((pre) => pre || fetch(request), () => fetch(request));
+    const network = asked.then((res) => {
       // Only cache good responses — caching a 404/500 shell would serve a broken page offline.
       // Kept under its path alone (v28, R10b — the 10/10 audit): /order?t=… is a ticket that can cancel an order, and a
       // query in a cache key is kept on the device. Offline asks with ignoreSearch below, so the shell is found as before.
@@ -137,7 +145,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Everything else this origin serves under a plain name — icons, brand images, fonts, the
+  // v31: the fonts — cache-first like the build's own files, with no fetch behind them on every page. A font is replaced
+  // only with a new worker (every edit here bumps CACHE), whose activation sweeps the old one away.
+  if (url.pathname.startsWith("/fonts/")) {
+    event.respondWith(
+      caches.match(request).then((cached) => cached || fetch(request).then((res) => {
+        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(request, copy)); }
+        return res;
+      }))
+    );
+    return;
+  }
+
+  // Everything else this origin serves under a plain name — icons, brand images, the
   // manifest: answer from the cache when there is one (a truck's network is not to be waited on),
   // and refresh that entry from the network in the background on every request, so the next load
   // has what the server has now. Nothing is ever more than one load stale.

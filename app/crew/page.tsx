@@ -9,7 +9,7 @@ import FoldCard from "@/components/crew/FoldCard";
 import { Segmented, IconButton, tabPanel } from "@/components/controls";
 import { BackButton } from "@/components/BackButton";
 import { useAuth, roleOf, type Profile } from "@/components/AuthProvider";
-import { SENIORITY, roleLabel, tierOf, toRole, canOf, type Role, type Tier } from "@/lib/roles";
+import { SENIORITY, STAFF_ROLES, roleLabel, tierOf, toRole, canOf, type Role, type Tier } from "@/lib/roles";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { authedFetch } from "@/lib/authedFetch";
 import { normalizeCategory, alertWhen, type AlertCategory } from "@/lib/alertKinds";
@@ -3912,13 +3912,23 @@ function Members() {
   // address so a refresh or a section change never repeats it.
   const [promoteFor] = useState<string | null>(() => readParam("promote"));
   useEffect(() => { if (promoteFor) dropParam("promote"); }, [promoteFor]);
-  const membersState = useAsyncData<Profile[]>(async () => {
+  // THE CREW, NOT EVERY ACCOUNT (R38 — the fresh audit's PERF11-09). Team read every account — customers too, every
+  // column — to draw a dozen rows, and read them all again on any change to any account: profiles.points moves with each
+  // member's pickup, so a busy service re-downloaded every customer on every device showing Team. It reads the crew now
+  // (lib/roles STAFF_ROLES — exactly the roles rawRole doesn't call a member) and counts every account; a read that fails
+  // is said, never an empty roster. The channel still listens to every profile, as before — not a filter on the crew's
+  // roles, which a demotion's new row (a member's) would never match — and what it reads again is the dozen and a count.
+  const membersState = useAsyncData<{ staff: Profile[]; total: number | null }>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
-    const { data } = await supabase.from("profiles").select("*").order("display_name");
-    return (data as Profile[]) ?? [];
+    const [crew, all] = await Promise.all([
+      supabase.from("profiles").select("*").in("role", STAFF_ROLES).order("display_name"),
+      supabase.from("profiles").select("id", { count: "exact", head: true }),
+    ]);
+    if (crew.error) throw crew.error;
+    return { staff: (crew.data as Profile[]) ?? [], total: all.error ? null : (all.count ?? null) };
   }, []);
   const [members, setMembers] = useState<Profile[]>([]);
-  if (useChanged(membersState.data) && membersState.data) setMembers(membersState.data);   // during render (R17, lib/useChanged)
+  if (useChanged(membersState.data) && membersState.data) setMembers(membersState.data.staff);   // during render (R17, lib/useChanged)
   // Optimistic local patch so a role pick reflects instantly, before the round-trip.
   const patch = useCallback((id: string, role: string) =>
     setMembers((ms) => ms.map((x) => (x.id === id ? { ...x, role: role as Profile["role"] } : x))), []);
@@ -3931,7 +3941,9 @@ function Members() {
   const shown = staff.filter((m) =>
     !ql || (m.display_name ?? "").toLowerCase().includes(ql) || (m.referral_code ?? "").toLowerCase().includes(ql) || roleLabel(m.role).toLowerCase().includes(ql)
   );
-  const customerCount = members.length - staff.length;
+  // Every account less the crew; a count that couldn't be read says nothing (null), never "no customers".
+  const total = membersState.data?.total ?? null;
+  const customerCount = total === null ? 0 : Math.max(0, total - staff.length);
   const ownerCount = staff.filter((m) => rawRole(m) === "owner").length;
 
   return (
@@ -4028,12 +4040,8 @@ function EventHUD() {
     // three numbers, not every order and sale of the event on every change. A card paid online is a Square payment too,
     // mirrored into event_sales, and is counted once — as report_sales does (0216/0220). Unread, the numbers on the
     // screen stay (null): never $0 for "no answer".
-    const [totals, { data: cat }, { data: ec }] = await Promise.all([
-      eventTotals(supabase, eid),
-      supabase.from("product_economics_live").select("*").eq("active", true).order("sort"),
-      supabase.from("event_economics").select("*").eq("event_id", eid).maybeSingle(),
-    ]);
-    return { live: { ev: e as EventRow, stats: totals, catalog: (cat as ProductEcon[]) ?? [], econ: (ec as EventEcon) ?? null } };
+    const totals = await eventTotals(supabase, eid);
+    return { live: { ev: e as EventRow, stats: totals } };
   }, (r) => {
     if (!r) return;
     if (!r.live) {
@@ -4044,16 +4052,41 @@ function EventHUD() {
     }
     setEv(r.live.ev);
     if (r.live.stats) setStats({ eid: r.live.ev.id, totals: r.live.stats });
-    setCatalog(r.live.catalog);
-    setEcon(r.live.econ);
   }), [read]);
   useEffect(() => { load(); }, [load]);
-  // Reconcile every 15s while an event is live, so Square POS walk-ups + the $/hr clock advance even if
-  // a realtime event is missed (matches the KDS's reconcile). Nothing live, nothing to poll.
   const liveId = ev?.id ?? null;
+  // THE CATALOG AND THE EVENT'S OWN COSTS, READ FOR THE EVENT — NOT FOR EVERY ORDER (R38 — the fresh audit's PERF F6).
+  // Both were read again with every order, every walk-up and every 15 seconds while an event was live; neither changes
+  // with an order. Read as the event goes live, again when a product changes (products is in the realtime publication),
+  // and once a minute while the console is on screen — the event's costs and the products' own aren't published, so a fee
+  // entered on another device reaches the gauge within the minute (it was fifteen seconds, with every order). A read that
+  // fails keeps what is on the screen.
+  const readSide = useLatestRead();
+  const loadSide = useCallback(() => readSide(async () => {
+    if (!supabase || !liveId) return null;
+    const [cat, ec] = await Promise.all([
+      supabase.from("product_economics_live").select("*").eq("active", true).order("sort"),
+      supabase.from("event_economics").select("*").eq("event_id", liveId).maybeSingle(),
+    ]);
+    return { catalog: cat.error ? null : ((cat.data as ProductEcon[]) ?? []), econ: ec.error ? undefined : ((ec.data as EventEcon) ?? null) };
+  }, (r) => {
+    if (!r) return;
+    if (r.catalog) setCatalog(r.catalog);
+    if (r.econ !== undefined) setEcon(r.econ);
+  }), [readSide, liveId]);
+  useEffect(() => { loadSide(); }, [loadSide]);
+  useRealtimeTable(["products"], loadSide, { enabled: !!liveId });
   useEffect(() => {
     if (!liveId) return;
-    const recon = setInterval(load, 15000);
+    const t = setInterval(() => { if (document.visibilityState === "visible") loadSide(); }, 60_000);
+    return () => clearInterval(t);
+  }, [liveId, loadSide]);
+  // Reconcile every 15s while an event is live, so Square POS walk-ups + the $/hr clock advance even if
+  // a realtime event is missed (matches the KDS's reconcile). Nothing live, nothing to poll — and a console in a hidden
+  // tab doesn't poll either (R38): coming back reads it again (lib/realtime's resume).
+  useEffect(() => {
+    if (!liveId) return;
+    const recon = setInterval(() => { if (document.visibilityState === "visible") load(); }, 15000);
     return () => clearInterval(recon);
   }, [liveId, load]);
   useRealtimeTable(["orders", "event_sales", "events"], load);
@@ -4781,15 +4814,22 @@ function SubInterest() {
 function OrdersHistory() {
   const [q, setQ] = useState("");
   const { nameOf } = useAppStable(); // the Catalog's names (R2): what the Pass printed
+  // The orders the history shows, for the channel's question below (R38).
+  const shownIds = useRef<Set<string>>(new Set());
   const ordersState = useAsyncData<Order[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
     // A FAILED READ IS NOT "NO COMPLETED ORDERS YET" (2026-10-12): the error went unread, null became [], and the
     // history — and its CSV for the accountant — read as empty. It is an error now, with Try again.
     const { data, error } = await supabase.from("orders").select("*").in("status", ["done", "void"]).order("status_changed_at", { ascending: false }).limit(300);
     if (error) throw new Error(error.message);
-    return (data as Order[]) ?? [];
+    const rows = (data as Order[]) ?? [];
+    shownIds.current = new Set(rows.map((o) => o.id));
+    return rows;
   }, []);
-  useRealtimeTable("orders", ordersState.reload);
+  // READ AGAIN ONLY FOR ITS OWN ORDERS (R38 — the fresh audit's PERF F6). Every move of every ticket — new, making, ready —
+  // re-read all 300 finished orders on each device with Money open, through a whole service. It reads again now when an
+  // order becomes done or void, or an order it shows changes (an undo, a refund's flag) — asked of the change's own row.
+  useRealtimeTable([{ table: "orders", when: (row) => row.status === "done" || row.status === "void" || shownIds.current.has(String(row.id ?? "")) }], ordersState.reload);
   return (
     <AsyncSection
       state={ordersState}

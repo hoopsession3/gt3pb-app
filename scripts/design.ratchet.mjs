@@ -734,30 +734,31 @@ export const PROD_ROUTE = {
 // the same (+1 byte). Lowered to what they weigh and the files raised to what they are, route by route, from this tree's
 // build; /offer is 274.42 KB, near a rounding line — its ceiling is the line above, 275.
 export const WEIGHT = {
-  "/truck":                    { js: 275, css: 90, chunks: 17 },
-  "/events":                   { js: 275, css: 90, chunks: 17 },
+  "/truck":                    { js: 272, css: 90, chunks: 17 },
+  "/events":                   { js: 272, css: 90, chunks: 17 },
   "/menu":                     { js: 263, css: 90, chunks: 16 },
-  "/reserve":                  { js: 286, css: 90, chunks: 18 },
+  "/reserve":                  { js: 287, css: 90, chunks: 18 },
   "/delivery":                 { js: 284, css: 90, chunks: 18 },
   "/3mpire":                   { js: 277, css: 90, chunks: 17 },
-  "/craft":                    { js: 261, css: 90, chunks: 16 },
+  "/craft":                    { js: 262, css: 90, chunks: 16 },
   "/book":                     { js: 263, css: 90, chunks: 16 },
   "/academy":                  { js: 315, css: 90, chunks: 18 },
-  "/office":                   { js: 271, css: 90, chunks: 17 },
-  "/scan":                     { js: 263, css: 90, chunks: 16 },
-  "/architecture":             { js: 272, css: 90, chunks: 17 },
-  "/playbook":                 { js: 270, css: 90, chunks: 17 },
-  "/driver":                   { js: 269, css: 90, chunks: 17 },
-  "/agreement":                { js: 263, css: 90, chunks: 16 },
-  "/offer":                    { js: 273, css: 90, chunks: 17 },
+  "/office":                   { js: 272, css: 90, chunks: 17 },
+  "/scan":                     { js: 264, css: 90, chunks: 16 },
+  "/architecture":             { js: 273, css: 90, chunks: 17 },
+  "/playbook":                 { js: 271, css: 90, chunks: 17 },
+  "/driver":                   { js: 270, css: 90, chunks: 17 },
+  "/agreement":                { js: 264, css: 90, chunks: 16 },
+  "/offer":                    { js: 274, css: 90, chunks: 17 },
   "/built/gt3-built-k7m9x4q2": { js: 260, css: 90, chunks: 16 },
-  "/display":                  { js: 260, css: 90, chunks: 16 },
-  "/shop":                     { js: 292, css: 90, chunks: 19 },
-  "/primal":                   { js: 262, css: 90, chunks: 16 },
-  "/privacy":                  { js: 258, css: 90, chunks: 15 },
-  "/terms":                    { js: 258, css: 90, chunks: 15 },
-  "/":                         { js: 268, css: 90, chunks: 17 },
+  "/display":                  { js: 261, css: 90, chunks: 16 },
+  "/shop":                     { js: 293, css: 90, chunks: 19 },
+  "/primal":                   { js: 263, css: 90, chunks: 16 },
+  "/privacy":                  { js: 259, css: 90, chunks: 15 },
+  "/terms":                    { js: 259, css: 90, chunks: 15 },
+  "/":                         { js: 269, css: 90, chunks: 17 },
   "/order":                    { js: 267, css: 90, chunks: 17 },
+  "/crew":                     { js: 443, css: 90, chunks: 20 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).
@@ -926,9 +927,27 @@ export const WEIGHT = {
 // fixed name, and a client hands back a leaving channel under it; lib/realtime names each afresh and reads again after a
 // drop). Crossed the rounding line upward on /truck and /events (274 → 275 KB), /menu and /book (262 → 263), /delivery
 // (283 → 284), /3mpire (276 → 277), /built (259 → 260) and /order (266 → 267), recorded.
+// 2026-10-19 (R38, the fresh audit's performance pass): every route's script +0.74 KB gzipped — /privacy 264 360 → 265 113
+// bytes, the built HTML's own references gzipped, R37 157f604 against this commit — for what the shell now does on every
+// page: the announcement bar's held place (lib/holds, PERF11-06), a channel that asks a change's own row and reads once
+// as it rejoins (lib/realtime, PERF11-13), the service worker registered after the page (PERF11-07). It crossed the
+// rounding line on fourteen routes: /reserve 286 → 287, /craft 261 → 262, /office 271 → 272, /scan and /agreement
+// 263 → 264, /architecture 272 → 273, /playbook 270 → 271, /driver 269 → 270, /offer 273 → 274, /display 260 → 261,
+// /shop 292 → 293, /primal 262 → 263, /privacy and /terms 258 → 259, / 268 → 269, recorded. Find Us came down 2.3 KB net
+// (281 236 → 278 908 on /truck): its RSVP row's sign-in form loads when that sheet opens (PERF11-11) — /truck and
+// /events 275 → 272, lowered. And /crew weighed for the first time (PERF11-04): 443 KB in 20 chunks.
+// THE BUDGET (R38 — the fresh audit's PERF11-02). A row records a route's growth, and each row was raised with a note
+// whenever a change crossed it: nothing said where growth stops. No route's script may pass WEIGHT_BUDGET.js, whatever
+// its row says — 320 KB gzipped, above the heaviest public route (/academy's 315), as a line now; the console (/crew,
+// weighed since R38, 443 KB) has a line of its own, 450. The target is the audit's 220 for a guest's first page — reached when
+// supabase-js leaves the public first paint and the stylesheet's first-paint subset lands (PERF11-01, -05) — and the
+// lines come down with each.
+export const WEIGHT_BUDGET = { js: 320, console: 450, target: 220 };
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];
+  const line = path === "/crew" ? WEIGHT_BUDGET.console : WEIGHT_BUDGET.js;
+  if (w.js > line) out.push(`${path}: js ${w.js} KB — past the budget's ${line} KB (WEIGHT_BUDGET). Not a row to raise: take something out of this route's first download.`);
   for (const k of ["js", "css"]) {
     if (w[k] > row[k]) out.push(`${path}: ${k} ${w[k]} KB — ceiling ${row[k]} KB. Heavier. Something new rides in this route's bundle; a lazy import is usually the fix.`);
     else if (w[k] < row[k] - 3) out.push(`${path}: ${k} ${w[k]} KB — ceiling ${row[k]} KB sits above it. Good; now lower the ceiling to ${w[k]}.`);

@@ -25,7 +25,7 @@ const ORIGIN = "https://app.gt3pb.com";
 // Any change to sw.js reaches installed clients as a new worker; only a changed CACHE makes the
 // activate step throw the old entries away. So an edit here must bump the name, and the pair below
 // must be re-recorded with it (both values are printed when they differ).
-const RECORDED = { sha: "6dab809589d69e54bfe7106f18877cdffac81af2", cache: "gt3pb-v30" };
+const RECORDED = { sha: "d469ea23005eb299701d5ead186bd48ebc6d07b8", cache: "gt3pb-v31" };
 const blobSha = createHash("sha1").update(`blob ${Buffer.byteLength(SRC)}\0`).update(SRC).digest("hex");
 const cacheName = (SRC.match(/const CACHE = "([^"]+)";/) || [])[1];
 const NAV_MS = Number((SRC.match(/const NAV_DEADLINE_MS = (\d+);/) || [])[1]);
@@ -186,6 +186,49 @@ function boot() {
   const d = told();
   await renew({ newSubscription: null, oldSubscription: null }, [d]);
   ok("renewed: nothing to subscribe with — nothing is said", d.told.length === 0);
+}
+
+// ── v31 (R38 — PERF11-07): the page's fetch preloaded beside the worker's start; the fonts cache-first ─────────────
+{
+  const w = boot();
+  let enabled = false;
+  w.self.registration.navigationPreload = { enable() { enabled = true; return Promise.resolve(); } };
+  const act = { waits: [], waitUntil(p) { this.waits.push(p); } };
+  w.listeners.activate(act); await Promise.all(act.waits);
+  ok("preload: activating turns navigation preload on (the page's fetch starts beside the worker's own start)", enabled);
+  const ev = w.fetchEvent(w.req("/menu", { mode: "navigate" }));
+  ev.preloadResponse = Promise.resolve({ ok: true, status: 200, redirected: false, body: "preloaded /menu", clone() { return { ...this }; } });
+  await w.dispatch("fetch", ev);
+  ok("preload: a navigation answers with the preloaded response — the worker asks the network nothing more — and keeps it for offline",
+    ev.response?.body === "preloaded /menu" && w.net.calls.length === 0 && (await w.caches.match(w.req("/menu", { mode: "navigate" })))?.body === "preloaded /menu", { body: ev.response?.body, calls: w.net.calls.length });
+  const none = w.fetchEvent(w.req("/truck", { mode: "navigate" }));
+  none.preloadResponse = Promise.resolve(undefined);
+  await w.dispatch("fetch", none);
+  ok("preload: none preloaded (a browser without it, a reload) — the worker fetches the page itself, as before", none.response?.body === `net:${ORIGIN}/truck` && w.net.calls.length === 1);
+  const failed = w.fetchEvent(w.req("/events", { mode: "navigate" }));
+  failed.preloadResponse = Promise.reject(new Error("the preload's connection dropped"));
+  failed.preloadResponse.catch(() => {});
+  w.net.calls.length = 0;
+  await w.dispatch("fetch", failed);
+  ok("preload: a preload that failed — the worker asks the network itself, never answers with the failure", failed.response?.body === `net:${ORIGIN}/events` && w.net.calls.length === 1, { body: failed.response?.body, calls: w.net.calls.length });
+  const old = boot();
+  const act2 = { waits: [], waitUntil(p) { this.waits.push(p); } };
+  old.listeners.activate(act2); await Promise.all(act2.waits);
+  ok("preload: a browser with no navigation preload activates as before", old.self.clients.claimed === 1);
+
+  const f = boot();
+  const font = f.req("/fonts/inter-variable.woff2");
+  const first = await f.dispatch("fetch", f.fetchEvent(font));
+  ok("fonts: the first request goes to the network and is kept", first.response?.body === `net:${ORIGIN}/fonts/inter-variable.woff2` && (await f.caches.match(font))?.body === `net:${ORIGIN}/fonts/inter-variable.woff2`);
+  f.net.calls.length = 0;
+  const again = await f.dispatch("fetch", f.fetchEvent(font));
+  ok("fonts: every later page has it from the cache with no fetch behind it (each was re-fetched on every page)", again.response?.body === `net:${ORIGIN}/fonts/inter-variable.woff2` && f.net.calls.length === 0 && again.waits.length === 0);
+  const g = boot();
+  g.net.answer = () => ({ ok: false, status: 404, redirected: false, body: "not found", clone() { return { ...this }; } });
+  const gone = g.req("/fonts/old-face.woff2");
+  const miss = await g.dispatch("fetch", g.fetchEvent(gone));
+  await new Promise((r) => setTimeout(r, 0));
+  ok("fonts: a font the server didn't have is answered as it came, and never kept", miss.response?.status === 404 && !(await g.caches.match(gone)));
 }
 
 // ── /_next/static/: the only cache-first class ────────────────────────────────────────────────

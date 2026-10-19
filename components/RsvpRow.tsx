@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useAppStable } from "@/components/AppProvider";
 import { useAuth } from "@/components/AuthProvider";
 import { InfoRow } from "@/components/kit";
 import AddToCalendar from "@/components/AddToCalendar";
 import Sheet from "@/components/Sheet";
-import SignIn from "@/components/SignIn";
 import { calFromEvent } from "@/lib/ics";
 import { supabase } from "@/lib/supabase";
 import { evTime, evDate, evLeadDay, evLeadDate } from "@/lib/dates";
@@ -14,6 +14,11 @@ import { openDirections, openAddress } from "@/lib/maps";
 import type { EventRow } from "@/lib/db";
 import { useSiteCopy } from "@/lib/copy";
 import Icon from "@/components/Icon";
+import { useChanged } from "@/lib/useChanged";
+
+// The sign-in form, loaded when its sheet opens (R38 — the fresh audit's PERF11-11): every guest looking at the road
+// downloaded it with Find Us (16 KB of /truck's own chunk), to RSVP perhaps once.
+const SignIn = dynamic(() => import("@/components/SignIn"));
 
 // RSVP ROW — one event row on the kit InfoRow, with the full RSVP machine (optimistic toggle,
 // 23505 flip-back, sign-in resume). Extracted from /events so the unified Find Us surface and
@@ -25,11 +30,14 @@ import Icon from "@/components/Icon";
 // lived in these four functions. Re-exported so existing importers keep working.
 export { evTime, evDate, evLeadDay, evLeadDate };
 
-export function RsvpRow({ ev }: { ev: EventRow }) {
+// `going`: whether this person is going, when the page read it for every row at once (Find Us, R38 — PERF11-11: one read
+// per event row before); undefined — the row reads it for itself.
+export function RsvpRow({ ev, going: goingRead }: { ev: EventRow; going?: boolean }) {
   const { toast } = useAppStable();
   const { user } = useAuth();
   const t = useSiteCopy();
-  const [going, setGoing] = useState(false);
+  const [going, setGoing] = useState(() => goingRead === true);
+  if (useChanged(goingRead) && goingRead !== undefined) setGoing(goingRead);   // during render (R17, lib/useChanged)
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const hasDetail = Boolean(ev.location_text || ev.blurb || ev.start_time);
@@ -40,10 +48,10 @@ export function RsvpRow({ ev }: { ev: EventRow }) {
 
   // Hydrate from the DB so a refresh/return reflects the real RSVP (no phantom re-taps).
   useEffect(() => {
-    if (!supabase || !user) return;
+    if (!supabase || !user || goingRead !== undefined) return;
     supabase.from("rsvps").select("status").eq("event_id", ev.id).eq("user_id", user.id).eq("status", "going").maybeSingle()
       .then(({ data }) => { if (data) setGoing(true); });
-  }, [ev.id, user]);
+  }, [ev.id, user, goingRead]);
 
   const toggle = async () => {
     if (!supabase || !user) return;

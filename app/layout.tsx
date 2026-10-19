@@ -6,6 +6,7 @@ import AuthProvider from "@/components/AuthProvider";
 import AppProvider from "@/components/AppProvider";
 import AppShell from "@/components/AppShell";
 import { APP_BUILD } from "@/lib/native";
+import { HOLD_SCRIPT } from "@/lib/holds";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.gt3pb.com"),
@@ -87,6 +88,9 @@ export default function RootLayout({
                 __html: `try{var m=Object.keys(localStorage).some(function(k){return /^sb-.+-auth-token$/.test(k)});document.documentElement.setAttribute("data-viewer",m?"member":"guest")}catch(e){}`,
               }}
             />
+            {/* The places held for what is read after the first paint (R38 — PERF11-06, lib/holds): the announcement bar and
+                the Limited Reserve cards, at the height each had last time, so what is under them stays where it is. */}
+            <script dangerouslySetInnerHTML={{ __html: HOLD_SCRIPT }} />
           </>
         )}
         {/* Style probe — heals the "raw HTML" render. If the app stylesheet failed to load

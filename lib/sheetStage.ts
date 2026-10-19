@@ -39,12 +39,17 @@ export function recedes(o: { height: number; viewport: number; phone: boolean; h
 // The sheets stepping the page back right now: the shell is .receded while any is.
 const stepping = new Set<symbol>();
 
+/** Where a pull's depth is written: the page itself (the shell's <main>, the one element that reads it), not the shell
+ *  (R38 — the fresh audit's PERF11-15). On the shell every element under it was restyled on each frame of a pull — the
+ *  menu or the crew console's long page under a finger; app/tailwind.css registers --recede as not inherited too. */
+const stageOf = (shell: HTMLElement): HTMLElement => shell.querySelector?.<HTMLElement>(":scope > main") ?? shell;
+
 /** This sheet steps the page back, or no longer does. */
 export function stepBack(shell: HTMLElement, sheet: symbol, on: boolean): void {
   if (on) stepping.add(sheet); else stepping.delete(sheet);
   shell.classList.toggle("receded", stepping.size > 0);
   // The last one gone: whatever a pull left behind goes with it (the page is on its way back already).
-  if (!stepping.size) { shell.classList.remove("pulling"); shell.style.removeProperty("--recede"); }
+  if (!stepping.size) { shell.classList.remove("pulling"); stageOf(shell).style.removeProperty("--recede"); }
 }
 
 /** How far the page is stepped back, 1 to 0, while a sheet is being pulled down: it follows the finger.
@@ -53,9 +58,9 @@ export function stepBack(shell: HTMLElement, sheet: symbol, on: boolean): void {
 export function stepBackBy(shell: HTMLElement | null | undefined, v: number | "let go" | null): void {
   if (!shell) return;
   if (v === "let go") { shell.classList.remove("pulling"); return; }
-  if (v == null) { shell.classList.remove("pulling"); shell.style.removeProperty("--recede"); return; }
+  if (v == null) { shell.classList.remove("pulling"); stageOf(shell).style.removeProperty("--recede"); return; }
   shell.classList.add("pulling");
-  shell.style.setProperty("--recede", String(Math.min(1, Math.max(0, v))));
+  stageOf(shell).style.setProperty("--recede", String(Math.min(1, Math.max(0, v))));
 }
 
 /** The fields a person fills in a sheet: text, numbers, dates, choices — not a box to tick. */

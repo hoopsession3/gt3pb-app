@@ -179,7 +179,7 @@ export default function BrandCalendar({ onOpen, onCreate }: { onOpen: (id: strin
         <button type="button" className="btn-ter ml-auto" onClick={() => { goPlanTab("calendar"); goToCompany(); }}>Company calendar <Icon name="externalLink" /></button>
       </div>
       {/* Under the title bar while it shows (components/TitleBar, data-compact): this row steps down under it. */}
-      <div className="cal-sticky [.app:has([data-tbar][data-compact])_&]:top-[calc(env(safe-area-inset-top,0px)+44px)]! [.app:has(>.bcast):has([data-tbar][data-compact])_&]:top-11!">
+      <div className="cal-sticky [.app:has([data-tbar][data-compact])_&]:top-[calc(env(safe-area-inset-top,0px)+44px)]! [.app:has(>.bcast):has([data-tbar][data-compact])_&]:top-11! [html[data-hold-bcast]_.app:has(>.hold-slot[data-hold=bcast]):has([data-tbar][data-compact])_&]:top-11!">
         <div className="cal-bar">
           <div className="cal-nav">
             <button type="button" className="k-icon-btn" onClick={goPrev} aria-label={view === "week" ? "Previous week" : "Previous month"}><Icon name="chevronLeft" /></button>

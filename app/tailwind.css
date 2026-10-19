@@ -193,6 +193,16 @@
    the shell's .receded). Behind a tall sheet on a phone the scrolling page (<main id="body">) is drawn smaller from its
    top, below the status bar, its corners rounded, as behind every iPhone sheet; it follows the sheet's pull (--recede,
    1 to 0, .pulling while a finger has it) and comes home when the sheet goes. In the frame nothing steps back. */
+/* A SLOT THAT HOLDS ITS PLACE (R38 — PERF11-06, lib/holds): no box of its own; empty, it holds what its content measured
+   last time — the announcement bar, the Limited Reserve cards — until the read lands and the content takes the place.
+   The cards' place keeps the first card's own margin (.drop's 22px): the height kept runs from its top. */
+.hold-slot{display:contents}
+html[data-hold-bcast] .hold-slot[data-hold="bcast"]:empty{display:block;height:var(--hold-bcast)}
+html[data-hold-rsv] .hold-slot[data-hold="rsv"]:empty{display:block;height:var(--hold-rsv);margin-top:22px}
+
+/* The pull's depth is the page's own (R38 — PERF11-15, lib/sheetStage): written on <main> and not inherited, so a finger
+   on a sheet restyles the page — not every element under it — on each frame. */
+@property --recede { syntax: "<number>"; inherits: false; initial-value: 1; }
 @utility page-stage {
   @media not all and (min-width: 520px) and (min-height: 640px) {
     transition: transform 420ms var(--ease-enter), border-radius 420ms var(--ease-enter);

@@ -1077,6 +1077,23 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     });
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "menu--toast") });
     ok("bars: a toast sits above the tab bar, clear of it", !!t && t.toastBottom <= t.navTop - 4, JSON.stringify(t));
+    // THE BAR'S PLACE, HELD (R38 — the fresh audit's PERF11-06, lib/holds). The first visit kept the bar's height; the
+    // second holds it from the first paint (app/layout's head script), so nothing under the bar moves when the read
+    // lands — the page under a ~100pt bar moved by all of it, a shift of about 0.1 (the app's line is 0.04). Measured as
+    // the browser measures it: every layout shift from the page's start, none of them a person's.
+    await page.addInitScript(() => {
+      window.__shift = 0;
+      try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shift += e.value; }).observe({ type: "layout-shift", buffered: true }); } catch { /* no observer */ }
+      document.addEventListener("DOMContentLoaded", () => { window.__heldAtStart = document.documentElement.hasAttribute("data-hold-bcast"); }, { once: true });
+    });
+    await page.reload({ waitUntil: "load" });
+    const again = await page.waitForSelector(".bcast .bcast-x", { timeout: 8000 }).then(() => true, () => false);
+    await page.waitForTimeout(600); await page.evaluate(SETTLE);
+    const held = await page.evaluate(() => ({ atStart: window.__heldAtStart ?? null, shift: Math.round((window.__shift ?? 0) * 1000) / 1000,
+      kept: (() => { try { return JSON.parse(localStorage.getItem("gt3-holds") || "{}").bcast ?? null; } catch { return null; } })(),
+      bar: Math.round(document.querySelector(".bcast")?.getBoundingClientRect().height ?? 0) }));
+    ok("bars: a second visit holds the bar's place from the first paint, at the height it was — nothing under it moves as it lands",
+      again && held.atStart === true && held.kept !== null && Math.abs(held.kept - held.bar) <= 1 && held.shift < 0.04, JSON.stringify(held));
     ok("bars: no errors", errors.length === 0, errors.join(" | "));
     await ctx.close();
   }
@@ -2493,7 +2510,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     });
     await page.goto(`${BASE}/crew?s=settings&a=set-notify`, { waitUntil: "load" });
     const turnOn = page.locator("#set-alerts").getByRole("button", { name: "Turn on" });
-    const offered = await turnOn.waitFor({ timeout: 8000 }).then(() => true, () => false);
+    // Fifteen seconds for Settings' own chunk on a loaded machine (R38: eight ran out in the captures' runs).
+    const offered = await turnOn.waitFor({ timeout: 15000 }).then(() => true, () => false);
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "alerts--off") });
     if (offered) await turnOn.click();
     await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "PushNotifications" && c.method === "register"), null, { timeout: 5000 }).catch(() => {});
@@ -2501,7 +2519,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.evaluate((t) => {
       for (const id of window.__native.listeners["PushNotifications.registration"] ?? []) window.Capacitor.fromNative({ callbackId: id, pluginId: "PushNotifications", methodName: "addListener", success: true, save: true, data: { value: t } });
     }, TOKEN);
-    await page.waitForTimeout(900);
+    // Until the row says On, up to five seconds (R38): a fixed 900 ms read the row before a loaded machine had drawn it —
+    // the captures' runs failed here twice with the phone registered and its token kept.
+    await page.waitForFunction(() => /\bOn\b/.test(document.getElementById("set-alerts")?.innerText || ""), null, { timeout: 5000 }).catch(() => {});
     const row = await page.evaluate(() => (document.getElementById("set-alerts")?.innerText || "").replace(/\s+/g, " "));
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "alerts--on") });
     const calls = await nativeCalls(page);

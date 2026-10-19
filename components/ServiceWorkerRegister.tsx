@@ -18,10 +18,15 @@ export default function ServiceWorkerRegister() {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
 
     let reg: ServiceWorkerRegistration | undefined;
+    let alive = true;
 
-    navigator.serviceWorker
+    // AFTER THE PAGE, NOT DURING IT (R38 — the fresh audit's PERF11-07). Registering on the first page's mount put the
+    // worker's download and its install — every shell page fetched — inside that page's own first seconds. It waits for
+    // the page's load now, then for a quiet moment (a second at most).
+    const register = () => navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
       .then((r) => {
+        if (!alive) return;
         reg = r;
         // A subscription the push service rotated while the app was closed is kept again (R35 — FE11-12, lib/push).
         void import("@/lib/push").then((m) => m.rekeepPush()).catch(() => {});
@@ -37,6 +42,13 @@ export default function ServiceWorkerRegister() {
         });
       })
       .catch(() => {});
+    const idle = (fn: () => void) => {
+      const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number };
+      if (w.requestIdleCallback) w.requestIdleCallback(fn, { timeout: 1000 }); else setTimeout(fn, 200);
+    };
+    const onLoad = () => idle(() => { if (alive) void register(); });
+    if (document.readyState === "complete") onLoad();
+    else window.addEventListener("load", onLoad, { once: true });
 
     // Re-check for a new build when the app returns to the foreground.
     const onFocus = () => reg?.update().catch(() => {});
@@ -76,6 +88,8 @@ export default function ServiceWorkerRegister() {
     navigator.serviceWorker.addEventListener("message", onMessage);
 
     return () => {
+      alive = false;
+      window.removeEventListener("load", onLoad);
       window.removeEventListener("focus", onFocus);
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
       navigator.serviceWorker.removeEventListener("message", onMessage);

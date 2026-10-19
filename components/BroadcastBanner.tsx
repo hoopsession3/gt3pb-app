@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { useLiveBroadcasts, type Broadcast } from "@/lib/broadcasts";
+import { useEffect, useMemo, useRef } from "react";
+import { useBroadcastsRead, type Broadcast } from "@/lib/broadcasts";
+import { keepHold, letGo } from "@/lib/holds";
 import Icon from "@/components/Icon";
 import { btn } from "./Button";
 import { safeLink } from "@/lib/safeLink";
@@ -17,12 +18,25 @@ const DISMISSED = devicePref(KEY);
 const parseDismissed = (raw: string | null): string[] => { try { const v = JSON.parse(raw || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
 
 export default function BroadcastBanner() {
-  const live = useLiveBroadcasts();
+  const { live, state } = useBroadcastsRead();
   const raw = useDevicePref(DISMISSED);
   const dismissed = useMemo(() => parseDismissed(raw), [raw]);
 
   const b: Broadcast | undefined = live.find((x) => !dismissed.includes(x.id));
-  if (!b) return null;
+  // ITS PLACE, HELD (R38 — PERF11-06, lib/holds). The bar was read after the first paint and pushed every page down by
+  // its height. Until there is a bar, its slot is drawn in the bar's place and, on a phone that saw a bar last time, holds
+  // that height until the read lands: shown, the bar takes the slot's place (the shell's own child, as every "under the
+  // bar" rule reads it — components/NativeBridge.css, TitleBar, the calendars) and its height is kept for next time; read
+  // as none (or dismissed), the slot lets go and forgets it; a read that failed lets go and keeps it — unknown is not none.
+  const bar = useRef<HTMLDivElement>(null);
+  const shownId = b?.id ?? null;
+  useEffect(() => {
+    if (state === "reading") return;
+    if (shownId) { keepHold("bcast", Math.round(bar.current?.getBoundingClientRect().height ?? 0)); return; }
+    letGo("bcast");
+    if (state === "read") keepHold("bcast", 0);
+  }, [state, shownId]);
+  if (!b) return <div className="hold-slot" data-hold="bcast" />;
   // A page here or an https address, or no button (lib/safeLink, R10b).
   const link = safeLink(b.cta_href);
 
@@ -31,7 +45,7 @@ export default function BroadcastBanner() {
   };
 
   return (
-    <div className={`bcast bcast-${b.style}`} role="status" aria-live="polite">
+    <div ref={bar} className={`bcast bcast-${b.style}`} role="status" aria-live="polite">
       <div className="bcast-x">
         <b className="bcast-t">{b.title}</b>
         {b.body && <span className="bcast-b">{b.body}</span>}

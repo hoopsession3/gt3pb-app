@@ -30,6 +30,22 @@ const designErrors = [];  // routes the phone pass could not measure
 // other ceilings in scripts/design.ratchet.mjs (WEIGHT).
 const weight = [];        // { path, w } per route
 const weightErrors = [];
+/** Routes weighed and nothing else (5b below). */
+const WEIGH_ONLY = ["/crew"];
+// 5) WEIGHT — deterministic, from the document itself: the script chunks the HTML references (minus the noModule
+//    polyfill a modern phone never requests) and its stylesheets, each fetched and gzipped here. Not the browser's
+//    network log: once the page is up the router prefetches every link in the bottom nav (24 more chunks on /menu), and
+//    how many of those land before `load` depends on how warm the server is. The document does not.
+async function weigh(path, ssrHtml) {
+  try {
+    const refs = [...ssrHtml.matchAll(/<script\b([^>]*)\bsrc="(\/_next\/static\/[^"]+\.js)"([^>]*)>/g)].filter((m) => !/\bnomodule\b/i.test(m[1] + m[3])).map((m) => m[2]);
+    const css = [...ssrHtml.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="(\/_next\/static\/[^"]+\.css)"/g)].map((m) => m[1]);
+    const gz = async (u) => { const r = await fetch(BASE + u); const buf = Buffer.from(await r.arrayBuffer()); return gzipSync(buf).length; };
+    const js = (await Promise.all([...new Set(refs)].map(gz))).reduce((a, b) => a + b, 0);
+    const style = (await Promise.all([...new Set(css)].map(gz))).reduce((a, b) => a + b, 0);
+    weight.push({ path, w: { js: Math.round(js / 1024), css: Math.round(style / 1024), chunks: new Set(refs).size } });
+  } catch (e) { weightErrors.push(`${path}: ${String(e.message).slice(0, 120)}`); }
+}
 // axe-core, injected per page. The a11y pass is the first check in this harness that looks at what
 // a screen IS rather than what it contains — every other assertion here is a string match.
 const AXE_PATH = require.resolve("axe-core/axe.min.js");
@@ -263,19 +279,16 @@ try {
     } catch (e) { designErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
     await pp.close();
 
-    // 5) WEIGHT — deterministic, from the document itself: the script chunks the HTML references
-    //    (minus the noModule polyfill a modern phone never requests) and its stylesheets, each
-    //    fetched and gzipped here. Not the browser's network log: once the page is up the router
-    //    prefetches every link in the bottom nav (24 more chunks on /menu), and how many of those
-    //    land before `load` depends on how warm the server is. The document does not.
-    try {
-      const refs = [...ssrHtml.matchAll(/<script\b([^>]*)\bsrc="(\/_next\/static\/[^"]+\.js)"([^>]*)>/g)].filter((m) => !/\bnomodule\b/i.test(m[1] + m[3])).map((m) => m[2]);
-      const css = [...ssrHtml.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="(\/_next\/static\/[^"]+\.css)"/g)].map((m) => m[1]);
-      const gz = async (u) => { const r = await fetch(BASE + u); const buf = Buffer.from(await r.arrayBuffer()); return gzipSync(buf).length; };
-      const js = (await Promise.all([...new Set(refs)].map(gz))).reduce((a, b) => a + b, 0);
-      const style = (await Promise.all([...new Set(css)].map(gz))).reduce((a, b) => a + b, 0);
-      weight.push({ path: route.path, w: { js: Math.round(js / 1024), css: Math.round(style / 1024), chunks: new Set(refs).size } });
-    } catch (e) { weightErrors.push(`${route.path}: ${String(e.message).slice(0, 120)}`); }
+    // 5) WEIGHT — from the document itself (weigh, above).
+    await weigh(route.path, ssrHtml);
+  }
+
+  // 5b) THE CONSOLE, WEIGHED (R38 — the fresh audit's PERF11-04). /crew — the heaviest route, open all day on the crew's
+  //     phones and the Pass — had no row, so its growth went unmeasured. Weighed only: its screens are the crew's, signed
+  //     in (scripts/smoke.authed.mjs), and what a guest gets at its door is the sign-in.
+  for (const path of WEIGH_ONLY) {
+    try { await weigh(path, await (await fetch(BASE + path)).text()); }
+    catch (e) { weightErrors.push(`${path}: ${String(e.message).slice(0, 120)}`); }
   }
 
   // 6) THE ORDER PATH ON A PHONE, AND THE RAIL IN THE FRAME (2026-10-02; reworked 2026-10-08, the iPhone

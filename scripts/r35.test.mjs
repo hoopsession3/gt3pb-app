@@ -126,7 +126,7 @@ ok("a relay address on the web is told the code goes through Apple's relay, and 
     && /return await subscribePush\(false\);/.test(push) && /localStorage\.setItem\(KEPT, j\.endpoint\)/.test(push)
     && /void import\("@\/lib\/push"\)\.then\(\(m\) => m\.rekeepPush\(\)\)/.test(swr) && /if \(d\?\.type === "gt3-push-renewed"\) \{ void import\("@\/lib\/push"\)\.then\(\(m\) => m\.rekeepPush\(true\)\)/.test(swr)
     && /self\.addEventListener\("pushsubscriptionchange"/.test(sw));
-  ok("a navigation waits on the network 3.5 seconds, then the cached page answers (sw.test drives it)", /const NAV_DEADLINE_MS = 3500;/.test(sw) && /const CACHE = "gt3pb-v30";/.test(sw));
+  ok("a navigation waits on the network 3.5 seconds, then the cached page answers (sw.test drives it)", /const NAV_DEADLINE_MS = 3500;/.test(sw) && Number((sw.match(/const CACHE = "gt3pb-v(\d+)";/) || [])[1]) >= 30);   // R38: v31 (a later bump keeps it)
 }
 
 const pkg = JSON.parse(read("package.json"));

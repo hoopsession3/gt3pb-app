@@ -10,6 +10,7 @@ import { announce } from "@/components/Announcer";
 import { TOAST_AFTER_HOLD_MS, toastHoldMs } from "@/lib/toastTiming";
 import { sayable } from "@/lib/failureWords";
 import { useHydrated } from "@/lib/clientState";
+import { sameJson } from "@/lib/sharedCore";
 
 type ToastVariant = "success" | "error" | "info";
 /** One thing the toast can do — "Undo" after a swipe cleared a flag (2026-10-05, the gesture round). */
@@ -189,10 +190,14 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     const quit = setTimeout(() => ctrl?.abort(), 10_000);
     fetch(apiUrl("/api/menu"), ctrl ? { signal: ctrl.signal } : undefined).then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!d) return;
-      setPrices(d.prices || {});
+      // The same answer keeps the values it already has (R38 — PERF11-12): a new object for an unchanged menu re-drew all
+      // 150 screens that read the shell's stable value — on every load, and every minute on /menu and the TV board.
+      const nextPrices: Record<string, number> = d.prices || {};
+      setPrices((was) => (sameJson(was, nextPrices) ? was : nextPrices));
       // An empty list is an answer (nothing on sale); null is a read that failed — the code list's menu stays.
       if (Array.isArray(d.items)) {
-        setRows(d.items as MenuRow[]);
+        const nextRows = d.items as MenuRow[];
+        setRows((was) => (was !== null && sameJson(was, nextRows) ? was : nextRows));
         if (!pruned.current) { pruned.current = true; pruneCart.current(d.items as MenuRow[]); }
       }
     }).catch(() => {}).finally(() => { clearTimeout(quit); reading.current = false; });

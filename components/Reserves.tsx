@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { heldHeight, keepHold, letGo } from "@/lib/holds";
 import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { supabase } from "@/lib/supabase";
@@ -32,7 +33,9 @@ const ReservePay = dynamic(() => import("./ReservePay"), { ssr: false });
 // THE CARD THAT WAS NEVER THERE (2026-10-02). This used to paint a 150px card skeleton until the query answered, and the
 // query's usual answer is "no live drops" — so on /reserve and /shop every guest watched the order funnel jump up 164px
 // about a second in. A skeleton stands in for content that is coming; it is the wrong tool for a section that is usually
-// absent. Nothing paints until the answer is known.
+// absent. Nothing paints until the answer is known — but its place (R38 — PERF11-06, lib/holds): on a phone that saw cards
+// here last time, the slot holds their height until the answer lands, so the order form under them stays put; read as
+// none, the slot lets go and forgets it. A first visit holds nothing, as before.
 
 type Shown = Reserve & { stop?: ReserveStop; open: boolean; closes: string | null };
 type Board = { reserves: Shown[]; claims: ReserveClaim[] };
@@ -105,7 +108,17 @@ export default function Reserves() {
     load();
   };
 
-  if (board.status === "loading") return null;
+  const slot = useRef<HTMLDivElement>(null);
+  const shownCount = board.status === "ready" ? (board.data?.reserves.length ?? 0) : -1;
+  useEffect(() => {
+    if (board.status === "loading") return;
+    if (board.status === "error") { letGo("rsv"); return; }
+    if (shownCount > 0) { keepHold("rsv", heldHeight(slot.current, ":scope > .drop")); return; }
+    letGo("rsv");
+    keepHold("rsv", 0);
+  }, [board.status, shownCount]);
+
+  if (board.status === "loading") return <div ref={slot} className="hold-slot" data-hold="rsv" />;
   if (board.status === "error") return <p className="rsv-err" role="alert">Couldn&rsquo;t load reserves right now — check back shortly.</p>;
   const reserves = board.data?.reserves ?? [];
   if (reserves.length === 0) return null;
@@ -114,7 +127,7 @@ export default function Reserves() {
   const signingFor = !user ? reserves.find((r) => r.id === signInFor) ?? null : null;
 
   return (
-    <>
+    <div ref={slot} className="hold-slot" data-hold="rsv">
       {reserves.map((r) => {
         const mine = claims.filter((c) => c.reserve_id === r.id);
         const have = mine.reduce((a, c) => a + c.qty, 0);
@@ -199,6 +212,6 @@ export default function Reserves() {
           }}
         />
       )}
-    </>
+    </div>
   );
 }
