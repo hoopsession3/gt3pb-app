@@ -220,7 +220,7 @@ export default function TrailerLoadout({ lockTo }: { lockTo?: { kind: "event" | 
                 {numField("usable_pct", "Usable %")}
                 <div className="tl-f wide" style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: "var(--bronze)", paddingTop: 4 }}>Vehicle cargo bay (in)</div>
                 <div className="tl-vlook">
-                  <input className="tl-vlook-q" type="text" value={veh.q} onChange={(e) => setVeh((v) => ({ ...v, q: e.target.value }))} placeholder="Year make model — e.g. 2026 Honda Pilot" onKeyDown={(e) => e.key === "Enter" && lookupVehicle()} />
+                  <input aria-label="Vehicle — year, make and model" className="tl-vlook-q" type="text" value={veh.q} onChange={(e) => setVeh((v) => ({ ...v, q: e.target.value }))} placeholder="Year make model — e.g. 2026 Honda Pilot" onKeyDown={(e) => e.key === "Enter" && lookupVehicle()} />
                   <select className="tl-vlook-pax" value={veh.pax} onChange={(e) => setVeh((v) => ({ ...v, pax: Number(e.target.value) }))} aria-label="Passengers riding">
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n} {n === 1 ? "rider" : "riders"}</option>)}
                   </select>

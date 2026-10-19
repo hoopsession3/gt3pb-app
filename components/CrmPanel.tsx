@@ -311,7 +311,7 @@ export default function CrmPanel() {
         <div className="adm-sec">
           {/* No bespoke header here — the enclosing <Panel> owns the title (Customers cohesion pass). */}
           {rows.length > 5 && (
-            <input className="crm-search" placeholder="Search name, phone, or email" value={q} onChange={(e) => setQ(e.target.value)} />
+            <input aria-label="Search customers" className="crm-search" placeholder="Search name, phone, or email" value={q} onChange={(e) => setQ(e.target.value)} />
           )}
           {/* "It's my data" (enterprise round P2) — the accountant/CRM handoff, from the rows on screen */}
           <button type="button" className="btn-sec btn-sm shrink-0 mt-1.5 mb-2" onClick={() => downloadCsv("gt3-customers.csv", shown.map((c) => ({

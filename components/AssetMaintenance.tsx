@@ -205,7 +205,7 @@ function LogSheet({ asset, from, onClose, onSaved }: { asset: Asset; from: Log |
           <div className="ts-chips">
             {KINDS.map((k) => <button key={k} type="button" className={`k-chip${kind === k ? " on" : ""}`} aria-pressed={kind === k} onClick={() => onKind(k)}>{KIND_ICON[k]} {k}</button>)}
           </div>
-          <input className="note-in" style={{ marginTop: 10 }} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="What was done? e.g. Replaced CO2 regulator, cleaned lines" autoFocus />
+          <input aria-label="What was done" className="note-in" style={{ marginTop: 10 }} value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="What was done? e.g. Replaced CO2 regulator, cleaned lines" autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>Done on</span><input type="date" value={performedOn} onChange={(e) => onDone(e.target.value)} /></label>
             <label className="prod-f"><span>{rhythm ? `Next due — every ${rhythm} day${rhythm === 1 ? "" : "s"}` : "Next due (optional)"}</span><input type="date" value={nextDue} onChange={(e) => { setNextTouched(true); setNextDue(e.target.value); }} /></label>

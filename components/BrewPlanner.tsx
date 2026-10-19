@@ -404,7 +404,7 @@ export default function BrewPlanner() {
                 <div className="brew-card-top">
                   <b>{b.recipe_name || "Batch"} · {b.batch_gal} gal</b>
                   {/* Sized to its word, so the batch's name keeps its line (2026-10-10: the field's base width took the row). */}
-                  <select className="brew-status flex-none w-auto! max-w-44" value={b.status} onChange={(e) => setStatus(b.id, e.target.value)}>
+                  <select aria-label={`Status of ${b.recipe_name || "this batch"}`} className="brew-status flex-none w-auto! max-w-44" value={b.status} onChange={(e) => setStatus(b.id, e.target.value)}>
                     {STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                   {/* REMOVE IS IN THE BATCH'S MENU (2026-10-10, the crew round). It sat in red right under the gold

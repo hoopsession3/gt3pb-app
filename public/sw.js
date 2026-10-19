@@ -39,7 +39,13 @@
 //
 // v28 (2026-10-16, R10b · the 10/10 audit): a page is kept under its path alone — an /order?t=… ticket, which can cancel
 // the order, was a cache key on the device. Nothing else changed.
-const CACHE = "gt3pb-v29";
+// v30 (2026-10-18, R35 · the fresh audit's FE11-13 and FE11-12): a navigation waits on the network NAV_DEADLINE_MS, not
+// for ever — on one stalled bar at a market the installed app sat on a white screen for tens of seconds with its page in
+// the cache. Past the deadline the cached page answers, and the fetch, still under way, refreshes the cache for the next
+// load; with nothing cached it goes on waiting. And a subscription the push service renews is kept again
+// (pushsubscriptionchange, below).
+const CACHE = "gt3pb-v30";
+const NAV_DEADLINE_MS = 3500;
 const SHELL = ["/", "/truck", "/menu", "/events", "/3mpire", "/book", "/crew", "/driver", "/manifest.webmanifest"];
 
 // Page DATA, not a page: Next's router fetches a route's flight payload with these marks whenever
@@ -81,24 +87,32 @@ self.addEventListener("fetch", (event) => {
   // /api/assets + event_approvals responses — and then, for three weeks, stale pages.
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || isPageData(request, url)) return;
 
-  // Network-first for navigations (fresh content), fall back to cached shell offline.
+  // Network-first for navigations (fresh content) — for NAV_DEADLINE_MS (v30); then, or offline, the cached shell.
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          // Only cache good responses — caching a 404/500 shell would serve a broken page offline.
-          // Kept under its path alone (v28, R10b — the 10/10 audit): /order?t=… is a ticket that can cancel an order, and a
-          // query in a cache key is kept on the device. Offline asks with ignoreSearch below, so the shell is found as before.
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(url.origin + url.pathname, copy));
-          }
-          return res;
-        })
-        // ignoreSearch: the crew console navigates as /crew?s=prep — the query must not miss the
-        // cached /crew shell, or offline opens the dino page while the shell sits in cache.
-        .catch(() => caches.match(request, { ignoreSearch: true }).then((r) => r || caches.match("/")))
-    );
+    let kept = Promise.resolve();
+    const network = fetch(request).then((res) => {
+      // Only cache good responses — caching a 404/500 shell would serve a broken page offline.
+      // Kept under its path alone (v28, R10b — the 10/10 audit): /order?t=… is a ticket that can cancel an order, and a
+      // query in a cache key is kept on the device. Offline asks with ignoreSearch below, so the shell is found as before.
+      if (res.ok) {
+        const copy = res.clone();
+        kept = caches.open(CACHE).then((c) => c.put(url.origin + url.pathname, copy));
+      }
+      return res;
+    });
+    // ignoreSearch: the crew console navigates as /crew?s=prep — the query must not miss the
+    // cached /crew shell, or offline opens the dino page while the shell sits in cache.
+    const cached = () => caches.match(request, { ignoreSearch: true }).then((r) => r || caches.match("/"));
+    event.respondWith(new Promise((resolve) => {
+      let settled = false;
+      const answer = (r) => { if (!settled) { settled = true; resolve(r); } };
+      // Past the deadline the cached page answers — when there is one; with none, the network is still the only answer.
+      const timer = setTimeout(() => { cached().then((r) => { if (r) answer(r); }, () => {}); }, NAV_DEADLINE_MS);
+      network.then((res) => { clearTimeout(timer); answer(res); },
+        () => { clearTimeout(timer); cached().then((r) => answer(r || Response.error()), () => answer(Response.error())); });
+    }));
+    // The fetch finishes either way, and refreshes the cached page for the next load.
+    event.waitUntil(network.then(() => kept).catch(() => {}));
     return;
   }
 
@@ -202,5 +216,23 @@ self.addEventListener("notificationclick", (event) => {
     if (win.url === url) return;
     try { if (win.navigate) { await win.navigate(url); return; } } catch { /* not this worker's window */ }
     win.postMessage({ type: "gt3-open", url });
+  })());
+});
+
+// A SUBSCRIPTION THE PUSH SERVICE RENEWED IS KEPT AGAIN (v30, R35 — the fresh audit's FE11-12). A push service that
+// rotates or expires a subscription says so here; unanswered, the kept endpoint was dead and the Pass's new-order pushes
+// stopped, unsaid, until someone opened Notifications and saw "Turn on" again. The worker subscribes again with the old
+// options when the browser hasn't, and tells every open window, which keeps the new one (components/ServiceWorkerRegister
+// → lib/push rekeepPush). A window opened later keeps it on load: its endpoint isn't the one last kept.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil((async () => {
+    let sub = event.newSubscription || null;
+    const old = event.oldSubscription;
+    if (!sub && old && old.options) {
+      try { sub = await self.registration.pushManager.subscribe(old.options); } catch { sub = null; }
+    }
+    if (!sub) return;
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const w of wins) w.postMessage({ type: "gt3-push-renewed" });
   })());
 });

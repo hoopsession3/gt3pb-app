@@ -131,8 +131,8 @@ export default function AiTraining() {
       </div>
 
       <div className="goal-new" ref={formRef}>
-        <input className="auth-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What&rsquo;s it about? — e.g. Flow cold-brew cacao per gallon" maxLength={90} />
-        <textarea className="auth-input" rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="The correct answer, in your words — e.g. Flow is 68 g cacao per gallon of water, so 170 g at 2.5 gal. Not 200." maxLength={1200} />
+        <input aria-label="What it's about" className="auth-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What&rsquo;s it about? — e.g. Flow cold-brew cacao per gallon" maxLength={90} />
+        <textarea aria-label="The correct answer" className="auth-input" rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder="The correct answer, in your words — e.g. Flow is 68 g cacao per gallon of water, so 170 g at 2.5 gal. Not 200." maxLength={1200} />
         <div className="ai-up">
           <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMedia(f); }} />
           <button type="button" className="st-discuss" onClick={() => fileRef.current?.click()} disabled={upBusy}>{upBusy ? "Uploading…" : media ? <><Icon name="check" /> Proof attached — replace</> : <><Icon name="link" /> Attach proof (recipe / receipt photo)</>}</button>

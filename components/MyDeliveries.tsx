@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { useAppStable } from "./AppProvider";
 import { supabase } from "@/lib/supabase";

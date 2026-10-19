@@ -329,7 +329,7 @@ function ItemForm({ item, start, venueFor, onSite, onClose, onSave }: {
   const toggleWho = (n: string) => set("who", (isOn(n) ? whoList.filter((x) => x.toLowerCase() !== n.toLowerCase()) : [...whoList, n]).join(", "));
   return (
     <Sheet open onClose={onClose} label="Day-of block" dirty={edited(f, first, ["title", "kind", "start_time", "end_time", "location", "address", "details", "who"])} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{item ? "Edit block" : "New block"}</b><CloseButton onClick={onClose} /></div>}>
-          <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
+          <input aria-label="What's happening" className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="What's happening? e.g. Arrive Airbnb" autoFocus />
           <div className="dp-kinds">
             {KINDS.map((k) => (
               <button key={k.key} type="button" className={`k-chip hue${f.kind === k.key ? " on" : ""}`} style={{ ["--k-tone" as string]: k.color }} aria-pressed={f.kind === k.key} onClick={() => setKind(k.key)}>{k.icon} {k.label}</button>
@@ -395,7 +395,7 @@ function DraftPanel({ ownerType = "event", eventId, dayIndex, onClose, onAdd }: 
           {!rows && (
             <>
               <div className="dp-hint">A few notes — where you&apos;re leaving from, when the event opens, where you&apos;re staying — and AI proposes the day. You approve what to keep.</div>
-              <textarea className="note-in" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Leaving Greenville ~9am, ~3hr drive, market opens noon–6, Airbnb 2 nights, teardown after close" autoFocus />
+              <textarea aria-label="The day, in your words" className="note-in" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Leaving Greenville ~9am, ~3hr drive, market opens noon–6, Airbnb 2 nights, teardown after close" autoFocus />
               {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose}>Cancel</button>

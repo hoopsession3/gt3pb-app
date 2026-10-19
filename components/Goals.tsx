@@ -379,7 +379,7 @@ export default function Goals() {
             ))}
             {initFor === g.id && (
               <div className="goal-init add">
-                <input className="auth-input" autoFocus value={initTitle} onChange={(e) => setInitTitle(e.target.value)} placeholder="A concrete move — e.g. Pitch 3 wholesale accounts"
+                <input aria-label="The move" className="auth-input" autoFocus value={initTitle} onChange={(e) => setInitTitle(e.target.value)} placeholder="A concrete move — e.g. Pitch 3 wholesale accounts"
                   onKeyDown={(e) => { if (e.key === "Enter") addInitiative(g.id); if (e.key === "Escape") setInitFor(null); }} />
                 <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => addInitiative(g.id)}>Add</button>
               </div>
@@ -390,7 +390,7 @@ export default function Goals() {
         <div className="goal-actions">
           {managing && !g.metric_source && (logging === g.id ? (
             <span className="goal-log">
-              <input className="auth-input" inputMode="decimal" autoFocus value={logVal}
+              <input aria-label={`New value for ${g.title}`} className="auth-input" inputMode="decimal" autoFocus value={logVal}
                 onChange={(e) => setLogVal(e.target.value)} placeholder={String(g.current_value)}
                 onKeyDown={(e) => { if (e.key === "Enter") logProgress(g); if (e.key === "Escape") setLogging(null); }} />
               <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => logProgress(g)}>Log</button>
@@ -459,11 +459,11 @@ export default function Goals() {
 
       {canLead && (adding ? (
         <div className="goal-new">
-          <input className="auth-input" value={ng.title} onChange={(e) => setNg({ ...ng, title: e.target.value })} placeholder="The goal, plain English — e.g. Wholesale accounts signed" maxLength={80} />
+          <input aria-label="The goal" className="auth-input" value={ng.title} onChange={(e) => setNg({ ...ng, title: e.target.value })} placeholder="The goal, plain English — e.g. Wholesale accounts signed" maxLength={80} />
           <div className="goal-new-row">
-            <input className="auth-input" inputMode="decimal" value={ng.target} onChange={(e) => setNg({ ...ng, target: e.target.value })} placeholder="Target (number)" />
+            <input aria-label="Target" className="auth-input" inputMode="decimal" value={ng.target} onChange={(e) => setNg({ ...ng, target: e.target.value })} placeholder="Target (number)" />
             {ng.source ? <input className="auth-input" value={METRIC_SOURCES[ng.source].unit} disabled aria-label="Unit (set by the live metric)" />
-              : <input className="auth-input" value={ng.unit} onChange={(e) => setNg({ ...ng, unit: e.target.value })} placeholder="Unit — $/mo, %, orders" maxLength={16} />}
+              : <input aria-label="Unit" className="auth-input" value={ng.unit} onChange={(e) => setNg({ ...ng, unit: e.target.value })} placeholder="Unit — $/mo, %, orders" maxLength={16} />}
           </div>
           <div className="goal-new-row">
             <select className="auth-input" value={ng.stream} onChange={(e) => setNg({ ...ng, stream: e.target.value })} aria-label="Lane">
@@ -479,7 +479,7 @@ export default function Goals() {
                         onChange={(v) => setOwnerChosen(v)} />
           </div>
           <div className="goal-new-row">
-            <input className="auth-input" value={ng.play} onChange={(e) => setNg({ ...ng, play: e.target.value })} placeholder="Which play it serves (optional)" maxLength={60} />
+            <input aria-label="The play it serves" className="auth-input" value={ng.play} onChange={(e) => setNg({ ...ng, play: e.target.value })} placeholder="Which play it serves (optional)" maxLength={60} />
             <input className="auth-input" type="date" value={ng.due} onChange={(e) => setNg({ ...ng, due: e.target.value })} aria-label="Due date" />
           </div>
           <div className="st-log-btns">

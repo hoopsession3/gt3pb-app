@@ -51,7 +51,10 @@ import { execFileSync } from "node:child_process";
 //   playbook from Discussions) and go through the router now; five are page loads on purpose and say so where they
 //   stand (the console reads ?s=, ?a=, ?promote= and the prep handoff once, as it loads; the crash screen's way back
 //   can't trust the router that threw). 46 stays 46.
-export const CEILING = { errors: 0, warnings: 46 };
+//   R35 (2026-10-19): 46 → 41 warnings. Studio's history failure is read (FE11-11 — the warning was the bug: "No versions
+//   yet" said for a read that failed), and four imports nothing used went (BroadcastEditor's, StrategyCollab's and
+//   MyDeliveries' useEffect; DealExplainer's TIER).
+export const CEILING = { errors: 0, warnings: 41 };
 /** @deprecated the single total; kept so a reader of the old name still gets the sum. */
 export const LINT_CEILING = CEILING.errors + CEILING.warnings;
 

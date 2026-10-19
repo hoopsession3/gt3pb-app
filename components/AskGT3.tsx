@@ -103,7 +103,7 @@ export default function AskGT3() {
                 aria-label={dictate.listening ? "Stop listening" : "Speak your question"} aria-pressed={dictate.listening}>
           <Icon name="mic" size={19} />
         </button>}
-        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder="Ask GT3…" enterKeyHint="send" />
+        <input aria-label="Ask GT3" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder="Ask GT3…" enterKeyHint="send" />
         <button type="button" className="btn-pri" onClick={() => send(input)} disabled={busy || !input.trim()}>Ask</button>
       </div>
       {genNotes !== null && (

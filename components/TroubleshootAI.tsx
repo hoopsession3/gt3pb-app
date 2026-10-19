@@ -78,7 +78,7 @@ export default function TroubleshootAI({ ownerType, ownerId, title, onClose, onL
                   </button>
                 ))}
               </div>
-              <textarea className="note-in" rows={4} value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="What's happening? e.g. Turned the water heater on and it tripped the generator breaker — had to cut the AC to get power back." autoFocus disabled={busy} />
+              <textarea aria-label="What's happening" className="note-in" rows={4} value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="What's happening? e.g. Turned the water heater on and it tripped the generator breaker — had to cut the AC to get power back." autoFocus disabled={busy} />
               <label className="ts-toggle"><input type="checkbox" checked={blocker} onChange={(e) => setBlocker(e.target.checked)} /> This is stopping service (blocker)</label>
               {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>

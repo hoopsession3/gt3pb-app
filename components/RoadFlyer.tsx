@@ -501,7 +501,7 @@ export default function RoadFlyer() {
       {/* What the Slide tabs show — the slide's fields and its picture (R12 — the 10/10 audit, F7: a tab panel). */}
       <div className="flex flex-col gap-[9px] min-w-0" {...tabPanel("rf-slide", tile)}>
       {opts.length > 0 && tile === "announce" && (
-        <select className="rf-pick" defaultValue="" onChange={(e) => e.target.value && pick(e.target.value)}>
+        <select aria-label="Prefill from an event or stop" className="rf-pick" defaultValue="" onChange={(e) => e.target.value && pick(e.target.value)}>
           <option value="">⚡ Prefill from an event / stop…</option>
           {opts.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
         </select>

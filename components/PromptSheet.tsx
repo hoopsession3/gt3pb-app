@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Sheet, { CloseButton } from "./Sheet";
 
 // PROMPT SHEET — a single-field input in the app's canonical Sheet, standing in for window.prompt().
@@ -24,6 +24,7 @@ export default function PromptSheet({
 }) {
   const [value, setValue] = useState(defaultValue);
   const [busy, setBusy] = useState(false);
+  const hintId = useId();   // the hint is read with the field (R35 — UX11-08)
 
   const submit = async () => {
     if (busy) return;
@@ -34,11 +35,11 @@ export default function PromptSheet({
   return (
     <Sheet open={open} onClose={onCancel} label={title}
       header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{title}</b><CloseButton onClick={onCancel} /></div>}>
-      {hint && <div className="dp-hint">{hint}</div>}
+      {hint && <div className="dp-hint" id={hintId}>{hint}</div>}
       {multiline ? (
-        <textarea className="note-in" rows={3} autoFocus value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)} />
+        <textarea aria-label={title} aria-describedby={hint ? hintId : undefined} className="note-in" rows={3} autoFocus value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)} />
       ) : (
-        <input className="note-in" autoFocus value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)}
+        <input aria-label={title} aria-describedby={hint ? hintId : undefined} className="note-in" autoFocus value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
       )}
       <div className="prod-actions" style={{ marginTop: 14 }}>

@@ -42,6 +42,29 @@ export async function subscribePush(crew: boolean, opts?: { wantsLive?: boolean 
       p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth,
       p_crew: crew || null, p_wants_live: opts?.wantsLive ?? null,
     });
+    if (!error) { try { localStorage.setItem(KEPT, j.endpoint); } catch { /* storage off: the next load keeps it again */ } }
     return !error;
   } catch { return false; /* push optional; never block the UI */ }
+}
+
+// KEPT AGAIN WHEN IT CHANGED (R35 — the fresh audit's FE11-12). A push service rotates or expires a browser's
+// subscription; the kept endpoint went dead and the Pass's new-order pushes stopped, unsaid, until someone opened
+// Notifications. On load — and when the worker says the subscription was renewed (public/sw.js pushsubscriptionchange) —
+// a browser whose subscription is not the one last kept here keeps it again. Quiet: it asks nothing, runs only where
+// notifications are already allowed and a subscription exists, and never changes what the device asks for (subscribePush
+// with crew false and no wantsLive leaves both as they were, 0366).
+const KEPT = "gt3-push-kept";
+export async function rekeepPush(renewed = false): Promise<boolean> {
+  try {
+    if (!VAPID_PUBLIC || !supabase) return false;
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+    if (Notification.permission !== "granted") return false;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return false;   // never turned on here, or the browser let it go: the person's own Turn on asks again
+    let last: string | null = null;
+    try { last = localStorage.getItem(KEPT); } catch { /* no storage: keep it */ }
+    if (!renewed && last === sub.endpoint) return false;
+    return await subscribePush(false);
+  } catch { return false; }
 }

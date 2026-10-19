@@ -251,12 +251,14 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
               pattern="[0-9]*"
               maxLength={10}
               aria-label={cs.label}
-              aria-describedby="auth-code-for"
+              aria-describedby={err ? "auth-code-for auth-code-err" : "auth-code-for"}
+              aria-invalid={err ? true : undefined}
               placeholder={"•".repeat(CODE_LEN)}
               value={otp}
               onChange={(e) => onCode(e.target.value)}
             />
-            {err && <div className="auth-err" role="alert">{err}</div>}
+            {/* The refusal is the field's (R35 — UX11-08): read with it when the person goes back to it, not only once as it appears. */}
+            {err && <div className="auth-err" role="alert" id="auth-code-err">{err}</div>}
             <button className="btn-pri btn-wide mt-3" type="submit" disabled={otp.length < MIN_CODE || busy}>
               <span>{busy ? "Checking…" : cs.go}</span>
             </button>
@@ -301,8 +303,9 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
                 </>
               )}
               <label className="auth-label" htmlFor="auth-email">Email</label>
-              <input id="auth-email" className="auth-input" enterKeyHint="send" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              {err && <div className="auth-err" role="alert">{err}</div>}
+              <input id="auth-email" className="auth-input" enterKeyHint="send" type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required
+                aria-invalid={err ? true : undefined} aria-describedby={err ? "auth-email-err" : undefined} />
+              {err && <div className="auth-err" role="alert" id="auth-email-err">{err}</div>}
               <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
                 <span>{busy ? "Sending…" : intent === "join" ? "Join free" : "Email me a sign-in code"}</span>
               </button>
@@ -318,7 +321,8 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
                 </>
               )}
               <label className="auth-label" htmlFor="pw-email">Email</label>
-              <input id="pw-email" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input id="pw-email" className="auth-input" enterKeyHint="next" onKeyDown={nextOnEnter} type="email" inputMode="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required
+                aria-invalid={err ? true : undefined} aria-describedby={err ? "pw-err" : undefined} />
               <label className="auth-label" htmlFor="pw-pass">Password</label>
               <div className="auth-pass-wrap">
                 <input
@@ -333,6 +337,8 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={isNew ? 8 : 1}
+                  aria-invalid={err ? true : undefined}
+                  aria-describedby={err ? "pw-err" : undefined}
                 />
                 {/* Reachable and named (R12 — the 10/10 audit, F17): it was out of the Tab order (tabIndex -1) and read only as
                     "Show". Its word stays "Show"/"Hide", so Voice Control's "Tap Show" still finds it. */}
@@ -347,7 +353,7 @@ export default function SignIn({ context, compact = false, start }: Props = {}) 
                   <input id="pw-confirm" className="auth-input" enterKeyHint="go" type={showPass ? "text" : "password"} autoComplete="new-password" placeholder="Repeat password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
                 </>
               )}
-              {err && <div className="auth-err" role="alert">{err}</div>}
+              {err && <div className="auth-err" role="alert" id="pw-err">{err}</div>}
               <button className="btn-pri btn-wide mt-4.5" type="submit" disabled={busy}>
                 <span>{busy ? (isNew ? "Creating…" : "Signing in…") : (isNew ? "Become a member" : "Sign in")}</span>
               </button>

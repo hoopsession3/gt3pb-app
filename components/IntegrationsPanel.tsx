@@ -89,7 +89,7 @@ export default function IntegrationsPanel() {
           <IntegrationRow name="Teams alerts" ok={null} sub="server-side — critical fan-out posts when the webhook is set in Vercel" />
           <div className="intg-sec">
             <b>Security</b>
-            <span>Sign-in codes, links &amp; sessions run on Supabase Auth. Two-factor for staff accounts is enabled per-account in Supabase (a developer task today — ask for it when the team grows). Payment card data never touches this app — Square hosts the fields end to end.</span>
+            <span>Sign-in codes, links &amp; sessions run on Supabase Auth. Two-step sign-in is in the app: an owner or admin turns it on in Settings, and an owner can ask it of every owner and admin. Payment card data never touches this app — Square hosts the fields end to end.</span>
           </div>
         </div>
       )}

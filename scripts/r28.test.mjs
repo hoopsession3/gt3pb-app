@@ -149,17 +149,19 @@ function fakeSb(over = {}) {
     && acs.indexOf("if (!user) {") < acs.indexOf("if (twoStep) {\n    return (") && acs.indexOf("if (twoStep) {\n    return (") < acs.indexOf('if (view !== "menu") {')
     && /aria-label="Back to Settings & privacy" onClick=\{\(\) => setTwoStep\(false\)\}/.test(acs));
   const setup = code(read("components/TwoStepSetup.tsx")), prompt = code(read("components/TwoStepPrompt.tsx")), lib = code(read("lib/twoStep.ts"));
-  ok("the setup: the QR code and the key drawn for the person, the otpauth link only in the iPhone app — and neither logged",
-    /<img src=\{qrSrc\(enrol\.qr\)\}/.test(setup) && /\{keyGroups\(enrol\.secret\)\}/.test(setup) && /\{isNativeApp\(\) && \(\s*<p className="mt-2"><a className="auth-link[^"]*" href=\{enrol\.uri\}>/.test(setup)
+  // R35 (UX11-10): the otpauth link is offered on the web too — Safari on an iPhone or a Mac hands it to Passwords.
+  ok("the setup: the QR code and the key drawn for the person, the otpauth link beside them (in the app and on the web) — and neither logged",
+    /<img src=\{qrSrc\(enrol\.qr\)\}/.test(setup) && /\{keyGroups\(enrol\.secret\)\}/.test(setup) && /<p className="mt-2"><a className="auth-link[^"]*" href=\{enrol\.uri\}>/.test(setup)
     && !/console\.(log|info|warn|error)\([^)]*(secret|qr|uri)/i.test(setup + lib));
   ok("the setup, on the web: an iPhone app from before two-step can't ask for the code — said before it is turned on, and not in the app itself",
     /\{!isNativeApp\(\) && \(\s*<p className="dp-hint">\s*Use the GT3 iPhone app as well\? Update it first/.test(setup)
     && setup.indexOf("Use the GT3 iPhone app as well?") < setup.indexOf('{busy ? "Starting…" : "Set up two-step sign-in"}'));
-  ok("the owner's switch asks the database (require_two_step) and only on a sign-in that gave its code; turning it off asks for the code when this sign-in hasn't",
-    /disabled=\{busy \|\| !state\.given\}/.test(setup) && /const r = await setRequired\(supabase, on\);/.test(setup)
+  // R35 (UX11-10): the code is given right there when this sign-in hasn't — the switch asks for it, it is never dead.
+  ok("the owner's switch asks the database (require_two_step), with this sign-in's code given first where it hasn't been; turning it off asks for the code when this sign-in hasn't",
+    /disabled=\{busy\}/.test(setup) && /if \(!state\.given\) \{\s+const given = await giveCode\(supabase, code\);[\s\S]*?\}\s+const r = await setRequired\(supabase, on\);/.test(setup)
     && /if \(!state\?\.given\) \{[\s\S]*?const given = await giveCode\(supabase, code\);[\s\S]*?\}\s*const r = await turnOff\(supabase\);/.test(setup));
   ok("the prompt: a one-time code field, six digits, said with what it is for; a way out (Not now, Sign out); and what to do if the authenticator is lost",
-    /autoComplete="one-time-code"/.test(prompt) && /maxLength=\{TOTP_LEN\}/.test(prompt) && /aria-describedby="ts-code-for"/.test(prompt)
+    /autoComplete="one-time-code"/.test(prompt) && /maxLength=\{TOTP_LEN \+ 4\}/.test(prompt) && /aria-describedby=\{err \? "ts-code-for ts-err" : "ts-code-for"\}/.test(prompt)
     && /Not now — the crew&rsquo;s tools only/.test(prompt) && /onClick=\{\(\) => void signOut\(\)\}/.test(prompt) && /Lost your authenticator\?/.test(prompt));
 }
 

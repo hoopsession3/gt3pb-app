@@ -37,6 +37,9 @@ import { segTabId, tabPanel } from "./controls";
 import { useLatestRead } from "@/lib/useLatestRead";
 import type { TablesInsert } from "@/lib/database.types";
 import { plainFailure, failureWords } from "@/lib/failureWords";
+import { feedMoves, movedFeed, placeWords, type FeedMove } from "@/lib/feedOrder";
+import LongPress from "./LongPress";
+import { announce } from "./Announcer";
 
 // STUDIO — the collaborative marketing studio. Her money-maker, his taste → built around
 // collaboration: real-time co-editing (Supabase Realtime presence + broadcast), real version
@@ -157,13 +160,12 @@ export default function Studio() {
   // in the order the row shows them; past the last, on to the lane's next section.
   usePagerLevel({ keys: STUDIO_VIEWS.map((x) => x.key), current: view, go: (k) => pickView(k as StudioView), depth: 1 });
 
-  if (openId) return <StudioEditor id={openId} me={me} onClose={() => { setOpenId(null); load(); }} />;
-
   const shown = filter === "all" ? items : items.filter((i) => i.status === filter);
-  // feed order: manual grid_sort first, then newest by date — drag tiles to plan the feed
+  // feed order: manual grid_sort first, then newest by date — drag tiles, or press one, to plan the feed
   const feed = [...shown].sort((a, b) => (a.grid_sort ?? 1e9) - (b.grid_sort ?? 1e9) || (b.scheduled_for || b.updated_at).localeCompare(a.scheduled_for || a.updated_at));
-  const reorderFeed = async (orderedIds: string[]) => {
-    if (!supabase) return;
+  const feedIds = feed.map((f) => f.id);
+  const reorderFeed = async (orderedIds: string[]): Promise<boolean> => {
+    if (!supabase) return false;
     setDragOrder(orderedIds);
     // The feed's order is the database's once every tile's place is (R12b, F4): a refused one was dropped unread, and
     // the grid snapped back on the next read with nothing said.
@@ -172,7 +174,18 @@ export default function Studio() {
     if (refused) wrote(refused, toast, "Couldn't keep the feed's new order");
     await load();
     setDragOrder(null);
+    return !refused;
   };
+  // A piece moved without a drag (R35 — UX11-09): from its tile's long-press menu or from the piece itself, and said.
+  const moveTile = async (idv: string, to: FeedMove) => {
+    const next = movedFeed(feedIds, idv, to);
+    if (next && (await reorderFeed(next))) announce(`Moved to ${placeWords(next, idv)}`);
+  };
+  const moveIn = (idv: string) => feedMoves(feedIds, idv).map((m) => ({ key: m.key, label: m.label, run: () => { void moveTile(idv, m.key); } }));
+  if (openId) {
+    const place = feedIds.includes(openId) ? { words: placeWords(feedIds, openId), moves: moveIn(openId) } : null;
+    return <StudioEditor id={openId} me={me} place={place} onClose={() => { setOpenId(null); load(); }} />;
+  }
   const onDropTile = (targetId: string) => {
     const from = dragId.current; dragId.current = null;
     if (!from || from === targetId) return;
@@ -237,7 +250,7 @@ export default function Studio() {
               <button key={k} type="button" className={`k-chip sm${filter === k ? " on" : ""}`} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === "all" ? "All" : STATUS[k].label}</button>
             ))}
           </div>
-          <div className="ig-note">Instagram feed preview — drag tiles to plan the feed, tap to open.</div>
+          <div className="ig-note">Instagram feed preview — drag a tile, or press and hold one, to plan the feed; tap to open.</div>
           {shown.length === 0 ? (
             <EmptyState title="No pieces yet" sub="Add a design (export the PNG from Canva) and it shows in the grid." />
           ) : (
@@ -251,9 +264,11 @@ export default function Studio() {
                 // broken cover fall back to the same placeholder an empty piece gets, instead of a blank tile.
                 const img = rawImg && !brokenCovers.has(it.id) ? rawImg : null;
                 return (
-                  <button key={it.id} type="button" className="ig-cell" onClick={() => setOpenId(it.id)}
+                  <LongPress key={it.id} title={it.title || "Untitled"} items={[{ key: "open", label: "Open", run: () => setOpenId(it.id) }, ...moveIn(it.id)]}>
+                  {(press) => (
+                  <button type="button" {...press.bind} className="ig-cell pressable" onClick={() => setOpenId(it.id)}
                     draggable onDragStart={() => { dragId.current = it.id; }} onDragOver={(e) => e.preventDefault()} onDrop={() => onDropTile(it.id)}
-                    aria-label={it.title || "Untitled"}>
+                    aria-label={`${it.title || "Untitled"}, ${placeWords(feedIds, it.id)} in the feed`}>
                     {img && (
                       <img className="ig-img" src={img} alt=""
                         style={(cover && "focal" in cover && cover.focal) ? { objectPosition: `${cover.focal.x}% ${cover.focal.y}%` } : undefined}
@@ -267,6 +282,8 @@ export default function Studio() {
                       <span className={`ig-tag ${STATUS[it.status]?.cls ?? ""}`} role="img" aria-label={STATUS[it.status]?.label ?? it.status} title={STATUS[it.status]?.label ?? it.status} />
                     )}
                   </button>
+                  )}
+                  </LongPress>
                 );
               })}
             </div>
@@ -306,7 +323,8 @@ export default function Studio() {
   );
 }
 
-function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name: string }; onClose: () => void }) {
+function StudioEditor({ id, me, place, onClose }: { id: string; me: { id: string; name: string }; place: { words: string; moves: { key: string; label: string; run: () => void }[] } | null; onClose: () => void }) {
+  const { toast } = useAppStable();
   const confirm = useConfirm();
   const [item, setItem] = useState<Item | null>(null);
   const [title, setTitle] = useState(""); const [hook, setHook] = useState(""); const [caption, setCaption] = useState("");
@@ -393,9 +411,25 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
   // once per piece (deps [id]); identity is read from meRef.current so churn never re-keys the socket.
   // A PRIVATE room (R22, 0428 — the 10/10 audit, security F12): only whoever can read the piece may join it, hear it or
   // type into it. As a public channel anyone with the app's public key and the piece's id could do all three.
+  //
+  // ITS NAME IS ITS RULE, SO A LEAVING ROOM IS WAITED FOR (R35 — the fresh audit's FE11-10): the room must be called
+  // studio-<piece> (0428 admits whoever can read the piece by that name), and a client hands back the channel already
+  // under a name until its leave is answered — so a piece closed and opened again within that round trip joined the
+  // leaving room, heard nothing and showed no one, in silence. A room of the same name still here is let go first.
   useEffect(() => {
     if (!supabase) return;
-    const ch = supabase.channel(`studio-${id}`, { config: { private: true, presence: { key: meRef.current.id } } });
+    const sb = supabase;
+    let live = true;
+    let joined: ReturnType<typeof sb.channel> | null = null;
+    const topic = `realtime:studio-${id}`;
+    void (async () => {
+      for (const prior of sb.getChannels().filter((c) => c.topic === topic)) await sb.removeChannel(prior).catch(() => {});
+      if (!live) return;
+      joined = join();
+    })();
+    return () => { live = false; if (joined) void sb.removeChannel(joined); chRef.current = null; };
+    function join() {
+    const ch = sb.channel(`studio-${id}`, { config: { private: true, presence: { key: meRef.current.id } } });
     ch.on("presence", { event: "sync" }, () => {
       const state = ch.presenceState() as any;
       const list = Object.values(state).flat().map((p: any) => ({ id: p.id, name: p.name }));
@@ -410,7 +444,8 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
     });
     ch.subscribe(async (st: string) => { if (st === "SUBSCRIBED") await ch.track({ id: meRef.current.id, name: meRef.current.name }); });
     chRef.current = ch;
-    return () => { supabase?.removeChannel(ch); };
+    return ch;
+    }
   }, [id]);
 
   // Events for the relational link (upcoming + a little past).
@@ -712,21 +747,22 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
       </div>
 
       <div className="studio-meta">
-        <select className="insp-in" value={item.kind} onChange={(e) => setMeta("kind", e.target.value)}>{KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select>
-        <select className="insp-in" value={item.channel} onChange={(e) => setMeta("channel", e.target.value)}>{CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}</select>
-        <input className="insp-in" list="studio-campaigns" value={campaign} onChange={(e) => setCampaign(e.target.value)} onBlur={() => { const v = campaign.trim() || null; if (v !== (item.campaign ?? null)) persist({ campaign: v }); }} placeholder="Campaign / theme" maxLength={60} />
+        <select aria-label="Kind" className="insp-in" value={item.kind} onChange={(e) => setMeta("kind", e.target.value)}>{KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select>
+        <select aria-label="Channel" className="insp-in" value={item.channel} onChange={(e) => setMeta("channel", e.target.value)}>{CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+        <input aria-label="Campaign or theme" className="insp-in" list="studio-campaigns" value={campaign} onChange={(e) => setCampaign(e.target.value)} onBlur={() => { const v = campaign.trim() || null; if (v !== (item.campaign ?? null)) persist({ campaign: v }); }} placeholder="Campaign / theme" maxLength={60} />
         <datalist id="studio-campaigns">{campaigns.map((c) => <option key={c} value={c} />)}</datalist>
         {/* Additive links (0169): one piece can promote an event, run at a stop, AND serve a play —
             each link is a taxonomy edge for reporting. The FIRST event/stop also fills the legacy
             primary columns so the calendar + campaign flows keep working unchanged. */}
-        <select className="insp-in" value="" onChange={async (e) => {
+        <select aria-label="Link to an event, a stop or a play" className="insp-in" value="" onChange={async (e) => {
           const v = e.target.value; if (!v || !supabase) return;
           const row: TablesInsert<"content_links"> = { content_id: id };
           if (v.startsWith("e:")) row.event_id = v.slice(2);
           else if (v.startsWith("s:")) row.stop_id = v.slice(2);
           else if (v.startsWith("p:")) row.play_key = v.slice(2);
           const { data, error } = await supabase.from("content_links").insert(row).select("id, event_id, stop_id, play_key").single();
-          if (error) return; // duplicate link or RLS — nothing to add either way
+          // A link that didn't take says so (R35): a refused insert — already linked, or not the person's to link — went in silence.
+          if (error) { toast(failureWords(error, "Couldn't link it"), "error"); return; }
           setLinks((p) => [...p, data as CLink]);
           if (row.event_id && !eventId) { setEventId(row.event_id); persist({ event_id: row.event_id }); }
           if (row.stop_id && !stopId) { setStopId(row.stop_id); persist({ stop_id: row.stop_id }); }
@@ -869,23 +905,23 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         </Sheet>
       )}
 
-      <input className={`studio-title${titleErr ? " err" : ""}`} value={title} onChange={(e) => { edit("title", e.target.value); if (titleErr) setTitleErr(false); if (aiFilled) setAiFilled(false); }} placeholder="Title — name it before it goes for review" />
-      {titleErr && <Said assertive className="studio-title-hint">Give this piece a title first.</Said>}
+      <input aria-label="Title" aria-invalid={titleErr ? true : undefined} aria-describedby={titleErr ? "studio-title-err" : undefined} className={`studio-title${titleErr ? " err" : ""}`} value={title} onChange={(e) => { edit("title", e.target.value); if (titleErr) setTitleErr(false); if (aiFilled) setAiFilled(false); }} placeholder="Title — name it before it goes for review" />
+      {titleErr && <Said assertive className="studio-title-hint" id="studio-title-err">Give this piece a title first.</Said>}
       {aiFilled && !titleErr && <div className="studio-ai-hint">✨ AI read the photo and filled this in — edit anytime.</div>}
-      <input className="studio-hook" value={hook} onChange={(e) => { edit("hook", e.target.value); if (aiFilled) setAiFilled(false); }} placeholder="Hook — the scroll-stopping first line" />
-      <textarea className="studio-caption" value={caption} onChange={(e) => edit("caption", e.target.value)} rows={7} placeholder="Caption…" />
+      <input aria-label="Hook" className="studio-hook" value={hook} onChange={(e) => { edit("hook", e.target.value); if (aiFilled) setAiFilled(false); }} placeholder="Hook — the scroll-stopping first line" />
+      <textarea aria-label="Caption" className="studio-caption" value={caption} onChange={(e) => edit("caption", e.target.value)} rows={7} placeholder="Caption…" />
       {lint.length > 0 && (
         <div className="studio-lint">
           {lint.map((f, i) => <div key={i} className={`studio-lint-row ${f.level}`}><span className="studio-lint-tag">{f.tag}</span>{f.msg}</div>)}
         </div>
       )}
-      <input className="studio-tags" value={tags} onChange={(e) => { edit("tags", e.target.value); if (aiFilled) setAiFilled(false); }} placeholder="hashtags, comma, separated" />
+      <input aria-label="Hashtags" className="studio-tags" value={tags} onChange={(e) => { edit("tags", e.target.value); if (aiFilled) setAiFilled(false); }} placeholder="hashtags, comma, separated" />
 
       {/* Caption engine */}
       <div className="studio-engine">
         <div className="insp-lbl"><Icon name="sparkles" /> Caption engine</div>
         <div className="oa-input">
-          <input value={brief} onChange={(e) => setBrief(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") draft(); }} placeholder="Brief — e.g. 'promote Saturday market; lead with why no oxalates'" />
+          <input aria-label="Brief" value={brief} onChange={(e) => setBrief(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") draft(); }} placeholder="Brief — e.g. 'promote Saturday market; lead with why no oxalates'" />
           <button type="button" className="btn-pri" onClick={draft} disabled={drafting || !brief.trim()}>{drafting ? "Drafting…" : "Draft"}</button>
           {draftErr && <Said className="oa-err" assertive>Couldn&apos;t draft that — {draftErr}</Said>}
         </div>
@@ -912,9 +948,17 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {/* Schedule + workflow */}
       <div className="studio-sched">
-        <input type="datetime-local" className="insp-in" value={sched} onChange={(e) => setSched(e.target.value)} />
+        <input aria-label="When it posts" type="datetime-local" className="insp-in" value={sched} onChange={(e) => setSched(e.target.value)} />
         <button type="button" className="btn-sec btn-sm" onClick={schedule} disabled={!sched}>Schedule</button>
       </div>
+
+      {/* Its place in the feed, moved without a drag (R35 — UX11-09): the same moves as its tile's long-press menu. */}
+      {place && place.moves.length > 0 && (
+        <div className="studio-sched" role="group" aria-label="Place in the feed">
+          <span className="text-subhead text-cream-muted">In the feed: {place.words}</span>
+          {place.moves.map((m) => <button key={m.key} type="button" className="btn-ter btn-sm" onClick={m.run}>{m.label}</button>)}
+        </div>
+      )}
 
       <div className="studio-actions">
         <button type="button" className="btn-sec btn-sm" onClick={saveVersion}><Icon name="check" /> Save version</button>
@@ -922,7 +966,7 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
         {(status === "review" || status === "changes") && <button type="button" className="btn-sec btn-sm" onClick={() => setStage("approved", { approved_by: me.id }, "approved")} disabled={isBlank(title)}>Approve</button>}
         {status === "review" && (
           <span className="studio-changes">
-            <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change…" />
+            <input aria-label="What to change" value={note} onChange={(e) => setNote(e.target.value)} placeholder="What to change…" />
             <button type="button" className="btn-sec btn-sm" onClick={requestChanges} disabled={!note.trim()}>Request changes</button>
           </span>
         )}
@@ -961,7 +1005,12 @@ function StudioEditor({ id, me, onClose }: { id: string; me: { id: string; name:
 
       {showVers && (
         <div className="studio-vers k-rows">
-          {versions.length === 0 ? <EmptyState title="No versions yet" sub="Save version to checkpoint." /> : versions.map((v) => (
+          {/* A history that couldn't be read says so (R35 — FE11-11): it said "No versions yet" — there is nothing to restore —
+              to an editor on a bad signal whose piece has yesterday's caption in it. */}
+          {versFailed && versions.length === 0 ? (
+            <EmptyState role="alert" title="Couldn't load the history" sub="This is not “no versions” — the read didn't answer."
+              action={<button type="button" className="btn-ter" onClick={() => loadVersions()}>Try again</button>} />
+          ) : versions.length === 0 ? <EmptyState title="No versions yet" sub="Save version to checkpoint." /> : versions.map((v) => (
             <InfoRow
               key={v.id}
               name={v.label}

@@ -281,11 +281,19 @@ export default function DeleteAccount({ staff, onKeep, onDeleted, onBusy }: {
               : sending ? <>We&rsquo;re emailing an 8-digit code to <b>{email}</b>.</>
               : <>We email an 8-digit code to <b>{email}</b> — enter it, and your account is deleted.</>}
           </Said>
+          {/* Hide My Email, on the web (R35 — UX11-14): the code goes through Apple's relay, which may not pass it on — said first,
+              with the way that doesn't need it. */}
+          {relay && !appleHere && (
+            <p className="dp-hint">
+              You joined with Apple&rsquo;s Hide My Email, so the code goes through Apple&rsquo;s relay. If it doesn&rsquo;t arrive,
+              delete from the GT3 iPhone app instead — there your Apple ID confirms it&rsquo;s you.
+            </p>
+          )}
           <input id="del-code" ref={codeRef} className="auth-input auth-code" type="text" inputMode="numeric" autoComplete="one-time-code"
-            enterKeyHint="go" pattern="[0-9]*" maxLength={10} aria-label="The code from your email" aria-describedby="del-code-for"
+            enterKeyHint="go" pattern="[0-9]*" maxLength={10} aria-label="The code from your email" aria-describedby={codeErr ? "del-code-for del-code-err" : "del-code-for"} aria-invalid={codeErr ? true : undefined}
             placeholder={"•".repeat(CODE_LEN)} value={code} readOnly={busy}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, CODE_LEN))} />
-          {codeErr && <div className="auth-err" role="alert">{codeErr}</div>}
+          {codeErr && <div className="auth-err" role="alert" id="del-code-err">{codeErr}</div>}
           <div className="prod-actions cfm-actions">
             <button type="button" className="btn-ter" onClick={onKeep} disabled={busy}>Keep my account</button>
             <button type="submit" className="btn-del" disabled={busy || code.length < MIN_CODE}>{busy ? "Deleting…" : "Delete my account"}</button>

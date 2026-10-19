@@ -23,6 +23,8 @@ export default function ServiceWorkerRegister() {
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
       .then((r) => {
         reg = r;
+        // A subscription the push service rotated while the app was closed is kept again (R35 — FE11-12, lib/push).
+        void import("@/lib/push").then((m) => m.rekeepPush()).catch(() => {});
         // An update may already be waiting from a deploy while the app was closed.
         if (r.waiting && navigator.serviceWorker.controller) setWaiting(r.waiting);
         r.addEventListener("updatefound", () => {
@@ -63,6 +65,8 @@ export default function ServiceWorkerRegister() {
     // steers it there itself when it controls it; one it doesn't control is told to go, and goes — on this site only.
     const onMessage = (e: MessageEvent) => {
       const d = e.data as { type?: unknown; url?: unknown } | null;
+      // The worker renewed this browser's push subscription (public/sw.js pushsubscriptionchange): keep the new one.
+      if (d?.type === "gt3-push-renewed") { void import("@/lib/push").then((m) => m.rekeepPush(true)).catch(() => {}); return; }
       if (d?.type !== "gt3-open" || typeof d.url !== "string") return;
       try {
         const here = new URL(window.location.href), to = new URL(d.url, here);

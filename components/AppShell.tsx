@@ -21,6 +21,7 @@ import Notifications from "./Notifications";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import FreshTab from "./FreshTab";
 import DisplayToggle, { useDisplay, displayClass } from "./DisplayToggle";
+import { ZOOMS } from "@/lib/phoneText";
 import { useTheme } from "@/lib/theme";
 import EditModeToggle from "./EditModeToggle";
 import ConnectHub from "./ConnectHub";
@@ -233,7 +234,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // Readability prefs (text size / bold / spacing) — applied app-wide as classes on `.app`, redrawn
   // whenever the rail's panel or Settings › You writes them (and from another tab).
-  const disp = displayClass(useDisplay());
+  const display = useDisplay();
+  const disp = displayClass(display);
+  // The size reaches what is drawn beside the app, not in it — the password dialogs (components/AuthProvider): the page's
+  // step, written on the root (R35 — the audit's UX11-07; app/tailwind.css reads it).
+  useEffect(() => { document.documentElement.style.setProperty("--rd-root-z", String(ZOOMS[display.scale] ?? 1)); }, [display.scale]);
 
   return (
     <OperatorSectionProvider>

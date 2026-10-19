@@ -78,7 +78,7 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
               <div className="ts-chips">
                 {MARKETS.map((m) => <button key={m} type="button" className={`k-chip${markets.includes(m) ? " on" : ""}`} aria-pressed={markets.includes(m)} onClick={() => toggleMarket(m)}><Icon name="pin" /> {m}</button>)}
               </div>
-              <input className="note-in" style={{ marginTop: 8 }} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="Focus (optional) — e.g. run clubs, wellness expos, fall festivals" />
+              <input aria-label="Focus" className="note-in" style={{ marginTop: 8 }} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="Focus (optional) — e.g. run clubs, wellness expos, fall festivals" />
               {err && <Said assertive className="dp-err" style={{ marginTop: 8 }}>{err}</Said>}
               <button type="button" className="btn-pri btn-wide mt-3" onClick={scout} disabled={busy || markets.length === 0}>{busy ? "Scouting the web…" : <><Icon name="target" /> Scout opportunities</>}</button>
             </>

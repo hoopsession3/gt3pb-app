@@ -192,7 +192,7 @@ function ShotDraftPanel({ shootId, onClose, onAdd }: { shootId: string; onClose:
       {!shotList && (
         <>
           <div className="dp-hint">A few notes — the setting, what you want to show off, anything specific — and AI proposes a shot list. You approve what to keep.</div>
-          <textarea className="note-in" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Sunset shots at the lake, 3-4 hero shots of the truck, action shots of pours, close-ups of the product" autoFocus />
+          <textarea aria-label="The shoot, in your words" className="note-in" rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Sunset shots at the lake, 3-4 hero shots of the truck, action shots of pours, close-ups of the product" autoFocus />
           {err && <Said assertive className="dp-err">{err}</Said>}
           <div className="prod-actions" style={{ marginTop: 14 }}>
             <button type="button" className="note-arch" onClick={onClose}>Cancel</button>

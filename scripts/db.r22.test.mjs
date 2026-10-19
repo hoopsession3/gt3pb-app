@@ -104,7 +104,7 @@ ok("studio: only broadcast and presence — a message of any other kind on the r
   // The page asks for the private room — and only the Studio's channel speaks in broadcast or presence at all.
   const studio = readFileSync(join(ROOT, "components/Studio.tsx"), "utf8");
   ok("studio: the page joins the piece's room as a private channel, under the name the policies read",
-    /supabase\.channel\(`studio-\$\{id\}`, \{ config: \{ private: true, presence: \{ key: meRef\.current\.id \} \} \}\)/.test(studio));
+    /sb\.channel\(`studio-\$\{id\}`, \{ config: \{ private: true, presence: \{ key: meRef\.current\.id \} \} \}\)/.test(studio));
 }
 
 // ── (2) a device is seen when it is kept, and one nobody keeps is let go ────────────────────────────────────────────────

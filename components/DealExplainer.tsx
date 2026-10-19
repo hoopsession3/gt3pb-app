@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MARKET_LABEL, toMarket } from "@/lib/markets";
-import { computeSplit, project, TIER, toTier, toStage, type DealTerms } from "@/lib/operatorDeal";
+import { computeSplit, project, toTier, toStage, type DealTerms } from "@/lib/operatorDeal";
 import {
   plainSplit, breakevenRevenueCents, fundingLadder, fundingVerdict,
   investmentPicture, tierLadder, whatIsNext, whatYouAreSigning,

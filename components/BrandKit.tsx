@@ -106,8 +106,8 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
       </div>
 
       <div className="brand-voice">
-        {edit ? <input className="studio-hook" value={k.voice} onChange={(e) => setDraft({ ...draft, voice: e.target.value })} placeholder="Voice" /> : <div className="brand-voice-l">{k.voice}</div>}
-        {edit ? <input className="studio-hook" value={k.tagline} onChange={(e) => setDraft({ ...draft, tagline: e.target.value })} placeholder="Tagline" /> : <div className="brand-tag">{k.tagline}</div>}
+        {edit ? <input aria-label="Voice" className="studio-hook" value={k.voice} onChange={(e) => setDraft({ ...draft, voice: e.target.value })} placeholder="Voice" /> : <div className="brand-voice-l">{k.voice}</div>}
+        {edit ? <input aria-label="Tagline" className="studio-hook" value={k.tagline} onChange={(e) => setDraft({ ...draft, tagline: e.target.value })} placeholder="Tagline" /> : <div className="brand-tag">{k.tagline}</div>}
       </div>
 
       <div className="insp-lbl">Palette</div>
@@ -123,7 +123,7 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
       {edit && (
         <div className="brand-addc">
           <input className="insp-in insp-st" type="color" aria-label="New colour" value={newC.hex.length === 7 ? newC.hex : "#a97c3f"} onChange={(e) => setNewC({ ...newC, hex: e.target.value })} />
-          <input className="insp-in" value={newC.name} onChange={(e) => setNewC({ ...newC, name: e.target.value })} placeholder="Color name" />
+          <input aria-label="Color name" className="insp-in" value={newC.name} onChange={(e) => setNewC({ ...newC, name: e.target.value })} placeholder="Color name" />
           <button type="button" className="btn-sec btn-sm" onClick={() => { if (newC.name) { setDraft({ ...draft, colors: [...draft.colors, { name: newC.name, hex: newC.hex }] }); setNewC({ name: "", hex: "#" }); } }}>Add</button>
         </div>
       )}
@@ -134,8 +134,8 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
           <div key={i} className="brand-font">
             {edit ? (
               <>
-                <input className="brand-font-edit" value={f.role} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, role: e.target.value } : g) })} placeholder="Role" />
-                <input className="brand-font-edit n" value={f.name} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, name: e.target.value } : g) })} placeholder="Font name" />
+                <input aria-label="Font role" className="brand-font-edit" value={f.role} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, role: e.target.value } : g) })} placeholder="Role" />
+                <input aria-label="Font name" className="brand-font-edit n" value={f.name} onChange={(e) => setDraft({ ...draft, fonts: draft.fonts.map((g, j) => j === i ? { ...g, name: e.target.value } : g) })} placeholder="Font name" />
                 <button type="button" className="brand-x" aria-label={`Remove the font ${f.name}`} onClick={() => setDraft({ ...draft, fonts: draft.fonts.filter((_, j) => j !== i) })}><Icon name="close" /></button>
               </>
             ) : (
@@ -151,8 +151,8 @@ export default function BrandKit({ canEdit }: { canEdit: boolean }) {
 
       {edit && (
         <div className="brand-urls">
-          <input className="studio-hook" value={k.wordmark_url} onChange={(e) => setDraft({ ...draft, wordmark_url: e.target.value })} placeholder="Wordmark image URL" />
-          <input className="studio-hook" value={k.logo_url} onChange={(e) => setDraft({ ...draft, logo_url: e.target.value })} placeholder="Logo/icon URL" />
+          <input aria-label="Wordmark image URL" className="studio-hook" value={k.wordmark_url} onChange={(e) => setDraft({ ...draft, wordmark_url: e.target.value })} placeholder="Wordmark image URL" />
+          <input aria-label="Logo or icon URL" className="studio-hook" value={k.logo_url} onChange={(e) => setDraft({ ...draft, logo_url: e.target.value })} placeholder="Logo/icon URL" />
         </div>
       )}
       {(assets.length > 0 || canEdit) && (

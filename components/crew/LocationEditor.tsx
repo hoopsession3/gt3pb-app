@@ -241,7 +241,7 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
           ) : (
           <div className="ev-group">
             <div className="ev-group-h">Venue</div>
-            <input className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Vendor / venue name" />
+            <input aria-label="Vendor or venue name" className="ev-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={saveName} maxLength={120} placeholder="Vendor / venue name" />
             <button type="button" className="ev-fieldbtn" onClick={() => setEditAddr(true)}>
               <span className="ev-fieldbtn-l">Address</span>
               <span className={`ev-fieldbtn-v${address.trim() ? "" : " ph"}`}>{address.trim() || "Tap to add — we'll pin it on the map"}</span>
@@ -265,20 +265,20 @@ export function LocationEditor({ kind, row, open, onToggle, onChanged, onArchive
           {showPoc && (
             <div className="ev-group">
               <div className="ev-group-h">Point of contact</div>
-              <input className="ev-input" defaultValue={vendor?.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
-              <input className="ev-input" type="tel" defaultValue={vendor?.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
-              <input className="ev-input" type="email" defaultValue={vendor?.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input aria-label="Point of contact's name" className="ev-input" defaultValue={vendor?.poc_name ?? ""} placeholder="POC name" maxLength={120} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_name ?? null)) patch({ poc_name: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input aria-label="Point of contact's phone" className="ev-input" type="tel" defaultValue={vendor?.poc_phone ?? ""} placeholder="Phone" maxLength={40} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_phone ?? null)) patch({ poc_phone: e.target.value.trim() || null }, "Contact saved"); }} />
+              <input aria-label="Point of contact's email" className="ev-input" type="email" defaultValue={vendor?.poc_email ?? ""} placeholder="Email" maxLength={160} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.poc_email ?? null)) patch({ poc_email: e.target.value.trim() || null }, "Contact saved"); }} />
             </div>
           )}
 
           {kind === "vendor" && (
-            <div className="ev-group"><div className="ev-group-h">Dates of service</div><input className="ev-input" defaultValue={vendor?.service_dates ?? ""} placeholder="e.g. Saturdays · May – Aug" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Saved"); }} /></div>
+            <div className="ev-group"><div className="ev-group-h">Dates of service</div><input aria-label="Service dates" className="ev-input" defaultValue={vendor?.service_dates ?? ""} placeholder="e.g. Saturdays · May – Aug" maxLength={200} onBlur={(e) => { if ((e.target.value.trim() || null) !== (vendor?.service_dates ?? null)) patch({ service_dates: e.target.value.trim() || null }, "Saved"); }} /></div>
           )}
 
           {kind === "vendor" && (
             <div className="ev-group">
               <div className="ev-group-h">Notes</div>
-              <textarea className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={row.notes ?? ""} placeholder="Anything to remember about this vendor" onBlur={(e) => { if (e.target.value !== (row.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Details saved"); }} />
+              <textarea aria-label="Notes" className="ev-input ev-area" rows={2} maxLength={1000} defaultValue={row.notes ?? ""} placeholder="Anything to remember about this vendor" onBlur={(e) => { if (e.target.value !== (row.notes ?? "")) patch({ notes: e.target.value.trim() || null }, "Details saved"); }} />
             </div>
           )}
 

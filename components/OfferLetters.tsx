@@ -451,7 +451,7 @@ function ReviewPanel({ onDecide, busy }: { onDecide: (a: "approve" | "request_ch
     <div className="ofr-panel review">
       <h4>Your decision</h4>
       <p className="ofr-review-p">This can&rsquo;t go to the candidate until you and every other owner approve it.</p>
-      <textarea className="ofr-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)}
+      <textarea aria-label="A note" className="ofr-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)}
         placeholder="A note (optional — required in spirit if you're asking for changes)" />
       <div className="ofr-do">
         <button type="button" className="btn-sec" disabled={busy} onClick={() => onDecide("request_changes", note)}>Ask for changes</button>

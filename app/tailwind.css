@@ -453,3 +453,14 @@
   &[data-y="50"] { top: 50%; }
   &[data-y="85"] { top: 85%; }
 }
+
+/* ============================================================
+   THE TEXT SIZE REACHES EVERYTHING THAT IS READ (R35 — the fresh audit's UX11-07). The tiers zoomed the page, a sheet's
+   body, its head and foot, the bars and the tab labels — and nothing else: the "Discard your changes?" card a pulled
+   sheet asks, ⌘K, the offline and broadcast banners, and the two password dialogs (drawn beside the app, not in it) read
+   at 100% at every size, to someone at 200%. The card and ⌘K take the page's step, the banners the bars' (they stop at
+   150%, as the bars do), and the password dialogs the page's step from the root (--rd-root-z, components/AppShell).
+   ============================================================ */
+.app:is(.rd-t1,.rd-t2,.rd-t3,.rd-t4,.rd-t5,.rd-t6) :is(.sheet2-ask-card,.cmdk)>*{zoom:var(--rd-z)}
+.app:is(.rd-t1,.rd-t2,.rd-t3,.rd-t4,.rd-t5,.rd-t6) :is(.offline-bar,.bcast>*){zoom:var(--rd-bar-z)}
+.qd-body>*{zoom:var(--rd-root-z,1)}

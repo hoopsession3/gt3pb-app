@@ -342,7 +342,7 @@ function ContentEdit({ id, events, onClose, onSaved, onOpenFull }: { id: string;
   const setDT = (date: string, time: string) => { if (!date) { set("scheduled_for", null); return; } set("scheduled_for", etInstantIso(date, time || "09:00")); };
   return (
     <Sheet open onClose={onClose} label="Edit content piece" dirty={edited(f, loaded, ["title", "scheduled_for", "status", "event_id"])} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>Edit piece</b><CloseButton onClick={onClose} /></div>}>
-          <input className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="Title" autoFocus />
+          <input aria-label="Title" className="note-in" value={f.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="Title" autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>Date</span><input type="date" value={dateVal} onChange={(e) => setDT(e.target.value, timeVal)} /></label>
             <label className="prod-f"><span>Time</span><input type="time" value={timeVal} onChange={(e) => setDT(dateVal, e.target.value)} /></label>

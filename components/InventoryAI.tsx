@@ -72,7 +72,7 @@ export default function InventoryAI({ onClose, onAdded }: { onClose: () => void;
           ) : !item ? (
             <>
               <div className="dp-hint">Describe an item — a box you just opened, a label, whatever. I&apos;ll draft a complete record (qty, unit, category, reorder point, what it&apos;s for, whether it&apos;s event-critical, a reorder link, and notes) for you to check.</div>
-              <textarea className="note-in" rows={4} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="e.g. EcoFlow Delta 2 power station, 1 unit, runs the trailer when there's no shore power…" autoFocus disabled={busy} />
+              <textarea aria-label="Describe the item" className="note-in" rows={4} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="e.g. EcoFlow Delta 2 power station, 1 unit, runs the trailer when there's no shore power…" autoFocus disabled={busy} />
               {err && <Said assertive className="dp-err">{err}</Said>}
               <div className="prod-actions" style={{ marginTop: 14 }}>
                 <button type="button" className="note-arch" onClick={onClose} disabled={busy}>Cancel</button>

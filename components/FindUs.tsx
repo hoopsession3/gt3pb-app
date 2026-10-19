@@ -28,6 +28,7 @@ import Skeleton from "@/components/Skeleton";
 import { apiUrl } from "@/lib/native";
 import Said from "./Said";
 import { useMinute } from "@/lib/useMinute";
+import { useRealtimeTable } from "@/lib/realtime";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
 // live on two strangers of pages; they're one chronological road now, each row self-typing:
@@ -216,21 +217,19 @@ export default function FindUs() {
     } catch { /* keep last-known road */ }
   }, []);
 
+  // The mirrors keep field_ops current on EVERY stop/event write — one realtime subscription
+  // covers the whole road. live_status rides along for the hero. Through lib/realtime (R35 — the fresh audit's FE11-10):
+  // its channel was called "find-us", and a client hands back the channel already under a name until its leave is
+  // answered — /truck to /events (both Find Us) left the new page on the leaving channel, hearing nothing, a stop going
+  // live seen only by the 20-second poll. lib/realtime names each one afresh, and reads again after a drop.
+  useRealtimeTable(["field_ops", "live_status"], refreshQuietly);
   useEffect(() => {
     if (!supabase) return;
-    // The mirrors keep field_ops current on EVERY stop/event write — one realtime subscription
-    // covers the whole road. live_status rides along for the hero.
-    const ch = supabase
-      .channel("find-us")
-      .on("postgres_changes", { event: "*", schema: "public", table: "field_ops" }, refreshQuietly)
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_status" }, refreshQuietly)
-      .subscribe();
     const poll = setInterval(refreshQuietly, 20000);
     const onVis = () => { if (typeof document !== "undefined" && document.visibilityState === "visible") refreshQuietly(); };
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
     return () => {
-      try { void Promise.resolve(supabase?.removeChannel(ch)).catch(() => {}); } catch { /* */ }
       clearInterval(poll);
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onVis);

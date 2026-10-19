@@ -194,7 +194,7 @@ ok("GET — what deleting would mean — needs no fresh proof", look.status === 
   ok("screen: one tap sends one code (a second tap while the first is starting does nothing), and a new one waits thirty seconds",
     /if \(going\.current\) return;\s*going\.current = true;/.test(del) && /const RESEND_S = 30;/.test(del) && /disabled=\{busy \|\| sending \|\| cooldown > 0\}/.test(del));
   ok("screen: the code field is a one-time code (iPhone offers it from Mail), eight digits, described by the words above it",
-    /id="del-code"[\s\S]*?autoComplete="one-time-code"[\s\S]*?aria-describedby="del-code-for"/.test(del) && /const CODE_LEN = 8;/.test(del)
+    /id="del-code"[\s\S]*?autoComplete="one-time-code"[\s\S]*?aria-describedby=\{codeErr \? "del-code-for del-code-err" : "del-code-for"\}/.test(del) && /const CODE_LEN = 8;/.test(del)
     && /<Said as="p" className="dp-hint" id="del-code-for" quietFirst>/.test(del));
 }
 

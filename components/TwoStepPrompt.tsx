@@ -62,9 +62,9 @@ export default function TwoStepPrompt({ need, onDone, onLater }: { need: "code" 
           once each sign-in.
         </p>
         <input id="ts-code" ref={codeRef} className="auth-input auth-code mt-3.5" type="text" inputMode="numeric" autoComplete="one-time-code"
-          enterKeyHint="go" pattern="[0-9]*" maxLength={TOTP_LEN} aria-label="The code from your authenticator" aria-describedby="ts-code-for"
+          enterKeyHint="go" pattern="[0-9]*" maxLength={TOTP_LEN + 4} aria-label="The code from your authenticator" aria-describedby={err ? "ts-code-for ts-err" : "ts-code-for"} aria-invalid={err ? true : undefined}
           placeholder={"•".repeat(TOTP_LEN)} value={code} readOnly={busy} onChange={(e) => setCode(digitsOf(e.target.value))} />
-        {err && <div className="auth-err" role="alert">{err}</div>}
+        {err && <div className="auth-err" role="alert" id="ts-err">{err}</div>}
         <button className="btn-pri btn-wide mt-3" type="submit" disabled={busy || code.length < TOTP_LEN}><span>{busy ? "Checking…" : "Continue"}</span></button>
         <div className="flex flex-wrap gap-x-5">
           {later}

@@ -30,7 +30,7 @@ export default function InlineCreate({ label, placeholder, onCreate, className =
   }
   return (
     <span className="inline-create" style={style}>
-      <input
+      <input aria-label={label.replace(/^[+\s]+/, "")}
         autoFocus
         className="inline-create-in"
         value={name}

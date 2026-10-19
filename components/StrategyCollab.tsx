@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRealtimeTable } from "@/lib/realtime";
 import { raiseAlertClient } from "@/lib/clientAlerts";
@@ -129,9 +129,9 @@ export function DecisionLog({ canWrite }: { canWrite: boolean }) {
           {canWrite && (
             adding ? (
               <div className="st-log-form">
-                <input className="auth-input" placeholder="What it concerns (e.g. pricing, gtm:wholesale)" value={f.key} onChange={(e) => setF({ ...f, key: e.target.value })} />
-                <input className="auth-input" placeholder="The decision, one sentence" value={f.decision} onChange={(e) => setF({ ...f, decision: e.target.value })} />
-                <input className="auth-input" placeholder="Why (optional, future-you will ask)" value={f.why} onChange={(e) => setF({ ...f, why: e.target.value })} />
+                <input aria-label="What it concerns" className="auth-input" placeholder="What it concerns (e.g. pricing, gtm:wholesale)" value={f.key} onChange={(e) => setF({ ...f, key: e.target.value })} />
+                <input aria-label="The decision" className="auth-input" placeholder="The decision, one sentence" value={f.decision} onChange={(e) => setF({ ...f, decision: e.target.value })} />
+                <input aria-label="Why" className="auth-input" placeholder="Why (optional, future-you will ask)" value={f.why} onChange={(e) => setF({ ...f, why: e.target.value })} />
                 <div className="st-log-btns">
                   <button type="button" className="btn-pri btn-wide mt-4.5" onClick={add} disabled={!f.decision.trim()}><span>Log it</span></button>
                   <button type="button" className="dl-back" onClick={() => setAdding(false)}>Cancel</button>
@@ -202,19 +202,19 @@ export function PlayBuilder({ prefill, onDone }: { prefill?: GtmPlay | null; onD
   };
   const steps = [
     <div key={0} className="st-b">
-      <input className="auth-input" placeholder="Play name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+      <input aria-label="Play name" className="auth-input" placeholder="Play name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
       <div className="st-cats">{CATS.map((c) => <button type="button" key={c} className={`k-chip${f.category === c ? " on" : ""}`} aria-pressed={f.category === c} onClick={() => setF({ ...f, category: c })}>{c}</button>)}</div>
     </div>,
-    <input key={1} className="auth-input" placeholder="Target audience" value={f.audience} onChange={(e) => setF({ ...f, audience: e.target.value })} />,
-    <textarea key={2} className="auth-input" rows={3} placeholder="The play, in plain English" value={f.what} onChange={(e) => setF({ ...f, what: e.target.value })} />,
-    <textarea key={3} className="auth-input" rows={4} placeholder={"Execution steps — one per line"} value={f.steps} onChange={(e) => setF({ ...f, steps: e.target.value })} />,
+    <input aria-label="Target audience" key={1} className="auth-input" placeholder="Target audience" value={f.audience} onChange={(e) => setF({ ...f, audience: e.target.value })} />,
+    <textarea aria-label="The play" key={2} className="auth-input" rows={3} placeholder="The play, in plain English" value={f.what} onChange={(e) => setF({ ...f, what: e.target.value })} />,
+    <textarea aria-label="Execution steps" key={3} className="auth-input" rows={4} placeholder={"Execution steps — one per line"} value={f.steps} onChange={(e) => setF({ ...f, steps: e.target.value })} />,
     <div key={4} className="st-b">
-      <input className="auth-input" placeholder="Projected revenue (e.g. $2,000–2,400/mo)" value={f.revenue} onChange={(e) => setF({ ...f, revenue: e.target.value })} />
-      <input className="auth-input" placeholder="Projected cost" value={f.cost} onChange={(e) => setF({ ...f, cost: e.target.value })} />
-      <input className="auth-input" placeholder="Customer acquisition (how many, from where)" value={f.cac} onChange={(e) => setF({ ...f, cac: e.target.value })} />
-      <input className="auth-input" placeholder="Payback period" value={f.payback} onChange={(e) => setF({ ...f, payback: e.target.value })} />
+      <input aria-label="Projected revenue" className="auth-input" placeholder="Projected revenue (e.g. $2,000–2,400/mo)" value={f.revenue} onChange={(e) => setF({ ...f, revenue: e.target.value })} />
+      <input aria-label="Projected cost" className="auth-input" placeholder="Projected cost" value={f.cost} onChange={(e) => setF({ ...f, cost: e.target.value })} />
+      <input aria-label="Customer acquisition" className="auth-input" placeholder="Customer acquisition (how many, from where)" value={f.cac} onChange={(e) => setF({ ...f, cac: e.target.value })} />
+      <input aria-label="Payback period" className="auth-input" placeholder="Payback period" value={f.payback} onChange={(e) => setF({ ...f, payback: e.target.value })} />
     </div>,
-    <input key={5} className="auth-input" placeholder="Where the app runs it (or what's missing)" value={f.inApp} onChange={(e) => setF({ ...f, inApp: e.target.value })} />,
+    <input aria-label="Where the app runs it" key={5} className="auth-input" placeholder="Where the app runs it (or what's missing)" value={f.inApp} onChange={(e) => setF({ ...f, inApp: e.target.value })} />,
     <div key={6} className="st-review">
       <b>{f.name || "Unnamed"}</b> <span className="k-tag gold">{f.category}</span>
       {prefill && <p className="dl-sub">Overhauls: {prefill.name}</p>}

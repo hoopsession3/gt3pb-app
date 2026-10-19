@@ -76,7 +76,7 @@ export default function LessonsManager() {
 
           {/* create a lesson */}
           <div className="prod-addc" style={{ marginTop: 12, flexWrap: "wrap" }}>
-            <select value={newMod} onChange={(e) => setNewMod(e.target.value)}>
+            <select aria-label="Module for the new lesson" value={newMod} onChange={(e) => setNewMod(e.target.value)}>
               <option value="">+ new lesson in…</option>
               {b.pillars.map((p) => (
                 <optgroup key={p.id} label={p.title}>
@@ -84,7 +84,7 @@ export default function LessonsManager() {
                 </optgroup>
               ))}
             </select>
-            <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Lesson title" style={{ flex: 1, minWidth: 140 }} />
+            <input aria-label="Lesson title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Lesson title" style={{ flex: 1, minWidth: 140 }} />
             <button type="button" className="insp-yes" onClick={createLesson} disabled={!newMod || isBlank(newTitle)}>Create</button>
           </div>
 
@@ -202,11 +202,11 @@ function LessonRow({ l, products, open, onToggle, onSaved, toast }: { l: Lesson;
               </div>
             ))}
             <div className="prod-addc" style={{ flexWrap: "wrap" }}>
-              <select value={addSlug} onChange={(e) => setAddSlug(e.target.value)}>
+              <select aria-label="Menu product" value={addSlug} onChange={(e) => setAddSlug(e.target.value)}>
                 <option value="">+ menu product…</option>
                 {products.filter((p) => !links.some((lk) => lk.product_slug === p.slug)).map((p) => <option key={p.slug} value={p.slug}>{p.name}{p.active ? "" : " (off-board)"}</option>)}
               </select>
-              <input value={addWhy} onChange={(e) => setAddWhy(e.target.value)} placeholder="why it fits" style={{ flex: 1, minWidth: 120 }} />
+              <input aria-label="Why it fits" value={addWhy} onChange={(e) => setAddWhy(e.target.value)} placeholder="why it fits" style={{ flex: 1, minWidth: 120 }} />
               <button type="button" className="insp-yes" onClick={addLink} disabled={!addSlug}>Link</button>
             </div>
           </div>
@@ -316,7 +316,7 @@ function StructureEditor({ pillars, modules, onSaved, toast }: { pillars: Pillar
         </div>
       ))}
       <div className="prod-addc" style={{ marginTop: 8 }}>
-        <input value={pTitle} onChange={(e) => setPTitle(e.target.value)} placeholder="+ new pillar" style={{ flex: 1 }} />
+        <input aria-label="New pillar" value={pTitle} onChange={(e) => setPTitle(e.target.value)} placeholder="+ new pillar" style={{ flex: 1 }} />
         <button type="button" className="insp-yes" onClick={addPillar} disabled={isBlank(pTitle)}>Add pillar</button>
       </div>
     </div>
@@ -327,7 +327,7 @@ function ModuleAdder({ onAdd }: { onAdd: (title: string) => void }) {
   const [t, setT] = useState("");
   return (
     <div className="prod-addc" style={{ marginTop: 4 }}>
-      <input value={t} onChange={(e) => setT(e.target.value)} placeholder="+ module" style={{ flex: 1 }} />
+      <input aria-label="New module" value={t} onChange={(e) => setT(e.target.value)} placeholder="+ module" style={{ flex: 1 }} />
       <button type="button" className="insp-yes" onClick={() => { onAdd(t); setT(""); }} disabled={!t.trim()}>Add</button>
     </div>
   );

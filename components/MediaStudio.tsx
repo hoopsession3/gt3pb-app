@@ -116,7 +116,7 @@ export default function MediaStudio({ productId, value, onChange }: Props) {
                     <Icon name="close" />
                   </button>
                 </div>
-                <input className="ms-alt" value={m.alt ?? ""} placeholder="Describe it (alt text)"
+                <input aria-label="Alt text" className="ms-alt" value={m.alt ?? ""} placeholder="Describe it (alt text)"
                   onChange={(e) => onChange(setAlt(value, m.id, e.target.value))} />
               </div>
             );

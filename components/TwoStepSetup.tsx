@@ -7,6 +7,7 @@ import { isNativeApp } from "@/lib/native";
 import { digitsOf, finishSetup, giveCode, keyGroups, qrSrc, setRequired, startSetup, turnOff, twoStepState, TOTP_LEN, type Enrolment, type TwoStepState } from "@/lib/twoStep";
 import Said from "./Said";
 import { useStepFocus } from "./useStepFocus";
+import { useConfirm } from "./ConfirmSheet";
 
 // TWO-STEP SIGN-IN — Settings & privacy, for an owner or an admin (R28, 2026-10-18 — the 10/10 audit, security F6; Ryan:
 // "Yes, owner/admin"). And the crew console's setup step when their business requires it (components/TwoStepPrompt).
@@ -36,7 +37,10 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [asked, setAsked] = useState(0);
+  const [copied, setCopied] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
+  const keyRef = useRef<HTMLElement>(null);
+  const confirm = useConfirm();
 
   // What is there: an authenticator on the account (Supabase's own list), and what the business asks (0433).
   useEffect(() => {
@@ -74,24 +78,42 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
     onDone?.();
   };
 
+  // Who it's asked of, with this sign-in's code given right here when it hasn't been (R35 — UX11-10): it said "Give this
+  // sign-in's code (in the crew console)", a direction with no door, beside a code field on this very screen.
   const require = async (state: TwoStepState, on: boolean) => {
     acted.current = true;
     if (!supabase || busy) return;
+    if (!state.given && code.length < TOTP_LEN) { setErr("Enter the code from your authenticator first — then the switch changes."); codeRef.current?.focus(); return; }
     setBusy(true); setErr("");
+    if (!state.given) {
+      const given = await giveCode(supabase, code);
+      if (given.error) { setBusy(false); haptic("error"); setErr(given.error); return; }
+    }
     const r = await setRequired(supabase, on);
     setBusy(false);
     if (r.error) { haptic("error"); setErr(r.error); return; }
     if (on) haptic("toggleOn"); else haptic("toggleOff");
-    setStep({ at: "on", state: { ...state, required: on } });
+    setCode("");
+    setStep({ at: "on", state: { ...state, given: true, required: on } });
   };
 
   // Off, with this sign-in's code: given now when this sign-in hasn't given it yet (Supabase asks for it).
+  // Asked first, and what it costs said (R35 — UX11-10): a quiet text button took every authenticator off the account at
+  // one tap — and where the business asks it of every owner and admin, the money and the books went with it, unsaid.
   const stop = async (state: TwoStepState | null) => {
     acted.current = true;
     if (!supabase || busy) return;
+    if (!state?.given && code.length < TOTP_LEN) { setErr("Enter the code from your authenticator to turn it off."); codeRef.current?.focus(); return; }
+    const ok = await confirm({
+      title: "Turn off two-step sign-in?",
+      body: state?.required
+        ? "Your authenticator comes off this account. Your business asks every owner and admin for one, so until you set one up again you have the crew's tools only — not the money, the books, customers or the crew's roles."
+        : "Your authenticator comes off this account. A password, or a code sent to your email, signs you in on its own again.",
+      confirmLabel: "Turn it off", danger: true,
+    });
+    if (!ok) return;
     setBusy(true); setErr("");
     if (!state?.given) {
-      if (code.length < TOTP_LEN) { setBusy(false); setErr("Enter the code from your authenticator to turn it off."); codeRef.current?.focus(); return; }
       const given = await giveCode(supabase, code);
       if (given.error) { setBusy(false); haptic("error"); setErr(given.error); return; }
     }
@@ -104,7 +126,7 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
 
   const codeField = (label: string) => (
     <input id="ts-code" ref={codeRef} className="auth-input auth-code" type="text" inputMode="numeric" autoComplete="one-time-code"
-      enterKeyHint="go" pattern="[0-9]*" maxLength={TOTP_LEN} aria-label={label} aria-describedby="ts-code-for"
+      enterKeyHint="go" pattern="[0-9]*" maxLength={TOTP_LEN + 4} aria-label={label} aria-describedby={err ? "ts-code-for ts-err" : "ts-code-for"} aria-invalid={err ? true : undefined}
       placeholder={"•".repeat(TOTP_LEN)} value={code} onChange={(e) => setCode(digitsOf(e.target.value))} readOnly={busy} />
   );
 
@@ -141,7 +163,7 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
             the code, so it would open with the crew&rsquo;s tools only.
           </p>
         )}
-        {err && <div className="auth-err" role="alert">{err}</div>}
+        {err && <div className="auth-err" role="alert" id="ts-err">{err}</div>}
         <div className="prod-actions cfm-actions">
           <button type="button" className="btn-pri" onClick={() => void begin()} disabled={busy}>{busy ? "Starting…" : "Set up two-step sign-in"}</button>
         </div>
@@ -154,19 +176,24 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
     return (
       <div ref={scope}><form noValidate onSubmit={(e) => { e.preventDefault(); void prove(enrol); }}>
         <p className="cfm-body">Add GT3 to your authenticator.</p>
-        <p className="dp-hint">Scan this with your authenticator app{isNativeApp() ? ", or add it on this iPhone with the link below" : ""}.</p>
+        <p className="dp-hint">Scan this with your authenticator app, or add it on this {isNativeApp() ? "iPhone" : "device"} with the link below.</p>
         {/* Black on white whatever the theme: a camera reads the code by its contrast. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- Supabase's QR code, a data URL drawn here; next/image cannot export it */}
-        <img src={qrSrc(enrol.qr)} alt="A QR code for your authenticator app" width={192} height={192} className="mt-3 rounded-xl bg-white p-3" />
-        {isNativeApp() && (
-          <p className="mt-2"><a className="auth-link min-h-11 inline-flex items-center" href={enrol.uri}>Add to an authenticator on this iPhone</a></p>
-        )}
+        <img src={qrSrc(enrol.qr)} alt="A QR code for your authenticator app" width={192} height={192} className="mt-3 rounded-xl bg-white p-3 max-w-full h-auto" />
+        {/* On the web too (R35 — UX11-10): Safari on an iPhone or a Mac hands the link to Passwords — an owner can't scan
+            their own screen, and typing 32 characters by hand was the only other way. */}
+        <p className="mt-2"><a className="auth-link min-h-11 inline-flex items-center" href={enrol.uri}>Add it to an authenticator on this {isNativeApp() ? "iPhone" : "device"}</a></p>
         <p className="dp-hint mt-2">
-          Can&rsquo;t scan it? Type this key into the app: <b className="select-all [font-variant-numeric:tabular-nums] tracking-wide">{keyGroups(enrol.secret)}</b>
+          Can&rsquo;t scan it? Type this key into the app: <b ref={keyRef} className="select-all [font-variant-numeric:tabular-nums] tracking-wide">{keyGroups(enrol.secret)}</b>{" "}
+          <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={() => {
+            const pick = () => { const el = keyRef.current; const sel = el && window.getSelection(); if (el && sel) { sel.selectAllChildren(el); } };
+            if (!navigator.clipboard) { pick(); return; }
+            navigator.clipboard.writeText(enrol.secret).then(() => setCopied(true), pick);
+          }}><Said as="span" quietFirst>{copied ? "Copied" : "Copy the key"}</Said></button>
         </p>
         <p className="dp-hint mt-3" id="ts-code-for">Then enter the six-digit code the app shows for GT3.</p>
         {codeField("The code from your authenticator")}
-        {err && <div className="auth-err" role="alert">{err}</div>}
+        {err && <div className="auth-err" role="alert" id="ts-err">{err}</div>}
         <button className="btn-pri btn-wide mt-3" type="submit" disabled={busy || code.length < TOTP_LEN}><span>{busy ? "Checking…" : "Turn it on"}</span></button>
       </form></div>
     );
@@ -188,21 +215,21 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
               <span>{state.required ? "On — one without an authenticator uses the crew's tools until they set one up" : "Off — each owner and admin decides for themselves"}</span>
             </div>
             <button type="button" role="switch" aria-checked={state.required} aria-label="Ask every owner and admin for it"
-              className={`k-switch${state.required ? " on" : ""}`} disabled={busy || !state.given}
+              className={`k-switch${state.required ? " on" : ""}`} disabled={busy}
               aria-describedby={!state.given ? "ts-need-code" : undefined} onClick={() => void require(state, !state.required)}>
               <span className="k-switch-k" />
             </button>
           </div>
         </div>
       )}
-      {state?.owner && !state.given && <p className="dp-hint" id="ts-need-code">Give this sign-in&rsquo;s code (in the crew console) to change who it&rsquo;s asked of.</p>}
+      {state?.owner && !state.given && <p className="dp-hint" id="ts-need-code">Enter this sign-in&rsquo;s code below to change who it&rsquo;s asked of.</p>}
       {!state?.given && (
         <>
-          <p className="dp-hint mt-3" id="ts-code-for">To turn it off, enter the code from your authenticator.</p>
+          <p className="dp-hint mt-3" id="ts-code-for">{state?.owner ? "To change who it's asked of, or to turn it off, enter the code from your authenticator." : "To turn it off, enter the code from your authenticator."}</p>
           {codeField("The code from your authenticator")}
         </>
       )}
-      {err && <div className="auth-err" role="alert">{err}</div>}
+      {err && <div className="auth-err" role="alert" id="ts-err">{err}</div>}
       <div className="prod-actions cfm-actions">
         <button type="button" className="btn-ter" onClick={() => void stop(state)} disabled={busy}>{busy ? "Turning it off…" : "Turn off two-step sign-in"}</button>
       </div>

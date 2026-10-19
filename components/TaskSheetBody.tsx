@@ -13,6 +13,7 @@ import Icon from "@/components/Icon";
 import { useCrew, crewLabel } from "@/components/useCrew";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useChanged } from "@/lib/useChanged";
+import { useRealtimeTable } from "@/lib/realtime";
 
 // TASKSHEET (the sheet itself; the provider that opens it is components/TaskSheet.tsx and loads
 // this file on first open — a task sheet is staff/member UI and rides in no guest's bundle).
@@ -84,13 +85,9 @@ export default function TaskSheetBody({ id, source, onClose }: { id: string; sou
       .then(({ data }) => setInits((data as Init[]) ?? []));
   }, []);
   // Live: if someone else changes this task, reflect it (writes hit the base table).
-  useEffect(() => {
-    if (!supabase) return;
-    const ch = supabase.channel(`task-${source}-${id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: source === "event" ? "event_tasks" : "todos", filter: `id=eq.${id}` }, () => reload())
-      .subscribe();
-    return () => { try { void Promise.resolve(supabase?.removeChannel(ch)).catch(() => {}); } catch { /* */ } };
-  }, [id, source, reload]);
+  // Through lib/realtime (R35 — the fresh audit's FE11-10): a fixed name (task-<source>-<id>) handed a reopened task the
+  // channel still leaving from its last opening, and it heard nothing.
+  useRealtimeTable({ table: source === "event" ? "event_tasks" : "todos", filter: `id=eq.${id}` }, reload);
 
   const nameOf = (uid: string | null) => (uid ? crew.find((c) => c.id === uid)?.display_name || "Assigned" : "Unassigned");
   const dueLocal = useMemo(() => {
@@ -165,7 +162,7 @@ export default function TaskSheetBody({ id, source, onClose }: { id: string; sou
             {/* edit title */}
             {editing ? (
               <div className="tsheet-edit">
-                <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveTitle()} className="auth-input" />
+                <input aria-label="Task title" autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveTitle()} className="auth-input" />
                 <button type="button" className="btn-pri" onClick={saveTitle} disabled={busy}>Save</button>
               </div>
             ) : (

@@ -986,7 +986,7 @@ function CalEdit({ kind, id, events, onClose, onSaved, page, walker }: {
     <>
     <Sheet open onClose={onClose} className="dp-form" label="Edit calendar item" dirty={edited(f, loaded, CAL_SAVES)} page={page} header={<div style={{ display: "flex", alignItems: "center" }}><b style={{ fontFamily: "var(--sans)", fontSize: 15 }}>{`Edit ${cfg.noun}`}</b><CloseButton onClick={onClose} /></div>}>
           {kind === "pipe" && f.vendors?.name && <div className="dv-sub" style={{ marginBottom: 6 }}>Account · {f.vendors.name}</div>}
-          <input className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={kind === "pipe" ? "Next step — e.g. send the proposal" : `${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
+          <input aria-label={kind === "pipe" ? "Next step" : `${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} className="note-in" value={f[cfg.nameCol] ?? ""} onChange={(e) => set(cfg.nameCol, e.target.value)} placeholder={kind === "pipe" ? "Next step — e.g. send the proposal" : `${cfg.noun[0].toUpperCase() + cfg.noun.slice(1)} name`} autoFocus />
           <div className="prod-grid" style={{ marginTop: 10 }}>
             <label className="prod-f"><span>{kind === "pipe" ? "Next step by" : kind === "meeting" ? "Met on" : kind === "task" ? "Due" : "Date"}</span><input type="date" value={dateVal} onChange={(e) => onDate(e.target.value)} /></label>
             {kind === "todo" && (

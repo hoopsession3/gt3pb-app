@@ -563,7 +563,7 @@ function DropSheet({ onClose }: { onClose: () => void }) {
   const { profile } = useAuth();
   const canPlan = (profile?.is_admin ?? false) || ["owner", "admin", "event_manager"].includes(profile?.role ?? "");
   return (
-    <Sheet open onClose={onClose} header={<div style={{ display: "flex", alignItems: "center" }}><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x hit-44" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
+    <Sheet open onClose={onClose} label="This week’s drop" header={<div style={{ display: "flex", alignItems: "center" }}><span>This week&rsquo;s drop</span><button type="button" className="drop-sheet-x hit-44" style={{ marginLeft: "auto" }} onClick={onClose} aria-label="Close"><Icon name="close" /></button></div>}>
         <DropOps canPlan={canPlan} />
         <button type="button" className="btn-sec btn-wide mt-3" onClick={onClose}>Done</button>
     </Sheet>
@@ -1533,7 +1533,7 @@ function InspectionPrep() {
         <div className="insp-form">
           <input className="insp-in insp-st" value={state} onChange={(e) => setState(e.target.value)} placeholder="State (GA)" aria-label="State" maxLength={4} />
           <input className="insp-in" value={county} onChange={(e) => setCounty(e.target.value)} placeholder="County (optional)" aria-label="County" />
-          <select className="insp-in" value={eventId} onChange={(e) => setEventId(e.target.value)}>
+          <select aria-label="Event (optional)" className="insp-in" value={eventId} onChange={(e) => setEventId(e.target.value)}>
             <option value="">No event — just brief me</option>
             {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}
           </select>
@@ -2817,7 +2817,7 @@ function MeetingNotes() {
           header={<div className="note-lux-head"><span className="note-lux-eyb">New note</span><CloseButton onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }} /></div>}
           footer={<div className="note-actions"><LeaveButton className="btn-sec" onClick={() => { setComposing(false); setCActions([]); setCFiles([]); }}>Cancel</LeaveButton><button type="button" className="btn-pri" disabled={!cTitle.trim() || saving} onClick={save}>{saving ? "Saving…" : "Save note"}</button></div>}>
           <div className="note-composer">
-            <input className="note-in note-lux-title" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} autoFocus />
+            <input aria-label="Note title" className="note-in note-lux-title" placeholder="What&rsquo;s this note about?" value={cTitle} onChange={(e) => setCTitle(e.target.value)} autoFocus />
             <div className="note-row">
               <input type="date" className="note-in" value={cDate} onChange={(e) => setCDate(e.target.value)} aria-label="Date" />
               <select className="note-in" value={cLink} onChange={(e) => { setCLink(e.target.value); if (!visTouched) setCVis(e.target.value ? "collab" : "private"); }} aria-label="Attach to">
@@ -2841,7 +2841,7 @@ function MeetingNotes() {
                 <button key={v} type="button" role="radio" aria-checked={cVis === v} tabIndex={rovingTab(i, NOTE_VIS.indexOf(cVis))} className={`k-chip${cVis === v ? " on" : ""}`} onClick={() => { setCVis(v); setVisTouched(true); }}>{l}</button>
               ))}
             </div>
-            <textarea className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
+            <textarea aria-label="The note" className="note-area" placeholder="The note — a thought, a plan, a recap…" value={cSummary} onChange={(e) => setCSummary(e.target.value)} rows={cSummary.length > 200 ? 10 : 3} />
             <details className="note-transcript">
               <summary>Transcript or attachments? Add them and <Icon name="sparkles" /> summarize</summary>
               <NoteAttach onText={(t) => setCBody((b) => (b ? b + "\n\n" + t : t))} onFiles={(fs) => setCFiles((p) => [...p, ...fs].slice(0, 8))} />
@@ -2853,7 +2853,7 @@ function MeetingNotes() {
                   <span className="note-pfiles-hint">kept on the note when you save</span>
                 </div>
               )}
-              <textarea className="note-area" placeholder="Paste a transcript — or attach files above to fill this in…" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
+              <textarea aria-label="Transcript" className="note-area" placeholder="Paste a transcript — or attach files above to fill this in…" value={cBody} onChange={(e) => setCBody(e.target.value)} rows={4} />
               <button type="button" className="btn-sec btn-sm btn-wide mt-0.5 mb-1" onClick={summarize} disabled={summarizing}>{summarizing ? "Summarizing…" : <><Icon name="sparkles" /> Summarize <Icon name="arrowRight" /> title · recap · tasks</>}</button>
             </details>
             <div className="note-fu-h">Follow-ups
@@ -2862,7 +2862,7 @@ function MeetingNotes() {
             {cActions.length === 0 && <div className="note-fu-empty">No follow-ups yet — add one and assign it: it lands in their My Tasks. Or <Icon name="sparkles" /> summarize a transcript to pull them out.</div>}
             {cActions.map((a, i) => (
               <div className="note-fu-edit" key={i}>
-                <input className="note-in" placeholder="Follow-up task…" value={a.title} onChange={(e) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} />
+                <input aria-label="Follow-up task" className="note-in" placeholder="Follow-up task…" value={a.title} onChange={(e) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, title: e.target.value } : x))} />
                 <div className="note-fu-edit-r">
                   <PersonPick label="Assign to" className="note-in" value={{ id: a.assignee ?? null, name: "" }} allowOther={false} allowNone noneLabel="Unassigned"
                               onChange={(v) => setCActions((arr) => arr.map((x, j) => j === i ? { ...x, assignee: v.id } : x))} />
@@ -3276,7 +3276,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
           {(note.created_by === meId || isAdmin) && (
             adding ? (
               <div className="note-addbox">
-                <textarea className="note-area" placeholder="What's new since — a call, a decision, the next conversation…" value={addDraft}
+                <textarea aria-label="What's new" className="note-area" placeholder="What's new since — a call, a decision, the next conversation…" value={addDraft}
                   onChange={(e) => setAddDraft(e.target.value)} rows={addDraft.length > 200 ? 8 : 3} autoFocus />
                 <NoteAttach onText={(t) => setAddDraft((b) => (b ? b + "\n\n" + t : t))} onFiles={(fs) => setAddFiles((p) => [...p, ...fs].slice(0, 8))} />
                 {addFiles.length > 0 && (
@@ -3315,10 +3315,10 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
             logging ? (
               <div className="note-decbox">
                 <div className="note-decbox-h">⚖ Log a decision — append-only, it can never be edited or deleted</div>
-                <input className="note-in" placeholder={`What it concerns (blank = "${note.title.slice(0, 36)}${note.title.length > 36 ? "…" : ""}")`} value={dec.key} onChange={(e) => setDec({ ...dec, key: e.target.value })} maxLength={60} />
-                <input className="note-in" placeholder="The decision, one sentence" value={dec.decision} onChange={(e) => setDec({ ...dec, decision: e.target.value })} />
-                <input className="note-in" placeholder="Why (optional — future-you will ask)" value={dec.why} onChange={(e) => setDec({ ...dec, why: e.target.value })} />
-                <input className="note-in" placeholder="Follow-up task (optional — files on this note)" value={dec.fu} onChange={(e) => setDec({ ...dec, fu: e.target.value })} />
+                <input aria-label="What it concerns" className="note-in" placeholder={`What it concerns (blank = "${note.title.slice(0, 36)}${note.title.length > 36 ? "…" : ""}")`} value={dec.key} onChange={(e) => setDec({ ...dec, key: e.target.value })} maxLength={60} />
+                <input aria-label="The decision" className="note-in" placeholder="The decision, one sentence" value={dec.decision} onChange={(e) => setDec({ ...dec, decision: e.target.value })} />
+                <input aria-label="Why" className="note-in" placeholder="Why (optional — future-you will ask)" value={dec.why} onChange={(e) => setDec({ ...dec, why: e.target.value })} />
+                <input aria-label="Follow-up task" className="note-in" placeholder="Follow-up task (optional — files on this note)" value={dec.fu} onChange={(e) => setDec({ ...dec, fu: e.target.value })} />
                 <div className="note-addbox-r">
                   <button type="button" className="note-arch" onClick={() => { setLogging(false); setDec({ key: "", decision: "", why: "", fu: "" }); }}>Cancel</button>
                   <button type="button" className="btn-pri" onClick={saveDecision} disabled={!dec.decision.trim()}>Log it</button>
@@ -3361,7 +3361,7 @@ function MeetingNoteCard({ note, open, onToggle, staff, meId, meName, isAdmin, e
             </div>
           ))}
           <div className="note-fu-add">
-            <input className="note-in" placeholder="Add a follow-up…" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+            <input aria-label="New follow-up" className="note-in" placeholder="Add a follow-up…" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
             <Button type="button" kind="primary" compact onClick={add} disabled={!newItem.trim()}>Add</Button>
           </div>
           <div className="note-foot">
@@ -3634,9 +3634,9 @@ function ReservesAdmin() {
               {active.map((r) => (
                 <div className="adm-member" key={r.id}>
                   <div className="adm-member-top">
-                    <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={120} defaultValue={r.name} onBlur={(e) => e.target.value !== r.name && update(r.id, { name: e.target.value })} />
+                    <input aria-label="Reserve name" className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={120} defaultValue={r.name} onBlur={(e) => e.target.value !== r.name && update(r.id, { name: e.target.value })} />
                   </div>
-                  <input className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={300} defaultValue={r.blurb ?? ""} placeholder="One line guests see" onBlur={(e) => (e.target.value.trim() || null) !== r.blurb && update(r.id, { blurb: e.target.value.trim() || null })} />
+                  <input aria-label="The line guests see" className="auth-input" style={{ fontSize: 16, padding: "9px 11px", marginTop: 6 }} maxLength={300} defaultValue={r.blurb ?? ""} placeholder="One line guests see" onBlur={(e) => (e.target.value.trim() || null) !== r.blurb && update(r.id, { blurb: e.target.value.trim() || null })} />
                   <div className="adm-fields">
                     <label>Price $<input type="text" inputMode="decimal" defaultValue={moneyPlain(r.price_cents)} onBlur={(e) => update(r.id, { price_cents: Math.max(0, Math.round(parseFloat(e.target.value || "0") * 100)) })} /></label>
                     <label>Stock<input type="number" min={goneOf(r)} defaultValue={r.stock_total} key={`st-${r.stock_total}`} onBlur={async (e) => {
@@ -4913,8 +4913,8 @@ function VendorLocationsEditor({ vendorId, vendorName }: { vendorId: string; ven
         )}
       </AsyncSection>
       <div className="vnew-row" style={{ marginTop: 8 }}>
-        <input className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="Location name" maxLength={80} />
-        <input className="ev-input" value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Address (optional)" maxLength={300} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+        <input aria-label="Location name" className="ev-input" value={nm} onChange={(e) => setNm(e.target.value)} placeholder="Location name" maxLength={80} />
+        <input aria-label="Address" className="ev-input" value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="Address (optional)" maxLength={300} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
         <Button type="button" kind="secondary" compact onClick={add} disabled={!nm.trim()}>Add</Button>
       </div>
     </div>

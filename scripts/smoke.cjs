@@ -7505,7 +7505,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("brew: the board opens on + Plan a batch — no header under the lane's Brew, no paragraph on scaling; Brew steps is a door, the status sized to its word",
     !/<SectionHeader label="Brew"/.test(bp) && !/Recipes scale exactly to the gallons/.test(bp)
     && /<button type="button" className="btn-ter mt-1" onClick=\{\(\) => setStepsFor\(b\)\}>/.test(bp) && !/btn-sec btn-sm btn-wide mt-2" onClick=\{\(\) => setStepsFor/.test(bp)
-    && /<select className="brew-status flex-none w-auto! max-w-44"/.test(bp));
+    && /<select aria-label=\{`Status of \$\{b\.recipe_name \|\| "this batch"\}`\} className="brew-status flex-none w-auto! max-w-44"/.test(bp));
   ok("brew: Start brew names the brewer from the crew, and writes the id the alarms read",
     /<PersonPick label="Brewer"/.test(bp) && /\.\.\.\(extras\?\.brewer \? \{ brewer_id: extras\.brewer\.id \} : \{\}\)/.test(bp) && !/arrives-with: 03/.test(read("components/BrewPlanner.tsx")) && !/writeAcrossSkew/.test(bp));
   ok("brew: the batch log moves the id when the brewer is changed, and leaves it when not",
@@ -9682,7 +9682,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     // 2026-10-11 (0365/0366, the review of the iPhone app's alerts): the page wrote its own row and never read the answer.
     const lp = code(read("lib/push.ts")), au2 = code(read("components/AuthProvider.tsx")), fu = code(read("components/FindUs.tsx")), ps = code(read("components/ProfileSheet.tsx"));
     ok("alerts: a device is kept by the database for whoever is signed in on it — the page no longer writes its own row, or deletes anyone's",
-      /const \{ error \} = await supabase\.rpc\("keep_push_device", \{\s*p_endpoint: j\.endpoint, p_p256dh: j\.keys\.p256dh, p_auth: j\.keys\.auth,\s*p_crew: crew \|\| null, p_wants_live: opts\?\.wantsLive \?\? null,\s*\}\);\s*return !error;/.test(lp)
+      /const \{ error \} = await supabase\.rpc\("keep_push_device", \{\s*p_endpoint: j\.endpoint, p_p256dh: j\.keys\.p256dh, p_auth: j\.keys\.auth,\s*p_crew: crew \|\| null, p_wants_live: opts\?\.wantsLive \?\? null,\s*\}\);\s*if \(!error\) \{ try \{ localStorage\.setItem\(KEPT, j\.endpoint\); \} catch \{[^}]*\} \}\s*return !error;/.test(lp)
       && !/from\("push_subscriptions"\)/.test(lp) && /export async function subscribePush\(crew: boolean, opts\?: \{ wantsLive\?: boolean \}\): Promise<boolean>/.test(lp)
       && !/\.from\("push_subscriptions"\)\.(upsert|insert|update|delete)/.test(code(read("components/DeviceAlerts.tsx")) + fu + ps + code(read("components/Checkout.tsx"))));
     ok("alerts: a screen says \"on\" only once the device is kept — a guest's \"truck is live\" said on and kept nothing",
@@ -9824,7 +9824,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("one home: Display & text size is one set of controls — the rail's panel and Settings draw DisplayControls, and both read the one store",
     /<div className="rdg-panel"[^>]*>\s*<DisplayControls \/>\s*<\/div>/.test(dt) && /<DisplayControls \/>/.test(sh)
     && /const raw = useDevicePref\(DISPLAY\);[\s\S]{0,80}return raw == null \? \{ \.\.\.DEFAULT, scale: phone \} : displayFrom\(raw\);/.test(dt) && !/useState<Display>/.test(dt)
-    && /const disp = displayClass\(useDisplay\(\)\);/.test(code(read("components/AppShell.tsx"))));
+    && /const display = useDisplay\(\);\s+const disp = displayClass\(display\);/.test(code(read("components/AppShell.tsx"))));
   const T = require("../.smoke/theme.js"), P = require("../.smoke/passSound.js"), D = require("../.smoke/devicePref.js");
   ok("one home: a stored look is itself — \"dark\" is dark, \"auto\" is the phone's, anything else day — and only \"1\" is muted",
     T.themeFrom("dark") === "dark" && T.themeFrom("day") === "day" && T.themeFrom(null) === "day" && T.themeFrom("Dark") === "day" && T.THEME.key === "gt3-theme"
@@ -14577,7 +14577,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /<span><b>\{demo\.stamps\}<\/b>\/\{STAMP_GOAL\} stamps<\/span>/.test(rd("app/3mpire/page.tsx")));
   ok("R7 access: the shop's payment errors, sign-in's, a new password's and a bottle proof's are read out as they appear",
     /\{err && <div className="shop-err" role="alert">\{err\}<\/div>\}/.test(rd("components/ShopCheckout.tsx"))
-    && (rd("components/SignIn.tsx").match(/<div className="auth-err" role="alert">/g) || []).length === 3 && !/<div className="auth-err">/.test(rd("components/SignIn.tsx"))
+    && (rd("components/SignIn.tsx").match(/<div className="auth-err" role="alert"( id="(auth-code-err|auth-email-err|pw-err)")?>/g) || []).length === 3 && !/<div className="auth-err">/.test(rd("components/SignIn.tsx"))
     && /\{err && <div className="auth-err" role="alert">\{err\}<\/div>\}/.test(rd("components/PasswordRecovery.tsx"))
     && /\{err && <div className="vipv-err" role="alert">\{err\}<\/div>\}/.test(rd("components/VipVerify.tsx")));
   ok("R7 wallet: Add to Apple Wallet waits for the route to sign passes — the flag alone drew a button that always failed",

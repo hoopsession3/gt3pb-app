@@ -115,8 +115,8 @@ export default function SmartIntake() {
             {KINDS.map((k) => <button key={k.key} type="button" className={`k-chip${p.kind === k.key ? " on" : ""}`} aria-pressed={p.kind === k.key} onClick={() => set("kind", k.key)}><Icon name={k.icon} /> {k.label}</button>)}
           </div>
 
-          <input className="note-in" style={{ marginTop: 10 }} value={p.name} onChange={(e) => set("name", e.target.value)} placeholder="Name" />
-          <textarea className="note-in" rows={2} style={{ marginTop: 8 }} value={p.summary} onChange={(e) => set("summary", e.target.value)} placeholder="Summary" />
+          <input aria-label="Name" className="note-in" style={{ marginTop: 10 }} value={p.name} onChange={(e) => set("name", e.target.value)} placeholder="Name" />
+          <textarea aria-label="Summary" className="note-in" rows={2} style={{ marginTop: 8 }} value={p.summary} onChange={(e) => set("summary", e.target.value)} placeholder="Summary" />
 
           <div className="prod-grid" style={{ marginTop: 8 }}>
             {/* These three placeholders used to read "each / case / lb" and "permit / coi /

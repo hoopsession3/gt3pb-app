@@ -107,8 +107,8 @@ export default function ReviewsAdmin() {
           {adding && (
             <div className="rva-add">
               <div className="rva-add-row">
-                <input className="rva-in" placeholder="Name (optional — shown as first name + initial)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-                <select className="rva-in rva-src" value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>
+                <input aria-label="Name" className="rva-in" placeholder="Name (optional — shown as first name + initial)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+                <select aria-label="Where it came from" className="rva-in rva-src" value={f.source} onChange={(e) => setF({ ...f, source: e.target.value })}>
                   {SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
@@ -122,7 +122,7 @@ export default function ReviewsAdmin() {
                           onClick={() => setF({ ...f, rating: n })}><Icon name="star" /></button>
                 ))}
               </div>
-              <textarea className="rva-in" rows={2} maxLength={280} placeholder="The review, word for word…" value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} />
+              <textarea aria-label="The review" className="rva-in" rows={2} maxLength={280} placeholder="The review, word for word…" value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} />
               {f.body.trim() && (() => { const c = cleanReview(f); const okd = isDisplayable(f); return (
                 <div className={`rva-prev${okd ? "" : " bad"}`}>Preview: {Array.from({ length: c.rating }).map((_, i) => <Icon key={i} name="star" />)} “{c.text}” — {c.who}{okd ? "" : " · won't show (needs 4★+ and a real sentence)"}</div>
               ); })()}

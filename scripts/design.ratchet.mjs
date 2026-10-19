@@ -734,14 +734,14 @@ export const PROD_ROUTE = {
 // the same (+1 byte). Lowered to what they weigh and the files raised to what they are, route by route, from this tree's
 // build; /offer is 274.42 KB, near a rounding line — its ceiling is the line above, 275.
 export const WEIGHT = {
-  "/truck":                    { js: 274, css: 90, chunks: 17 },
-  "/events":                   { js: 274, css: 90, chunks: 17 },
-  "/menu":                     { js: 262, css: 90, chunks: 16 },
+  "/truck":                    { js: 275, css: 90, chunks: 17 },
+  "/events":                   { js: 275, css: 90, chunks: 17 },
+  "/menu":                     { js: 263, css: 90, chunks: 16 },
   "/reserve":                  { js: 286, css: 90, chunks: 18 },
-  "/delivery":                 { js: 283, css: 90, chunks: 18 },
-  "/3mpire":                   { js: 276, css: 90, chunks: 17 },
+  "/delivery":                 { js: 284, css: 90, chunks: 18 },
+  "/3mpire":                   { js: 277, css: 90, chunks: 17 },
   "/craft":                    { js: 261, css: 90, chunks: 16 },
-  "/book":                     { js: 262, css: 90, chunks: 16 },
+  "/book":                     { js: 263, css: 90, chunks: 16 },
   "/academy":                  { js: 315, css: 90, chunks: 18 },
   "/office":                   { js: 271, css: 90, chunks: 17 },
   "/scan":                     { js: 263, css: 90, chunks: 16 },
@@ -750,14 +750,14 @@ export const WEIGHT = {
   "/driver":                   { js: 269, css: 90, chunks: 17 },
   "/agreement":                { js: 263, css: 90, chunks: 16 },
   "/offer":                    { js: 273, css: 90, chunks: 17 },
-  "/built/gt3-built-k7m9x4q2": { js: 259, css: 90, chunks: 16 },
+  "/built/gt3-built-k7m9x4q2": { js: 260, css: 90, chunks: 16 },
   "/display":                  { js: 260, css: 90, chunks: 16 },
   "/shop":                     { js: 292, css: 90, chunks: 19 },
   "/primal":                   { js: 262, css: 90, chunks: 16 },
   "/privacy":                  { js: 258, css: 90, chunks: 15 },
   "/terms":                    { js: 258, css: 90, chunks: 15 },
   "/":                         { js: 268, css: 90, chunks: 17 },
-  "/order":                    { js: 266, css: 90, chunks: 17 },
+  "/order":                    { js: 267, css: 90, chunks: 17 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).
@@ -919,6 +919,13 @@ export const WEIGHT = {
 // route's shared download over a line the bundler splits at — one chunk more and +1.8 KB, measured — so out of it went what
 // no guest reads: lib/copy's 324 Settings labels and groups, 39% of the site-copy chunk (PERF11-02's first item; the editor's
 // own lib/copyFields now). Every ceiling lowered to what it measures.
+// 2026-10-19 (R35 of the fresh audit): every route's script +0.25 KB (gzip), /truck and /events +1.0 KB. Built R34 and this
+// commit. In the shell: the text size written on the root for the dialogs drawn beside the app (components/AppShell
+// --rd-root-z; UX11-07) and a renewed push subscription kept again on load (components/ServiceWorkerRegister → lib/push,
+// fetched lazily; FE11-12). On Find Us (/truck, /events): its channel through lib/realtime (FE11-10 — "find-us" was a
+// fixed name, and a client hands back a leaving channel under it; lib/realtime names each afresh and reads again after a
+// drop). Crossed the rounding line upward on /truck and /events (274 → 275 KB), /menu and /book (262 → 263), /delivery
+// (283 → 284), /3mpire (276 → 277), /built (259 → 260) and /order (266 → 267), recorded.
 export function weightVerdict(path, w, row = WEIGHT[path]) {
   if (!row) return [`${path}: no weight recorded — add it to WEIGHT in scripts/design.ratchet.mjs with its real numbers.`];
   const out = [];

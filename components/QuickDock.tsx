@@ -163,7 +163,7 @@ function QuickNote({ userId, onSaved }: { userId: string | null; onSaved: () => 
   return (
     <div className="qd-note">
       <div className="qd-note-row">
-        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Jot it down — a thought, a to-do, a reminder…" rows={4} autoFocus />
+        <textarea aria-label="Jot it down" value={text} onChange={(e) => setText(e.target.value)} placeholder="Jot it down — a thought, a to-do, a reminder…" rows={4} autoFocus />
         {dictate.supported && <button type="button" className={`k-icon-btn oa-mic${dictate.listening ? " on" : ""}`} onClick={dictate.toggle}
           aria-label={dictate.listening ? "Stop listening" : "Speak your note"} aria-pressed={dictate.listening}><Icon name="mic" size={19} /></button>}
       </div>

@@ -25,9 +25,10 @@ const ORIGIN = "https://app.gt3pb.com";
 // Any change to sw.js reaches installed clients as a new worker; only a changed CACHE makes the
 // activate step throw the old entries away. So an edit here must bump the name, and the pair below
 // must be re-recorded with it (both values are printed when they differ).
-const RECORDED = { sha: "944a4547684c97838a8646ed8f8506d8931d627a", cache: "gt3pb-v29" };
+const RECORDED = { sha: "6dab809589d69e54bfe7106f18877cdffac81af2", cache: "gt3pb-v30" };
 const blobSha = createHash("sha1").update(`blob ${Buffer.byteLength(SRC)}\0`).update(SRC).digest("hex");
 const cacheName = (SRC.match(/const CACHE = "([^"]+)";/) || [])[1];
+const NAV_MS = Number((SRC.match(/const NAV_DEADLINE_MS = (\d+);/) || [])[1]);
 ok("sw: CACHE is declared once, as a plain string", !!cacheName && (SRC.match(/const CACHE = /g) || []).length === 1, cacheName);
 if (blobSha !== RECORDED.sha && cacheName === RECORDED.cache) {
   ok(`sw: public/sw.js changed and CACHE did NOT — installed clients would keep every old entry. Bump CACHE past ${RECORDED.cache}, then record the pair here: { sha: "${blobSha}", cache: "<new name>" }`, false);
@@ -71,13 +72,18 @@ function boot() {
     skipWaiting() { self.skipped = true; },
     registration: { async showNotification() {} },
   };
-  // A timer that fires on the next turn: the worker's waits are real waits, not this test's.
-  const setTimeout = (fn) => { Promise.resolve().then(fn); return 0; };
-  vm.runInNewContext(SRC, { self, caches, fetch, URL, Headers, console, Promise, setTimeout }, { filename: "public/sw.js" });
+  // A timer that fires on the next turn: the worker's waits are real waits, not this test's — except a navigation's
+  // deadline (v30), held until a test says the network has stalled past it (fireDeadline).
+  const held = [];
+  const setTimeout = (fn, ms) => { if (ms === NAV_MS) { held.push(fn); return held.length; } Promise.resolve().then(fn); return 0; };
+  const clearTimeout = (id) => { if (id > 0) held[id - 1] = null; };
+  const Response = { error: () => ({ type: "error", ok: false, status: 0, body: "network error" }) };
+  vm.runInNewContext(SRC, { self, caches, fetch, URL, Headers, console, Promise, setTimeout, clearTimeout, Response }, { filename: "public/sw.js" });
+  const fireDeadline = () => { for (const fn of held.splice(0)) if (fn) fn(); };
   const dispatch = async (type, event) => { listeners[type](event); if (event.responded) event.response = await event.responded; await Promise.all(event.waits); return event; };
   const fetchEvent = (request) => ({ request, responded: null, waits: [], respondWith(p) { this.responded = Promise.resolve(p); }, waitUntil(p) { this.waits.push(Promise.resolve(p).catch(() => {})); } });
   const req = (path, { mode = "cors", headers = {}, method = "GET", origin = ORIGIN } = {}) => ({ method, url: origin + path, mode, headers: new Headers(headers), redirect: mode === "navigate" ? "manual" : "follow" });
-  return { listeners, stores, caches, net, self, dispatch, fetchEvent, req, cacheName };
+  return { listeners, stores, caches, net, self, dispatch, fetchEvent, req, cacheName, fireDeadline, held };
 }
 
 // ── page data is never the worker's business ──────────────────────────────────────────────────
@@ -120,6 +126,66 @@ function boot() {
   (await w.caches.open(w.cacheName)).put(w.req("/", { mode: "navigate" }), { body: "the root shell", clone() { return this; } });
   const unknown = await w.dispatch("fetch", w.fetchEvent(w.req("/never-opened", { mode: "navigate" })));
   ok("navigate: offline on a page never cached, the root shell answers rather than the dino", unknown.response?.body === "the root shell");
+}
+
+// ── v30 (R35 — FE11-13): a navigation waits on the network for a deadline, not for ever ───────────────────────────
+{
+  const w = boot();
+  ok("deadline: a navigation's wait on the network is 3.5 seconds", NAV_MS === 3500, NAV_MS);
+  await w.dispatch("fetch", w.fetchEvent(w.req("/crew", { mode: "navigate" })));   // the page, cached by a visit online
+  let release;
+  w.net.answer = () => new Promise((r) => { release = () => r({ ok: true, status: 200, redirected: false, body: "fresh /crew", clone() { return { ...this }; } }); });
+  const ev = w.fetchEvent(w.req("/crew?s=now", { mode: "navigate" }));
+  w.listeners.fetch(ev);
+  await new Promise((r) => setImmediate(r));
+  const early = await Promise.race([ev.responded, new Promise((r) => setImmediate(() => r("still waiting")))]);
+  w.fireDeadline();
+  const late = await ev.responded;
+  ok("deadline: a network that stalls past it — the cached page answers, not a white screen", early === "still waiting" && late?.body === `net:${ORIGIN}/crew`, { early, late });
+  release();
+  await Promise.all(ev.waits);
+  ok("…and the fetch, still under way, refreshes the cached page for the next load", (await w.caches.match(w.req("/crew", { mode: "navigate" })))?.body === "fresh /crew");
+
+  const w2 = boot();
+  let release2;
+  w2.net.answer = () => new Promise((r) => { release2 = () => r({ ok: true, status: 200, redirected: false, body: "first visit", clone() { return { ...this }; } }); });
+  const ev2 = w2.fetchEvent(w2.req("/never-opened", { mode: "navigate" }));
+  w2.listeners.fetch(ev2);
+  await new Promise((r) => setImmediate(r));
+  w2.fireDeadline();
+  const mid = await Promise.race([ev2.responded, new Promise((r) => setImmediate(() => r("still waiting")))]);
+  release2();
+  const end = await ev2.responded;
+  ok("deadline: with nothing cached, past it the network is still waited on — nothing else could answer", mid === "still waiting" && end?.body === "first visit", { mid, end });
+
+  const w3 = boot();
+  const ev3 = await w3.dispatch("fetch", w3.fetchEvent(w3.req("/menu", { mode: "navigate" })));
+  ok("deadline: a network that answers in time answers, and the timer is let go", ev3.response?.body === `net:${ORIGIN}/menu` && w3.held.every((t) => t === null));
+}
+
+// ── v30 (R35 — FE11-12): a subscription the push service renewed is kept again ──────────────────────────────────
+{
+  const renew = async (event, windows) => {
+    const w = boot();
+    const subscribed = [];
+    w.self.clients.matchAll = async () => windows;
+    w.self.registration.pushManager = { async subscribe(o) { subscribed.push(o); return { endpoint: "https://push.example/new" }; } };
+    const ev = { ...event, waits: [], waitUntil(p) { this.waits.push(Promise.resolve(p)); } };
+    w.listeners.pushsubscriptionchange(ev);
+    await Promise.all(ev.waits);
+    return subscribed;
+  };
+  const told = () => ({ told: [], postMessage(m) { this.told.push(m); } });
+  const a = told(), b = told();
+  const s1 = await renew({ newSubscription: { endpoint: "https://push.example/rotated" } }, [a, b]);
+  ok("renewed: the browser's new subscription — every open window is told to keep it", s1.length === 0 && a.told[0]?.type === "gt3-push-renewed" && b.told[0]?.type === "gt3-push-renewed", { s1, a: a.told });
+  const c = told();
+  const opts = { userVisibleOnly: true, applicationServerKey: "k" };
+  const s2 = await renew({ newSubscription: null, oldSubscription: { options: opts } }, [c]);
+  ok("renewed: none given — the worker subscribes again with the old options, then tells the windows", s2.length === 1 && s2[0] === opts && c.told[0]?.type === "gt3-push-renewed", { s2, c: c.told });
+  const d = told();
+  await renew({ newSubscription: null, oldSubscription: null }, [d]);
+  ok("renewed: nothing to subscribe with — nothing is said", d.told.length === 0);
 }
 
 // ── /_next/static/: the only cache-first class ────────────────────────────────────────────────
