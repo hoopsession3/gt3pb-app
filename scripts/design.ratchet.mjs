@@ -733,16 +733,22 @@ export const PROD_ROUTE = {
 // moved to the router (the driver's page from My Day and the calendar, the playbook from Discussions); the stylesheet is
 // the same (+1 byte). Lowered to what they weigh and the files raised to what they are, route by route, from this tree's
 // build; /offer is 274.42 KB, near a rounding line — its ceiling is the line above, 275.
+// 2026-10-19 (R42, search and sharing): every route's script +129 bytes (gzip) — the server's read of the menu, lent by
+// the provider every screen loads (components/AppProvider ServerMenu), so a menu row, its drink sheet and the cart say one
+// price before the phone's own read lands; /truck and /events +165 (Find Us names itself while its stop is read), /menu
+// +230. Built 6d449dd (R41) and this commit, route by route: /truck 278 944 → 279 109 bytes, /menu 269 802 → 270 032,
+// /book 269 704 → 269 833, /academy 323 022 → 323 151, /privacy 265 140 → 265 269. Crossed the rounding line on /truck and
+// /events (272 → 273), /menu and /book (263 → 264) and /academy (315 → 316), recorded; the files are the same.
 export const WEIGHT = {
-  "/truck":                    { js: 272, css: 90, chunks: 17 },
-  "/events":                   { js: 272, css: 90, chunks: 17 },
-  "/menu":                     { js: 263, css: 90, chunks: 16 },
+  "/truck":                    { js: 273, css: 90, chunks: 17 },
+  "/events":                   { js: 273, css: 90, chunks: 17 },
+  "/menu":                     { js: 264, css: 90, chunks: 16 },
   "/reserve":                  { js: 287, css: 90, chunks: 18 },
   "/delivery":                 { js: 284, css: 90, chunks: 18 },
   "/3mpire":                   { js: 277, css: 90, chunks: 17 },
   "/craft":                    { js: 262, css: 90, chunks: 16 },
-  "/book":                     { js: 263, css: 90, chunks: 16 },
-  "/academy":                  { js: 315, css: 90, chunks: 18 },
+  "/book":                     { js: 264, css: 90, chunks: 16 },
+  "/academy":                  { js: 316, css: 90, chunks: 18 },
   "/office":                   { js: 272, css: 90, chunks: 17 },
   "/scan":                     { js: 264, css: 90, chunks: 16 },
   "/architecture":             { js: 273, css: 90, chunks: 17 },

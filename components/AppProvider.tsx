@@ -91,6 +91,23 @@ export function useToastState(): ToastState {
   return useContext(ToastCtx);
 }
 
+// THE MENU AS THE SERVER READ IT (R42 — the standards' "Search and sharing"). app/menu/layout reads the Catalog as a guest
+// (lib/guestRead; /menu is remade at most every minute, on a visit after it) and hands it down here: the menu's first
+// paint — the page search reads, and what a guest sees before this phone's own read lands — is the Catalog's drinks and
+// prices, not the code list's stand-in (useServerMenu, app/menu/page). The same rows stand in for the drink sheet, the
+// cart's prices and an order line's name until the phone's read lands (AppProvider's bySlug), so a row, its sheet and the
+// cart never say two prices. They never count as the phone's read: `menuRead`, the menu other screens draw and the cart's
+// one pruning wait for that. Here, beside the provider, so the menu's page carries no chunk of its own for it.
+// null: nothing read (a CI or app build, or the read failed) — the code list stands in, as before.
+const ServerMenuCtx = createContext<readonly MenuRow[] | null>(null);
+const PrimeCtx = createContext<(rows: readonly MenuRow[]) => void>(() => {});
+export function ServerMenu({ rows, children }: { rows: readonly MenuRow[] | null; children: React.ReactNode }) {
+  const prime = useContext(PrimeCtx);
+  useEffect(() => { if (rows) prime(rows); }, [rows, prime]);
+  return <ServerMenuCtx.Provider value={rows}>{children}</ServerMenuCtx.Provider>;
+}
+export const useServerMenu = (): readonly MenuRow[] | null => useContext(ServerMenuCtx);
+
 /** The cart this phone kept, cleaned (R7: whole drinks, up to what one order holds), or null. Any drink is kept for
  *  now: which are still on the menu is the Catalog's to say, once it has been read (AppProvider). Reads storage. */
 function savedCart(): Record<string, number> | null {
@@ -205,10 +222,13 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   useEffect(() => { refreshMenu(); }, [refreshMenu]);
   // Live: the 86s, and every product's name (the crew read every row) — for an order line the menu's rows don't name.
   const { soldOut, names: liveNames } = useCupAvailability();
-  const bySlug = useMemo(() => new Map((rows ?? []).map((r) => [r.slug, r])), [rows]);
+  // Until the phone's read lands, the server's (ServerMenu, R42) names and prices what the menu page shows; the first only.
+  const [primed, setPrimed] = useState<readonly MenuRow[] | null>(null);
+  const prime = useCallback((r: readonly MenuRow[]) => setPrimed((was) => was ?? r), []);
+  const bySlug = useMemo(() => new Map((rows ?? primed ?? []).map((r) => [r.slug, r])), [rows, primed]);
   const menu = useMemo(() => (rows ? menuOf(rows) : seedMenu()), [rows]);
   const drinkOf = useCallback((id: string) => drinkFrom(bySlug.get(id) ?? null, id), [bySlug]);
-  const nameOf = useCallback((id: string) => nameFrom(rows, id, liveNames), [rows, liveNames]);
+  const nameOf = useCallback((id: string) => nameFrom(rows ?? primed, id, liveNames), [rows, primed, liveNames]);
   const priceCents = useCallback((id: string) => prices[id] ?? bySlug.get(id)?.price_cents ?? fallbackCents(id) ?? 0, [prices, bySlug]);
 
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -357,5 +377,5 @@ export default function AppProvider({ children }: { children: React.ReactNode })
   );
   const toastState = useMemo<ToastState>(() => ({ toastMsg, toastShown, toastVariant, toastAction }), [toastMsg, toastShown, toastVariant, toastAction]);
 
-  return <StableCtx.Provider value={stable}><Ctx.Provider value={value}><ToastCtx.Provider value={toastState}>{children}</ToastCtx.Provider></Ctx.Provider></StableCtx.Provider>;
+  return <PrimeCtx.Provider value={prime}><StableCtx.Provider value={stable}><Ctx.Provider value={value}><ToastCtx.Provider value={toastState}>{children}</ToastCtx.Provider></Ctx.Provider></StableCtx.Provider></PrimeCtx.Provider>;
 }

@@ -7,8 +7,10 @@
 import Link from "next/link";
 import { TEXTS_HELP_EMAIL, TEXT_YES_CONFIRMATION } from "@/lib/texts";
 import TextsOptInDemo from "@/components/TextsOptInDemo";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = { title: "Texts", description: "What GT3 Performance Bar texts, how you say yes, and how you stop." };
+// Its name, and what search and a share card say about it (R42, lib/seo): its own description, canonical address and card.
+export const metadata = { title: "Texts", ...pageMeta("/texts") };
 
 export default function TextsPage() {
   return (

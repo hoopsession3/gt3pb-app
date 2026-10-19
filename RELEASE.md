@@ -71,6 +71,24 @@ terms as you sign up; UptimeRobot's free plan has been for personal, non-commerc
 Its email means the site or its database isn't answering: Vercel's status page, then Supabase's, then
 `CONTINUITY_RUNBOOK.md`.
 
+## Search
+
+The app tells search what it is (R42, `lib/seo.ts`): `robots.txt` lets every crawler read every page, `sitemap.xml`
+lists the public pages and every lesson anyone may read, each public page names its own description, address and share
+card, every other page says noindex, and the business and the menu are structured data. The Production check's `found:`
+lines read all of it from production after each push.
+
+Set once, after the first push with R42:
+
+1. search.google.com/search-console → **Add property** → **Domain** → `gt3pb.com` (one property for the site and the
+   app). It gives a TXT record: add it where gt3pb.com's DNS is kept, then **Verify**.
+2. **Sitemaps** → `https://app.gt3pb.com/sitemap.xml` → **Submit**.
+3. **URL inspection** → `https://app.gt3pb.com/menu` → **Test live URL**: the page Google drew should show the menu.
+   Then **Request indexing** for `/menu`, `/truck` and `/primal`.
+4. Optional: bing.com/webmasters → **Import from Google Search Console**.
+
+Search Console's own email then says when a page drops out or can't be read.
+
 ## What a red Production run means
 
 | Line | Means | Do |
@@ -82,6 +100,7 @@ Its email means the site or its database isn't answering: Vercel's status page, 
 | `posture:` | A finding, or a snapshot two days old | Fix the finding, or re-pull the snapshot (§3) |
 | `push:` | The deployed push function isn't this tree's | §4 |
 | `answers:` / `door:` / `app door:` | A route answered HTML, or the wrong status | The route's log line (`[route-threw]`, with the request's id) |
+| `found:` | A page tells search the wrong thing: no description or address, noindex where it shouldn't be, the menu's structured data not its page's | The line names the page; `lib/seo.ts` holds what each should say |
 | `painted:` | A public route moved, grew a box, or failed axe on real data | `scripts/design.ratchet.mjs` names the route |
 
 ## Rolling back

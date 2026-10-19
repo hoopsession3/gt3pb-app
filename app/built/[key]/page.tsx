@@ -4,6 +4,7 @@ import Watermark from "@/components/Watermark";
 import BuiltBack from "@/components/BuiltBack";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import Icon from "@/components/Icon";
+import { PRIVATE_META } from "@/lib/seo";
 
 // Read-only PARTNER share of "what we've built" — capabilities + build footprint only. NO financials
 // (revenue/inventory/members stay owner-only on /architecture), no auth, no DB; pure manifest data.
@@ -12,7 +13,7 @@ const SHARE_KEY = "gt3-built-k7m9x4q2";
 
 export const metadata = {
   title: { absolute: "GT3 Performance Bar — what we've built" },
-  robots: { index: false, follow: false },
+  ...PRIVATE_META,   // noindex, and no canonical inherited from the home page (R42, lib/seo)
 };
 
 // Real customer feedback (from the GT3 Brew Feedback collection). Lightly trimmed; attributed by

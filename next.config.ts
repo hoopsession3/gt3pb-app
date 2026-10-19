@@ -99,6 +99,9 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
         ],
       },
+      // AN ANSWER IS NOT A PAGE (R42 — the standards' "Search and sharing"). A search engine may read the API (app/robots:
+      // a page's words arrive from it, and one that draws the page must see them), but never lists what it reads there.
+      { source: "/api/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
       appCors,
     ];
   },

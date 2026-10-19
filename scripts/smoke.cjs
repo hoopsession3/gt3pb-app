@@ -7862,7 +7862,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("find us: a skeleton until the road is read, then the page — swapped, never filled in",
     /\{!\(board\.data \|\| board\.status === "error"\) \? <FindUsSkeleton \/> : \(<Fragment key="road">/.test(fu) && /function FindUsSkeleton\(\)/.test(fu) && /aria-busy="true"/.test(fu));
   ok("find us: the title and the close are on the server's page, in both halves of the swap",
-    /<h1 className="k-title lg">…<\/h1>/.test(fu) && (fu.match(/<FindUsCoda \/>/g) || []).length === 2 && /function FindUsCoda\(\)/.test(fu));
+    /<h1 className="k-title lg"><span aria-hidden="true">…<\/span><span className="sr-only">\{titleOf\("\/truck"\)\}<\/span><\/h1>/.test(fu) && (fu.match(/<FindUsCoda \/>/g) || []).length === 2 && /function FindUsCoda\(\)/.test(fu));
   ok("find us: the road is drawn from the read itself — no effect copies it into state a render later",
     /const road = fresh \?\? board\.data \?\? null;/.test(fu) && !/setOps\(|setLive\(/.test(fu));
   ok("find us: the live-ping chip knows itself on its first render (its state is components/useLivePing's, shared with Notifications — R6)",
@@ -11575,13 +11575,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     }
     {
       // A link preview read "slow-simmered broth, made to order" — Ryan: "Simmered to order, take that shit off" (2026-10-10).
-      const desc = (read("app/layout.tsx").match(/^\s*description: "([^"]*)"/m) || [])[1] || "", man = read("app/manifest.ts");
+      // The line lives in lib/seo since R42 (HOUSE_META, which app/layout spreads).
+      const desc = (read("lib/seo.ts").match(/HOME_DESCRIPTION =\s*"([^"]*)"/) || [])[1] || "", man = read("app/manifest.ts");
       ok("the line every link previews with, and the home-screen app's, names the drinks without \"simmered … to order\"",
-        /bone broth/.test(desc) && !/simmer|to order/i.test(desc) && !/simmer|to order/i.test(man));
+        /bone broth/.test(desc) && !/simmer|to order/i.test(desc) && !/simmer|to order/i.test(man) && /^\s*\.\.\.HOUSE_META,$/m.test(read("app/layout.tsx")));
       // …and everywhere else the word was: the menu's drink lines, Craft, the AI day plan, Academy and the
       // event brief, plus the rows the seeds wrote (0362). Comments may say why; no string may say it.
       const strs = (f) => read(f).replace(/^\s*\/\/.*$/gm, "");
-      const said = ["lib/menu.ts", "lib/copy.ts", "lib/academy.ts", "lib/eventbrief.ts", "components/DailyStack.tsx", "lib/dailyStack.ts", "app/layout.tsx", "app/manifest.ts"]
+      const said = ["lib/menu.ts", "lib/copy.ts", "lib/academy.ts", "lib/eventbrief.ts", "components/DailyStack.tsx", "lib/dailyStack.ts", "app/layout.tsx", "app/manifest.ts", "lib/seo.ts"]
         .filter((f) => /simmer/i.test(strs(f)));
       const m362 = read("supabase/migrations/0362_bone_broth_said_plainly.sql");
       ok("no drink, lesson, brief or Craft line says \"simmered\" — the app's copy, and the database rows its seeds wrote (0362)",
@@ -13857,7 +13858,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(Array\.isArray\(d\.items\)\) \{\s+const nextRows = d\.items as MenuRow\[\];\s+setRows\(\(was\) => \(was !== null && sameJson\(was, nextRows\) \? was : nextRows\)\);\s+if \(!pruned\.current\) \{ pruned\.current = true; pruneCart\.current\(d\.items as MenuRow\[\]\); \}/.test(ap)
     && /const onMenu = new Set\(menuOf\(read\)\.map\(\(d\) => d\.slug\)\);/.test(ap) && /on the menu any more — taken out of your order/.test(ap) && !/from "@\/lib\/menu"/.test(ap));
   ok("menu page: sections and drinks from the menu, read again on open; a stop's menu says Not at this stop; caffeine when the Catalog says",
-    /useEffect\(\(\) => \{\s+refreshMenu\(\);\s+const tick = \(\) => \{ if \(document\.visibilityState === "visible"\) refreshMenu\(\); \};\s+const id = setInterval\(tick, 60_000\);/.test(menuPage) && /const sections = sectionsOf\(menu\);/.test(menuPage)
+    /useEffect\(\(\) => \{\s+refreshMenu\(\);\s+const tick = \(\) => \{ if \(document\.visibilityState === "visible"\) refreshMenu\(\); \};\s+const id = setInterval\(tick, 60_000\);/.test(menuPage)
+    // R42: until the phone's own read lands, the menu is the server's (components/ServerMenu), else the code list's.
+    && /const shown = useMemo\(\(\) => \(fromServer && server \? menuOf\(server\) : menu\), \[fromServer, server, menu\]\);/.test(menuPage) && /const sections = sectionsOf\(shown\);/.test(menuPage)
     && /const notHere = !out && !!ordering\.stopMenu && !ordering\.stopMenu\.has\(id\);/.test(menuPage)
     && /const facts = \[d\.caffeine === true \? t\("menu\.caffeine"\) : d\.caffeine === false \? t\("menu\.no_caffeine"\) : "", \.\.\.\(d\.contains \?\? \[\]\)\]\.filter\(Boolean\);/.test(menuPage)
     && /useViewerMarket\(CUP_MARKETS\)/.test(menuPage) && !/from "@\/lib\/menu"/.test(menuPage));
@@ -13865,7 +13868,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // (verify:prod PAINTED, /menu 0.10 against 0.04, 2026-10-14). Its room is kept from the first paint, empty and unread,
   // and a drink not at this stop keeps it hidden rather than losing it.
   ok("menu: the facts line's room is there from the first paint — a code-list drink keeps it until the Catalog answers; not at this stop, it is hidden, not gone",
-    /const reserve = facts\.length === 0 && !menuRead && isSeedSlug\(id\);/.test(menuPage) && /const hideFacts = reserve \|\| notHere;/.test(menuPage)
+    // R42: a menu drawn from the server's read says its facts from the first paint, so it keeps no room for them.
+    /const reserve = facts\.length === 0 && !menuRead && !fromServer && isSeedSlug\(id\);/.test(menuPage) && /const hideFacts = reserve \|\| notHere;/.test(menuPage)
     && /\{\(facts\.length > 0 \|\| reserve\) && \(/.test(menuPage) && /hideFacts \? " invisible" : ""/.test(menuPage) && /aria-hidden=\{hideFacts \|\| undefined\}/.test(menuPage)
     && !/facts\.length > 0 && !notHere/.test(menuPage));
   ok("menu: the price adds the drink and becomes its counter; the row opens the sheet — two sibling buttons, never one in the other, each 44 to the thumb",
@@ -15603,8 +15607,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const titled = ["menu", "truck", "events", "3mpire", "book", "craft", "reserve", "delivery", "academy", "agreement", "offer", "architecture", "scan", "playbook", "office", "driver", "display", "crew", "order"];
   ok("R12 titles: every screen's document title is its name (Next announces a route change only when the title changes); a crew section names itself and is said",
     /title: \{ default: "GT3 Performance Bar — Only the best for you", template: "%s — GT3 Performance Bar" \}/.test(rd("app/layout.tsx"))
-      && titled.every((r) => new RegExp(`export const metadata: Metadata = \\{ title: titleOf\\("/${r}"\\) \\};`).test(rd(`app/${r}/layout.tsx`)))
-      && /title: "Shop" \}/.test(rd("app/shop/page.tsx")) && /title: \{ absolute: "GT3 Performance Bar — what we've built" \}/.test(rd("app/built/[key]/page.tsx"))
+      // …and, since R42, what search and a share card say beside it (lib/seo): pageMeta for a public screen, PRIVATE_META for the rest.
+      && titled.every((r) => new RegExp(`export const metadata: Metadata = \\{ title: titleOf\\("/${r}"\\), \\.\\.\\.(pageMeta\\("/${r}"\\)|PRIVATE_META) \\};`).test(rd(`app/${r}/layout.tsx`)))
+      && /title: "Shop", \.\.\.pageMeta\("\/shop"\) \}/.test(rd("app/shop/page.tsx")) && /title: \{ absolute: "GT3 Performance Bar — what we've built" \}/.test(rd("app/built/[key]/page.tsx"))
       && /document\.title = `\$\{name\} — GT3 Performance Bar`;/.test(rd("app/crew/page.tsx")) && /if \(saidSection\.current !== null && saidSection\.current !== sec\) announce\(name\);/.test(rd("app/crew/page.tsx")));
   // F17 · the password toggle
   ok("R12 sign-in: Show is in the Tab order, says what it shows, and says whether it is on",

@@ -135,6 +135,12 @@ export const MAX_CUPS = 25;
 /** The price to show when the Catalog's isn't known — the code list's, then nothing. Never a crash. */
 export const fallbackCents = (slug: string): number | null => pxCents(SEED[slug]?.px);
 
+/** The price a menu shows for a drink, given the Catalog row it was read with (or none): the row's, else the code list's,
+ *  else 0 — components/AppProvider's priceCents rule, for a menu drawn from a read of its own (R42: the server's, on
+ *  /menu's first paint, and the menu's structured data). */
+export const shownCents = (row: Pick<MenuRow, "price_cents"> | null | undefined, slug: string): number =>
+  row?.price_cents ?? fallbackCents(slug) ?? 0;
+
 const bySort = (a: Drink, b: Drink): number => a.sort - b.sort || a.name.localeCompare(b.name);
 
 /** The cup menu: drinks on sale and sold by the cup, in the Catalog's order. 86'd drinks stay (they say "Sold out"). */

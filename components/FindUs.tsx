@@ -30,6 +30,7 @@ import Said from "./Said";
 import { useMinute } from "@/lib/useMinute";
 import { useRealtimeTable } from "@/lib/realtime";
 import { useAuth } from "@/components/AuthProvider";
+import { titleOf } from "@/lib/routeTitles";
 
 // FIND US — the one answer to "where's GT3?", on the field_ops spine. Stops and events used to
 // live on two strangers of pages; they're one chronological road now, each row self-typing:
@@ -609,7 +610,9 @@ function FindUsSkeleton() {
   return (
     <>
       <div className="fu-skel" aria-busy="true">
-        <h1 className="k-title lg">…</h1>
+        {/* The page's name while its stop is read (R42 — the standards' "Search and sharing"): the heading a search engine
+            and a screen reader meet before any script names the stop. The eye keeps the ellipsis. */}
+        <h1 className="k-title lg"><span aria-hidden="true">…</span><span className="sr-only">{titleOf("/truck")}</span></h1>
         <Skeleton variant="line" />
         <Skeleton variant="card" />
         <Skeleton variant="row" count={3} />

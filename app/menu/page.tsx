@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { useApp } from "@/components/AppProvider";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useApp, useServerMenu } from "@/components/AppProvider";
 import { useCartSaid } from "@/components/useCartSaid";
 import AccountPill from "@/components/AccountPill";
 import EditableCopy from "@/components/EditableCopy";
@@ -15,7 +15,7 @@ import { useViewerMarket } from "@/components/useViewerMarket";
 import { useOrderingOpen } from "@/components/useOrderingOpen";
 import { closedWords, openWords } from "@/lib/ordering";
 import { money } from "@/lib/money";
-import { isSeedSlug, lineSubKey, sectionsOf } from "@/lib/drinks";
+import { isSeedSlug, lineSubKey, menuOf, sectionsOf, shownCents } from "@/lib/drinks";
 import { CUP_MARKETS } from "@/lib/markets";
 import { PACK_SIZES, PACK_TAG, packTotal, dollars } from "@/lib/orderAhead";
 import Icon from "@/components/Icon";
@@ -44,7 +44,8 @@ export default function MenuScreen() {
   const stateLine = o ? (closed ? closedWords(o, { closing: t("findus.cta_closed") }) : openWords(o)) : null;
   // THE MENU IS THE CATALOG (2026-10-13, R2 of the customer audit): the drinks, their words and their prices are the
   // Catalog's (AppProvider → /api/menu → lib/drinks), read again each time this page opens — a drink added in the Catalog
-  // is here the next time the page opens; one taken off is gone. Until the read lands, and if it fails, the code list's menu stands in.
+  // is here the next time the page opens; one taken off is gone. Until the read lands, and if it fails, the server's read
+  // stands in (R42, below), else the code list's menu.
   // A MENU OPEN FOR A WHILE STAYS TRUE (R7, 2026-10-15). It was read when it opened, and never again while it stayed
   // open: a price the owner changed, a drink put on or taken off, reached it on the next visit. Read again every minute
   // while it is in front of someone, and on return to it — the Catalog's answer (86s come live, lib/availability).
@@ -55,7 +56,15 @@ export default function MenuScreen() {
     document.addEventListener("visibilitychange", tick);
     return () => { clearInterval(id); document.removeEventListener("visibilitychange", tick); };
   }, [refreshMenu]);
-  const sections = sectionsOf(menu);
+  // THE CATALOG FROM THE FIRST PAINT (R42 — the standards' "Search and sharing"). Until this phone's own read lands, the
+  // menu is the one the server read (app/menu/layout, components/AppProvider ServerMenu) — what search reads, and what a
+  // guest sees first — at that read's prices (lib/drinks shownCents: AppProvider's own rule). With none (a CI or app
+  // build, a read that failed), the code list's stand-in, as before. The phone's read, once it lands, is the menu.
+  const server = useServerMenu();
+  const fromServer = !menuRead && server !== null;
+  const serverBy = useMemo(() => new Map((server ?? []).map((r) => [r.slug, r])), [server]);
+  const shown = useMemo(() => (fromServer && server ? menuOf(server) : menu), [fromServer, server, menu]);
+  const sections = sectionsOf(shown);
   const sectionsKey = sections.map((s) => s.line).join("|");
   // This line used to re-derive money()'s exact rule by hand — trim the cents when they are .00,
   // show them when they are not — in a ternary with a modulo, and its own comment said it "matches
@@ -63,7 +72,7 @@ export default function MenuScreen() {
   // function, and a copy of a rule is a copy that can drift. The customer tapped "$10" here and
   // then read "$10.00" in the cart, the checkout and on the receipt, because those four screens
   // held four spellings of one number.
-  const priceLabel = (id: string) => money(priceCents(id));
+  const priceLabel = (id: string) => money(fromServer ? shownCents(serverBy.get(id), id) : priceCents(id));
 
   // Sticky category chips that scroll-spy the menu (jump + highlight current section).
   const [active, setActive] = useState<string>(sections[0]?.line ?? "");
@@ -120,7 +129,7 @@ export default function MenuScreen() {
       </nav>
 
       {/* The Catalog answered and nothing is on sale: said, never a blank page. */}
-      {menuRead && sections.length === 0 && <EditableCopy k="menu.empty" value={t("menu.empty")} as="p" className="menu-integrity" />}
+      {(menuRead || fromServer) && sections.length === 0 && <EditableCopy k="menu.empty" value={t("menu.empty")} as="p" className="menu-integrity" />}
       {sections.map((sec) => (
         <div key={sec.line} ref={(el) => { catRefs.current[sec.line] = el; }} data-cat={sec.line}>
           {/* The section is the Catalog's line; its subtitle is page copy keyed by the line's name (menu.line.<name>.sub),
@@ -144,7 +153,8 @@ export default function MenuScreen() {
             // tags and the menu under it jumped (verify:prod PAINTED, /menu: a layout shift of 0.10 against a gate of 0.04, in
             // every run since R2). Until the Catalog answers, a code-list drink keeps that line's room, empty and unread (the
             // ten all carry caffeine); a drink not at this stop keeps it too, hidden, so a stop's menu arriving moves no row.
-            const reserve = facts.length === 0 && !menuRead && isSeedSlug(id);
+            // The server's read says the facts from the first paint (R42): nothing to keep room for.
+            const reserve = facts.length === 0 && !menuRead && !fromServer && isSeedSlug(id);
             const hideFacts = reserve || notHere;
             return (
               // THE PRICE ADDS IT; THE ROW OPENS IT (2026-10-13, R2 — the audit's menu, approved). The "+ $10" pill opened the

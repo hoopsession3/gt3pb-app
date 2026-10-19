@@ -7,6 +7,7 @@ import AppProvider from "@/components/AppProvider";
 import AppShell from "@/components/AppShell";
 import { APP_BUILD } from "@/lib/native";
 import { HOLD_SCRIPT } from "@/lib/holds";
+import { HOUSE_META, businessJsonLd, jsonLdText } from "@/lib/seo";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.gt3pb.com"),
@@ -15,8 +16,9 @@ export const metadata: Metadata = {
   title: { default: "GT3 Performance Bar — Only the best for you", template: "%s — GT3 Performance Bar" },
   // Every link to the app previews with this line (Messages, search). It said "slow-simmered broth, made to
   // order" until 2026-10-10, which read as "simmered to order" — Ryan: take it off. What the drinks are, then
-  // what the app does.
-  description: "Whole-food functional drinks — cold-extracted coffee, whole-coconut hydration and bone broth. Order ahead, reserve a drop, and manage your membership.",
+  // what the app does. With it, the share card every page starts from (R42, lib/seo HOUSE_META): the brand's mark, and
+  // no address — a public page names its own (pageMeta), and every other page says noindex (PRIVATE_META).
+  ...HOUSE_META,
   applicationName: "GT3PB",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "GT3PB" },
   // The web app's install manifest; the iPhone app is installed from the App Store and has none.
@@ -59,6 +61,9 @@ export default function RootLayout({
     // paint (app/tailwind.css, the broadcast banner's), not when the bridge's stylesheet arrives after it.
     <html lang="en" data-build={APP_BUILD ? "app" : undefined}>
       <head>
+        {/* The business, as search reads it (R42, lib/seo businessJsonLd): what the app already says about it. The web's
+            alone — an installed app is not crawled. */}
+        {APP_BUILD ? null : <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdText(businessJsonLd()) }} />}
         {/* The iPhone app's security policy (next.config.ts: an export has no server to send one). */}
         {APP_BUILD && process.env.NEXT_PUBLIC_GT3_APP_CSP ? <meta httpEquiv="Content-Security-Policy" content={process.env.NEXT_PUBLIC_GT3_APP_CSP} /> : null}
         {/* Stop iOS Safari from auto-inflating text (some calendar rows rendered huge on iPhone).

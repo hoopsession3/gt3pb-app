@@ -10,6 +10,7 @@
 //   · proxy.ts       — the web's front-door redirect; the app's home page does the same on its own.
 //   · any route.ts   — a route handler is a server.
 //   · app/manifest.ts — the web app's install manifest; an installed app has no use for one.
+//   · app/robots.ts, app/sitemap.ts — what search engines read of the web (R42); an installed app is not crawled.
 //   · /built/[key], /c/[code], /primal/l/[slug] — pages per database id, which an export cannot make
 //                      ahead of time. Partner and printed-QR pages stay on the web; the lesson has an
 //                      app page of its own (native/routes, copied in here; lib/native lessonHref).
@@ -41,7 +42,7 @@ const OUT = join(ROOT, "out");
 // What never goes into the copy: version control, dependencies, other builds, the native projects.
 const SKIP_TOP = new Set([".git", "node_modules", ".next", "out", ".app-build", "ios", "android", ".smoke", "coverage", "package-lock.json"]);
 // What the export cannot have (above). Paths relative to the project.
-const LEAVE_OUT = ["app/api", "proxy.ts", "app/manifest.ts", "app/built", "app/c", join("app", "primal", "l"), "app/.well-known"];
+const LEAVE_OUT = ["app/api", "proxy.ts", "app/manifest.ts", "app/robots.ts", "app/sitemap.ts", "app/built", "app/c", join("app", "primal", "l"), "app/.well-known"];
 // The pages among them, as the addresses a link would use (/built/…, /c/…, /primal/l/…). The app is
 // told them (NEXT_PUBLIC_GT3_WEB_ONLY), so a link to one opens the web's page in the in-app browser
 // instead of landing on the app's home screen (components/NativeBridge). From this one list, so a page

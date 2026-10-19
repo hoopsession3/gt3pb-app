@@ -7,8 +7,10 @@
 // details named (the AI provider among them); texts and notifications said as they now work. The words live in
 // components/legal/LegalText, so the yes to texts at checkout opens them in a sheet over the order.
 import { PrivacyText } from "@/components/legal/LegalText";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = { title: "Privacy policy" };
+// Its name, and what search and a share card say about it (R42, lib/seo): its own description, canonical address and card.
+export const metadata = { title: "Privacy policy", ...pageMeta("/privacy") };
 
 export default function PrivacyPage() {
   return (

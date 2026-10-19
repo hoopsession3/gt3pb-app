@@ -4,8 +4,10 @@
 // sheet over the order; the Texts section is the one Twilio's campaign review reads (program, frequency, rates, HELP and
 // STOP, the help contact, carriers not liable, a link to the Privacy policy).
 import { TermsText } from "@/components/legal/LegalText";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata = { title: "Terms" };
+// Its name, and what search and a share card say about it (R42, lib/seo): its own description, canonical address and card.
+export const metadata = { title: "Terms", ...pageMeta("/terms") };
 
 export default function TermsPage() {
   return (

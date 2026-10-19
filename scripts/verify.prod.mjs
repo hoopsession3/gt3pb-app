@@ -24,6 +24,9 @@
 //                  500 page (lib/apiRoute.ts is what makes this true; this is what checks it); the
 //                  front door (proxy.ts) sends a known guest from "/" to /truck; and the API lets the
 //                  iPhone app's origin in, and no other site (next.config.ts appCors)
+//   3b. FOUND    — what search and a share card read (R42, scripts/search.read.mjs): robots.txt, the sitemap and
+//                  the lessons it lists, every public page's title, description, canonical address and card, the
+//                  pages kept out, the API's noindex, the menu's structured data against its page and the Catalog
 //   4. PAINTED   — every public route at phone width, with real data: box depth, tap, text, what
 //                  moved after paint, axe — against PROD_ROUTE and SHIFT in scripts/design.ratchet.mjs
 //
@@ -267,8 +270,18 @@ for (const pr of PROBES) {
   ok("app door: no other site may — not another origin, not one that starts the same", !stranger.allow && !lookalike.allow, `example.com allowed "${stranger.allow}", the lookalike "${lookalike.allow}"`);
 }
 
+// ── 3b. FOUND ───────────────────────────────────────────────────────────────────────────────────
+// SEARCH AND SHARING (R42 — the standards' "Search and sharing", lib/seo). The judge smoke:ui runs against the build, here
+// against production with its database: the lessons the sitemap lists, the Catalog's menu. Changed only by a deploy, so
+// read by the full run (after each push, and daily), not the half-hourly one.
+if (!QUICK) {
+  const { judgeSite } = await import("./search.read.mjs");
+  await judgeSite(APP, { ok, production: true });
+}
+
 // ── 4. PAINTED ──────────────────────────────────────────────────────────────────────────────────
 if (QUICK) {
+  console.log("  · found: skipped (--quick) — what search reads changes only with a deploy; the full run reads it");
   console.log(`  · painted: skipped (--quick) — ${Object.keys(PROD_ROUTE).length} routes are measured by the full run`);
   console.log(`\nVERIFY PRODUCTION (quick): ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

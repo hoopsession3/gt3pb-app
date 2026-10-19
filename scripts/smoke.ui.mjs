@@ -21,6 +21,8 @@ const CHROME = process.env.PW_CHROME || "/opt/pw-browsers/chromium/chrome-linux/
 // ceilings that live in ONE place, scripts/design.ratchet.mjs, beside the stylesheet's own.
 import { MEASURE, OBSERVE } from "./design.measure.mjs";
 import { routeVerdict, weightVerdict } from "./design.ratchet.mjs";
+// SEARCH AND SHARING (R42): one judge, here against this build and in verify:prod against production.
+import { judgeSite } from "./search.read.mjs";
 const design = [];        // { path, m } per route
 const designErrors = [];  // routes the phone pass could not measure
 // WEIGHT (2026-10-02): what a phone downloads to show each route, cold, from this build — script
@@ -195,6 +197,12 @@ try {
   }
   if (bindFailed) { console.log(`UI SMOKE: could not bind ${BASE} — another server has it.`); process.exit(1); }
   if (!up) { console.log("UI SMOKE: server never came up"); process.exit(1); }
+
+  // 0) SEARCH AND SHARING (R42 — the standards' "Search and sharing", lib/seo): what a search engine and a share card
+  //    read of this build, before any script — robots.txt, the sitemap, every public page's head, the pages kept out, the
+  //    API's noindex, the share card, the menu's structured data against its page. scripts/search.read.mjs, the judge
+  //    verify:prod runs against production after a push. No database here: the menu is the code list's, no lesson listed.
+  await judgeSite(BASE, { ok, production: false });
 
   const launchOpts = fs.existsSync(CHROME) ? { executablePath: CHROME } : {};
   const browser = await chromium.launch(launchOpts);

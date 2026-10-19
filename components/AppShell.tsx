@@ -81,10 +81,12 @@ const AppleLink = process.env.NEXT_PUBLIC_GT3_TARGET === "app" ? dynamic(() => i
 // have a visible heading of their own plus the injected one, so assistive tech announced two
 // page titles. Found by counting headings across every route, not by reading one of them.
 const H1_SKIP = new Set(["/", "/truck", "/craft", "/office", "/display", "/events", "/academy", "/crew", "/primal", "/shop", "/playbook", "/privacy", "/terms", "/texts"]);
+// The 3MPIRE is named for what it is, to a guest as to a member (R42 — "Your member profile" told a guest, and search,
+// about a profile they don't have).
 const H1_TITLES: Record<string, string> = {
   menu: "Menu", events: "Events", reserve: "Reserve a pack", book: "Book the bar",
   delivery: "Delivery", scan: "Scan your card", playbook: "Playbook", academy: "Academy",
-  architecture: "Architecture", "3mpire": "Your member profile", crew: "Crew console", driver: "Driver run",
+  architecture: "Architecture", "3mpire": "The 3MPIRE", crew: "Crew console", driver: "Driver run",
 };
 const routeTitle = (p: string): string => (p === "/" ? "GT3 Performance Bar" : H1_TITLES[p.split("/")[1] || ""] || "GT3 Performance Bar");
 
