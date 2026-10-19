@@ -10,13 +10,16 @@
 #                    run (ledger, posture, JSON probes, 23 routes painted at phone width + axe).
 #                    A deploy that never lands, or lands wrong, is a red run — in the inbox, not
 #                    a complaint at the window.
-#   every 30 min   — --quick: health, ledger, posture, probes. No browser. The uptime check this
-#                    app did not have (R-list: "uptime monitor on /api/health"). At :07 and :37,
-#                    not :00 and :30 — GitHub's own docs: "High load times include the start of
-#                    every hour … schedule your workflow to run at a different time of the hour."
-#                    Every run stamps the heartbeat, and heartbeat_watchdog (0340) waits THREE of
-#                    these periods before it calls the check quiet; scripts/smoke.cjs reads this
-#                    schedule and that threshold and fails if the two stop fitting.
+#   every 30 min   — --quick: health, ledger, posture, probes. No browser. At :07 and :37, not :00
+#                    and :30 — GitHub's own docs: "High load times include the start of every hour …
+#                    schedule your workflow to run at a different time of the hour." GitHub runs it
+#                    when it has room, not when it is named: 101 scheduled runs from 2026-10-02 to
+#                    10-19 where this names about 800, the longest gap 5h 45m. So it is not the
+#                    uptime check: an outside monitor is, every few minutes (RELEASE.md, "The
+#                    outside monitor"). Every run stamps the heartbeat, and heartbeat_watchdog
+#                    (0440) waits six hours — longer than any gap GitHub has kept — before it says
+#                    this check stopped; scripts/smoke.cjs reads this schedule and that threshold
+#                    and fails if the two stop fitting.
 #   daily 06:10 UTC — the full run again, because production can drift between deploys
 #                    (a row that changes how a page paints, a policy pasted by hand).
 #

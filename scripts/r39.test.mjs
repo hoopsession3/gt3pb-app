@@ -296,8 +296,11 @@ async function call(route, method, url, { body, token = SAM_TOKEN, headers = {} 
   ok("…and it waits five seconds for a lock, records itself, and says where its changelog is",
     /^set lock_timeout = '5s';$/m.test(m) && /select public\.record_migration\('0439_a_checkouts_key_is_kept_as_long_as_it_can_matter'\);/.test(m) && /^-- changelog: none/m.test(m));
   const paste = read("supabase/APPLY_ALL_PENDING.sql");
-  ok("the paste file holds 0438 and 0439, each its own transaction", /^-- pending-from: 0439$/m.test(paste) && /^-- pending-count: 2$/m.test(paste)
-    && /begin;   -- 0438,/.test(paste) && /begin;   -- 0439,/.test(paste));
+  // Until production's ledger holds them (R41: by its shape, not its count — 0440 rides behind them now).
+  const highest = (await import("node:fs")).readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort().at(-1).slice(0, 4);
+  const sections = (paste.match(/^begin;   -- \d{4},/gm) || []).length;
+  ok("the paste file holds 0438 and 0439, each its own transaction", new RegExp(`^-- pending-from: ${highest}$`, "m").test(paste)
+    && new RegExp(`^-- pending-count: ${sections}$`, "m").test(paste) && /begin;   -- 0438,/.test(paste) && /begin;   -- 0439,/.test(paste));
   const pkg = JSON.parse(read("package.json"));
   ok("this file runs with every test, and 0439's own with the database's", /node scripts\/r38\.test\.mjs && node scripts\/r39\.test\.mjs/.test(pkg.scripts.test)
     && /node scripts\/db\.r37\.test\.mjs && node scripts\/db\.r39\.test\.mjs/.test(pkg.scripts["db:test"]));

@@ -51,6 +51,26 @@ TestFlight takes `main` only, and only a commit CI passed (`.github/workflows/io
 workflow → Upload to TestFlight. The job's summary says which build is which commit; a crash report from a phone carries
 the commit too.
 
+## The outside monitor
+
+Whether the site is up is said from outside it, every few minutes, by an uptime service that emails you itself — so it
+answers when Vercel, Supabase or GitHub can't. GitHub's **Production** workflow is the deep check (the ledger, the push
+function, every route painted); GitHub runs its "half-hourly" schedule every two to six hours, so it is no uptime
+check, and the database's watchdog waits six hours for it before it says it stopped (0440).
+
+Set once (Better Stack's free plan as of 2026-10-19: 10 monitors, 3-minute checks, email and Slack alerts — read its
+terms as you sign up; UptimeRobot's free plan has been for personal, non-commercial use since October 2024):
+
+1. betterstack.com → sign up with the address that should get the alerts → **Uptime** → **Create monitor**.
+2. URL: `https://app.gt3pb.com/api/health`. If it offers a keyword check, alert when the page **doesn't contain**
+   `"ok":true`; otherwise when the URL **becomes unavailable** (the route answers 503 when the database doesn't).
+3. Every 3 minutes; alert by email (and Slack, if you use it). No header or secret: it doesn't need one, and it feeds
+   nothing — the watchdog listens for GitHub's check only.
+4. Optional, the guest's front door: a second monitor on `https://app.gt3pb.com/menu`.
+
+Its email means the site or its database isn't answering: Vercel's status page, then Supabase's, then
+`CONTINUITY_RUNBOOK.md`.
+
 ## What a red Production run means
 
 | Line | Means | Do |

@@ -4133,6 +4133,13 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     { declared: declared && declared[1], used: used && used[1] });
   ok("uptime pair: the watchdog waits at least three of the monitor's periods",
     !!declared && Number.isInteger(N) && Number(declared[1]) >= 3 * N, { threshold: declared && declared[1], period: N });
+  // GitHub keeps its own time, not the schedule's (R41, 0440): 101 scheduled runs from 2026-10-02 to 10-19 where the
+  // schedule names about 800, the longest gap 5h 45m. Three periods was a line that opened most days about a check doing
+  // what GitHub lets it; the site's uptime is an outside monitor's now (RELEASE.md), and this watchdog waits it out.
+  ok("uptime pair: …and at least six hours — longer than any gap GitHub has kept between its scheduled runs (5h 45m)",
+    !!declared && Number(declared[1]) >= 360, { threshold: declared && declared[1] });
+  ok("uptime pair: …and the site's own uptime has a watcher outside it, written down (RELEASE.md: the outside monitor)",
+    /## The outside monitor/.test(read("RELEASE.md")) && /https:\/\/app\.gt3pb\.com\/api\/health/.test(read("RELEASE.md")));
   ok("uptime pair: the quick check is off the top of the hour (GitHub's busiest minute)",
     !!quick && !startsAtTopOfHour(quick[1]), quick && quick[1]);
   ok("uptime pair: the step that picks the quick form compares against the schedule that exists",
