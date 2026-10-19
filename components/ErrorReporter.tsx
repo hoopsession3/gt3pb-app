@@ -34,7 +34,9 @@ export function reportClientError(input: { message?: string; stack?: string; fat
       message,
       stack: (input.stack ?? "").slice(0, 1500),
       url: shareableUrl(window.location).slice(0, 300),
-      ua: navigator.userAgent.slice(0, 200),
+      // In the iPhone app, the commit its build is first (R40 — OPS11-12: ios.yml carries it in), so a crash from a phone
+      // names the code it ran; the web's own build is /api/health's to say.
+      ua: `${APP_BUILD && process.env.NEXT_PUBLIC_BUILD_COMMIT ? `app ${process.env.NEXT_PUBLIC_BUILD_COMMIT.slice(0, 7)} · ` : ""}${navigator.userAgent}`.slice(0, 200),
       fatal: input.fatal === true,
       skew: input.skew === true,
       ...(input.failure ? { failure: true } : {}),   // its own share at the server too (lib/errorIntake, R18 review)

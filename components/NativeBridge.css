@@ -52,10 +52,4 @@ html[data-kb="up"] :is(.rail,.fab-dock){visibility:hidden}
 html[data-native] :is(a,img){-webkit-touch-callout:none}
 html[data-native] :is(.nav,button,[role="tab"],[role="button"]){-webkit-user-select:none;user-select:none}
 
-/* A BROADCAST BANNER is the first thing under the status bar: it takes the inset itself (.bcast in
-   app/globals.css), so the screen beneath it stops padding for the status bar a second time (2026-10-08).
-   So does the place held for it before it is read (R38 — lib/holds): that place is the bar's own height, status bar
-   included, and the screen under it is already where it will be. */
-:is(.app:has(>.bcast),html[data-hold-bcast] .app:has(>.hold-slot[data-hold="bcast"])) :is(.screen,.bookwrap){padding-top:6px}
-:is(.app:has(>.bcast),html[data-hold-bcast] .app:has(>.hold-slot[data-hold="bcast"])) .auth{padding-top:40px}
-:is(.app:has(>.bcast),html[data-hold-bcast] .app:has(>.hold-slot[data-hold="bcast"])) :is(.menu-chips,.cal-sticky){top:0}
+/* The broadcast banner's rules are app/tailwind.css's (R40): this stylesheet comes with the bridge, after the first paint. */

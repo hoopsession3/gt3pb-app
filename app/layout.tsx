@@ -55,7 +55,9 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    // data-build="app" (R40): the iPhone app's build, in its HTML — so a rule only the app needs is in force at the first
+    // paint (app/tailwind.css, the broadcast banner's), not when the bridge's stylesheet arrives after it.
+    <html lang="en" data-build={APP_BUILD ? "app" : undefined}>
       <head>
         {/* The iPhone app's security policy (next.config.ts: an export has no server to send one). */}
         {APP_BUILD && process.env.NEXT_PUBLIC_GT3_APP_CSP ? <meta httpEquiv="Content-Security-Policy" content={process.env.NEXT_PUBLIC_GT3_APP_CSP} /> : null}

@@ -48,7 +48,10 @@ jobs:
     # installs system libraries by distro version: a silent OS change under the gate is how it goes red
     # for a reason no commit made. Move to 26.04 on purpose, in its own change, with Playwright alongside.
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # 40, not 30 (R40 — the fresh audit's OPS11-07): the whole gate took 20m 45s, 20m 57s and 21m 20s on main's last full
+    # runs (R32, R33, R29), and every round adds to it — a third more on a slower runner and a green tree would be cut off
+    # as a red one. A run that hangs still ends; one that is only slow is let finish.
+    timeout-minutes: 40
     steps:
       # Every action by the commit it is, not by a tag (R30 — the 10/10 audit, operations F21, security F14): a tag is a
       # pointer its owner — or whoever takes their account — can move to other code, and the job runs whatever it points
@@ -68,12 +71,10 @@ jobs:
       - name: Install Chromium for the UI smoke
         run: npx playwright install --with-deps chromium
 
-      # Separate from verify because `npm run lint` exits 1 while any lint debt is left, so it cannot be a pass/fail step
-      # as it stands. scripts/lint.ratchet.mjs holds it instead: errors and warnings each have a ceiling that may fall and
-      # may not rise (two since R14 — one total let a new error ride in on a fixed warning), and the rules whose every
-      # hit is a bug are held at zero.
-      - name: Lint ratchet
-        run: node scripts/lint.ratchet.mjs
+      # THE LINT RATCHET IS IN THE GATE NOW (R40 — the fresh audit's OPS11-05). It ran here, beside verify, so the owner's
+      # `npm run verify` before a push never ran it: a hook under a condition went green there and red here half an hour
+      # after the deploy. It is the first audit in `npm run audit` (scripts/lint.ratchet.mjs, its report handed to
+      # render.audit — one eslint pass), so both gates run it, by the one definition.
 
       # THE WHOLE GATE, BY ITS OWN NAME. Do not expand this into separate steps: a copied list is a
       # second definition of "verified" and it will drift from package.json the first time either
@@ -87,7 +88,7 @@ jobs:
       # could only say NOT CHECKED — while `npm ci`'s lifecycle scripts and the browser install could read a staff
       # account's password. smoke:authed says NOT CHECKED here, and opens the console signed in for real in the
       # Production workflow, against the deployed site, after each deploy and daily.
-      - name: verify (test && audit && build && smoke:ui && smoke:authed && build:app && smoke:native)
+      - name: verify (test && audit — the lint ratchet and the secrets audit among them — && build && smoke:ui && smoke:authed && build:app && smoke:native)
         run: npm run verify
 
   # WHAT SHIPS CARRIES NO PUBLISHED ADVISORY OF NOTE (R30 — the 10/10 audit, operations F24). npm's advisory database,

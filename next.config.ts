@@ -116,7 +116,9 @@ const appCsp = csp
 const appConfig: NextConfig = {
   output: "export",
   images: { unoptimized: true },
-  env: { NEXT_PUBLIC_GT3_APP_CSP: appCsp },
+  // The commit the iPhone build is (R40 — OPS11-12): ios.yml sets GT3_BUILD_COMMIT to the commit it archives; a crash
+  // report from a phone carries it (components/ErrorReporter). Empty in a build made anywhere else.
+  env: { NEXT_PUBLIC_GT3_APP_CSP: appCsp, NEXT_PUBLIC_BUILD_COMMIT: (process.env.GT3_BUILD_COMMIT ?? "").slice(0, 40) },
 };
 
 export default process.env.NEXT_PUBLIC_GT3_TARGET === "app" ? appConfig : nextConfig;

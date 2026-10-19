@@ -298,12 +298,20 @@ try {
     await page.waitForTimeout(2500);   // let the panels' own reads land
 
     const text = await page.evaluate(() => document.body.innerText).catch(() => "");
+    // THE CONSOLE ITSELF, SEEN (R40 — the fresh audit's OPS11-09). Not the wall was not in: with "require two-step" on, every
+    // section draws the two-step prompt ("Set up two-step sign-in", "Your two-step code") — or, while it checks, an empty
+    // "Opening the console…" — and sixty asserts went green about a page that read nothing. Now the console's own frame and
+    // header must be on the screen (app/crew/page.tsx: section.screen.admin, its .op-head and title), or it is the wall.
+    const drawn = await page.evaluate(() => !!document.querySelector("section.screen.admin .op-head .op-head-t")).catch(() => false);
+    const prompt = /Set up two-step sign-in|Your two-step code|Opening the console/i.test(text.slice(0, 600));
 
     // Did we actually get IN? A harness that silently tests the sign-in wall for all 14 sections
     // reports 14 clean passes and has checked nothing — the exact shape of failure this file
     // exists to end.
-    const walled = /Sign in|Staff only|Crew only|Owners only/i.test(text.slice(0, 400));
+    const walled = !drawn || prompt || /Sign in|Staff only|Crew only|Owners only/i.test(text.slice(0, 400));
     ok(`${section} · signed in (not the wall)`, !walled, walled ? text.slice(0, 90).replace(/\s+/g, " ") : undefined);
+    ok(`${section} · the console is drawn — its own header, not a two-step prompt or an empty "Opening the console…"`, drawn && !prompt,
+      prompt ? "the two-step prompt — this account owes a two-step code (or must set one up), which this harness can't give: keep the account outside the requirement until it can" : !drawn ? "no console header on the screen" : undefined);
 
     ok(`${section} · no failed database or API request`, apiErrors.length === 0, apiErrors.slice(0, 3));
     ok(`${section} · no console error`, consoleErrors.length === 0, consoleErrors.slice(0, 2));

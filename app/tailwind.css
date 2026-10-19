@@ -199,6 +199,16 @@
 .hold-slot{display:contents}
 html[data-hold-bcast] .hold-slot[data-hold="bcast"]:empty{display:block;height:var(--hold-bcast)}
 html[data-hold-rsv] .hold-slot[data-hold="rsv"]:empty{display:block;height:var(--hold-rsv);margin-top:22px}
+/* A BROADCAST BANNER is the first thing under the status bar in the iPhone app: it takes the inset itself (.bcast in
+   app/globals.css), so the screen beneath it stops padding for the status bar a second time (2026-10-08) — and so does
+   the place held for it (R38): that place is the bar's own height, status bar included. HERE, AT THE FIRST PAINT (R40):
+   these were components/NativeBridge.css's, which the app loads with the bridge after its first paint, so a second
+   visit drew the held place and the status bar's padding both until it came, and everything under the banner rose
+   62pt as it landed (the native smoke: one shift of 0.044, over the app's 0.04). html[data-build="app"] is the app's own
+   HTML (app/layout); the web, whose inset is 0, never reads these. */
+html[data-build="app"] :is(.app:has(>.bcast),[data-hold-bcast] .app:has(>.hold-slot[data-hold="bcast"])) :is(.screen,.bookwrap){padding-top:6px}
+html[data-build="app"] :is(.app:has(>.bcast),[data-hold-bcast] .app:has(>.hold-slot[data-hold="bcast"])) .auth{padding-top:40px}
+html[data-build="app"] :is(.app:has(>.bcast),[data-hold-bcast] .app:has(>.hold-slot[data-hold="bcast"])) :is(.menu-chips,.cal-sticky){top:0}
 
 /* The pull's depth is the page's own (R38 — PERF11-15, lib/sheetStage): written on <main> and not inherited, so a finger
    on a sheet restyles the page — not every element under it — on each frame. */

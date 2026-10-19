@@ -64,13 +64,6 @@ jobs:
     steps:
       # Every action by the commit it is, not by a tag that can be moved (R30 — operations F21; see ci.yml).
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      # The Node production runs (R14 — the 10/10 audit, F24): .nvmrc, the same major as package.json's engines, which
-      # Vercel builds and serves with. This said 22 while production ran 24 — the gate checked a different runtime.
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
 
       # Which form this run is. A push waits for its own deploy; the half-hourly schedule is quick;
       # the daily schedule and a manual run are full unless asked otherwise.
@@ -87,6 +80,28 @@ jobs:
           else
             echo "args=" >> "$GITHUB_OUTPUT"; echo "browser=yes" >> "$GITHUB_OUTPUT"
           fi
+
+      # The Node production runs (R14 — the 10/10 audit, F24): .nvmrc, the same major as package.json's engines, which
+      # Vercel builds and serves with. This said 22 while production ran 24 — the gate checked a different runtime.
+      # THE QUICK RUN INSTALLS NOTHING, AND SO CACHES NOTHING (R40 — the fresh audit's OPS11-11). Its half of
+      # scripts/verify.prod.mjs — health, ledger, posture, push, the probes — uses Node's own modules only (the browser and
+      # axe are asked for after the quick run has ended; scripts/r40.test.mjs holds it so), and a full `npm ci` forty-eight
+      # times a day was most of every run's minutes: a private repository's Actions allowance, spent on the uptime check.
+      # Two forms of the one setup step, because setup-node's npm cache on a run that installs nothing is wrong either way:
+      # when the lockfile's cache isn't saved yet (the half hour after a dependency change, before CI's run saves it) its
+      # post step saves the npm cache folder — with none there, it fails the job, a red check for no reason; with one the
+      # runner left, a near-empty cache under the lockfile's key, which CI's runs would restore as a hit and never replace.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.form.outputs.browser == 'yes'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.form.outputs.browser != 'yes'
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+        if: steps.form.outputs.browser == 'yes'
 
       - name: Install Chromium for the painted pass
         if: steps.form.outputs.browser == 'yes'

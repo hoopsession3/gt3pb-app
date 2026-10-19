@@ -19,6 +19,7 @@
 // that silently reports zero problems because eslint crashed is the exact shape of dead check this
 // repo has already found in columns.audit and in my own grep over `npm test`.
 import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 
 // ── THE CEILINGS ──────────────────────────────────────────────────────────────────────────────
 // Measured, not remembered: `npx eslint -f json`, summed. LOWER one when you clean some up; raising one needs a reason in
@@ -129,6 +130,10 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     }
   }
 
+  // ONE ESLINT PASS FOR THE AUDIT (R40 — the fresh audit's OPS11-05): with LINT_OUT, the report eslint gave is kept there
+  // for scripts/render.audit.mjs (LINT_JSON) to read in the same `npm run audit` — the lint ratchet runs in `verify`, as
+  // CI's gate does, without eslint reading the repository twice.
+  if (process.env.LINT_OUT) writeFileSync(process.env.LINT_OUT, out);
   const c = countFrom(out);
   if (c === null) {
     console.log("LINT RATCHET: NOT CHECKED — eslint's JSON output could not be parsed.");

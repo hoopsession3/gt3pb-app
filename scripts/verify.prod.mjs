@@ -46,12 +46,23 @@ const CHROME = [process.env.PW_CHROME, "/opt/pw-browsers/chromium-1194/chrome-li
 
 let pass = 0, fail = 0;
 const ok = (name, cond, detail) => { if (cond) { pass++; console.log(`  ✓ ${name}`); } else { fail++; console.log(`  ✗ ${name}${detail ? ` → ${detail}` : ""}`); } };
+// NO ANSWER IS AN ANSWER THIS NAMES (R40 — the fresh audit's OPS11-13). A refused connection or a timeout threw, at the
+// top level: the run ended in a stack trace — "TimeoutError: The operation was aborted" — never "✗ live: /api/health
+// answers ok", and the checks after it never printed. It answers status 0 with why now, and each check says so.
 const json = async (path, init) => {
-  const res = await fetch(APP + path, { ...init, headers: { "cache-control": "no-cache", ...(init?.headers || {}) }, signal: AbortSignal.timeout(20000) });
+  let res;
+  try {
+    res = await fetch(APP + path, { ...init, headers: { "cache-control": "no-cache", ...(init?.headers || {}) }, signal: AbortSignal.timeout(20000) });
+  } catch (e) {
+    const why = e?.name === "TimeoutError" ? "no answer in 20 s" : `no answer (${String(e?.cause?.code || e?.message || e).slice(0, 80)})`;
+    return { status: 0, type: "", body: null, location: "", allow: "", error: why };
+  }
   const type = res.headers.get("content-type") || "";
   let body = null; try { body = type.includes("json") ? await res.json() : await res.text(); } catch { /* keep null */ }
   return { status: res.status, type, body, location: res.headers.get("location") || "", allow: res.headers.get("access-control-allow-origin") || "" };
 };
+/** What a check says it got: the status, or why there was none. */
+const said = (r) => (r.status ? `HTTP ${r.status}` : r.error || "no answer");
 
 // ── 1. LIVE ─────────────────────────────────────────────────────────────────────────────────────
 console.log(`VERIFY PRODUCTION — ${APP}`);
@@ -73,7 +84,7 @@ if (WAIT > 0 && head) {
   console.log(`  · waited for production to report ${head}: ${same(health.body?.build?.commitShort || "", head) ? "it does" : `still ${health.body?.build?.commitShort || "?"} after ${WAIT}s`}`);
 }
 const built = health.body?.build?.commitShort || "";
-ok(`live: /api/health answers ok`, health.status === 200 && health.body?.ok === true, `HTTP ${health.status}`);
+ok(`live: /api/health answers ok`, health.status === 200 && health.body?.ok === true, said(health));
 // Not taken as the probe: the site's HEALTH_PROBE_SECRET and this check's differ, or the site has one and this check
 // none — either way the watchdog is starving in silence (R19 review). Said plainly — which two to set the same — never as
 // a pass. Judged where it means something (the third pass): a run that sent a secret, and the scheduled check (GitHub
@@ -87,12 +98,20 @@ if (health.status === 200) {
       : "probe: false — the site has HEALTH_PROBE_SECRET and this check sent none: set the repository secret of that name (GitHub first, then Vercel, then redeploy)");
   else console.log("  · probe: the site has HEALTH_PROBE_SECRET and this run sent none — not judged by hand (the scheduled check carries it; set HEALTH_PROBE_SECRET here to judge it)");
 }
+// WHAT "NOT MEASURED" MAY STILL MEAN (R40 — the fresh audit's OPS11-04). The ledger, read once here and again by CURRENT
+// below: a check that says "0430 isn't pasted yet" while the ledger holds 0430 was a hole reopened in silence — /api/health
+// answering cron: null because the database couldn't answer, every half hour, green, for good.
+let ledgerEarly = null;
+try { ledgerEarly = await readLedger([], APP); } catch { /* CURRENT says so, below */ }
+const inLedger = (seq) => !!ledgerEarly && (Array.isArray(ledgerEarly.seqs) ? ledgerEarly.seqs.includes(seq) : Number(ledgerEarly.max_seq ?? 0) >= seq);
 // THE WATCHER, WATCHED (R24 — database F8 and F6, operations F11 and F19). pg_cron runs every scheduled job and cron_watch
 // says one that fails or stops; nothing in the database can say that pg_cron, or cron_watch, stopped — this check, outside it, can.
 if (health.status === 200) {
   const cron = health.body?.cron;
   if (cron === undefined) console.log("  · cron: production's build doesn't say whether the scheduled jobs run (built before R24) — not judged");
-  else if (cron === null) console.log("  · cron: not measured — 0430 isn't pasted yet, or the database didn't answer the question");
+  else if (cron === null && inLedger(430)) ok("live: the scheduled jobs are measured — 0430 is applied, so /api/health says how they run", false,
+    "cron: null — the database didn't answer ops_alive (a grant on cron.job_run_details, a timeout): pg_cron could stop and nothing outside the database would say");
+  else if (cron === null) console.log("  · cron: not measured — 0430 isn't pasted yet (the ledger doesn't hold it)");
   else ok(`live: the scheduled jobs run — cron_watch finished ${cron.watched_min ?? "?"} min ago, and every job the applied migrations made is there and on`,
     cron.ok === true,
     cron.watched_min === null ? "cron_watch has never finished here — pg_cron is off, or the watcher fails every run (Supabase → Integrations → Cron)"
@@ -102,7 +121,9 @@ if (health.status === 200) {
   // never goes, and said nowhere else.
   const hooks = health.body?.hooks;
   if (hooks === undefined) console.log("  · hooks: production's build doesn't say whether the push webhooks are on (built before R24) — not judged");
-  else if (hooks === null) console.log("  · hooks: not measured — 0430 isn't pasted yet, or the database didn't answer the question");
+  else if (hooks === null && inLedger(430)) ok("live: the push webhooks are measured — 0430 is applied, so /api/health says whether they are on", false,
+    "hooks: null — the database didn't answer ops_alive: a push webhook switched off would go unsaid");
+  else if (hooks === null) console.log("  · hooks: not measured — 0430 isn't pasted yet (the ledger doesn't hold it)");
   else ok("live: every push webhook is on its table and switched on — orders, bookings, sign-ups, tasks, go-lives and alerts reach the push function",
     hooks.ok === true, `${hooks.off} push webhook(s) missing or switched off — those pushes don't go (lib/opsWatch PUSH_HOOKS names them; Supabase → Database → Webhooks)`);
 }
@@ -119,7 +140,7 @@ else console.log("  · live: not a git checkout here — the build hash is not c
 try {
   const files = migrationFiles();
   const held = heldMigrations(files);
-  const ledger = await readLedger([], APP);
+  const ledger = ledgerEarly ?? await readLedger([], APP);
   const seqs = Array.isArray(ledger.seqs) ? ledger.seqs : null;
   let verdict = pendingFrom(files, ledger.count, ledger.max_seq, held.map((h) => h.seq), seqs);
   let applied = verdict.heldApplied ?? [];
@@ -148,7 +169,13 @@ try {
   // older snapshot) is not the whole posture unread, and a finding is a finding whatever else the run printed.
   const notChecked = run.status === 0 && /^SECURITY AUDIT: NOT CHECKED/m.test(out);
   const first = out.split("\n").find((l) => l.startsWith("SECURITY AUDIT")) || "SECURITY AUDIT: (no output)";
-  if (notChecked) { console.log(`  · ${first.replace(/^SECURITY AUDIT: /, "posture: ")}`); console.log("    (pull the snapshot — steps in scripts/security.audit.mjs — and re-run; this is not a pass)"); }
+  // UNREAD HAS A DEADLINE (R40 — OPS11-04): the snapshot is re-pulled after each paste. Unread for two days on the daily
+  // full run, it is a failure — 0428's Realtime room policies were live for days and never judged against production.
+  let age = null;
+  try { const at = Date.parse(JSON.parse((await import("node:fs")).readFileSync(new URL("../supabase/schema.security.json", import.meta.url), "utf8")).pulled_at); if (Number.isFinite(at)) age = Math.round((Date.now() - at) / 3600_000); } catch { /* no snapshot: its own line says so */ }
+  if (notChecked && !QUICK && age !== null && age > 48) ok(`posture: the security snapshot covers what production runs — it is ${age} hours old`, false,
+    `${first.replace(/^SECURITY AUDIT: /, "")} — re-pull supabase/schema.security.json (the steps are in scripts/security.audit.mjs) after a paste; two days is the line`);
+  else if (notChecked) { console.log(`  · ${first.replace(/^SECURITY AUDIT: /, "posture: ")}`); console.log("    (pull the snapshot — steps in scripts/security.audit.mjs — and re-run; this is not a pass)"); }
   else ok(`posture: ${run.status === 0 ? "no table the API roles can touch has RLS off; no write policy is `true`; lists at their ceilings" : "the security audit has findings"}`, run.status === 0, out.split("\n").filter((l) => l.includes("✗")).slice(0, 4).join(" | "));
 }
 
@@ -202,7 +229,7 @@ const PROBES = [
 for (const pr of PROBES) {
   const r = await json(pr.p, { method: pr.m, body: pr.body, headers: pr.body ? { "content-type": "application/json" } : {} });
   const jsonOr204 = r.status === 204 || r.type.includes("application/json");
-  ok(`answers: ${pr.m} ${pr.p} → ${r.status}${r.status === 204 ? "" : ", JSON"}`, pr.want.includes(r.status) && jsonOr204, `got ${r.status} ${r.type || "(no content-type)"}`);
+  ok(`answers: ${pr.m} ${pr.p} → ${r.status}${r.status === 204 ? "" : ", JSON"}`, pr.want.includes(r.status) && jsonOr204, `got ${said(r)} ${r.type || "(no content-type)"}`);
 }
 // THE WORKER (public/sw.js): every installed phone runs whatever /sw.js production hands out, and
 // for three weeks that worker served three-week-old pages (THE APP THAT STOPPED UPDATING). The one
@@ -213,7 +240,7 @@ for (const pr of PROBES) {
   const theirs = await json("/sw.js");
   const same = typeof theirs.body === "string" && theirs.body === ours;
   const name = (ours.match(/const CACHE = "([^"]+)";/) || [])[1] || "?";
-  ok(`worker: /sw.js is this tree's worker (${name})`, theirs.status === 200 && same, theirs.status !== 200 ? `HTTP ${theirs.status}` : `production's worker differs from public/sw.js (${(theirs.body || "").length} vs ${ours.length} bytes)`);
+  ok(`worker: /sw.js is this tree's worker (${name})`, theirs.status === 200 && same, theirs.status !== 200 ? said(theirs) : `production's worker differs from public/sw.js (${(theirs.body || "").length} vs ${ours.length} bytes)`);
 }
 // THE FRONT DOOR (proxy.ts): a request to "/" that says it is a guest is sent to /truck before the
 // page is served; a member, or nobody, gets the page. The cookie is the one lib/viewerHint.ts
@@ -221,9 +248,9 @@ for (const pr of PROBES) {
 {
   const door = (cookie) => json("/", { redirect: "manual", headers: cookie ? { cookie } : {} });
   const guest = await door("gt3-viewer=guest"), member = await door("gt3-viewer=member"), nobody = await door(null);
-  ok(`door: GET / as a known guest → ${guest.status} to ${guest.location || "?"}`, guest.status === 307 && /\/truck$/.test(guest.location), `got ${guest.status} ${guest.location}`);
-  ok(`door: GET / as a member → ${member.status}, the page`, member.status === 200, `got ${member.status}`);
-  ok(`door: GET / with no cookie → ${nobody.status}, the page`, nobody.status === 200, `got ${nobody.status}`);
+  ok(`door: GET / as a known guest → ${guest.status} to ${guest.location || "?"}`, guest.status === 307 && /\/truck$/.test(guest.location), `got ${said(guest)} ${guest.location}`);
+  ok(`door: GET / as a member → ${member.status}, the page`, member.status === 200, `got ${said(member)}`);
+  ok(`door: GET / with no cookie → ${nobody.status}, the page`, nobody.status === 200, `got ${said(nobody)}`);
 }
 // THE IPHONE APP'S DOOR (2026-10-06, the iPhone round): the app's pages come from the phone itself
 // (capacitor://localhost), so every API call it makes is cross-origin, and production must say that
@@ -236,7 +263,7 @@ for (const pr of PROBES) {
   const stranger = await ask("GET", "https://example.com"), lookalike = await ask("GET", "capacitor://localhost.example.com");
   ok(`app door: the iPhone app may call the API — preflight ${pre.status} and the answer both allow capacitor://localhost`,
     pre.status < 300 && pre.allow === "capacitor://localhost" && got.allow === "capacitor://localhost" && android.allow === "https://localhost",
-    `preflight ${pre.status} allows "${pre.allow}", GET allows "${got.allow}", https://localhost allows "${android.allow}"`);
+    `preflight ${said(pre)} allows "${pre.allow}", GET allows "${got.allow}", https://localhost allows "${android.allow}"`);
   ok("app door: no other site may — not another origin, not one that starts the same", !stranger.allow && !lookalike.allow, `example.com allowed "${stranger.allow}", the lookalike "${lookalike.allow}"`);
 }
 

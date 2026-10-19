@@ -30,15 +30,18 @@ Kiosk signage (`/display`) is the one intentional exemption (a rotating billboar
 ```bash
 npm install
 npm run dev                # http://localhost:3000
-npm run verify             # the whole gate — CI runs exactly this. Green before any ship.
+npm run release            # the whole gate — verify, then npm's advisories — what CI runs. Green before any ship.
+npm run verify             # the gate without the advisories (CI's verify job)
 npm run smoke:ui           # the browser smoke on its own
 npm test                   # unit + PGlite DB-contract suites
 ```
 
-`npm run verify` is the pre-ship gate: `test && audit && build && smoke:ui && smoke:authed && build:app -- --smoke &&
-smoke:native` (package.json is the one definition; `.github/workflows/ci.yml` runs it by name). It stops at the first
-link that fails and the log names it. Never push red. The lint ratchet (`node scripts/lint.ratchet.mjs`) runs beside it
-in CI. Every setting the app reads is listed in `lib/envSchema.ts`.
+`npm run release` is the pre-ship gate (R40): `verify` — `test && audit && build && smoke:ui && smoke:authed &&
+build:app -- --smoke && smoke:native`, the lint ratchet and the secrets audit among the audits — then `advisories`,
+npm's advisory database asked of what ships. package.json is the one definition; `.github/workflows/ci.yml` runs
+`verify` by name and the advisories as a job beside it, so the owner's gate and CI's are the same two. It stops at the
+first link that fails and the log names it. Never push red. The ship sequence after it is RELEASE.md. Every setting the
+app reads is listed in `lib/envSchema.ts`.
 
 ## Architecture
 

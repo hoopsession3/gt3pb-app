@@ -200,8 +200,12 @@ const age = (id, by) => db.query(`update public.alerts set created_at = created_
   await raise({ severity: "critical", category: "order", kind: "shop_order_new", subject: TASK, title: "New shop order 🧢", body: "loud" });
   const loud = await lines("shop_order_new", TASK);
   const loudOpen = loud.filter((l) => l.ack_at === null);
+  // The quiet line by its id (R40): the two are ordered by created_at, which two raises inside one of PGlite's milliseconds
+  // share — then the order was the ids', and the check read the loud line as the quiet one (scripts/clock.ties).
+  const quietNow = loud.find((l) => l.id === fyiLine.id);
   ok("0372: a louder raise is not folded into a quieter line — the quiet line closes (the mechanism) and the louder one is written",
-    loud.length === 2 && loudOpen.length === 1 && loudOpen[0].severity === "critical" && loud[0].id === fyiLine.id && loud[0].ack_at !== null && loud[0].ack_by === null, loud);
+    loud.length === 2 && loudOpen.length === 1 && loudOpen[0].severity === "critical" && loudOpen[0].id !== fyiLine.id
+      && quietNow?.ack_at != null && quietNow.ack_by === null, loud);
   ok("0372: …carrying the count, and it rings", Number(loudOpen[0].occurrences) === 2 && (await pushesOf(loudOpen[0].id)) === 1);
   await raise({ severity: "fyi", category: "order", kind: "shop_order_new", subject: TASK, title: "New shop order 🧢", body: "quiet again" });
   const after = await open("shop_order_new", TASK);

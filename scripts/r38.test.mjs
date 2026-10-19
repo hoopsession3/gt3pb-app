@@ -281,11 +281,13 @@ function handClock() {
     && /\.drop\{margin-top:22px;/.test(read("app/globals.css")));
   // The screen under the bar — or under the place held for it — doesn't pad for the status bar a second time (the native
   // smoke draws it on an iPhone; these hold every rule that asks).
-  const nb = read("components/NativeBridge.css");
-  const under = ':is(.app:has(>.bcast),html[data-hold-bcast] .app:has(>.hold-slot[data-hold="bcast"]))';
+  // In the stylesheet in force at the first paint, under the app's own build (R40): they were NativeBridge.css's, which the
+  // app loads after its first paint, and a second visit rose 62pt under the bar when it came (scripts/r40.test).
+  const nb = read("components/NativeBridge.css"), tw = read("app/tailwind.css");
+  const under = 'html[data-build="app"] :is(.app:has(>.bcast),[data-hold-bcast] .app:has(>.hold-slot[data-hold="bcast"]))';
   ok("every rule under the bar counts its held place too: the screen, sign-in, the sticky chips; the title bar; both calendars",
-    [" :is(.screen,.bookwrap){padding-top:6px}", " .auth{padding-top:40px}", " :is(.menu-chips,.cal-sticky){top:0}"].every((r) => nb.includes(under + r))
-      && !/^\.app:has\(>\.bcast\)/m.test(nb)
+    [" :is(.screen,.bookwrap){padding-top:6px}", " .auth{padding-top:40px}", " :is(.menu-chips,.cal-sticky){top:0}"].every((r) => tw.includes(under + r))
+      && !/bcast/.test(nb.replace(/\/\*[\s\S]*?\*\//g, ""))
       && read("components/TitleBar.tsx").includes("[.app:has(>.bcast)_&]:pt-0 [html[data-hold-bcast]_.app:has(>.hold-slot[data-hold=bcast])_&]:pt-0")
       && ["components/CompanyCalendar.tsx", "components/BrandCalendar.tsx"].every((f) => read(f).includes("[html[data-hold-bcast]_.app:has(>.hold-slot[data-hold=bcast]):has([data-tbar][data-compact])_&]:top-11!")));
   ok("the layout runs the hold script in the head, beside the viewer's", /<script dangerouslySetInnerHTML=\{\{ __html: HOLD_SCRIPT \}\} \/>/.test(read("app/layout.tsx")));

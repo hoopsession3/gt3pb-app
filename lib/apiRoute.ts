@@ -33,23 +33,32 @@ export function isJsonObject(b: unknown): b is Record<string, unknown> {
 
 type Handler<A extends unknown[]> = (...args: A) => Promise<Response> | Response;
 
+/** The platform's own id for this request (Vercel's x-vercel-id), to find a log line beside the request's own log (R40 —
+ *  the fresh audit's OPS11-10). An id, never a header's content otherwise. */
+function requestIdOf(first: unknown): string | null {
+  const id = first instanceof Request ? first.headers.get("x-vercel-id") : null;
+  return id && /^[A-Za-z0-9:_-]{1,120}$/.test(id) ? id : null;
+}
+
 export function route<A extends unknown[]>(name: string, handler: Handler<A>): (...args: A) => Promise<Response> {
   return async (...args: A) => {
     try {
       return await handler(...args);
     } catch (e: unknown) {
+      const request = requestIdOf(args[0]);
       // A SIGN-IN THE AUTH SERVICE COULDN'T CHECK (R16, lib/signInUnchecked): not this route's fault and not a crash — the
       // caller is told it wasn't checked and nothing was changed (503), the platform's log gets one line, and nothing is
       // filed (an auth blip would file one per door).
       if (isSignInUnchecked(e)) {
-        console.error(`[sign-in-unchecked] ${JSON.stringify({ route: name, message: e.message.slice(0, 200) })}`);
+        console.error(`[sign-in-unchecked] ${JSON.stringify({ route: name, message: e.message.slice(0, 200), ...(request ? { request } : {}) })}`);
         return NextResponse.json({ ok: false, error: SIGN_IN_UNCHECKED_ANY, signInUnchecked: true }, { status: 503 });
       }
       const err = e instanceof Error ? e : new Error(String(e));
       // ONE LINE IN THE PLATFORM'S LOG, FIRST (R10b, 2026-10-16 — the 10/10 audit). The intake writes to the database —
       // so when the database was what failed, the error went nowhere a person could find it. The route, the message and
-      // the top of the stack go to stderr before anything else is tried; no request body, no headers.
-      console.error(`[route-threw] ${JSON.stringify({ route: name, message: err.message.slice(0, 300), at: (err.stack ?? "").split("\n").slice(1, 3).join(" ").trim().slice(0, 300) })}`);
+      // the top of the stack go to stderr before anything else is tried; no request body, no headers — but the platform's
+      // own id for the request (R40), so the line is found beside the request's own log.
+      console.error(`[route-threw] ${JSON.stringify({ route: name, message: err.message.slice(0, 300), at: (err.stack ?? "").split("\n").slice(1, 3).join(" ").trim().slice(0, 300), ...(request ? { request } : {}) })}`);
       // Best-effort, awaited so a serverless instance does not freeze the write mid-flight; the
       // intake itself never rejects.
       await fileError({ message: err.message.slice(0, 400), stack: (err.stack ?? "").slice(0, 1_500), url: `/api/${name}`, ua: "server" });

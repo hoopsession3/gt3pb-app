@@ -24,6 +24,19 @@
 .DS_Store
 *.pem
 
+# keys (R40 — the fresh audit's OPS11-16): the Apple keys and certificates this business handles by hand — the APNs and
+# Sign in with Apple keys, a distribution certificate, a provisioning profile — are never one `git add -A` from main.
+# They belong in GitHub's or Supabase's secrets, or Passwords. scripts/secrets.audit.mjs is the check behind this.
+*.p8
+*.p12
+*.pfx
+*.key
+*.mobileprovision
+AuthKey_*
+
+# the lint ratchet's report for render.audit, made and read within one `npm run audit` (R40)
+/.lint.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*

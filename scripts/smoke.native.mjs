@@ -416,6 +416,13 @@ function shellReport() {
 // app's went to the browser (a saved photo became a page load) or the launch screen's own call landed in a tap's
 // window. On the phone a screen has settled once that step has run; a browser with no phone has nothing to wait for.
 const BRIDGE_UP = () => !window.__native || window.__native.calls.some((c) => c.plugin === "SplashScreen" && c.method === "hide");
+// HOW LONG ANYTHING MAY TAKE TO SHOW (R40): twenty seconds, not five, six or eight. CI's run of R29 on a work branch drew
+// /playbook on the iPhone SE with NativeBridge not yet run at eight — "the app knows it is native", "the launch screen was
+// let go" and "the status bar can be read" all red for a screen still loading its chunks on a busy runner — and R40's own
+// chain, run straight after a build, threw at the Pass on an iPad, whose board hadn't drawn in eight. Every wait here is
+// for something that should appear (a screen, a sheet, a row, a new address), and ends the moment it does: a step that
+// comes at once costs nothing more; only a slow one is given its time, and a missing one is still a ✗.
+const PATIENCE_MS = 20_000;
 
 const SETTLE = async () => {
   await document.fonts?.ready;
@@ -648,7 +655,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 
   // One screen, measured as it opens and again scrolled part way.
   async function measure(page, phone, errors, file) {
-    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "SplashScreen" && c.method === "hide"), null, { timeout: 8000 }).catch(() => {});
+    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "SplashScreen" && c.method === "hide"), null, { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(300);
     await page.evaluate(SETTLE);
     // Handed over as a function, never as source to rebuild in the page: the app's policy has no
@@ -742,7 +749,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       ok(`${phone.name} /menu: a drink to tap`, (await entry.count()) > 0, "no .entry on /menu");
       if (await entry.count()) {
         await entry.click();
-        const opened = await page.waitForSelector('.sheet2[role="dialog"]', { timeout: 5000 }).then(() => true, () => false);
+        const opened = await page.waitForSelector('.sheet2[role="dialog"]', { timeout: PATIENCE_MS }).then(() => true, () => false);
         await page.waitForTimeout(400); await page.evaluate(SETTLE);
         ok(`${phone.name} a drink's sheet: it opens`, opened);
         const under = await page.evaluate(underTheBars, { top: phone.top, bottom: phone.bottom });
@@ -777,7 +784,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       await insetsOn(page, phone.top, phone.bottom);
       const errors = watch(page);
       await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
-      const opened = await page.waitForSelector('.sheet2[role="dialog"]', { timeout: 8000 }).then(() => true, () => false);
+      const opened = await page.waitForSelector('.sheet2[role="dialog"]', { timeout: PATIENCE_MS }).then(() => true, () => false);
       await page.waitForTimeout(400); await page.evaluate(SETTLE);
       ok(`${phone.name} the crew's first-run guide: it opens`, opened);
       const under = await page.evaluate(underTheBars, { top: phone.top, bottom: phone.bottom });
@@ -815,7 +822,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       }
       errors.length = 0;
       await page.goto(`${BASE}/crew?s=money`, { waitUntil: "load" });
-      await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {});
+      await page.waitForFunction(BRIDGE_UP, null, { timeout: PATIENCE_MS }).catch(() => {});
       await page.waitForTimeout(600); await page.evaluate(SETTLE);
       const s = await page.evaluate(shellReport);
       const seen = JSON.stringify(s);
@@ -841,7 +848,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       await insetsOn(page, pad.top, pad.bottom);
       const errors = watch(page);
       await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
-      const opened = await page.waitForSelector('.sheet2[role="dialog"]', { timeout: 8000 }).then(() => true, () => false);
+      const opened = await page.waitForSelector('.sheet2[role="dialog"]', { timeout: PATIENCE_MS }).then(() => true, () => false);
       await page.waitForTimeout(400); await page.evaluate(SETTLE);
       ok(`${pad.name} the crew's first-run guide: it opens`, opened);
       const under = await page.evaluate(underTheBars, { top: pad.top, bottom: pad.bottom });
@@ -858,7 +865,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const page = await ctx.newPage();
     await insetsOn(page, MAIN.top, MAIN.bottom);
     const errors = watch(page);
-    const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {}); };
+    const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); await page.waitForFunction(BRIDGE_UP, null, { timeout: PATIENCE_MS }).catch(() => {}); };
 
     // 2 · a reload stays put — on the deepest screens a person reloads
     for (const path of ["/crew", "/menu", "/primal/lesson"]) {
@@ -878,7 +885,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     for (const href of ["/truck", "/shop"]) {
       const link = page.locator(`nav a[href="${href}"]`).first();
       if (!(await link.count())) continue;
-      await link.click(); await page.waitForURL(`**${href}`, { timeout: 8000 }).catch(() => {}); await settle();
+      await link.click(); await page.waitForURL(`**${href}`, { timeout: PATIENCE_MS }).catch(() => {}); await settle();
       if (new URL(page.url()).pathname === href) moved++;
     }
     const docLoads = srv.log.filter((l) => l.file.endsWith(".html")).length - before;
@@ -999,7 +1006,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 
     // offline: the banner says so below the status bar, on its own ground under it
     await ctx.setOffline(true);
-    const offline = await page.waitForSelector(".offline-bar", { timeout: 5000 }).then(() => true, () => false);
+    const offline = await page.waitForSelector(".offline-bar", { timeout: PATIENCE_MS }).then(() => true, () => false);
     await page.waitForTimeout(300);
     const offlineUnder = await page.evaluate(underTheBars, { top: MAIN.top, bottom: MAIN.bottom });
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "menu--offline") });
@@ -1055,7 +1062,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await insetsOn(page, MAIN.top, MAIN.bottom);
     const errors = watch(page);
     await page.goto(`${BASE}/menu`, { waitUntil: "load" });
-    const shown = await page.waitForSelector(".bcast .bcast-x", { timeout: 8000 }).then(() => true, () => false);
+    const shown = await page.waitForSelector(".bcast .bcast-x", { timeout: PATIENCE_MS }).then(() => true, () => false);
     await page.waitForTimeout(400); await page.evaluate(SETTLE);
     const m = await page.evaluate(() => {
       const r = (sel) => { const el = document.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, height: b.height }; };
@@ -1086,14 +1093,29 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shift += e.value; }).observe({ type: "layout-shift", buffered: true }); } catch { /* no observer */ }
       document.addEventListener("DOMContentLoaded", () => { window.__heldAtStart = document.documentElement.hasAttribute("data-hold-bcast"); }, { once: true });
     });
+    // THE BRIDGE'S STYLESHEET, HELD BACK (R40). It comes with components/NativeBridge, after the first paint, and in R38's
+    // and R39's runs it came before the screen and the bar; in R40's it came after them, and everything under the bar
+    // rose 62pt when it did — a rule the hold needed was in it. Held back a second and a half here, every run is the
+    // late one: a rule the first paint needs that only it brings moves the page, every time.
+    await page.route(/\/_next\/static\/.+\.css(\?.*)?$/, async (route) => {
+      const res = await route.fetch();
+      const body = await res.text();
+      if (body.includes(".native-bar{")) await new Promise((r) => setTimeout(r, 1500));
+      await route.fulfill({ response: res, body });
+    });
     await page.reload({ waitUntil: "load" });
-    const again = await page.waitForSelector(".bcast .bcast-x", { timeout: 8000 }).then(() => true, () => false);
+    const again = await page.waitForSelector(".bcast .bcast-x", { timeout: PATIENCE_MS }).then(() => true, () => false);
+    await page.waitForFunction(() => [...document.styleSheets].some((sh) => { try { return [...sh.cssRules].some((r) => r.selectorText === ".native-bar"); } catch { return false; } }), null, { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(600); await page.evaluate(SETTLE);
     const held = await page.evaluate(() => ({ atStart: window.__heldAtStart ?? null, shift: Math.round((window.__shift ?? 0) * 1000) / 1000,
       kept: (() => { try { return JSON.parse(localStorage.getItem("gt3-holds") || "{}").bcast ?? null; } catch { return null; } })(),
-      bar: Math.round(document.querySelector(".bcast")?.getBoundingClientRect().height ?? 0) }));
+      bar: Math.round(document.querySelector(".bcast")?.getBoundingClientRect().height ?? 0),
+      bridgeCss: [...document.styleSheets].some((sh) => { try { return [...sh.cssRules].some((r) => r.selectorText === ".native-bar"); } catch { return false; } }) }));
     ok("bars: a second visit holds the bar's place from the first paint, at the height it was — nothing under it moves as it lands",
       again && held.atStart === true && held.kept !== null && Math.abs(held.kept - held.bar) <= 1 && held.shift < 0.04, JSON.stringify(held));
+    ok("bars: …with the bridge's stylesheet arriving last, as a slow phone has it — nothing the first paint needs comes with it",
+      held.bridgeCss === true && held.shift < 0.01, JSON.stringify(held));
+    await page.unroute(/\/_next\/static\/.+\.css(\?.*)?$/);
     ok("bars: no errors", errors.length === 0, errors.join(" | "));
     await ctx.close();
   }
@@ -1102,7 +1124,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const page = await ctx.newPage();
     await insetsOn(page, MAIN.top, MAIN.bottom);
     await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
-    await page.waitForSelector(".nav.opnav, .opnav", { timeout: 8000 }).catch(() => {});
+    await page.waitForSelector(".nav.opnav, .opnav", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(400); await page.evaluate(SETTLE);
     // The ring joins the page on the first pull (components/PullToRefresh), so its rule is read from a probe.
     const p = await page.evaluate(() => {
@@ -1127,7 +1149,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const errors = watch(page);
     const shown = (sel) => page.evaluate((q) => [...document.querySelectorAll(q)].some((el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== "none" && cs.visibility !== "hidden" && r.width > 0 && r.height > 0; }), sel);
     await page.goto(`${BASE}/`, { waitUntil: "load" });
-    await page.waitForURL("**/menu", { timeout: 8000 }).catch(() => {});
+    await page.waitForURL("**/menu", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(900); await page.evaluate(SETTLE);
     ok("chrome: a guest opening the app lands on the menu", new URL(page.url()).pathname === "/menu", page.url());
     ok("chrome: …with no front-door ad over it", !(await shown(".spl-skip")));
@@ -1143,10 +1165,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     // a tab opens where it was left: the menu scrolled, Shop, then Menu again
     const scrolled = await page.evaluate(() => { const b = document.getElementById("body"); b.scrollTop = 600; return b.scrollTop; });
     await page.waitForTimeout(250);
-    await page.locator('nav a[href="/shop"]').first().click(); await page.waitForURL("**/shop", { timeout: 8000 }).catch(() => {});
+    await page.locator('nav a[href="/shop"]').first().click(); await page.waitForURL("**/shop", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(600);
     const onShop = await page.evaluate(() => document.getElementById("body").scrollTop);
-    await page.locator('nav a[href="/menu"]').first().click(); await page.waitForURL("**/menu", { timeout: 8000 }).catch(() => {});
+    await page.locator('nav a[href="/menu"]').first().click(); await page.waitForURL("**/menu", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(1300);
     const back = await page.evaluate(() => document.getElementById("body").scrollTop);
     ok("chrome: a new tab opens at its top", onShop === 0, `Shop opened at ${onShop}`);
@@ -1160,7 +1182,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await insetsOn(page, MAIN.top, MAIN.bottom);
     const errors = watch(page);
     await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
-    await page.waitForSelector(".opnav", { timeout: 8000 }).catch(() => {});
+    await page.waitForSelector(".opnav", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(500); await page.evaluate(SETTLE);
     const tabs = await page.$$eval('.opnav .tab', (els) => els.filter((e) => e.getBoundingClientRect().width > 0).length);
     ok("chrome: the crew's bar holds an iPhone's five tabs at most — Today, three lanes and More", tabs >= 2 && tabs <= 5, `${tabs} tabs`);
@@ -1209,7 +1231,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await insetsOn(page, MAIN.top, MAIN.bottom);
     const errors = watch(page);
     await page.goto(`${BASE}/crew?s=money`, { waitUntil: "load" });
-    await page.waitForSelector(".op-head-t", { timeout: 8000 }).catch(() => {});
+    await page.waitForSelector(".op-head-t", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(600); await page.evaluate(SETTLE);
     const bar = () => page.evaluate(() => {
       const t = document.querySelector("[data-tbar]"); if (!t) return null;
@@ -1241,7 +1263,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.goto(`${BASE}/menu`, { waitUntil: "load" });
     await page.waitForTimeout(700); await page.evaluate(SETTLE);
     await page.locator('.k-legal a[href="/privacy"]').first().click();
-    await page.waitForURL("**/privacy", { timeout: 8000 }).catch(() => {});
+    await page.waitForURL("**/privacy", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(800);
     const back = await page.locator('[data-tbar] button[aria-label="Back to Menu"]').first().boundingBox().catch(() => null);
     ok("back: a screen reached from the menu carries ‹ Menu at the top left, below the status bar", !!back && back.x <= 12 && back.y >= MAIN.top && back.height >= 44, JSON.stringify(back));
@@ -1250,7 +1272,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: pt(6, 420) });
     for (let i = 1; i <= 10; i++) { await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: pt(6 + i * 22, 422) }); await page.waitForTimeout(18); }
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await page.waitForURL("**/menu", { timeout: 8000 }).catch(() => {});
+    await page.waitForURL("**/menu", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(500);
     ok("back: a swipe from the left edge goes back to the menu, in the app", new URL(page.url()).pathname === "/menu", page.url());
     ok("back: no errors", errors.length === 0, errors.join(" | "));
@@ -1306,7 +1328,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const cdp = await insetsOn(page, MAIN.top, MAIN.bottom);
     const errors = watch(page);
     await page.goto(`${BASE}/crew?s=money`, { waitUntil: "load" });
-    await page.waitForSelector(".op-head-t", { timeout: 8000 }).catch(() => {});
+    await page.waitForSelector(".op-head-t", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(600); await page.evaluate(SETTLE);
     await page.locator('.toprow-actions button[aria-label^="Inbox"]').first().click().catch(() => {});
     await page.waitForTimeout(800);
@@ -1364,7 +1386,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const cdp = await insetsOn(page, MAIN.top, MAIN.bottom);
     const errors = watch(page);
     await page.goto(`${BASE}/crew?s=now&a=kitchen-pass`, { waitUntil: "load" });
-    await page.waitForSelector(".svc-full .adm-order", { timeout: 8000 }).catch(() => {});
+    await page.waitForSelector(".svc-full .adm-order", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(700); await page.evaluate(SETTLE);
     const ticket = await page.evaluate(() => {
       const o = document.querySelector(".svc-full .adm-order"); if (!o) return null;
@@ -1434,7 +1456,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       if (!device.desktop) await insetsOn(page, device.top, device.bottom);
       const errors = watch(page);
       await page.goto(`${BASE}/crew?s=now&a=kitchen-pass`, { waitUntil: "load" });
-      await page.waitForSelector(".svc-full .adm-order", { timeout: 8000 }).catch(() => {});
+      await page.waitForSelector(".svc-full .adm-order", { timeout: PATIENCE_MS }).catch(() => {});
       await page.waitForTimeout(700); await page.evaluate(SETTLE);
       return { ctx, page, errors };
     };
@@ -1446,13 +1468,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         const q = (sel) => document.querySelector(sel);
         const lanes = [...document.querySelectorAll(".svc-full .pass-lane")].map((l) => {
           const r = l.getBoundingClientRect();
-          return { lane: l.getAttribute("data-lane"), x: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), scroll: getComputedStyle(l.querySelector(".pass-list")).overflowY };
+          const list = l.querySelector(".pass-list");
+          return { lane: l.getAttribute("data-lane"), x: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), scroll: list ? getComputedStyle(list).overflowY : null };
         });
         const rail = q(".svc-full .pass-rail"), frame = q(".svc-full"), door = q(".svc-full .svc-bar .pass-narrow");
         const px = (sel) => (q(sel) ? parseFloat(getComputedStyle(q(sel)).fontSize) : 0);
         return {
           lanes, railX: rail ? Math.round(rail.getBoundingClientRect().left) : null, railScroll: rail ? getComputedStyle(rail).overflowY : null,
-          pageScrolls: frame.scrollHeight > frame.clientHeight + 1, door: door ? getComputedStyle(door).display : null,
+          pageScrolls: frame ? frame.scrollHeight > frame.clientHeight + 1 : null, door: door ? getComputedStyle(door).display : null,
           no: px(".svc-full .pass-no"), name: px(".svc-full .adm-order-top b"), items: px(".svc-full .adm-items"), age: px(".svc-full .adm-age"),
           perLine: [...(q(`.svc-full [data-ticket] .adm-items`)?.querySelectorAll(".pass-item") ?? [])].map((i) => getComputedStyle(i).display),
         };
@@ -1461,7 +1484,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         wide.lanes.map((l) => l.lane).join() === "new,preparing,ready" && wide.lanes.every((l, i, a) => i === 0 || (l.x >= a[i - 1].right && Math.abs(l.top - a[0].top) <= 1))
         && wide.lanes.every((l) => l.scroll === "auto"), JSON.stringify(wide.lanes));
       ok("…the rail beside the lanes, scrolling on its own, and the board does not scroll as a page",
-        wide.railX !== null && wide.railX >= Math.max(...wide.lanes.map((l) => l.right)) && wide.railScroll === "auto" && !wide.pageScrolls, JSON.stringify(wide));
+        wide.railX !== null && wide.railX >= Math.max(...wide.lanes.map((l) => l.right)) && wide.railScroll === "auto" && wide.pageScrolls === false, JSON.stringify(wide));
       ok("…no 86 door in the bar: the rail is on screen", wide.door === "none", wide.door);
       ok("…at arm's length: the number 28, the name 20, the drinks 17 — a line each", wide.no >= 28 && wide.name >= 20 && wide.items >= 17 && wide.age >= 17
         && wide.perLine.length === 2 && wide.perLine.every((d) => d === "block"), JSON.stringify(wide));
@@ -1842,7 +1865,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("fields: the sign-in wall's fields draw 16px words — an iPhone zooms into a smaller one when it is tapped", wall.length > 0 && wall.every((f) => f.fs >= 16), JSON.stringify(wall));
     await page.goto(`${BASE}/truck`, { waitUntil: "load" });
     await page.waitForTimeout(900); await page.evaluate(SETTLE);
-    await page.locator('button[aria-label^="Ask us"]').first().click({ timeout: 5000 }).catch(() => {});
+    await page.locator('button[aria-label^="Ask us"]').first().click({ timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(900); await page.evaluate(SETTLE);
     const conc = await page.evaluate(() => { const e = document.querySelector(".conc-in"); if (!e) return null; const cs = getComputedStyle(e); return { fs: cs.fontSize, rad: cs.borderRadius, h: Math.round(e.getBoundingClientRect().height) }; });
     ok("fields: the concierge's composer is round beside its round send, at 16px (the base field had drawn its 9px box over it)", !!conc && conc.fs === "16px" && parseFloat(conc.rad) >= 22 && conc.h >= 44, JSON.stringify(conc));
@@ -1876,7 +1899,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("fields: the emailed code reads in 22px mono digits", spec.code.fs === "22px" && /DM Mono/.test(spec.code.ff), JSON.stringify(spec.code));
     ok("switch: the kit's switch is 51×31 with a 27pt knob, 44 to the thumb; on, the knob rides right on the kit's gold",
       spec.off.w === 51 && spec.off.h === 31 && spec.off.knob === 27 && spec.off.reach >= 44 && spec.off.knobAt === 2 && spec.on.knobAt === 22 && spec.on.bg === hex(spec.gold2), JSON.stringify({ off: spec.off, on: spec.on }));
-    await cp.locator('button:has-text("New note")').first().click({ timeout: 5000 }).catch(() => {});
+    await cp.locator('button:has-text("New note")').first().click({ timeout: PATIENCE_MS }).catch(() => {});
     await cp.waitForTimeout(900); await cp.evaluate(SETTLE);
     const note = await fieldsOn(cp);
     const title = note.find((f) => /note-lux-title/.test(f.c));
@@ -1903,9 +1926,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   // The code's step, as a person meets it: the field, the words that the code went, then the code and the red words.
   // `before` is asked once the step is up, before the code is typed (what the page has done by then).
   const enterDeleteCode = async (page, before = () => {}) => {
-    const asked = await page.waitForSelector("#del-code", { timeout: 8000 }).then(() => true, () => false);
+    const asked = await page.waitForSelector("#del-code", { timeout: PATIENCE_MS }).then(() => true, () => false);
     if (!asked) return false;
-    await page.waitForFunction(() => /We sent an 8-digit code/.test(document.body.innerText), null, { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => /We sent an 8-digit code/.test(document.body.innerText), null, { timeout: PATIENCE_MS }).catch(() => {});
     await before();
     await page.fill("#del-code", "12345678").catch(() => {});
     await page.locator("form", { has: page.locator("#del-code") }).getByRole("button", { name: "Delete my account" }).click().catch(() => {});
@@ -1932,11 +1955,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const hasPill = (await pill.count()) > 0;
     if (hasPill) await pill.click();
     const settings = page.getByRole("button", { name: /^Settings & privacy/ }).first();
-    if (await settings.waitFor({ timeout: 5000 }).then(() => true, () => false)) await settings.click();
+    if (await settings.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false)) await settings.click();
     const row = page.getByRole("button", { name: /^Delete account/ }).first();
-    const hasRow = await row.waitFor({ timeout: 5000 }).then(() => true, () => false);
+    const hasRow = await row.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false);
     if (hasRow) await row.click();
-    const said = await page.waitForSelector("text=This deletes your GT3 account for good", { timeout: 8000 }).then(() => true, () => false);
+    const said = await page.waitForSelector("text=This deletes your GT3 account for good", { timeout: PATIENCE_MS }).then(() => true, () => false);
     await page.waitForTimeout(300);
     const under = await page.evaluate(underTheBars, { top: MAIN.top, bottom: MAIN.bottom });
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete") });
@@ -1955,7 +1978,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     ok("delete account: the red button emails a code first — to the account's own email, never making an account — and asks nothing of the web's API until it is entered",
       coded && code.otp?.email === OWNER.email && code.otp?.create_user === false && postedEarly === false, JSON.stringify({ otp: code.otp, postedEarly }));
     ok("delete account: the code's step has the caret in the code field (its words read with it)", focusedCode === "del-code", String(focusedCode));
-    await page.waitForURL((u) => ["/", "/menu"].includes(new URL(u).pathname), { timeout: 8000 }).catch(() => {});
+    await page.waitForURL((u) => ["/", "/menu"].includes(new URL(u).pathname), { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(500);
     const after = await page.evaluate((key) => ({ path: location.pathname, session: localStorage.getItem(key), told: document.body.innerText.includes("Your account is deleted.") }),
       `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
@@ -1979,7 +2002,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await mp.goto(`${BASE}/book`, { waitUntil: "load" });
     await mp.waitForTimeout(900); await mp.evaluate(SETTLE);
     await mp.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
-    await mp.getByRole("button", { name: /^Settings & privacy/ }).first().waitFor({ timeout: 6000 }).catch(() => {});
+    await mp.getByRole("button", { name: /^Settings & privacy/ }).first().waitFor({ timeout: PATIENCE_MS }).catch(() => {});
     await mp.waitForTimeout(900);
     const mfit = await mp.evaluate(() => {
       const sheet = [...document.querySelectorAll(".sheet2")].pop();
@@ -2001,7 +2024,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.waitForTimeout(900); await page.evaluate(SETTLE);
     await page.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
     const crew = page.getByRole("radio", { name: "Crew" }).first();
-    const hasSwitch = await crew.waitFor({ timeout: 6000 }).then(() => true, () => false);
+    const hasSwitch = await crew.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false);
     await page.waitForTimeout(700);
     // The owner's is the longest menu there is — the switch and the Owner group on top of a member's: on an iPhone SE it
     // scrolls, and Sign out is at the end of it.
@@ -2019,7 +2042,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       fit.tiles === 2 && fit.rows >= 5 && fit.signOutReached, JSON.stringify(fit));
     await page.evaluate(() => { const b = [...document.querySelectorAll(".sheet2")].pop()?.querySelector(".sheet2-body"); if (b) b.scrollTop = 0; });
     if (hasSwitch) await crew.click();
-    await page.waitForURL((u) => new URL(u).pathname === "/crew", { timeout: 8000 }).catch(() => {});
+    await page.waitForURL((u) => new URL(u).pathname === "/crew", { timeout: PATIENCE_MS }).catch(() => {});
     ok("account menu: the switch's Crew takes the owner to the console", new URL(page.url()).pathname === "/crew", page.url());
     ok("account menu: no errors", errors.length === 0, errors.join(" | "));
     await ctx.close();
@@ -2043,13 +2066,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     });
     await page.goto(`${BASE}/3mpire`, { waitUntil: "load" });
     const apple = page.getByRole("button", { name: "Continue with Apple" });
-    const shown = await apple.waitFor({ timeout: 8000 }).then(() => true, () => false);
+    const shown = await apple.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false);
     await page.waitForTimeout(700); await page.evaluate(SETTLE);
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "signin--apple") });
     if (shown) await apple.click();
-    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "GT3Device" && c.method === "signInWithApple"), null, { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "GT3Device" && c.method === "signInWithApple"), null, { timeout: PATIENCE_MS }).catch(() => {});
     const asked = (await nativeCalls(page)).find((c) => c.plugin === "GT3Device" && c.method === "signInWithApple")?.options ?? null;
-    await page.waitForFunction(() => !document.querySelector("#auth-email"), null, { timeout: 8000 }).catch(() => {});
+    await page.waitForFunction(() => !document.querySelector("#auth-email"), null, { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(600);
     const posted = apiCalls.slice(from).some((c) => c.method === "POST" && new URL(c.url).pathname === "/api/auth/apple");
     const signedIn = await page.evaluate((key) => !!localStorage.getItem(key), `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
@@ -2063,7 +2086,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const web = await phoneContext(MAIN, { shell: false });
     const wp = await web.newPage();
     await wp.goto(`${BASE}/3mpire`, { waitUntil: "load" });
-    await wp.waitForSelector("#auth-email", { timeout: 8000 }).catch(() => {});
+    await wp.waitForSelector("#auth-email", { timeout: PATIENCE_MS }).catch(() => {});
     ok("apple: a plain browser has no Apple sheet, so no Apple button", (await wp.locator("#auth-email").count()) === 1 && (await wp.getByRole("button", { name: "Continue with Apple" }).count()) === 0);
     await web.close();
   }
@@ -2107,10 +2130,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       });
       await page.goto(`${BASE}/3mpire`, { waitUntil: "load" });
       const apple = page.getByRole("button", { name: "Continue with Apple" });
-      const shown = await apple.waitFor({ timeout: 8000 }).then(() => true, () => false);
+      const shown = await apple.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false);
       await page.waitForTimeout(700); await page.evaluate(SETTLE);   // the phone's half in (NativeBridge), as 6b waits
       if (shown) await apple.click();
-      const asked = await page.waitForSelector("text=Already a GT3 member?", { timeout: 8000 }).then(() => true, () => false);
+      const asked = await page.waitForSelector("text=Already a GT3 member?", { timeout: PATIENCE_MS }).then(() => true, () => false);
       const nonce = (await nativeCalls(page)).find((c) => c.plugin === "GT3Device" && c.method === "signInWithApple")?.options?.nonce ?? null;
       await page.waitForTimeout(500); await page.evaluate(SETTLE);
       const sessionUser = () => page.evaluate((key) => { try { return JSON.parse(localStorage.getItem(key) ?? "null")?.user?.id ?? null; } catch { return null; } }, `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
@@ -2118,7 +2141,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "apple--already-member") });
         ok("apple link: a first Apple sign-in asks \"Already a GT3 member?\" right away", asked);
         await page.getByRole("button", { name: "I’m new here" }).first().click().catch(() => {});
-        const gone = await page.waitForSelector("text=Already a GT3 member?", { state: "detached", timeout: 5000 }).then(() => true, () => false);
+        const gone = await page.waitForSelector("text=Already a GT3 member?", { state: "detached", timeout: PATIENCE_MS }).then(() => true, () => false);
         ok("apple link: \"I'm new here\" keeps the new account — the sheet goes, no code is sent, the phone stays signed in to it",
           gone && sent.otp === null && (await sessionUser()) === APPLE_ID, JSON.stringify({ gone, otp: sent.otp, user: await sessionUser() }));
         ok("apple link: no errors (new here)", errors.length === 0, errors.join(" | "));
@@ -2129,11 +2152,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       await page.fill("#al-email", "owner@smoke.test").catch(() => {});
       if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "apple--email") });
       await page.getByRole("button", { name: "Email me a code" }).first().click().catch(() => {});
-      const codeShown = await page.waitForSelector("#al-code", { timeout: 6000 }).then(() => true, () => false);
+      const codeShown = await page.waitForSelector("#al-code", { timeout: PATIENCE_MS }).then(() => true, () => false);
       await page.fill("#al-code", "12345678").catch(() => {});
       if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "apple--code") });
       await page.locator("form", { has: page.locator("#al-code") }).getByRole("button", { name: "Link my account" }).click().catch(() => {});
-      const linked = await page.waitForSelector("text=Linked.", { timeout: 8000 }).then(() => true, () => false);
+      const linked = await page.waitForSelector("text=Linked.", { timeout: PATIENCE_MS }).then(() => true, () => false);
       await page.waitForTimeout(300);
       if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "apple--linked") });
       ok("apple link: the email is sent a code for an account that exists — never a new account", codeShown && sent.otp?.email === "owner@smoke.test" && sent.otp?.create_user === false, JSON.stringify(sent.otp));
@@ -2165,13 +2188,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.waitForTimeout(400); await page.evaluate(SETTLE);
     await page.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
     const settings = page.getByRole("button", { name: /^Settings & privacy/ }).first();
-    if (await settings.waitFor({ timeout: 5000 }).then(() => true, () => false)) await settings.click();
+    if (await settings.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false)) await settings.click();
     const row = page.getByRole("button", { name: /^Link Sign in with Apple/ }).first();
-    const hasRow = await row.waitFor({ timeout: 5000 }).then(() => true, () => false);
+    const hasRow = await row.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false);
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--settings-apple") });
     if (hasRow) await row.click();
-    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "GT3Device" && c.method === "signInWithApple"), null, { timeout: 5000 }).catch(() => {});
-    const told = await page.waitForSelector("text=Sign in with Apple is linked", { timeout: 8000 }).then(() => true, () => false);
+    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "GT3Device" && c.method === "signInWithApple"), null, { timeout: PATIENCE_MS }).catch(() => {});
+    const told = await page.waitForSelector("text=Sign in with Apple is linked", { timeout: PATIENCE_MS }).then(() => true, () => false);
     const nonce = (await nativeCalls(page)).find((c) => c.plugin === "GT3Device" && c.method === "signInWithApple")?.options?.nonce ?? null;
     ok("apple link: Settings & privacy offers Link Sign in with Apple to an account signed in with its email", hasRow);
     ok("apple link: it asks Apple's sheet with a fresh nonce and sends that token and nonce to the web's API, then says it is linked",
@@ -2198,20 +2221,20 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.waitForTimeout(400); await page.evaluate(SETTLE);
     await page.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
     const settings = page.getByRole("button", { name: /^Settings & privacy/ }).first();
-    if (await settings.waitFor({ timeout: 5000 }).then(() => true, () => false)) await settings.click();
+    if (await settings.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false)) await settings.click();
     const row = page.getByRole("button", { name: /^Delete account/ }).first();
-    if (await row.waitFor({ timeout: 5000 }).then(() => true, () => false)) await row.click();
-    const office = await page.waitForSelector("text=Acme Dental’s weekly office order is under your name", { timeout: 8000 }).then(() => true, () => false);
+    if (await row.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false)) await row.click();
+    const office = await page.waitForSelector("text=Acme Dental’s weekly office order is under your name", { timeout: PATIENCE_MS }).then(() => true, () => false);
     const cancelled = await page.locator("text=Your membership is cancelled too").count();
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete-office") });
     if (office) await page.getByRole("button", { name: "Delete my account" }).click();
     if (office) await enterDeleteCode(page);
-    const pending = await page.waitForSelector("text=still going through with Square", { timeout: 8000 }).then(() => true, () => false);
+    const pending = await page.waitForSelector("text=still going through with Square", { timeout: PATIENCE_MS }).then(() => true, () => false);
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "account--delete-pending") });
     ok("delete account: a company's weekly office order under their name is said before the red button, and the membership's cancel", office && cancelled === 1);
     ok("delete account: a membership Square hasn't confirmed cancelled is said after — the account is deleted, the crew has it", pending);
     await page.getByRole("button", { name: "Done" }).first().click().catch(() => {});
-    await page.waitForURL((u) => ["/", "/menu"].includes(new URL(u).pathname), { timeout: 8000 }).catch(() => {});
+    await page.waitForURL((u) => ["/", "/menu"].includes(new URL(u).pathname), { timeout: PATIENCE_MS }).catch(() => {});
     ok("delete account: Done takes the signed-out phone home", ["/", "/menu"].includes(new URL(page.url()).pathname), page.url());
     ok("delete account: no errors (said in full)", errors.length === 0, errors.join(" | "));
     await ctx.close();
@@ -2267,7 +2290,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const errors = watch(page);
     const sent = await mfaStandIn(page, withFactor);
     await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
-    const asked = await page.waitForSelector("#ts-code", { timeout: 8000 }).then(() => true, () => false);
+    const asked = await page.waitForSelector("#ts-code", { timeout: PATIENCE_MS }).then(() => true, () => false);
     const drawnFirst = await page.locator("section.screen.admin").count();
     const focused = await page.evaluate(() => document.activeElement?.id ?? null);
     // R29: its title is the theme's ink — dark on the day ground, cream on the night one — never cream on the day ground
@@ -2283,7 +2306,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       asked && drawnFirst === 0 && focused === "ts-code", JSON.stringify({ asked, drawnFirst, focused }));
     await page.fill("#ts-code", "123456").catch(() => {});
     await page.getByRole("button", { name: "Continue" }).click().catch(() => {});
-    const opened = await page.waitForSelector("section.screen.admin", { timeout: 8000 }).then(() => true, () => false);
+    const opened = await page.waitForSelector("section.screen.admin", { timeout: PATIENCE_MS }).then(() => true, () => false);
     const stored = await page.evaluate((key) => { try { return JSON.parse(localStorage.getItem(key) ?? "null")?.access_token ?? null; } catch { return null; } }, `sb-${BACKEND_HOST.split(".")[0]}-auth-token`);
     ok("two-step: the code is checked with the account's authenticator — challenged, then verified with the six digits — and the console opens on a sign-in that gave it",
       opened && sent.challenge === 1 && sent.verify?.factor === FACTOR.id && sent.verify?.code === "123456" && stored === aal2.access_token,
@@ -2300,26 +2323,26 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await mfaStandIn(page2, withFactor);
     const jumpTo = async () => {
       await page2.evaluate(() => window.dispatchEvent(new Event("gt3-open-cmdk")));
-      await page2.waitForSelector("#cmdk-list", { timeout: 5000 }).catch(() => {});
+      await page2.waitForSelector("#cmdk-list", { timeout: PATIENCE_MS }).catch(() => {});
       const offered = await page2.$$eval('#cmdk-list [role="option"] span', (els) => els.map((e) => e.textContent.trim())).catch(() => []);
       await page2.keyboard.press("Escape").catch(() => {});
       await page2.waitForSelector("#cmdk-list", { state: "detached", timeout: 3000 }).catch(() => {});
       return offered;
     };
     await page2.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
-    await page2.waitForSelector("#ts-code", { timeout: 8000 }).catch(() => {});
+    await page2.waitForSelector("#ts-code", { timeout: PATIENCE_MS }).catch(() => {});
     await page2.getByRole("button", { name: /^Not now/ }).click().catch(() => {});
-    const later = await page2.waitForSelector("section.screen.admin", { timeout: 8000 }).then(() => true, () => false);
+    const later = await page2.waitForSelector("section.screen.admin", { timeout: PATIENCE_MS }).then(() => true, () => false);
     const line = await page2.getByText("The owner and admin tools are waiting for your two-step code.").count();
     const waiting = await jumpTo();
     ok("two-step: while the code waits, the app draws the crew's tools — ⌘K offers My Day, and no Money, Catalog, Customers or Team (each would read empty)",
       waiting.includes("My Day") && !["Money", "Catalog", "Customers", "Team"].some((s) => waiting.includes(s)), JSON.stringify(waiting));
     await page2.getByRole("button", { name: "Enter it" }).click().catch(() => {});
-    const again = await page2.waitForSelector("#ts-code", { timeout: 5000 }).then(() => true, () => false);
+    const again = await page2.waitForSelector("#ts-code", { timeout: PATIENCE_MS }).then(() => true, () => false);
     ok("two-step: Not now opens the console with a line that asks again, and Enter it asks again", later && line === 1 && again, JSON.stringify({ later, line, again }));
     await page2.fill("#ts-code", "123456").catch(() => {});
     await page2.getByRole("button", { name: "Continue" }).click().catch(() => {});
-    await page2.waitForSelector("section.screen.admin", { timeout: 8000 }).catch(() => {});
+    await page2.waitForSelector("section.screen.admin", { timeout: PATIENCE_MS }).catch(() => {});
     const given = await jumpTo();
     ok("two-step: …and once it is given, Money and the owner's tools are offered again", given.includes("Money") && given.includes("Team"), JSON.stringify(given));
     ok("two-step: no errors (Not now)", errors2.length === 0, errors2.join(" | "));
@@ -2346,20 +2369,20 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page3.waitForTimeout(400); await page3.evaluate(SETTLE);
     await page3.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
     const settings3 = page3.getByRole("button", { name: /^Settings & privacy/ }).first();
-    if (await settings3.waitFor({ timeout: 5000 }).then(() => true, () => false)) await settings3.click();
+    if (await settings3.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false)) await settings3.click();
     const row = page3.getByRole("button", { name: /^Two-step sign-in/ }).first();
-    const hasRow = await row.waitFor({ timeout: 5000 }).then(() => true, () => false);
+    const hasRow = await row.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false);
     if (hasRow) await row.click();
-    const off = await page3.waitForSelector("text=Two-step sign-in is off.", { timeout: 8000 }).then(() => true, () => false);
+    const off = await page3.waitForSelector("text=Two-step sign-in is off.", { timeout: PATIENCE_MS }).then(() => true, () => false);
     await page3.getByRole("button", { name: "Set up two-step sign-in" }).click().catch(() => {});
-    const qr = await page3.waitForSelector('img[alt="A QR code for your authenticator app"]', { timeout: 8000 }).then(() => true, () => false);
+    const qr = await page3.waitForSelector('img[alt="A QR code for your authenticator app"]', { timeout: PATIENCE_MS }).then(() => true, () => false);
     const key = await page3.getByText("JBSW Y3DP EHPK 3PXP").count();
     const link = await page3.locator('a[href^="otpauth://"]').count();
     if (SHOTS && qr) await page3.screenshot({ path: shotPath(MAIN, "two-step--setup") }).catch(() => {});
     await page3.fill("#ts-code", "654321").catch(() => {});
     await page3.getByRole("button", { name: "Turn it on" }).click().catch(() => {});
     // R37: the ten shown once, before it says it's on — a list with a name, on the phone's own width.
-    const codesShown = await page3.waitForSelector("text=Your recovery codes.", { timeout: 8000 }).then(() => true, () => false);
+    const codesShown = await page3.waitForSelector("text=Your recovery codes.", { timeout: PATIENCE_MS }).then(() => true, () => false);
     const listed = await page3.locator('ol[aria-label="Your ten recovery codes"] li').allTextContents().catch(() => []);
     const sideways = await page3.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     if (SHOTS && codesShown) await page3.screenshot({ path: shotPath(MAIN, "two-step--codes") }).catch(() => {});
@@ -2367,7 +2390,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       codesShown && listed.join() === RECOVERY_TEN.join() && codesAsked.filter((c) => c.method === "POST" && c.bearer).length === 1 && !sideways,
       JSON.stringify({ codesShown, listed: listed.length, codesAsked, sideways }));
     await page3.getByRole("button", { name: /saved them/ }).click().catch(() => {});
-    const on = await page3.waitForSelector("text=Two-step sign-in is on.", { timeout: 8000 }).then(() => true, () => false);
+    const on = await page3.waitForSelector("text=Two-step sign-in is on.", { timeout: PATIENCE_MS }).then(() => true, () => false);
     const tenLeft = await page3.getByText("10 of 10 left — each works once").count();
     if (SHOTS && on) await page3.screenshot({ path: shotPath(MAIN, "two-step--on") }).catch(() => {});
     ok("two-step (R37): …I've saved them, and Settings says it's on, with ten of ten codes left", on && tenLeft === 1, JSON.stringify({ on, tenLeft }));
@@ -2397,14 +2420,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       return route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify({ ok: true, removed: 1, left: 9 }) });
     });
     await page4.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
-    await page4.waitForSelector("#ts-code", { timeout: 8000 }).catch(() => {});
+    await page4.waitForSelector("#ts-code", { timeout: PATIENCE_MS }).catch(() => {});
     await page4.getByRole("button", { name: "Use a recovery code" }).click().catch(() => {});
-    const recoverField = await page4.waitForSelector("#ts-recovery", { timeout: 5000 }).then(() => true, () => false);
+    const recoverField = await page4.waitForSelector("#ts-recovery", { timeout: PATIENCE_MS }).then(() => true, () => false);
     const recoverFocused = await page4.evaluate(() => document.activeElement?.id ?? null);
     if (SHOTS && recoverField) await page4.screenshot({ path: shotPath(MAIN, "two-step--recover") }).catch(() => {});
     await page4.fill("#ts-recovery", "hkmnp 23456").catch(() => {});
     await page4.getByRole("button", { name: "Use this code" }).click().catch(() => {});
-    const offSaid = await page4.waitForSelector("text=Your authenticator is off your account.", { timeout: 8000 }).then(() => true, () => false);
+    const offSaid = await page4.waitForSelector("text=Your authenticator is off your account.", { timeout: PATIENCE_MS }).then(() => true, () => false);
     const offFocused = await page4.evaluate(() => document.activeElement?.textContent ?? null);
     const consoleDrawn = await page4.locator("section.screen.admin").count();
     if (SHOTS && offSaid) await page4.screenshot({ path: shotPath(MAIN, "two-step--recovered") }).catch(() => {});
@@ -2447,8 +2470,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       await insetsOn(page, phone.top, phone.bottom);
       const errors = watch(page);
       await page.goto(`${BASE}/crew?s=money`, { waitUntil: "load" });
-      await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {});
-      await page.waitForSelector("#money-attention .owed-row", { timeout: 10000 }).catch(() => {});
+      await page.waitForFunction(BRIDGE_UP, null, { timeout: PATIENCE_MS }).catch(() => {});
+      await page.waitForSelector("#money-attention .owed-row", { timeout: PATIENCE_MS }).catch(() => {});
       await page.waitForTimeout(400); await page.evaluate(SETTLE);
       const a = await page.evaluate(() => {
         const sec = document.getElementById("money-attention"), perf = document.getElementById("home-numbers");
@@ -2471,7 +2494,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
           && a.head === "1 critical2 urgent2 to do", seen);
       if (phone === MAIN) {
         await page.locator("#money-attention .owed-row", { hasText: "A shop order is waiting on us" }).first().click();
-        await page.waitForSelector("#shoporders.open", { timeout: 8000 }).catch(() => {});
+        await page.waitForSelector("#shoporders.open", { timeout: PATIENCE_MS }).catch(() => {});
         const w = await page.evaluate(() => ({ s: new URLSearchParams(location.search).get("s"), open: !!document.querySelector("#shoporders.open") }));
         ok("money: the waiting order's row opens the shop's queue — in the Catalog now, open", w.s === "catalog" && w.open, JSON.stringify(w));
       }
@@ -2484,8 +2507,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       await insetsOn(page, MAIN.top, MAIN.bottom);
       const errors = watch(page);
       await page.goto(`${BASE}/crew?s=money&a=offers`, { waitUntil: "load" });
-      await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {});
-      await page.waitForSelector("#offers.open", { timeout: 8000 }).catch(() => {});
+      await page.waitForFunction(BRIDGE_UP, null, { timeout: PATIENCE_MS }).catch(() => {});
+      await page.waitForSelector("#offers.open", { timeout: PATIENCE_MS }).catch(() => {});
       const w = await page.evaluate(() => ({ s: new URLSearchParams(location.search).get("s"), open: !!document.querySelector("#offers.open") }));
       ok("money: an old link to a panel that moved, opened as a page (/crew?s=money&a=offers), lands on its new home — Team's offer letters, open", w.s === "team" && w.open, JSON.stringify(w));
       ok("money: no errors (an old link)", errors.length === 0, errors.join(" | "));
@@ -2510,18 +2533,18 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     });
     await page.goto(`${BASE}/crew?s=settings&a=set-notify`, { waitUntil: "load" });
     const turnOn = page.locator("#set-alerts").getByRole("button", { name: "Turn on" });
-    // Fifteen seconds for Settings' own chunk on a loaded machine (R38: eight ran out in the captures' runs).
-    const offered = await turnOn.waitFor({ timeout: 15000 }).then(() => true, () => false);
+    // Settings' own chunk on a loaded machine: eight seconds ran out in R38's captures' runs, and every wait is PATIENCE_MS's now.
+    const offered = await turnOn.waitFor({ timeout: PATIENCE_MS }).then(() => true, () => false);
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "alerts--off") });
     if (offered) await turnOn.click();
-    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "PushNotifications" && c.method === "register"), null, { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => window.__native?.calls.some((c) => c.plugin === "PushNotifications" && c.method === "register"), null, { timeout: PATIENCE_MS }).catch(() => {});
     const TOKEN = "ab".repeat(32);
     await page.evaluate((t) => {
       for (const id of window.__native.listeners["PushNotifications.registration"] ?? []) window.Capacitor.fromNative({ callbackId: id, pluginId: "PushNotifications", methodName: "addListener", success: true, save: true, data: { value: t } });
     }, TOKEN);
     // Until the row says On, up to five seconds (R38): a fixed 900 ms read the row before a loaded machine had drawn it —
     // the captures' runs failed here twice with the phone registered and its token kept.
-    await page.waitForFunction(() => /\bOn\b/.test(document.getElementById("set-alerts")?.innerText || ""), null, { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => /\bOn\b/.test(document.getElementById("set-alerts")?.innerText || ""), null, { timeout: PATIENCE_MS }).catch(() => {});
     const row = await page.evaluate(() => (document.getElementById("set-alerts")?.innerText || "").replace(/\s+/g, " "));
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, "alerts--on") });
     const calls = await nativeCalls(page);
@@ -2533,7 +2556,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await page.evaluate(() => {
       for (const id of window.__native.listeners["PushNotifications.pushNotificationActionPerformed"] ?? []) window.Capacitor.fromNative({ callbackId: id, pluginId: "PushNotifications", methodName: "addListener", success: true, save: true, data: { actionId: "tap", notification: { data: { url: "/admin?s=money" } } } });
     });
-    await page.waitForURL(/\/crew\?s=money/, { timeout: 6000 }).catch(() => {});
+    await page.waitForURL(/\/crew\?s=money/, { timeout: PATIENCE_MS }).catch(() => {});
     ok("alerts: a tapped alert opens the screen it is about — /admin read as /crew", /\/crew\?s=money/.test(page.url()), page.url());
     ok("alerts: no errors", errors.length === 0, errors.join(" | "));
     await ctx.close();
@@ -2577,7 +2600,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       const page = await ctx.newPage();
       await insetsOn(page, MAIN.top, MAIN.bottom);
       const errors = watch(page);
-      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {}); };
+      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); await page.waitForFunction(BRIDGE_UP, null, { timeout: PATIENCE_MS }).catch(() => {}); };
       // What the page asked of the phone while `fn` ran (the haptic engine aside).
       const asked = async (fn, wait = 1200) => {
         const n = (await nativeCalls(page)).length;
@@ -2594,7 +2617,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       else {
         await health.click();
         const exportCsv = page.locator("#set-errors button", { hasText: "Export CSV" });
-        await exportCsv.waitFor({ timeout: 8000 }).catch(() => {});
+        await exportCsv.waitFor({ timeout: PATIENCE_MS }).catch(() => {});
         const here = page.url();
         const got = await asked(() => exportCsv.click());
         const keep = got.find((c) => c.plugin === "GT3Device" && c.method === "keepFile");
@@ -2610,7 +2633,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       // the invite link
       await page.goto(`${BASE}/3mpire`, { waitUntil: "load" }); await settle();
       const invite = page.locator(".referral button.btn-pri");
-      await invite.waitFor({ timeout: 8000 }).catch(() => {});
+      await invite.waitFor({ timeout: PATIENCE_MS }).catch(() => {});
       if (!(await invite.count())) ok("device: /3mpire has the invite link's Share", false, "no Share in .referral");
       else {
         const got = await asked(() => invite.click());
@@ -2626,13 +2649,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         await avatar.click();
         // Show card opens the scannable card; the status card — photo and finish — is its "Show off your status" (A2).
         const cardTile = page.locator("button", { hasText: "Show card" }).first();
-        await cardTile.waitFor({ timeout: 5000 }).catch(() => {});
+        await cardTile.waitFor({ timeout: PATIENCE_MS }).catch(() => {});
         await cardTile.click().catch(() => {});
         const flex = page.locator(".sheet2 .mp-flex").first();
-        await flex.waitFor({ timeout: 5000 }).catch(() => {});
+        await flex.waitFor({ timeout: PATIENCE_MS }).catch(() => {});
         await flex.click().catch(() => {});
         const shareCard = page.locator(".status-lux button.btn-pri");
-        const ready = await page.waitForFunction(() => { const b = document.querySelector(".status-lux button.btn-pri"); return !!b && !b.disabled; }, null, { timeout: 15000 }).then(() => true, () => false);
+        const ready = await page.waitForFunction(() => { const b = document.querySelector(".status-lux button.btn-pri"); return !!b && !b.disabled; }, null, { timeout: PATIENCE_MS }).then(() => true, () => false);
         ok("device: the member card draws, and its Share is ready", ready);
         if (ready) {
           const got = await asked(() => shareCard.click(), 2500);
@@ -2650,7 +2673,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       // Add to calendar, on an event on Find Us
       await page.goto(`${BASE}/truck`, { waitUntil: "load" }); await settle();
       const eventRow = page.locator('[aria-label="Night Run — details"]').first();
-      await eventRow.waitFor({ timeout: 8000 }).catch(() => {});
+      await eventRow.waitFor({ timeout: PATIENCE_MS }).catch(() => {});
       if (!(await eventRow.count())) ok("device: Find Us shows the seeded event", false, "no Night Run row on /truck");
       else {
         await eventRow.click();
@@ -2669,12 +2692,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       // Print, on an offer letter
       await page.goto(`${BASE}/offer`, { waitUntil: "load" }); await settle();
       const letter = page.locator("button.cp-go").first();
-      await letter.waitFor({ timeout: 8000 }).catch(() => {});
+      await letter.waitFor({ timeout: PATIENCE_MS }).catch(() => {});
       if (!(await letter.count())) ok("device: /offer shows the seeded offer", false, "no button.cp-go on /offer");
       else {
         await letter.click();
         const print = page.locator(".ofl-bar button", { hasText: "Print / Save PDF" });
-        await print.waitFor({ timeout: 5000 }).catch(() => {});
+        await print.waitFor({ timeout: PATIENCE_MS }).catch(() => {});
         const got = await asked(() => print.click());
         const printing = await page.evaluate(() => document.body.classList.contains("printing-offer"));
         ok("device: Print opens the phone's print panel, on the letter alone (its print styles on)",
@@ -2706,9 +2729,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       const ctx = await phoneContext(MAIN, { owner: true, seed, shell: false });
       const page = await ctx.newPage();
       const errors = watch(page);
-      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); await page.waitForFunction(BRIDGE_UP, null, { timeout: 8000 }).catch(() => {}); };
+      const settle = async () => { await page.waitForTimeout(400); await page.evaluate(SETTLE); await page.waitForFunction(BRIDGE_UP, null, { timeout: PATIENCE_MS }).catch(() => {}); };
       const download = async (fn) => {
-        const got = page.waitForEvent("download", { timeout: 8000 }).catch(() => null);
+        const got = page.waitForEvent("download", { timeout: PATIENCE_MS }).catch(() => null);
         await fn();
         const d = await got;
         if (!d) return null;
@@ -2718,7 +2741,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       await page.goto(`${BASE}/crew?s=settings`, { waitUntil: "load" }); await settle();
       await page.locator("#set-errors .mpanel-h").click().catch(() => {});
       const exportCsv = page.locator("#set-errors button", { hasText: "Export CSV" });
-      await exportCsv.waitFor({ timeout: 8000 }).catch(() => {});
+      await exportCsv.waitFor({ timeout: PATIENCE_MS }).catch(() => {});
       const csv = await download(() => exportCsv.click());
       ok("device, no phone: Export CSV downloads the file, as on the web",
         csv?.name === "gt3-errors.csv" && csv.text.startsWith("﻿kind,message,where,count,first_seen,last_seen,frame,ua\r\n"), JSON.stringify(csv && { name: csv.name, text: csv.text.slice(0, 60) }));
@@ -2745,7 +2768,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const errors = watch(page);
     const at = scale ? "at the largest text size" : "at the standard text size";
     await page.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
-    await page.waitForSelector(".toprow .k-icon-btn", { timeout: 8000 }).catch(() => {});
+    await page.waitForSelector(".toprow .k-icon-btn", { timeout: PATIENCE_MS }).catch(() => {});
     await page.waitForTimeout(500); await page.evaluate(SETTLE);
     const r = await page.evaluate(headerReport);
     if (SHOTS) await page.screenshot({ path: shotPath(MAIN, `crew-header${scale ? "--largest" : ""}`), clip: { x: 0, y: 0, width: MAIN.width, height: 260 } });

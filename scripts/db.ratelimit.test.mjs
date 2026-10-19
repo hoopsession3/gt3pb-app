@@ -10,6 +10,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { nextTick } from "./fixtures/clock.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 let pass = 0, fail = 0;
@@ -34,11 +35,12 @@ ok("a different bucket starts from zero while the first is over its cap", (await
 ok("a bucket with its own cap is judged by its own cap", (await hit("test:one", 60_000, 1)) === true && (await hit("test:one", 60_000, 1)) === false);
 
 // ── windows ────────────────────────────────────────────────────────────────────────────────────
-// A millisecond window, two hits ten milliseconds apart: different windows, so the second is under
+// A millisecond window, two hits in different milliseconds: different windows, so the second is under
 // a cap of one again. The fixed window is what makes the cap "per ten minutes" and not "forever".
+// The second waits for the clock to move (R40, fixtures/clock) — ten milliseconds was an assumption about the clock.
 ok("the next window starts the count over", await (async () => {
   const a = await hit("test:win", 1, 1);
-  await new Promise((r) => setTimeout(r, 10));
+  await nextTick();
   const b = await hit("test:win", 1, 1);
   return a === true && b === true;
 })());

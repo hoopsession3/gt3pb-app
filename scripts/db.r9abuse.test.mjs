@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
 import { fullSchema } from "./fixtures/schema.full.mjs";
+import { nextTick } from "./fixtures/clock.mjs";
 const nodeRequire = createRequire(import.meta.url);
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -78,7 +79,10 @@ await db.exec(SQL);   // a second run changes nothing
 
 // ── a texts yes ────────────────────────────────────────────────────────────────────────────────────────────────────
 {
-  const say = (phone, yes, source) => as("service", `select public.say_text_consent($1, $2, $3, null) s`, [phone, yes, source]);
+  // Each write waits for the clock to move first (R40, fixtures/clock): PGlite's now() is milliseconds, and a stop and then a
+  // yes inside one read the same time — which the rule reads, rightly, as no yes standing (a tie is a stop). GitHub's runner
+  // was fast enough to get that tie on both of R34's runs; production's two requests are seconds apart.
+  const say = async (phone, yes, source) => { await nextTick(); return as("service", `select public.say_text_consent($1, $2, $3, null) s`, [phone, yes, source]); };
   // The database's list is lib/texts's: every area code, both ways.
   const tsTexts = (() => {
     const ts = nodeRequire("typescript"), mod = { exports: {} };

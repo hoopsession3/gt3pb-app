@@ -18,7 +18,7 @@
 #               Archives a signed Release build of main and uploads it to App Store Connect, which
 #               hands it to TestFlight. It checks first that everything it needs is set, and stops with
 #               the names of what is not; it never uploads the stand-in smoke build, or an app built
-#               without its backend.
+#               without its backend — nor a branch that isn't main, nor a commit CI hasn't passed (R40).
 #
 # ── WHAT TESTFLIGHT NEEDS, SET ONCE ON THE REPOSITORY (Settings → Secrets and variables → Actions) ─
 #   Secrets     APPLE_TEAM_ID    the 10-character Team ID (developer.apple.com → Account → Membership)
@@ -71,7 +71,7 @@ on:
   workflow_dispatch:
     inputs:
       testflight:
-        description: "Upload to TestFlight (a signed Release build of this branch)"
+        description: "Upload to TestFlight (a signed Release build of main — refused from any other branch)"
         type: boolean
         default: false
 
@@ -345,6 +345,10 @@ jobs:
     if: always() && github.event_name == 'workflow_dispatch' && inputs.testflight && (needs.simulator.result == 'success' || needs.simulator.outputs.runner == 'failed')
     runs-on: macos-26
     timeout-minutes: 60
+    # To read whether CI passed for this commit (R40, below) — the runs, not the code; nothing here writes.
+    permissions:
+      contents: read
+      actions: read
     # THE APP STORE CONNECT KEY IS ONLY WHERE IT IS USED (R14, 2026-10-16 — the 10/10 audit's operations pass, F21). The
     # four secrets sat on the job, so every step saw them — `npm ci`'s lifecycle scripts and the build among them. They are
     # on the four steps that use them now (the check, the key file, the archive, the upload). The NEXT_PUBLIC_ values stay
@@ -367,6 +371,22 @@ jobs:
       NEXT_PUBLIC_NATIVE_PUSH: ${{ vars.NEXT_PUBLIC_NATIVE_PUSH }}
       NEXT_PUBLIC_TEXTS_ON: ${{ vars.NEXT_PUBLIC_TEXTS_ON }}
     steps:
+      # MAIN, AND MAIN THAT PASSED (R40 — the fresh audit's OPS11-12). A run dispatched from a work branch uploaded that
+      # branch: an unreviewed bundle on the Pass phones, under a build number held.json's conditions read as main's. The
+      # upload takes main only, and only a commit ci.yml passed — said by name when it isn't, never skipped in silence.
+      - name: Main, and a commit CI passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::TestFlight takes main only — this run is $GITHUB_REF. Merge it to main, then run this from main."
+            exit 1
+          fi
+          ci=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" --json conclusion,status --jq 'if length == 0 then "no run" else (.[0] | "\(.status) \(.conclusion)") end' 2>/dev/null || true)
+          if [ "$ci" != "completed success" ]; then
+            echo "::error::ci.yml hasn't passed for $GITHUB_SHA (it says: ${ci:-no run}). Still running: wait for it. Failed: open that run, fix it or re-run it, and once it is green run this again."
+            exit 1
+          fi
       - name: Said when the launch check could not run
         if: needs.simulator.result != 'success'
         run: echo "::warning::GitHub's simulator never started, so this build went to TestFlight without the iPhone launch check — open it on a phone before you send it to testers."
@@ -397,7 +417,11 @@ jobs:
       # The web's public settings, for those the repository does not set (2026-10-10): build 72 carried Supabase's two
       # and none of the rest, so its checkout took no cards. The build asks app.gt3pb.com for the NEXT_PUBLIC_ settings on
       # lib/publicConfig.json's list (app/api/public-config); a repository variable, where one is set, wins.
+      # The commit rides in the build (R40 — OPS11-12): a crash report from a phone names the commit it is (the error
+      # report's ua, components/ErrorReporter), and the job's summary says which build is which commit.
       - name: The app's copy of the screens, with its backend
+        env:
+          GT3_BUILD_COMMIT: ${{ github.sha }}
         run: npm run build:app -- --web-config https://app.gt3pb.com
       - name: Never the smoke build, never an app without its backend
         run: |
@@ -519,6 +543,10 @@ jobs:
             grep -q "associated-domains" distribution-summary.plist && echo "The App Store build carries its universal links." \
               || echo "::warning::The export's summary does not list associated domains — is Associated Domains on for the App ID?"
           fi
+
+      - name: Which build is which commit
+        if: success()
+        run: echo "TestFlight build ${{ github.run_number }} is commit ${GITHUB_SHA:0:7} of main." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Forget the key
         if: always()
