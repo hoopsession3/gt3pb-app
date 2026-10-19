@@ -6165,7 +6165,7 @@ export default function AdminPage() {
               <SectionHeader id="pipeline-board" label="Pipeline" annotation="accounts being worked — stage by stage to Won" />
               <PipelinePanel isAdmin={isAdmin} />
               <SectionHeader label="Tools" />
-              <ChiefOfSales />
+              <ChiefOfSales isAdmin={isAdmin} />
               </Column>
               </Columns>
             </>

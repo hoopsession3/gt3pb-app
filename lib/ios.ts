@@ -29,7 +29,9 @@ export function appleDevice(): "iPhone" | "iPad" {
 // so it happened on nearly every form. On an iPhone only, the viewport gains maximum-scale=1: iOS then
 // skips the focus zoom and still lets a person pinch to zoom (iOS 10 and later ignore the limit for a
 // pinch), so the pinch app/layout.tsx protects is kept. Android keeps the layout's maximum-scale=5 —
-// there the same words would block the pinch.
+// there the same words would block the pinch. In the iPhone app (R36, UX11-07) the web view is told to do as Safari does
+// — capacitor.config.ts zoomEnabled, and ignoresViewportScaleLimits in ios/App/App/GT3ViewController — so a pinch zooms
+// there too, and this limit still stops only the zoom into a field.
 export const NO_FOCUS_ZOOM = "maximum-scale=1";
 
 /** The viewport content with the iPhone's limit in place of any other maximum-scale. Pure, for tests. */

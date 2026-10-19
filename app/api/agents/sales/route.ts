@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { staffFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, staffFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef, type ClaudeMsg } from "@/lib/anthropic";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -55,11 +55,18 @@ async function post(req: Request) {
   if (!body || typeof body !== "object") body = {};   // a literal null is valid JSON (R10b): the defaults, not a TypeError
 
   // ── COMMIT: save selected opportunities into the Bookings pipeline as leads ──
+  // AN OWNER'S OR ADMIN'S TO SAVE (R36, 2026-10-19 — found by the snapshot pulled at 0437, scripts/r32.test.mjs's rule).
+  // The Bookings pipeline is the database's owner-and-admin table (booking_requests: "admin manage requests", is_admin()
+  // for every command since 0437 dropped the anonymous insert), and this door asked only "on the crew?" and wrote with
+  // the server's key past it. The scout — the web search — is still anyone on the crew's; saving what it found is asked
+  // as the database asks it. A lead the scout found is not a customer asking: it is kept quiet (0434), so the push
+  // function doesn't send "Someone wants to book GT3PB" to the crew, Teams and email for each one saved.
   if (body.commit) {
+    if (!(await adminFromRequest(req))) return NextResponse.json({ ok: false, error: "Only an owner or admin can add these to Bookings." }, { status: 403 });
     const opps = Array.isArray(body.commit.opportunities) ? body.commit.opportunities.filter((o: any) => o?.name?.trim()) : [];
     if (!opps.length) return NextResponse.json({ ok: true, added: 0 });
     const rows = opps.slice(0, 25).map((o: any) => ({
-      name: String(o.name).slice(0, 160), status: "new",
+      name: String(o.name).slice(0, 160), status: "new", quiet: true,
       location_text: o.location ? String(o.location).slice(0, 200) : null,
       notes: [o.date ? `When: ${o.date}` : null, o.fit ? `Fit: ${o.fit}` : null, o.pitch ? `Pitch: ${o.pitch}` : null, o.source ? `Source: ${o.source}` : null, "(scouted by Chief of Sales)"].filter(Boolean).join("\n").slice(0, 1200),
     }));

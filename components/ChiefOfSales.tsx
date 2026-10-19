@@ -19,7 +19,7 @@ const SCORE: Record<string, { c: string; t: string }> = { hot: { c: "#c4453c", t
 
 type Opp = { name: string; date: string; location: string; fit: string; pitch: string; source: string; score: string; _skip?: boolean };
 
-export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
+export default function ChiefOfSales({ onLeads, isAdmin = false }: { onLeads?: () => void; isAdmin?: boolean }) {
   const [markets, setMarkets] = useState<string[]>(MARKETS);
   const [focus, setFocus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -85,9 +85,8 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
           ) : (
             <>
               {summary && <div className="dp-hint">{summary}</div>}
-              {opps.length === 0 ? <div className="dp-hint">Nothing surfaced — try a broader focus.</div> : opps.map((o, i) => (
-                <button key={i} type="button" className={`sales-opp${o._skip ? "" : " on"}`} onClick={() => toggle(i)}>
-                  <span className="eg-ck">{o._skip ? <Icon name="dotOutline" /> : <Icon name="check" />}</span>
+              {opps.length === 0 ? <div className="dp-hint">Nothing surfaced — try a broader focus.</div> : opps.map((o, i) => {
+                const about = (
                   <span className="sales-opp-main">
                     <b>{o.name}{o.score ? <span className="sales-score" style={{ background: SCORE[o.score]?.c }}>{SCORE[o.score]?.t}</span> : null}</b>
                     <span>{[o.location, o.date].filter(Boolean).join(" · ")}</span>
@@ -95,12 +94,24 @@ export default function ChiefOfSales({ onLeads }: { onLeads?: () => void }) {
                     {o.pitch && <span className="sales-pitch"><Icon name="arrowRight" /> {o.pitch}</span>}
                     {o.source && <span className="sales-src">{o.source}</span>}
                   </span>
-                </button>
-              ))}
+                );
+                // A pick is for saving — an owner's or admin's (R36); the crew read the list as it is, with nothing to tick.
+                return isAdmin ? (
+                  <button key={i} type="button" className={`sales-opp${o._skip ? "" : " on"}`} aria-pressed={!o._skip} onClick={() => toggle(i)}>
+                    <span className="eg-ck">{o._skip ? <Icon name="dotOutline" /> : <Icon name="check" />}</span>
+                    {about}
+                  </button>
+                ) : (
+                  <div key={i} className="sales-opp">{about}</div>
+                );
+              })}
               {err && <Said assertive className="dp-err" style={{ marginTop: 8 }}>{err}</Said>}
+              {/* Saving to Bookings is an owner's or admin's (R36: the database's rule, asked again by the route) — the
+                  button is drawn only where the server will say yes, and the crew are told who saves them. */}
+              {!isAdmin && opps.length > 0 && <div className="dp-hint mt-3">An owner or admin saves these to Bookings.</div>}
               <div className="prod-actions" style={{ marginTop: 12 }}>
                 <button type="button" className="note-arch" onClick={() => setOpps(null)} disabled={busy}>‹ New scout</button>
-                <button type="button" className="btn-pri" onClick={save} disabled={busy || keepN === 0}>{busy ? "Saving…" : `Save ${keepN} to Bookings`}</button>
+                {isAdmin && <button type="button" className="btn-pri" onClick={save} disabled={busy || keepN === 0}>{busy ? "Saving…" : `Save ${keepN} to Bookings`}</button>}
               </div>
             </>
           )}

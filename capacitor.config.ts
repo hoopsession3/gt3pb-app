@@ -18,6 +18,12 @@ const config: CapacitorConfig = {
   // The page's own ground (app/layout.tsx themeColor) behind the web view, so a first paint is never
   // a white flash.
   backgroundColor: "#15140f",
+  // PINCH TO ZOOM IN THE APP (2026-10-19, R36 — the fresh audit's UX11-07; Ryan: "Allow pinch-zoom"). Left off,
+  // Capacitor puts its own delegate on the web view's scroll view, and it answers every pinch with nothing to zoom —
+  // whatever the page says. On, the web view zooms as Safari does, and ios/App/App/GT3ViewController (written by
+  // scripts/ios.configure.mjs) lets a pinch past the page's maximum-scale=1 (kept: it stops iOS zooming into a tapped
+  // field, lib/ios) and lets a zoomed-in page be moved about.
+  zoomEnabled: true,
   ios: {
     // The page draws under the status bar and the home indicator and pads itself clear of them with
     // env(safe-area-inset-*) (app/layout.tsx asks for viewport-fit=cover in the app build).

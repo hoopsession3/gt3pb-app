@@ -115,8 +115,14 @@ export const CEILING = {
   // set_password_by_hand (0423) answer only an owner in the SQL editor and are granted to no API role; claim_team_invites,
   // take_signup_password and 0423's triggers are granted to no one; promote_to_crew (0299) was counted already. 0425
   // rewrote policies only. Nothing new is callable signed out (anon 15).
+  // 2026-10-19, snapshot at ledger 0437: definerExec 124 → 127 — two_step_ok, two_step_state and require_two_step (0433:
+  // two-step for owners and admins — the one question is_admin() and is_owner() ask, what the app asks for the caller
+  // alone, and the owner's switch, refused inside unless the owner gave their code on this sign-in), each granted to
+  // authenticated by name. staff_collect_payment's four-argument door (0432) replaced its three, one for one. ops_alive
+  // (0430), rate_limit_peek (0434) and funnel_step_counted (0437) are the server's or a trigger's and granted to no API
+  // role. Nothing new is callable signed out (anon 15).
   publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
-  definerExec: 124,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
+  definerExec: 127,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.
