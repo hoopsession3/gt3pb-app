@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { haptic } from "@/lib/haptics";
 import { isNativeApp } from "@/lib/native";
-import { digitsOf, finishSetup, giveCode, keyGroups, qrSrc, setRequired, startSetup, turnOff, twoStepState, TOTP_LEN, type Enrolment, type TwoStepState } from "@/lib/twoStep";
+import { digitsOf, finishSetup, giveCode, keyGroups, makeRecoveryCodes, qrSrc, recoveryCodesLeft, setRequired, startSetup, turnOff, twoStepState, TOTP_LEN, type Enrolment, type TwoStepState } from "@/lib/twoStep";
 import Said from "./Said";
 import { useStepFocus } from "./useStepFocus";
 import { useConfirm } from "./ConfirmSheet";
@@ -19,12 +19,18 @@ import { useConfirm } from "./ConfirmSheet";
 //          code); and it can be turned off, with this sign-in's code.
 //
 // The key and the code are drawn for the person setting it up and nowhere else.
+//
+// RECOVERY CODES (R37, 2026-10-19 — the fresh audit's UX11-10; Ryan: "Recovery codes"; 0438). Turned on, it makes ten
+// one-time codes and shows them once — before onDone, so the console doesn't open over them — to copy into Passwords or
+// print; any one takes a lost authenticator off the account (components/TwoStepPrompt). On, it says how many are left
+// and makes new ones, on a sign-in that gave the code — the old ten stop working, and it says so first.
 
 type Step =
   | { at: "loading" }
   | { at: "off" }
   | { at: "scan"; enrol: Enrolment }
-  | { at: "on"; state: TwoStepState | null }
+  | { at: "on"; state: TwoStepState | null; left?: number | null }
+  | { at: "codes"; codes: string[]; state: TwoStepState | null }
   | { at: "failed"; message: string };
 
 export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
@@ -38,6 +44,10 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
   const [err, setErr] = useState("");
   const [asked, setAsked] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [codesCopied, setCodesCopied] = useState(false);
+  // The setup's onDone, still owed: turned on, but the recovery codes weren't made — the person reads why first.
+  const [owed, setOwed] = useState(false);
+  const codesRef = useRef<HTMLOListElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
   const keyRef = useRef<HTMLElement>(null);
   const confirm = useConfirm();
@@ -47,10 +57,10 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
     if (!supabase) return;
     const sb = supabase;
     let live = true;
-    Promise.all([sb.auth.mfa.listFactors(), twoStepState(sb)]).then(([list, state]) => {
+    Promise.all([sb.auth.mfa.listFactors(), twoStepState(sb), recoveryCodesLeft()]).then(([list, state, left]) => {
       if (!live) return;
       if (list.error) { setStep({ at: "failed", message: "We couldn't check two-step sign-in just now. Try again in a minute." }); return; }
-      setStep((list.data?.totp?.length ?? 0) > 0 ? { at: "on", state } : { at: "off" });
+      setStep((list.data?.totp?.length ?? 0) > 0 ? { at: "on", state, left } : { at: "off" });
     }, () => { if (live) setStep({ at: "failed", message: "You're offline. Connect, then try again." }); });
     return () => { live = false; };
   }, [asked]);
@@ -73,9 +83,41 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
     const done = await finishSetup(supabase, enrol.factorId, code);
     if (done.error) { setBusy(false); haptic("error"); setErr(done.error); requestAnimationFrame(() => codeRef.current?.select()); return; }
     const state = await twoStepState(supabase);
+    const made = await makeRecoveryCodes();
     setBusy(false); haptic("success"); setCode("");
-    setStep({ at: "on", state });
-    onDone?.();
+    // The codes first, shown once; the console opens when they say they've kept them.
+    if ("codes" in made) { setCodesCopied(false); setStep({ at: "codes", codes: made.codes, state }); return; }
+    // Not made: said where it's read — the console waits behind a Continue (owed) rather than opening over the words.
+    setErr("Two-step sign-in is on. We couldn't make your recovery codes just now — make them below.");
+    setStep({ at: "on", state, left: null });
+    if (onDone) setOwed(true);
+  };
+  const carryOn = () => { acted.current = true; setOwed(false); onDone?.(); };
+
+  // New recovery codes, on a sign-in that gave the code (given here when it hasn't): the old ten stop working, said first.
+  const remake = async (state: TwoStepState | null, left: number | null | undefined) => {
+    acted.current = true;
+    if (!supabase || busy) return;
+    if (!state?.given && code.length < TOTP_LEN) { setErr("Enter the code from your authenticator first — then new codes are made."); codeRef.current?.focus(); return; }
+    // Asked only when there are codes to lose: none left, nothing stops working.
+    if (left !== 0) {
+      const ok = await confirm({
+        title: "Make new recovery codes?",
+        body: "Ten new codes are made and shown once. Any codes you have now stop working.",
+        confirmLabel: "Make new codes",
+      });
+      if (!ok) return;
+    }
+    setBusy(true); setErr("");
+    if (!state?.given) {
+      const given = await giveCode(supabase, code);
+      if (given.error) { setBusy(false); haptic("error"); setErr(given.error); return; }
+    }
+    const made = await makeRecoveryCodes();
+    setBusy(false);
+    if ("error" in made) { haptic("error"); setErr(made.error); return; }
+    haptic("success"); setCode(""); setCodesCopied(false);
+    setStep({ at: "codes", codes: made.codes, state: state ? { ...state, given: true } : state });
   };
 
   // Who it's asked of, with this sign-in's code given right here when it hasn't been (R35 — UX11-10): it said "Give this
@@ -171,6 +213,36 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
     );
   }
 
+  if (step.at === "codes") {
+    const { codes } = step;
+    const copyCodes = () => {
+      const pick = () => { const el = codesRef.current; const sel = el && window.getSelection(); if (el && sel) sel.selectAllChildren(el); };
+      if (!navigator.clipboard) { pick(); return; }
+      navigator.clipboard.writeText(codes.join("\n")).then(() => setCodesCopied(true), pick);
+    };
+    return (
+      <div ref={scope}>
+        <p className="cfm-body">Your recovery codes.</p>
+        <p className="dp-hint">
+          If you lose your authenticator, one of these — on a fresh sign-in — takes it off your account so you can set up a
+          new one. Each works once. Keep them somewhere safe, in Passwords or printed and put away: they won&rsquo;t be
+          shown again.
+        </p>
+        {/* Two columns, no markers: the page has no reset, and the browser's own numbers hung outside the sheet's edge,
+            "10." cut to "0." (R37's capture). A list still — said as ten items. */}
+        <ol ref={codesRef} aria-label="Your ten recovery codes" className="mt-3 mb-0 p-0 list-none grid grid-cols-2 gap-x-6 gap-y-2 [font-variant-numeric:tabular-nums] tracking-wide">
+          {codes.map((c) => <li key={c}><code className="select-all">{c}</code></li>)}
+        </ol>
+        <p className="mt-2">
+          <button type="button" className="auth-link min-h-11 inline-flex items-center" onClick={copyCodes}><Said as="span" quietFirst>{codesCopied ? "Copied" : "Copy all ten"}</Said></button>
+        </p>
+        <div className="prod-actions cfm-actions">
+          <button type="button" className="btn-pri" onClick={() => { setStep({ at: "on", state: step.state, left: codes.length }); carryOn(); }}>I&rsquo;ve saved them</button>
+        </div>
+      </div>
+    );
+  }
+
   if (step.at === "scan") {
     const { enrol } = step;
     return (
@@ -199,7 +271,7 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
     );
   }
 
-  const { state } = step;
+  const { state, left } = step;
   return (
     <div ref={scope}>
       <Said as="p" className="cfm-body" quietFirst>Two-step sign-in is on.</Said>
@@ -223,14 +295,24 @@ export default function TwoStepSetup({ onDone }: { onDone?: () => void }) {
         </div>
       )}
       {state?.owner && !state.given && <p className="dp-hint" id="ts-need-code">Enter this sign-in&rsquo;s code below to change who it&rsquo;s asked of.</p>}
+      <div className="rows mt-3.5">
+        <div className="row">
+          <div className="rl">
+            <b>Recovery codes</b>
+            <span>{left == null ? "For the day you lose your authenticator" : left === 0 ? "None left — make new ones" : `${left} of 10 left — each works once`}</span>
+          </div>
+          <button type="button" className="btn-ter" onClick={() => void remake(state, left)} disabled={busy}>Make new codes</button>
+        </div>
+      </div>
       {!state?.given && (
         <>
-          <p className="dp-hint mt-3" id="ts-code-for">{state?.owner ? "To change who it's asked of, or to turn it off, enter the code from your authenticator." : "To turn it off, enter the code from your authenticator."}</p>
+          <p className="dp-hint mt-3" id="ts-code-for">{state?.owner ? "To change who it's asked of, make new recovery codes or turn it off, enter the code from your authenticator." : "To make new recovery codes or turn it off, enter the code from your authenticator."}</p>
           {codeField("The code from your authenticator")}
         </>
       )}
       {err && <div className="auth-err" role="alert" id="ts-err">{err}</div>}
       <div className="prod-actions cfm-actions">
+        {owed && onDone && <button type="button" className="btn-pri" onClick={carryOn} disabled={busy}>Continue</button>}
         <button type="button" className="btn-ter" onClick={() => void stop(state)} disabled={busy}>{busy ? "Turning it off…" : "Turn off two-step sign-in"}</button>
       </div>
     </div>

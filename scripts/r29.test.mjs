@@ -175,9 +175,12 @@ ok("a refusal of the card is the card's — its decline, a number or date Square
   ok("…and the crew are told that a burst came, where it is, once (raiseAlertOnce, an hour's subject)",
     alerts.length === 2 && alerts.every((a) => a.kind === "booking_burst" && a.category === "booking" && a.severity === "important" && a.link === "/crew?s=plan&t=leads"
       && /^book-burst:\d{4}-\d{2}-\d{2}T\d{2}$/.test(a.subjectId)) && alerts[0].subjectId === alerts[1].subjectId && /nobody was turned away/.test(alerts[0].body), alerts);
+  // R37: 0434 is in production, and the before-the-paste second insert is gone — a refused insert is a failure said
+  // plainly, never a second write that announces a burst's lead after all.
   schemaHasQuiet = false; rows.length = 0; alerts.length = 0;
   const old = await ask();
-  ok("before 0434 (no quiet column): kept as before — announced as before — never a failure", old.status === 200 && rows.length === 1 && !("quiet" in rows[0]), { old, rows });
+  ok("a refused insert (R37 — 0434 is the schema's own): said as a failure, nothing kept, no burst alert, no second write",
+    old.status === 500 && /Couldn't send/.test(old.j.error) && rows.length === 0 && alerts.length === 0, { old, rows });
   schemaHasQuiet = true; rows.length = 0; s = store();
   const bot = await ask({ body: { website: "https://spam.example.test" } });
   ok("the field no person fills in: thanked, nothing kept, nothing counted", bot.status === 200 && rows.length === 0 && !s.asked.length, { bot, asked: s.asked });
@@ -190,15 +193,20 @@ ok("a refusal of the card is the card's — its decline, a number or date Square
 // ── 4 · the two-step screen in the day console ─────────────────────────────────────────────────────────────────────
 {
   const tsp = code(read("components/TwoStepPrompt.tsx"));
+  // Every view of it (R37 added the recovery code's two): each section is drawn in the theme's ink.
+  const sections = tsp.match(/<section className="[^"]*">/g) || [];
   ok("the two-step screen's text is the theme's ink (text-cream on its section) — never inherited from the body's night cream",
-    (tsp.match(/<section className="screen text-cream">/g) || []).length === 2 && !/<section className="screen">/.test(tsp)
+    sections.length >= 2 && sections.every((s) => s === '<section className="screen text-cream">') && !/<section className="screen">/.test(tsp)
     && /--color-cream: var\(--cream\);/.test(read("app/tailwind.css")));
   const crewPage = code(read("app/crew/page.tsx"));
   ok("…and the console's own messages before it opens — not set up, couldn't load, staff only — are drawn in it too",
     /if \(!enabled\) return <section className="screen text-cream"><div className="h-title">Admin<\/div>/.test(crewPage)
     && (crewPage.match(/<section className="screen text-cream">\s*<div className="toprow"><div className="eyb">Crew<\/div>/g) || []).length === 2);
   ok("the two-step screen's \"Crew\" sits in the console's header row (gold, as \"Staff only\" has it), never bare",
-    (tsp.match(/<div className="toprow"><div className="eyb">Crew<\/div><\/div>/g) || []).length === 2 && !/<div className="eyb">Crew<\/div>\s*<h1/.test(tsp));
+    // every view's (R37: four), each in the header row
+    (tsp.match(/<div className="toprow"><div className="eyb">Crew<\/div><\/div>/g) || []).length >= 2
+    && (tsp.match(/<div className="toprow"><div className="eyb">Crew<\/div><\/div>/g) || []).length === (tsp.match(/<div className="eyb">Crew<\/div>/g) || []).length
+    && !/<div className="eyb">Crew<\/div>\s*<h1/.test(tsp));
 }
 
 console.log(`\nR29 — A DOOR STAYS OPEN FOR THE CUSTOMER: ${pass} passed, ${fail} failed`);

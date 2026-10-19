@@ -202,7 +202,13 @@ export function moneyWorld({ tables = {}, unique = {}, rpc = {}, sessions = {}, 
       is(c, v) { call.ops.push(["is", c, v]); keep.push((r) => test(r, c, "is", v)); return q; },
       like(c, v) { call.ops.push(["like", c, v]); keep.push((r) => test(r, c, "like", v)); return q; },
       ilike(c, v) { call.ops.push(["ilike", c, v]); keep.push((r) => test(r, c, "ilike", v)); return q; },
-      not(c, op, v) { call.ops.push(["not", c, op, v]); keep.push((r) => !test(r, c, op, v === "null" ? null : v)); return q; },
+      // PostgREST's own list for `not … in` — "(a,b,c)", as supabase-js sends it raw (R37: the recovery codes' delete).
+      not(c, op, v) {
+        call.ops.push(["not", c, op, v]);
+        const val = op === "in" && typeof v === "string" ? v.replace(/^\(|\)$/g, "").split(",").map((s) => s.trim()).filter(Boolean) : v === "null" ? null : v;
+        keep.push((r) => !test(r, c, op, val));
+        return q;
+      },
       or(list) { call.ops.push(["or", list]); keep.push(orOf(list)); return q; },
       order(c, o = {}) { call.ops.push(["order", c, o]); ord.push({ c, asc: o.ascending !== false }); return q; },
       limit(n) { call.ops.push(["limit", n]); lim = n; return q; },

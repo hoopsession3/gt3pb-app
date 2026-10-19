@@ -10445,6 +10445,30 @@ export type Database = {
         }
         Relationships: []
       }
+      two_step_recovery_codes: {
+        Row: {
+          id: string
+          user_id: string
+          code_hash: string
+          made_at: string
+          used_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          code_hash: string
+          made_at?: string
+          used_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          code_hash?: string
+          made_at?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       two_step_settings: {
         Row: {
           tenant_id: string

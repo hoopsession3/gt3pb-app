@@ -2205,9 +2205,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   // before the console draws, checked against the account's authenticator (Supabase's challenge, then verify), and the
   // console opens. Then an owner with none sets one up in Settings & privacy: the QR code and the key, the first code,
   // and it is on. Supabase's MFA is stood in: the same owner's sessions with and without the code, its factors, and what
-  // each call was asked.
+  // each call was asked. R37 (UX11-10): turning it on shows the ten recovery codes first, and a recovery code used from
+  // the code screen takes a lost authenticator off — the web's two doors for them stood in.
   {
-    const FACTOR = { id: "f0000000-0000-4000-8000-0000000000f1", friendly_name: "GT3", factor_type: "totp", status: "verified", created_at: "2026-10-18T00:00:00Z", updated_at: "2026-10-18T00:00:00Z" };
+    const RECOVERY_TEN = ["HKMNP-23456", "QRSTU-34567", "VWXYZ-45678", "ABCDE-56789", "FGHJK-67892", "MNPQR-78923", "STUVW-89234", "XYZAB-92345", "CDEFG-23457", "HJKMN-34568"];
+    const FACTOR ={ id: "f0000000-0000-4000-8000-0000000000f1", friendly_name: "GT3", factor_type: "totp", status: "verified", created_at: "2026-10-18T00:00:00Z", updated_at: "2026-10-18T00:00:00Z" };
     const withFactor = { ...OWNER, factors: [FACTOR] };
     const now = Math.floor(Date.now() / 1000);
     const aal1 = ownerSessionWith({ aal: "aal1", amr: [{ method: "otp", timestamp: now - 3600 }] }, withFactor);
@@ -2313,6 +2315,16 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     await insetsOn(page3, MAIN.top, MAIN.bottom);
     const errors3 = watch(page3);
     const sent3 = await mfaStandIn(page3, OWNER, { enrolled: false });
+    // R37: the web's door for recovery codes, stood in — none yet (GET), then the ten made as it turns on (POST).
+    const codesAsked = [];
+    await page3.route((u) => u.origin === API_ORIGIN && u.pathname === "/api/two-step/codes", async (route) => {
+      const req = route.request();
+      const cors = { "access-control-allow-origin": req.headers().origin || "*", "access-control-allow-headers": "content-type, authorization", "access-control-allow-methods": "GET, POST, OPTIONS", vary: "Origin" };
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+      codesAsked.push({ method: req.method(), bearer: /^Bearer \S+/.test(req.headers().authorization ?? "") });
+      return route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json", "cache-control": "no-store" },
+        body: JSON.stringify(req.method() === "POST" ? { ok: true, codes: RECOVERY_TEN } : { ok: true, left: 0 }) });
+    });
     await page3.goto(`${BASE}/book`, { waitUntil: "load" });
     await page3.waitForTimeout(400); await page3.evaluate(SETTLE);
     await page3.locator('button.acct-av[aria-label="Your account"]').first().click().catch(() => {});
@@ -2329,7 +2341,19 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     if (SHOTS && qr) await page3.screenshot({ path: shotPath(MAIN, "two-step--setup") }).catch(() => {});
     await page3.fill("#ts-code", "654321").catch(() => {});
     await page3.getByRole("button", { name: "Turn it on" }).click().catch(() => {});
+    // R37: the ten shown once, before it says it's on — a list with a name, on the phone's own width.
+    const codesShown = await page3.waitForSelector("text=Your recovery codes.", { timeout: 8000 }).then(() => true, () => false);
+    const listed = await page3.locator('ol[aria-label="Your ten recovery codes"] li').allTextContents().catch(() => []);
+    const sideways = await page3.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+    if (SHOTS && codesShown) await page3.screenshot({ path: shotPath(MAIN, "two-step--codes") }).catch(() => {});
+    ok("two-step (R37): turned on, its ten recovery codes are shown once — made on the sign-in that just gave the code, a named list, no sideways scroll",
+      codesShown && listed.join() === RECOVERY_TEN.join() && codesAsked.filter((c) => c.method === "POST" && c.bearer).length === 1 && !sideways,
+      JSON.stringify({ codesShown, listed: listed.length, codesAsked, sideways }));
+    await page3.getByRole("button", { name: /saved them/ }).click().catch(() => {});
     const on = await page3.waitForSelector("text=Two-step sign-in is on.", { timeout: 8000 }).then(() => true, () => false);
+    const tenLeft = await page3.getByText("10 of 10 left — each works once").count();
+    if (SHOTS && on) await page3.screenshot({ path: shotPath(MAIN, "two-step--on") }).catch(() => {});
+    ok("two-step (R37): …I've saved them, and Settings says it's on, with ten of ten codes left", on && tenLeft === 1, JSON.stringify({ on, tenLeft }));
     ok("two-step: Settings & privacy has it for an owner — off, then set up: the QR code, the key in fours, and the iPhone's own link to an authenticator",
       hasRow && off && qr && key === 1 && link === 1 && sent3.enroll?.factor_type === "totp" && sent3.enroll?.issuer === "GT3 Performance Bar",
       JSON.stringify({ hasRow, off, qr, key, link, enroll: sent3.enroll }));
@@ -2337,6 +2361,43 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       on && sent3.verify?.factor === "f0000000-0000-4000-8000-0000000000f2" && sent3.verify?.code === "654321", JSON.stringify({ on, verify: sent3.verify }));
     ok("two-step: no errors (setting it up)", errors3.length === 0, errors3.join(" | "));
     await ctx3.close();
+
+    // 4 — the authenticator lost: a recovery code from the code screen (R37 — the fresh audit's UX11-10; 0438). Used on a
+    // sign-in from just now, it takes the authenticator off — the web's door, stood in — and the app says so and asks
+    // them to sign in again, never opening a console whose session Supabase has just ended.
+    const justNow = ownerSessionWith({ aal: "aal1", amr: [{ method: "otp", timestamp: now - 60 }] }, withFactor);
+    const ctx4 = await phoneContext(MAIN, { owner: true, session: justNow });
+    const page4 = await ctx4.newPage();
+    await insetsOn(page4, MAIN.top, MAIN.bottom);
+    const errors4 = watch(page4);
+    await mfaStandIn(page4, withFactor);
+    const recoverSent = [];
+    await page4.route((u) => u.origin === API_ORIGIN && u.pathname === "/api/two-step/recover", async (route) => {
+      const req = route.request();
+      const cors = { "access-control-allow-origin": req.headers().origin || "*", "access-control-allow-headers": "content-type, authorization", "access-control-allow-methods": "GET, POST, OPTIONS", vary: "Origin" };
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+      recoverSent.push({ ...(req.postDataJSON() ?? {}), bearer: /^Bearer \S+/.test(req.headers().authorization ?? "") });
+      return route.fulfill({ status: 200, headers: { ...cors, "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify({ ok: true, removed: 1, left: 9 }) });
+    });
+    await page4.goto(`${BASE}/crew?s=day`, { waitUntil: "load" });
+    await page4.waitForSelector("#ts-code", { timeout: 8000 }).catch(() => {});
+    await page4.getByRole("button", { name: "Use a recovery code" }).click().catch(() => {});
+    const recoverField = await page4.waitForSelector("#ts-recovery", { timeout: 5000 }).then(() => true, () => false);
+    const recoverFocused = await page4.evaluate(() => document.activeElement?.id ?? null);
+    if (SHOTS && recoverField) await page4.screenshot({ path: shotPath(MAIN, "two-step--recover") }).catch(() => {});
+    await page4.fill("#ts-recovery", "hkmnp 23456").catch(() => {});
+    await page4.getByRole("button", { name: "Use this code" }).click().catch(() => {});
+    const offSaid = await page4.waitForSelector("text=Your authenticator is off your account.", { timeout: 8000 }).then(() => true, () => false);
+    const offFocused = await page4.evaluate(() => document.activeElement?.textContent ?? null);
+    const consoleDrawn = await page4.locator("section.screen.admin").count();
+    if (SHOTS && offSaid) await page4.screenshot({ path: shotPath(MAIN, "two-step--recovered") }).catch(() => {});
+    ok("two-step (R37): lost the authenticator — Use a recovery code, on the code screen: its own field, focused; the code sent as typed, with the sign-in's bearer, to the web's API",
+      recoverField && recoverFocused === "ts-recovery" && recoverSent.length === 1 && recoverSent[0].code === "hkmnp 23456" && recoverSent[0].bearer,
+      JSON.stringify({ recoverField, recoverFocused, recoverSent }));
+    ok("two-step (R37): …used: the authenticator is off — said, its line focused — and never the console, whose session is ended",
+      offSaid && offFocused === "Your authenticator is off your account." && consoleDrawn === 0, JSON.stringify({ offSaid, offFocused, consoleDrawn }));
+    ok("two-step: no errors (a recovery code)", errors4.length === 0, errors4.join(" | "));
+    await ctx4.close();
   }
 
   // ── 6g · MONEY ANSWERS THREE QUESTIONS (2026-10-15, release 3 of the Plan & Money audit; Ryan: "Yes, build it", "Yes,

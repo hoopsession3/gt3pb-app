@@ -74,10 +74,9 @@ async function post(req: Request) {
     location_text: str(b.location_text, 300) || null,
     notes: str(b.notes, 2000) || null,
   };
+  // 0434 is in production (R37): the quiet column is the table's own, and its before-the-paste second insert is gone.
   const kept: typeof row & { quiet?: true } = quiet ? { ...row, quiet: true } : row;
-  let { error } = await supabaseAdmin.from("booking_requests").insert(kept);
-  // Before 0434 the column isn't there: kept as before, and announced as before.
-  if (error && quiet && /quiet/.test(error.message ?? "")) ({ error } = await supabaseAdmin.from("booking_requests").insert(row));
+  const { error } = await supabaseAdmin.from("booking_requests").insert(kept);
   if (error) return NextResponse.json({ ok: false, error: "Couldn't send — try again in a moment." }, { status: 500 });
   if (quiet) {
     await raiseAlertOnce({

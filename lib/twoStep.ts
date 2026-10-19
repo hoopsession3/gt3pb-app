@@ -17,6 +17,8 @@ import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { errorMessage } from "./errorMessage";
+import { authedFetch } from "./authedFetch";
+import { failureOr } from "./failureWords";
 
 /** An authenticator's code: six digits (TOTP). */
 export const TOTP_LEN = 6;
@@ -135,6 +137,47 @@ export async function turnOff(sb: SupabaseClient): Promise<{ error?: string }> {
     return {};
   } catch (e) {
     return { error: twoStepWords(errorMessage(e)) };
+  }
+}
+
+// ── RECOVERY CODES (R37, 2026-10-19 — the fresh audit's UX11-10; Ryan: "Recovery codes"; 0438) ──────────────────────
+// Ten one-time codes made by the server on a sign-in that gave the authenticator's code, shown once (TwoStepSetup). Any
+// one, on a sign-in proved in the last few minutes, takes a lost authenticator off the account (TwoStepPrompt) — and
+// Supabase signs the person out everywhere as it does; they sign in again and set up a new one.
+
+/** Ten new recovery codes; the ten before them stop working. */
+export async function makeRecoveryCodes(): Promise<{ codes: string[] } | { error: string }> {
+  try {
+    const r = await authedFetch("/api/two-step/codes", { method: "POST" });
+    const j = (await r.json().catch(() => null)) as { codes?: unknown; error?: unknown } | null;
+    if (r.ok && Array.isArray(j?.codes)) return { codes: j.codes.map(String) };
+    return { error: failureOr(typeof j?.error === "string" ? j.error : null, "We couldn't make recovery codes just now. Try again.") };
+  } catch {
+    return { error: "You're offline. Connect, then try again." };
+  }
+}
+
+/** How many of this person's recovery codes are unused, or null when the server couldn't say. */
+export async function recoveryCodesLeft(): Promise<number | null> {
+  try {
+    const r = await authedFetch("/api/two-step/codes");
+    const j = (await r.json().catch(() => null)) as { left?: unknown } | null;
+    return r.ok && typeof j?.left === "number" ? j.left : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Use a recovery code: the lost authenticator comes off the account. `prove`: the sign-in is older than a few minutes —
+ *  they sign in again first. */
+export async function recoverWithCode(code: string): Promise<{ left?: number; error?: string; prove?: boolean }> {
+  try {
+    const r = await authedFetch("/api/two-step/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+    const j = (await r.json().catch(() => null)) as { left?: unknown; error?: unknown; prove?: unknown } | null;
+    if (r.ok) return { left: typeof j?.left === "number" ? j.left : undefined };
+    return { error: failureOr(typeof j?.error === "string" ? j.error : null, "That didn't go through. Try again in a minute."), prove: j?.prove === true };
+  } catch {
+    return { error: "You're offline. Connect, then try again." };
   }
 }
 

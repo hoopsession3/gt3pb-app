@@ -55,7 +55,10 @@ ok("focus lands clear of the checkout's Pay footer, the calendar's month band an
   const ts = read("components/TwoStepSetup.tsx");
   ok("two-step: each view's first line takes focus — only a view the person's own tap brought (Settings opening takes nothing)",
     /useStepFocus\(step\.at, scope, \{ pick: \(\) => \(acted\.current \? scope\.current\?\.querySelector<HTMLElement>\("\.cfm-body"\) : null\) \}\);/.test(ts)
-    && (ts.match(/acted\.current = true;/g) || []).length >= 5 && (ts.match(/<div ref=\{scope\}>/g) || []).length === 5);
+    // every view (R37 added the recovery codes'): one scope for each `if (step.at === …)` view, and the last, on
+    && (ts.match(/acted\.current = true;/g) || []).length >= 5
+    && (ts.match(/<div ref=\{scope\}>/g) || []).length === (ts.match(/^ {2}if \(step\.at === "/gm) || []).length + 1
+    && (ts.match(/^ {2}if \(step\.at === "/gm) || []).length >= 4);
   const page = read("app/crew/page.tsx");
   ok("the console says it is opening while the session, the profile and two-step load — never a blank screen",
     (page.match(/<section className="screen"><PourFill label="Opening the console…" \/><\/section>/g) || []).length === 3 && !/return <section className="screen" \/>;/.test(page));
