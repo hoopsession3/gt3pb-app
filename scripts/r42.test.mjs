@@ -337,6 +337,12 @@ const { SITE, SITE_NAME, PUBLIC_PAGES, CANONICAL_OF, SITEMAP_PATHS, SHARE_IMAGE,
   ok("readHead: the head's title only (not an icon's), entities read as text, a heading's words", JSON.stringify(h.titles) === '["A & B"]' && h.meta("description")[0] === `It's "here"` && h.h1[0] === "One two");
 }
 
+// ── 7b · Search Console's ownership file (R43, 2026-10-19): the URL-prefix property https://app.gt3pb.com/ is verified by
+// this file, served at the site's root. Removing it un-verifies the property.
+ok("Search Console's ownership file is served from the root, word for word",
+  readFileSync(join(ROOT, "public/googlec1457e9c5896ea60.html"), "utf8") === "google-site-verification: googlec1457e9c5896ea60.html"
+    && /"public\/googlec1457e9c5896ea60\.html", "app\/\.well-known"\];/.test(read("scripts/build.app.mjs")));   // …and the app's export leaves it out
+
 // ── 8 · where it runs ─────────────────────────────────────────────────────────────────────────────────────────────────
 {
   const ui = read("scripts/smoke.ui.mjs"), prod = read("scripts/verify.prod.mjs"), pkg = JSON.parse(read("package.json"));
