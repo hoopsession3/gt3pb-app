@@ -237,6 +237,15 @@ const claim = (k) => w.tables.checkout_claims.find((c) => c.idempotency_key === 
   const r = await post({ items: ["cold-brew"], customer: "Dee", idempotencyKey: key(), expectedCents: 600 });
   ok("pay at pickup switched off by the owner → 409, nothing written", r.status === 409 && orders().length === 0, r);
 }
+{
+  // R39 (the fresh audit's API11-06): the owner's switch unread is not the switch on.
+  fresh();
+  w.fail.live_status = { select: { error: { code: "XX000", message: "the pool ran dry" }, cols: "pay_at_pickup" } };
+  const k = key();
+  const r = await post({ items: ["cold-brew"], customer: "Dee", idempotencyKey: k, expectedCents: 600 });
+  ok("pay at pickup, the owner's switch unread → 503, nothing charged, said; no order, no claim — a blip let pickup orders through",
+    r.status === 503 && r.json?.charged === false && /pay at pickup is on/.test(r.json.error ?? "") && orders().length === 0 && !claim(k), { r, claim: claim(k) });
+}
 
 // ── the request itself ──────────────────────────────────────────────────────────────────────────────────────────────
 {
@@ -297,6 +306,19 @@ const newOrderAlerts = () => alerts.filter((a) => a.kind === "office_order_new")
   const r = await book(booking({ key: "0c422000-after-the-paste" }));
   ok("office (0422 applied): a refused booking is said (500), nothing written, and not retried without its key",
     r.status === 500 && /Couldn't book it/.test(r.json?.error ?? "") && bookings().length === 0, { r, rows: bookings() });
+}
+{
+  // R39 (the fresh audit's API11-06): the owner's price unread is not the code's price, and an account unread is not none.
+  officeWorld();
+  w.fail.live_status = { select: { code: "XX000", message: "the pool ran dry" } };
+  const r = await book(booking({ key: "0c439000-price-unread-key" }));
+  ok("office: the owner's price unread → 503, nothing booked, said — never the code's per-gallon price on a pay link",
+    r.status === 503 && /couldn't read the price/.test(r.json?.error ?? "") && /Nothing was booked/.test(r.json.error) && bookings().length === 0 && w.tables.business_accounts.length === 0, r);
+  officeWorld();
+  w.fail.business_accounts = { select: { code: "XX000", message: "the pool ran dry" } };
+  const r2 = await book(booking({ key: "0c439000-account-unread", standing: true }));
+  ok("office: the standing account unread → 503, said; no second account for the same company, no booking",
+    r2.status === 503 && /standing account/.test(r2.json?.error ?? "") && w.tables.business_accounts.length === 0 && bookings().length === 0, r2);
 }
 {
   officeWorld();

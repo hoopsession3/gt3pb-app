@@ -11,7 +11,8 @@
 //   · unique keys per table — an insert that repeats one answers 23505, as Postgres does;
 //   · `rpc` answered by functions the test gives (rate_limit_hit, resolve_customer, stop_menu, …);
 //   · `auth.getUser(token)` answered from the sessions the test gives — or failing as the auth service fails;
-//   · `fail[table][op]`: the next call of that kind answers the error given instead (a missing table, a refusal);
+//   · `fail[table][op]`: the next call of that kind answers the error given instead (a missing table, a refusal) — with
+//     `cols`, only a select of exactly those columns; with `sticky`, every call until it is taken away;
 //   · `embed[table]`: a read that names another table (`products!inner(slug)`) is answered by the test's function.
 //
 // Every call is kept in `calls`. Nothing here talks to Supabase.
@@ -112,11 +113,16 @@ function project(row, cols) {
 export function moneyWorld({ tables = {}, unique = {}, rpc = {}, sessions = {}, embed = {}, defaults = {} } = {}) {
   const w = { tables, unique, rpcs: rpc, sessions, embed, defaults, calls: [], fail: {} };
   const rowsOf = (t) => (w.tables[t] ??= []);
-  const failed = (table, op) => {
+  // `cols` (R39): only a call whose select is exactly these columns fails — one read of a table the route reads twice (the
+  // pay-at-pickup switch alone, not the truck's own live_status read before it, which names it among others).
+  const failed = (table, op, cols = "*") => {
     const f = w.fail[table]?.[op];
     if (!f) return null;
+    if (f.cols && String(cols).replace(/\s+/g, "") !== f.cols.replace(/\s+/g, "")) return null;
     if (!f.sticky) delete w.fail[table][op];
-    return { data: null, error: f.error ?? f, count: null };
+    const said = { ...f };
+    delete said.cols; delete said.sticky;
+    return { data: null, error: f.error ?? said, count: null };
   };
   const dupe = (table, row, except = null) => {
     for (const k of w.unique[table] ?? []) {
@@ -137,7 +143,7 @@ export function moneyWorld({ tables = {}, unique = {}, rpc = {}, sessions = {}, 
     let write = null;   // { kind: insert|update|upsert|delete, values, opts }
     const filterRows = () => rowsOf(table).filter((r) => keep.every((f) => f(r)));
     const run = () => {
-      const f = failed(table, write?.kind ?? "select");
+      const f = failed(table, write?.kind ?? "select", cols);
       if (f) return f;
       if (write?.kind === "insert" || write?.kind === "upsert") {
         const list = Array.isArray(write.values) ? write.values : [write.values];

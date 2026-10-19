@@ -22,7 +22,8 @@ async function get(req: Request) {
   const saEmail = process.env.GOOGLE_WALLET_SA_EMAIL;
   const saKey = process.env.GOOGLE_WALLET_SA_KEY;
   if (!issuerId || !classSuffix || !saEmail || !saKey || !supabaseAdmin) {
-    return NextResponse.json({ error: "Google Wallet isn't switched on yet — set GOOGLE_WALLET_ISSUER_ID, GOOGLE_WALLET_CLASS_SUFFIX, GOOGLE_WALLET_SA_EMAIL, GOOGLE_WALLET_SA_KEY (and NEXT_PUBLIC_GOOGLE_WALLET=1)." }, { status: 503 });
+    // What it needs is named in lib/envSchema, not to whoever asks (R39 — API11-11): this answers before any sign-in.
+    return NextResponse.json({ error: "Google Wallet isn't switched on yet." }, { status: 503 });
   }
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ error: "Sign in first" }, { status: 401 });

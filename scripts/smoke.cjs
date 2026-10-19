@@ -6239,13 +6239,11 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /-- existing rows: founder_digest_alert — /.test(m358));
     ok("office revenue: the app's own readers count an office order on its delivery day — the daily digest, the week review (for its own tenant); the console's numbers read report_sales, 0358's (2026-10-09: Money's tiles retired)",
       /sb\.rpc\("report_sales", \{ p_days: 7 \}\)/.test(read("components/HomeNumbers.tsx"))
-      && /sum\("business_orders", \(q\) => q\.eq\("payment_status", "paid"\)\.is\("canceled_at", null\)\.gte\("delivery_date", day6\(\)\)\.lte\("delivery_date", etToday\(\)\)\)/.test(digestRoute)
-      && /supabaseAdmin\.from\("business_orders"\)\.select\("payment_id"\)\.not\("payment_id", "is", null\),/.test(digestRoute)
-      // 2026-10-12: the review's windows are business days (lib/rhythm.rhythmWeek) — the delivery day is the day key itself,
-      // not the UTC date cut from an instant.
-      && /const onDay = \(q: any\) => q\.eq\("tenant_id", tenant\)\.gte\("delivery_date", from\)\.lt\("delivery_date", to\);/.test(review)
-      && /revenue\(tenant, wk\.from, wk\.next\)/.test(review) && /revenue\(tenant, wk\.priorFrom, wk\.from\)/.test(review)
-      && !/business_orders[^\n]*gte\("created_at"/.test(digestRoute));
+      // R39 (the fresh audit's API11-07): the digest and the week's review read report_sales too, as the person who asked
+      // (lib/salesReport) — 0358's delivery-day rule is report_sales's own, and neither route sums a table any more.
+      && /const report = await salesReport\(callerClient\(req\), 7\);/.test(digestRoute)
+      && /salesReport\(callerClient\(req\), 7\),\s*salesReport\(callerClient\(req\), 14\),/.test(review)
+      && !/from\("business_orders"\)/.test(digestRoute) && !/from\("business_orders"\)/.test(review));
     ok("office revenue: the crew's route is the next delivery day with later weeks folded under it, no pay link or invoice before a delivery's cutoff, and the client sees what's coming up soonest first",
       /const nextDay = open\.map\(\(o\) => o\.delivery_date\)\.filter\(\(d\) => d >= today\)\.sort\(\)\[0\] \?\? null;/.test(crewOffice3)
       && /\(o\.status === "delivered" \|\| !o\.cutoff_at \|\| new Date\(o\.cutoff_at\)\.getTime\(\) <= Date\.now\(\)\)/.test(crewOffice3)
@@ -12427,9 +12425,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("review: no count reads all_tasks; six read event_tasks or todos, each for the caller's business, an event task due on its Eastern day",
     !/from\("all_tasks"\)/.test(review) && (review.match(/from\("(event_tasks|todos)"\)\.select\("id", \{ count: "exact", head: true \}\)\.eq\("tenant_id", tenant\)/g) || []).length === 6
       && /\.lt\("due_at", todayAt\)/.test(review) && /\.gte\("due_at", todayAt\)\.lt\("due_at", dueByAt\)/.test(review) && /const todayAt = dayStartIso\(today\), dueByAt = dayStartIso\(addDays\(wk\.ahead7, 1\)\);/.test(review));
-  ok("review: the revenue helper's one table-by-name read states its proof; every other read names the business but the portfolio registry, which has no tenant_id",
-    /\/\/ scoped-by: revenue\(\) below is the only caller, and both of its filters \(win, onDay\) begin with/.test(rawReview)
-      && stmts(review, "supabaseAdmin").filter((c) => !/^\s*table\)/.test(c) && !/^"os_workstreams"/.test(c)).every((c) => /\.insert\(/.test(c) || /\.eq\("tenant_id", tenant\)/.test(c))
+  // R39: the revenue helper and its table-by-name read are gone — the week's money is report_sales's, asked as the caller.
+  ok("review: no table read by a name chosen at run time; every read names the business but the portfolio registry, which has no tenant_id",
+    !/from\(table\)/.test(review) && /salesReport\(callerClient\(req\), 7\)/.test(review)
+      && stmts(review, "supabaseAdmin").filter((c) => !/^"os_workstreams"/.test(c)).every((c) => /\.insert\(/.test(c) || /\.eq\("tenant_id", tenant\)/.test(c))
       && /tenant_id: tenant, title, met_on: today, source: "review"/.test(review));
   const transcript = code(rd("app/api/agents/session-extract/route.ts")), tStmts = stmts(transcript, "supabaseAdmin");
   ok("transcript: every read and the account update name the caller's business — the vendor book first",
@@ -14772,7 +14771,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /const free = amount === 0;\s+const charging = wantsCharge && !free;/.test(rs) && /if \(!charging\) return reply\(await placeOnce\(\{ claims: held\.claims, key: idemKey, now, place: \(\) => recordPack\(null, false\) \}\)\);/.test(rs)
     && /const totalCents = packCents\(size, glass, benefits\);/.test(rd("app/api/reserve/quote/route.ts")));
   ok("R7b packs: pay at pickup is the owner's dial on the server too — a pack to pay at the truck is refused while it is off, before its key is claimed",
-    /if \(!charging && !free\) \{\s+const \{ data: dial \} = await supabaseAdmin\.from\("live_status"\)\.select\("pay_at_pickup"\)\.maybeSingle\(\);/.test(rs)
+    /if \(!charging && !free\) \{\s+const \{ data: dial, error: dialError \} = await supabaseAdmin\.from\("live_status"\)\.select\("pay_at_pickup"\)\.maybeSingle\(\);/.test(rs)   // R39: and its error read (API11-06)
     && rs.indexOf('select("pay_at_pickup")') < rs.indexOf("const held = await claimKey(") && /Pay at pickup isn't available right now — pay by card instead\./.test(rs));
   ok("R7b packs: a change keeps the pack's own day, and says so when it moves it",
     /const at = fallbackDay \? 0 : stops\.findIndex\(\(st\) => \(p\.stop_id \? st\.id === p\.stop_id : dropDateKey\(dropForStop\(st\.starts_at\)\.sat\) === p\.drop_date\)\);/.test(of)
@@ -15419,7 +15418,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /\{ key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" \}/.test(nc) && !/onesignal|api\.resend\.com/i.test(strip(nc)) && !/interest-cohort/.test(nc));
   const sub = strip(rd("app/api/subscriptions/create/route.ts"));
   ok("R10b subscriptions: Square is asked with the row stamped first; an answer that does not say keeps the row, tells the crew, and asks the member not to try again",
-    sub.indexOf('update({ square_asked_at: new Date().toISOString() })') > 0 && sub.indexOf('update({ square_asked_at: new Date().toISOString() })') < sub.indexOf("fetch(`${SQUARE_BASE}/v2/subscriptions`")
+    // R39: the stamp is kept (const stamp) — the writes after Square answers are held to it (API11-08).
+    sub.indexOf('update({ square_asked_at: stamp })') > 0 && sub.indexOf('update({ square_asked_at: stamp })') < sub.indexOf("fetch(`${SQUARE_BASE}/v2/subscriptions`")
+      && /const stamp = new Date\(\)\.toISOString\(\);/.test(sub)
       && /throw new SubscriptionUnknown\(/.test(sub) && /kind: "subscription_unknown", subjectId: rowId/.test(sub) && /status: 202/.test(sub)
       && /\.is\("square_asked_at", null\)\s+\.lt\("created_at"/.test(sub));
   // 0421 applied (2026-10-16): the before-the-paste path is gone — a failed read of the asked rows is not "none", and a

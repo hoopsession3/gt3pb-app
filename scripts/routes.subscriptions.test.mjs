@@ -11,6 +11,7 @@
 // key and the subscription started under it; a refusal said in one sentence with the try rolled back; an answer that
 // doesn't say kept (the row stamped as asked), the crew told, the member told not to try again — and their next try
 // asks Square first; a subscription live at Square never left without its row.
+import { readFileSync } from "node:fs";
 import { routeLoader, moneyWorld, NextResponseShim } from "./fixtures/moneyWorld.mjs";
 
 let pass = 0, fail = 0;
@@ -225,6 +226,40 @@ const asked = (path) => sq.calls.filter((c) => c.path === path);
   ok("live at Square, the mirror missed: 200 ok, 'you're subscribed — finalizing'", r.status === 200 && r.json?.ok === true && /You're subscribed/.test(r.json.warn ?? ""), r);
   ok("…the row kept, marked active with the subscription's id; the crew told to reconcile (critical, money)", subs().length === 1 && subs()[0].status === "active" && subs()[0].square_subscription_id === "SUB_MADEUP_1"
     && alerts.some((a) => a.severity === "critical" && a.category === "money" && /needs reconcile/.test(a.title)), { subs: subs(), alerts });
+}
+{
+  // R39 (the fresh audit's API11-08): the row taken while Square answered. A retry more than two minutes after this try
+  // stamped its row took it for one that died — Square had nothing yet — deleted it and started its own. This try's
+  // writes matched nothing and read as success: two live subscriptions, one row.
+  fresh();
+  let theirs = null;
+  sq.onSubscribe = () => {
+    const mine = subs()[0];
+    w.tables.subscriptions = subs().filter((r) => r !== mine);
+    theirs = { id: uuid(), user_id: SAM, status: "pending", plan: "coffee_6", square_subscription_id: null, square_asked_at: new Date().toISOString(), created_at: new Date().toISOString(), one_active: true };
+    w.tables.subscriptions.push(theirs);
+  };
+  const r = await post({ sourceId: card(), pack: "6" });
+  ok("the row taken while Square answered: the member is told they're subscribed — never a bare ok over a row that isn't there",
+    r.status === 200 && r.json?.ok === true && /You're subscribed/.test(r.json.warn ?? ""), r);
+  ok("…the other try's row is left as it was — never named with this try's subscription, nor marked",
+    subs().length === 1 && subs()[0] === theirs && theirs.square_subscription_id === null && theirs.status === "pending", subs());
+  ok("…and the crew is told, critical, with the Square id, that the member may have two",
+    alerts.some((a) => a.severity === "critical" && a.category === "money" && /needs reconcile/.test(a.title) && a.body.includes("SUB_MADEUP_1") && /may have two/.test(a.body)), alerts);
+  // Taken up instead: the other try asked Square, found this very subscription, and named the row with it — one
+  // subscription, one row. Nothing to reconcile, and nobody is told there may be two.
+  fresh();
+  sq.onSubscribe = () => {
+    const mine = subs()[0];
+    Object.assign(mine, { square_subscription_id: "SUB_MADEUP_1", status: "active", square_asked_at: null });
+  };
+  const taken = await post({ sourceId: card(), pack: "6" });
+  ok("…while a row the other try took up with this very subscription is right as it is: ok, subscribed, and no reconcile alert",
+    taken.status === 200 && taken.json?.ok === true && taken.json.status === "active" && subs().length === 1 && subs()[0].square_subscription_id === "SUB_MADEUP_1"
+      && !alerts.some((a) => /needs reconcile/.test(a.title ?? "")), { taken, subs: subs(), alerts });
+  const src = readFileSync(new URL("../app/api/subscriptions/create/route.ts", import.meta.url), "utf8");
+  ok("…and the door has the platform's limit every card door has (60 s), under the two minutes a stamp is trusted",
+    /^export const maxDuration = 60;$/m.test(src) && /\.eq\("id", rowId\)\.eq\("square_asked_at", stamp\)\.select\("id"\)/.test(src));
 }
 {
   // A try that died before reaching Square, ten minutes ago, is cleared; one Square was asked about never is.

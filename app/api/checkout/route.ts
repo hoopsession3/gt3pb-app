@@ -26,6 +26,7 @@ import { checkoutClaims } from "@/lib/checkoutClaims";
 import { CONNECT_APP } from "@/lib/connect";
 import { callerIp, limitsFit } from "@/lib/rateLimit";
 import { CARD_TRIES, cardsPausedRefusal } from "@/lib/cardGuard";
+import { PAY_DIAL_UNREAD } from "@/lib/payDial";
 
 // public: a cup order — a guest orders and pays as anyone at the window may (who is calling prices the order and keeps it on their account, never permits it); a member whose sign-in can't be checked is refused (503), every card try is bounded per caller and for the app before the card is asked, and a key is charged once
 
@@ -242,7 +243,10 @@ async function post(req: Request) {
   // Pay-at-pickup is the owner's dial (live_status.pay_at_pickup, 0147) — server-authoritative now
   // that this path runs through the API at all, matching the subscriptions_enabled pattern (0150).
   if (!paying) {
-    const { data: ls2 } = await supabaseAdmin.from("live_status").select("pay_at_pickup").maybeSingle();
+    const { data: ls2, error: dialError } = await supabaseAdmin.from("live_status").select("pay_at_pickup").maybeSingle();
+    // The switch unread is not the switch on (R39 — the fresh audit's API11-06): a blip let pickup orders through with
+    // the owner's switch off. It waits, nothing charged.
+    if (dialError) return NextResponse.json({ error: PAY_DIAL_UNREAD, charged: false }, { status: 503 });
     if ((ls2 as { pay_at_pickup?: boolean } | null)?.pay_at_pickup === false) {
       return NextResponse.json({ error: "Pay at pickup isn't available right now — pay by card instead." }, { status: 409 });
     }

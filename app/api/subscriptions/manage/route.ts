@@ -18,8 +18,10 @@ async function post(req: Request) {
   const action = body.action || "";
   if (!["pause", "resume", "cancel"].includes(action)) return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 
-  const { data: sub } = await supabaseAdmin
+  const { data: sub, error: subError } = await supabaseAdmin
     .from("subscriptions").select("square_subscription_id").eq("user_id", user.id).in("status", ["active", "paused", "pending", "past_due"]).maybeSingle();
+  // A read that failed is not "no subscription" (R39 — the fresh audit's API11-06): it says so, and nothing changes.
+  if (subError) return NextResponse.json({ error: "We couldn't read your subscription just now — try again in a moment. Nothing was changed." }, { status: 503 });
   if (!sub?.square_subscription_id) return NextResponse.json({ error: "No active subscription." }, { status: 404 });
   const id = sub.square_subscription_id;
 

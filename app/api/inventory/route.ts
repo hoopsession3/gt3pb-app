@@ -4,6 +4,7 @@
 // have-vs-need + restock logic already consumes, so callers are unchanged.
 
 import { createClient } from "@supabase/supabase-js";
+import { deadlineFetch } from "@/lib/dbDeadline";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { route } from "@/lib/apiRoute";
 
@@ -17,7 +18,7 @@ async function get(req: Request) {
   if (!url || !anon || !token) return Response.json({ enabled: false, items: [] });
 
   const sb = createClient(url, anon, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { Authorization: `Bearer ${token}` }, fetch: deadlineFetch() },   // a deadline (R39 — API11-10)
     auth: { persistSession: false, autoRefreshToken: false },
   });
   // inventory_status (0205) = inventory_items + reconciled on-hand from the ledger, so reorder math

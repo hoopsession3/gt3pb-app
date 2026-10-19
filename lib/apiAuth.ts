@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "./supabaseAdmin";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { deadlineFetch } from "./dbDeadline";
 import { authUnavailable } from "./authAnswer";
 import { SignInUnchecked } from "./signInUnchecked";
 import { claimsOf, provedWithin, PROVED_FOR_S } from "./freshProof";
@@ -74,7 +75,7 @@ export function callerClient(req: Request): SupabaseClient | null {
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!token || !url || !anon) return null;
   return createClient(url, anon, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { Authorization: `Bearer ${token}` }, fetch: deadlineFetch() },   // a deadline (R39 — API11-10)
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

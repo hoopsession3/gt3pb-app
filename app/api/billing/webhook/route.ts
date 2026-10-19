@@ -33,6 +33,32 @@ type StripeEvent = {
   } };
 };
 
+// THE SUBSCRIPTION AS IT STANDS, NOT AS ONE EVENT SAID (R39 — the fresh audit's API11-09). Stripe delivers events out of
+// order and retries the ones that failed: an "updated" (active, cancel at period end) retried after the "deleted" put a
+// canceled business back on Pro. Each subscription event now asks Stripe for the subscription as it is, and writes that —
+// so the order the events arrive in decides nothing. Stripe not answering is a 500: Stripe retries, and nothing is written
+// from a guess. Without the API key to ask with, the event is written as before, but a cancel is final: only a new
+// checkout (a new subscription) brings a canceled business back.
+type StripeSub = { status: string; periodEnd: number | null };
+async function subscriptionNow(id: string): Promise<StripeSub | "unasked" | "unanswered"> {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return "unasked";
+  try {
+    const r = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10_000),
+    });
+    // Gone at Stripe: it was deleted, which is canceled.
+    if (r.status === 404) return { status: "canceled", periodEnd: null };
+    if (!r.ok) return "unanswered";
+    const j = (await r.json().catch(() => null)) as { status?: unknown; current_period_end?: unknown; items?: { data?: { current_period_end?: unknown }[] } } | null;
+    if (!j || typeof j.status !== "string") return "unanswered";
+    const end = j.current_period_end ?? j.items?.data?.[0]?.current_period_end;
+    return { status: j.status, periodEnd: typeof end === "number" ? end : null };
+  } catch {
+    return "unanswered";
+  }
+}
+
 async function post(req: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret || !supabaseAdmin) return NextResponse.json({ ok: true }); // dormant — ack so Stripe doesn't retry forever
@@ -77,20 +103,35 @@ async function post(req: Request) {
     }
 
     if ((evt.type === "customer.subscription.updated" || evt.type === "customer.subscription.deleted") && o.id) {
-      const status = evt.type === "customer.subscription.deleted" ? "canceled" : (o.status ?? "active");
-      const endS = o.current_period_end ?? o.items?.data?.[0]?.current_period_end;
+      const now = await subscriptionNow(o.id);
+      if (now === "unanswered") return NextResponse.json({ ok: false, error: "Stripe didn't say how the subscription stands — will retry" }, { status: 500 });
+      const asked = now !== "unasked";
+      const status = asked ? now.status : evt.type === "customer.subscription.deleted" ? "canceled" : (o.status ?? "active");
+      const endS = asked ? now.periodEnd : o.current_period_end ?? o.items?.data?.[0]?.current_period_end;
       // .select("id") + a rows-matched check, same fix as checkout.session.completed above — a plain
       // { error } check doesn't catch a 0-row match (not a Postgrest error), so a webhook arriving
       // before stripe_subscription_id is ever written used to silently ACK 200 and leave the tenant's
       // billing_status stale forever (e.g. a canceled tenant keeping Pro access indefinitely).
-      const { data: rows, error } = await supabaseAdmin.from("tenants").update({
+      let write = supabaseAdmin.from("tenants").update({
         billing_status: status,
         ...(typeof endS === "number" ? { current_period_end: new Date(endS * 1000).toISOString() } : {}),
-      }).eq("stripe_subscription_id", o.id).select("id");
-      if (error || !rows || rows.length === 0) {
-        return NextResponse.json({ ok: false, error: "update failed or matched no tenant — will retry" }, { status: 500 });
+      }).eq("stripe_subscription_id", o.id);
+      // Unasked, a cancel is final (above): an older event never lifts it.
+      if (!asked && status !== "canceled") write = write.neq("billing_status", "canceled");
+      const { data: rows, error } = await write.select("id");
+      if (error) return NextResponse.json({ ok: false, error: "update failed — will retry" }, { status: 500 });
+      const applied = !!rows && rows.length > 0;
+      if (!applied) {
+        // Matched nothing: no business has this subscription yet (its checkout's event is still to come — retry), or the
+        // one that has it is canceled and this older event is not let lift it (done: nothing to retry, nothing to say).
+        const held = !asked && status !== "canceled"
+          ? await supabaseAdmin.from("tenants").select("id").eq("stripe_subscription_id", o.id).eq("billing_status", "canceled").limit(1)
+          : null;
+        if (held?.error || !(held?.data ?? []).length) {
+          return NextResponse.json({ ok: false, error: "matched no business — will retry" }, { status: 500 });
+        }
       }
-      if (status === "past_due" || status === "canceled") {
+      if (applied && (status === "past_due" || status === "canceled")) {
         await raiseAlertOnce({ severity: "important", category: "money", kind: `software_subscription_${status}`, subjectId: String(o.id), title: `Software subscription ${status}`, body: `Stripe subscription ${o.id} is ${status}.`, link: "/crew" });
       }
     }

@@ -13,6 +13,7 @@ export const CRON_JOBS: ReadonlyArray<readonly [job: string, madeBy: string]> = 
   ["alert-stale-orders", "0120_stale_order_alert"],
   ["archive-stale-stops", "0228_ops_hygiene"],
   ["brew-due-alerts", "0084_brew_alert_ladder"],
+  ["checkout-claims-sweep", "0439_a_checkouts_key_is_kept_as_long_as_it_can_matter"],
   ["cron-watch", "0419_a_push_is_sent_once_for_what_happened_and_a_limit_counts_what_it_lets_in"],
   ["device-tests-close", "0374_ring_this_phone"],
   ["erasure-followups-watch", "0404_an_account_is_erased_before_anything_outside_it"],

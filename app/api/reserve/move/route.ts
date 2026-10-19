@@ -40,12 +40,15 @@ async function post(req: Request) {
   // NOT marked scoped-by, deliberately. This reads the PUBLIC schedule — the same upcoming stops any guest already sees on
   // Find Us — so it leaks nothing today. But it IS unscoped, and with a second market it would offer a Greenville
   // customer Atlanta's drop dates. It stays counted until it is actually fixed.
-  const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at, market")
+  const { data: nextStops, error: stopsError } = await supabaseAdmin.from("stops").select("id, starts_at, market")
     .is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ);
+  // A read that failed is no schedule (R39 — API11-06): the Saturday cadence took its place, and a pack moved to a day the
+  // truck isn't on. It waits; nothing moves.
+  if (stopsError) return NextResponse.json({ error: PACK_ROAD_WORDS.unreadMove }, { status: 503 });
   // Not to a stop in a city held closed, or not open yet (0412, R7b re-audit — lib/packRoad).
   const road = await packRoad(supabaseAdmin, (nextStops ?? []) as { id: string; starts_at: string; market?: string | null }[]);
-  if (road.error !== null) return NextResponse.json({ error: PACK_ROAD_WORDS.unread }, { status: 503 });
+  if (road.error !== null) return NextResponse.json({ error: PACK_ROAD_WORDS.unreadMove }, { status: 503 });
   const named = stopId ? ((nextStops ?? []) as { id: string; market?: string | null }[]).find((st) => st.id === stopId) : undefined;
   if (named && road.heldCity(named)) return NextResponse.json({ error: PACK_ROAD_WORDS.heldStop }, { status: 409 });
   const upcoming = road.taking;

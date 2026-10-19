@@ -8,6 +8,10 @@ import { raiseAlert, raiseAlertOnce } from "@/lib/serverAlerts";
 import { errorMessage } from "@/lib/errorMessage";
 import { route } from "@/lib/apiRoute";
 
+// The platform's own limit for a card door, as every other one has (R39 — the fresh audit's API11-08): with none, a request
+// could outlive the two minutes after which its stamped row is taken for a try that died.
+export const maxDuration = 60;
+
 // Create a recurring subscription: ensure a Square Customer, vault the card, then
 // CreateSubscription against the owner's plan variation. Square owns billing; we keep
 // a status mirror (the webhook keeps it authoritative).
@@ -22,6 +26,14 @@ import { route } from "@/lib/apiRoute";
 const SETUP_FAILED = "Couldn't set up billing just now — nothing was charged. Try again in a minute.";
 class SubscriptionUnknown extends Error {
   constructor(message: string) { super(message); this.name = "SubscriptionUnknown"; }
+}
+/** THE ROW WAS TAKEN WHILE SQUARE ANSWERED (R39 — the fresh audit's API11-08). A retry more than two minutes after this
+ *  request stamped its row takes it for a try that died: Square has nothing for it yet, so the retry deletes the row and
+ *  starts its own. This request's later writes matched nothing and read as success — a second live subscription billed
+ *  monthly, with no row to cancel it from. Each write is held to this request's own row now, and one that matched
+ *  nothing is said, with the Square id, for the crew to reconcile. */
+class MirrorGone extends Error {
+  constructor(message: string) { super(message); this.name = "MirrorGone"; }
 }
 
 /** The member's live subscription at Square (one not canceled), or null when Square has none; undefined when Square could
@@ -167,7 +179,8 @@ async function post(req: Request) {
     // A stamp that did not take stops here, before Square is asked (0421 is applied): the row would not say so, and a try
     // that then died waiting would be taken for one that made nothing. The card is saved; nothing is charged.
     // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
-    const stamped = await supabaseAdmin.from("subscriptions").update({ square_asked_at: new Date().toISOString() }).eq("id", rowId);
+    const stamp = new Date().toISOString();
+    const stamped = await supabaseAdmin.from("subscriptions").update({ square_asked_at: stamp }).eq("id", rowId);
     if (stamped.error) throw new Error(SETUP_FAILED);
     let subRes: Response;
     try {
@@ -191,8 +204,10 @@ async function post(req: Request) {
     // and the member is told they're subscribed — not "ok" over a row that can't be cancelled from the app.
     if (squareSubId) {
       // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
-      const named = await supabaseAdmin.from("subscriptions").update({ square_subscription_id: squareSubId, square_asked_at: null }).eq("id", rowId);
+      // Held to the stamp this request wrote (R39, MirrorGone above): a row a retry took is not this request's to name.
+      const named = await supabaseAdmin.from("subscriptions").update({ square_subscription_id: squareSubId, square_asked_at: null }).eq("id", rowId).eq("square_asked_at", stamp).select("id");
       if (named.error) throw new Error(`the mirror didn't take the Square id — ${named.error.message}`);
+      if (!(named.data ?? []).length) throw new MirrorGone("the row this request stamped was taken by another try while Square answered");
     }
 
     // 4) fill the rest of the mirror (webhook reconciles authoritatively)
@@ -203,21 +218,36 @@ async function post(req: Request) {
       current_period_end: sub?.charged_through_date || null,
       updated_at: new Date().toISOString(),
     // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
-    }).eq("id", rowId);
+    }).eq("id", rowId).eq("square_subscription_id", squareSubId ?? "").select("id");
     if (filled.error) throw new Error(`the mirror didn't take the subscription's details — ${filled.error.message}`);
+    if (!(filled.data ?? []).length) throw new MirrorGone("the row this request named was gone before its details were written");
 
     // Leadership visibility — new recurring revenue shouldn't be invisible.
     await raiseAlert({ severity: "fyi", category: "money", title: "New subscriber 🎉", body: `A member started a ${pack}-pack coffee subscription. See Subscribers.` });
     return NextResponse.json({ ok: true, status: mapSubStatus(sub?.status) });
   } catch (e) {
+    if (squareSubId && e instanceof MirrorGone) {
+      // The row this try stamped is gone from under it (R39, MirrorGone). Taken up — the other try asked Square, found this
+      // very subscription and named the row with it — the member has one subscription and one row: nothing to fix. Gone
+      // (deleted for a try that died, and the other try's own started): the crew reconciles, below.
+      // scoped-by: user_id = the caller's own id, from their verified session — only this member's rows.
+      const named = await supabaseAdmin.from("subscriptions").select("id, status").eq("user_id", user.id).eq("square_subscription_id", squareSubId).limit(1);
+      const row = !named.error ? (named.data ?? [])[0] as { status?: string } | undefined : undefined;
+      if (row) return NextResponse.json({ ok: true, status: row.status ?? "active" });
+    }
     if (squareSubId) {
       // A Square subscription is LIVE. Deleting the mirror would orphan a billing subscription the
       // member could never cancel in-app. Keep the row, ensure it carries the id, mark it active,
       // and flag staff to reconcile — never silently drop a paying member.
       // scoped-by: rowId came from this request's own INSERT (user_id: user.id from the verified session), never from the caller
-      const kept = await supabaseAdmin.from("subscriptions").update({ status: "active", square_subscription_id: squareSubId, updated_at: new Date().toISOString() }).eq("id", rowId);
-      if (kept.error) console.error(`subscriptions: ${squareSubId} is live, and its mirror row ${rowId} couldn't be marked — ${kept.error.message}`);
-      await raiseAlert({ severity: "critical", category: "money", title: "Subscription needs reconcile", body: `A subscription is live at Square (${squareSubId}) but setup errored after billing started${kept.error ? " — and the app's row could not be marked; find it by the member" : ""}. It's kept so the member can cancel — verify the mirror in Subscribers.` });
+      // Never onto a row another try took (R39 — MirrorGone): that row is the other try's, and its subscription its own.
+      const kept = e instanceof MirrorGone ? null
+        : await supabaseAdmin.from("subscriptions").update({ status: "active", square_subscription_id: squareSubId, updated_at: new Date().toISOString() }).eq("id", rowId).select("id");
+      if (kept?.error) console.error(`subscriptions: ${squareSubId} is live, and its mirror row ${rowId} couldn't be marked — ${kept.error.message}`);
+      const gone = !kept || (!kept.error && !(kept.data ?? []).length);
+      await raiseAlert({ severity: "critical", category: "money", title: "Subscription needs reconcile", body: gone
+        ? `A subscription is live at Square (${squareSubId}), and the app has no row for it — another try took this one's row while Square answered. The member may have two at Square: keep one, cancel the other in Square, and check Subscribers.`
+        : `A subscription is live at Square (${squareSubId}) but setup errored after billing started${kept.error ? " — and the app's row could not be marked; find it by the member" : ""}. It's kept so the member can cancel — verify the mirror in Subscribers.` });
       return NextResponse.json({ ok: true, status: "active", warn: "You're subscribed — we're finalizing a couple details." });
     }
     if (e instanceof SubscriptionUnknown) {

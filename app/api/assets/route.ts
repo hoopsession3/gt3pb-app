@@ -5,6 +5,7 @@
 // to stay clear of the PostgREST cache quirk we hit on event_approvals.
 
 import { createClient } from "@supabase/supabase-js";
+import { deadlineFetch } from "@/lib/dbDeadline";
 import { staffFromRequest } from "@/lib/apiAuth";
 import { route } from "@/lib/apiRoute";
 
@@ -18,7 +19,7 @@ async function get(req: Request) {
   if (!url || !anon || !token) return Response.json({ enabled: false, items: [] });
 
   const sb = createClient(url, anon, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { Authorization: `Bearer ${token}` }, fetch: deadlineFetch() },   // a deadline (R39 — API11-10)
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data, error } = await sb.from("assets").select("*");

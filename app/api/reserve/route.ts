@@ -18,6 +18,7 @@ import { checkoutClaims } from "@/lib/checkoutClaims";
 import { money } from "@/lib/money";
 import { aboveShown, shownCents } from "@/lib/shownTotal";
 import { packRoad, PACK_ROAD_WORDS } from "@/lib/packRoad";
+import { PAY_DIAL_UNREAD } from "@/lib/payDial";
 import { etToday } from "@/lib/dates";
 
 // ORDER-AHEAD reserve — records a one-off Saturday-drop reservation. Price + cutoff are recomputed
@@ -108,9 +109,12 @@ async function post(req: Request) {
   // authoritative; the Saturday cadence is the fallback when the route is empty). The client's
   // dropDate must match one of them, and its drop must still be open, or we reject — regardless
   // of what the client clock or a stale page said.
-  const { data: nextStops } = await supabaseAdmin.from("stops").select("id, starts_at, market")
+  const { data: nextStops, error: stopsError } = await supabaseAdmin.from("stops").select("id, starts_at, market")
     .is("archived_at", null).is("canceled_at", null).neq("status", "done").not("starts_at", "is", null)
     .gte("starts_at", new Date().toISOString()).order("starts_at", { ascending: true }).limit(PICKUP_STOPS_READ);
+  // A READ THAT FAILED IS NO SCHEDULE (R39 — the fresh audit's API11-06). Its error went unread: an empty list, and the
+  // Saturday cadence offered in its place — a pack charged for a day the truck isn't scheduled, at no stop. It waits.
+  if (stopsError) return NextResponse.json({ error: PACK_ROAD_WORDS.unread, charged: false }, { status: 503 });
   // A city held closed, or not open yet, takes no pack at its stops (0412, R7b re-audit — lib/packRoad): before any claim.
   const road = await packRoad(supabaseAdmin, (nextStops ?? []) as { id: string; starts_at: string; market?: string | null }[]);
   if (road.error !== null) return NextResponse.json({ error: PACK_ROAD_WORDS.unread, charged: false }, { status: 503 });
@@ -157,7 +161,9 @@ async function post(req: Request) {
   // while the dial is on; the server holds the same line (R7b) — a page left open across the switch still reserved packs
   // to be paid at the truck. Read before the key is claimed, so a refusal leaves nothing behind.
   if (!charging && !free) {
-    const { data: dial } = await supabaseAdmin.from("live_status").select("pay_at_pickup").maybeSingle();
+    const { data: dial, error: dialError } = await supabaseAdmin.from("live_status").select("pay_at_pickup").maybeSingle();
+    // The switch unread is not the switch on (R39 — API11-06): it waits, nothing reserved.
+    if (dialError) return NextResponse.json({ error: PAY_DIAL_UNREAD, charged: false }, { status: 503 });
     if ((dial as { pay_at_pickup?: boolean } | null)?.pay_at_pickup === false) {
       return NextResponse.json({ error: "Pay at pickup isn't available right now — pay by card instead." }, { status: 409 });
     }

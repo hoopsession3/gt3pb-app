@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { deadlineFetch } from "@/lib/dbDeadline";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { userFromRequest } from "@/lib/apiAuth";
 import { raiseAlert } from "@/lib/serverAlerts";
@@ -61,7 +62,7 @@ async function post(req: Request) {
   // The service role is used only afterward, to read contact details and to alert/notify.
   const token = (req.headers.get("authorization") || "").slice(7);
   const asUser = createClient(url, anon, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { Authorization: `Bearer ${token}` }, fetch: deadlineFetch() },   // a deadline (R39 — API11-10)
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data: ok, error } = await asUser.rpc("cancel_any_order", { p_channel: channel, p_id: id });

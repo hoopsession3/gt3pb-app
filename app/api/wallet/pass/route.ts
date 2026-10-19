@@ -11,10 +11,9 @@ async function get() {
     process.env.APPLE_PASS_TYPE_ID && process.env.APPLE_TEAM_ID &&
     process.env.APPLE_PASS_CERT && process.env.APPLE_PASS_KEY && process.env.APPLE_WWDR;
   if (!haveCerts) {
-    return NextResponse.json(
-      { error: "Apple Wallet isn't switched on yet — add the GT3 Pass Type ID cert + key + WWDR (APPLE_PASS_* env) and NEXT_PUBLIC_WALLET_READY=1." },
-      { status: 503 },
-    );
+    // The settings it needs are named in the header above and in lib/envSchema — never in an answer anyone may ask for
+    // (R39 — the fresh audit's API11-11: a public door named what isn't set to whoever knocked).
+    return NextResponse.json({ error: "Apple Wallet isn't switched on yet." }, { status: 503 });
   }
   // With certs present, assemble pass.json for the authenticated member (name, points, a QR barcode =
   // their card code) and sign it into a .pkpass, returned as application/vnd.apple.pkpass. Needs a

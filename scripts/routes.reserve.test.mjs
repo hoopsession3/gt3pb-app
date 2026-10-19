@@ -296,5 +296,28 @@ for (const [what, change, status, words] of refusals) {
     && alerts.some((a) => a.severity === "critical" && a.category === "order" && /Add it to the drop/.test(a.body)), { later, alerts });
 }
 
+// ── a read that failed is no answer (R39 — the fresh audit's API11-06) ──────────────────────────────────────────────
+{
+  fresh();
+  w.fail.stops = { select: { code: "XX000", message: "the pool ran dry" } };
+  const k = key();
+  const r = await post({ ...SIX(), sourceId: card(), idempotencyKey: k });
+  ok("the schedule unread: 503, nothing charged, said — never the Saturday cadence in its place; no claim, no Square, no pack",
+    r.status === 503 && r.json?.charged === false && /couldn't check the pickup schedule/.test(r.json.error ?? "") && !claim(k) && nothingTaken(), { r, claim: claim(k) });
+  fresh({ stops: [] });
+  const empty = await post({ ...SIX({ dropDate: "2099-01-03" }), sourceId: card(), idempotencyKey: key() });
+  ok("…while a schedule read as empty still refuses a day that isn't on it (the cadence's rule stands only for a real answer)", empty.status !== 503 && !(empty.json?.ok), empty);
+  fresh();
+  w.fail.live_status = { select: { error: { code: "XX000", message: "the pool ran dry" }, cols: "pay_at_pickup" } };
+  const k2 = key();
+  const later = await post({ ...SIX(), idempotencyKey: k2 });
+  ok("the owner's pay-at-pickup switch unread: 503, nothing reserved, said — never taken as on",
+    later.status === 503 && later.json?.charged === false && /pay at pickup is on/.test(later.json.error ?? "") && !claim(k2) && packs().length === 0, later);
+  fresh();
+  w.fail.live_status = { select: { error: { code: "XX000", message: "the pool ran dry" }, cols: "pay_at_pickup" } };
+  const byCard = await post({ ...SIX(), sourceId: card(), idempotencyKey: key() });
+  ok("…a card pack never reads the switch: charged and kept as before", byCard.status === 200 && byCard.json?.paid === true && packs().length === 1, byCard);
+}
+
 console.log(`\nTHE PACK CHECKOUT, RUN (app/api/reserve): ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

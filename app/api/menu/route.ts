@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { SQUARE_BASE, squareHeaders, squareDeadline } from "@/lib/squareServer";
 import { createClient } from "@supabase/supabase-js";
+import { deadlineFetch } from "@/lib/dbDeadline";
 import { DRINKS, type DrinkId } from "@/lib/menu";
 import { type MenuRow } from "@/lib/drinks";
 import { readMenuRows } from "@/lib/drinksRead";
@@ -25,7 +26,7 @@ async function get() {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL, anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (url && anon) {
-      const sb = createClient(url, anon, { auth: { persistSession: false } });
+      const sb = createClient(url, anon, { global: { fetch: deadlineFetch() }, auth: { persistSession: false } });   // a deadline (R39 — API11-10)
       const r = await readMenuRows(sb);
       if (!r.error) items = r.rows.filter((p) => p.active !== false);
       // Said in the logs, not swallowed: the app shows the code list's menu while this fails, and nobody would know why.

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { adminFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, callerClient, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { moneyRound } from "@/lib/money";
 import { addDays, etToday } from "@/lib/dates";
 import { daysBetween } from "@/lib/dayWords";
-import { etDayStart } from "@/lib/etDay";
+import { salesReport } from "@/lib/salesReport";
 import { dayStartIso, isQuietGoal, rhythmWeek } from "@/lib/rhythm";
 import { route } from "@/lib/apiRoute";
 
@@ -30,29 +30,11 @@ export const maxDuration = 60;
 // strategy session, the transcript and the card on Plan count too.
 const nice = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-async function sum(table: "orders" | "drop_orders" | "delivery_orders" | "business_orders", filter: (q: any) => any): Promise<number> {
-  try {
-    // scoped-by: revenue() below is the only caller, and both of its filters (win, onDay) begin with
-    // .eq("tenant_id", tenant) — the caller's tenant, resolved and refused when absent in post().
-    const { data } = await filter(supabaseAdmin!.from(table).select("total_cents"));
-    return (data ?? []).reduce((s: number, r: any) => s + (Number(r.total_cents) || 0), 0);
-  } catch { return 0; }
-}
-// The 0208 founder-digest revenue formula, windowed — for one tenant: R-002's rule (the service role
-// bypasses RLS, so every read names its tenant) had missed this function. An office order counts on
-// its delivery day (0358): deliveries are scheduled six weeks ahead, so the night one was made says
-// nothing about the week it was earned in. The window is business days [from, to) — day keys for the
-// delivery day, and the instants those days begin in Eastern time for created_at (2026-10-12: it was two
-// instants, and the delivery day was the UTC date of each, a day late from 8pm).
-async function revenue(tenant: string, from: string, to: string): Promise<number> {
-  const fromAt = etDayStart(from).toISOString(), toAt = etDayStart(to).toISOString();
-  const win = (q: any) => q.eq("tenant_id", tenant).gte("created_at", fromAt).lt("created_at", toAt);
-  const onDay = (q: any) => q.eq("tenant_id", tenant).gte("delivery_date", from).lt("delivery_date", to);
-  return (await sum("orders", (q) => win(q.eq("paid", true).neq("status", "void"))))
-       + (await sum("drop_orders", (q) => win(q.eq("paid", true).is("canceled_at", null))))
-       + (await sum("delivery_orders", (q) => win(q.eq("payment_status", "paid").is("canceled_at", null))))
-       + (await sum("business_orders", (q) => onDay(q.eq("payment_status", "paid").is("canceled_at", null))));
-}
+// THE WEEK'S REVENUE, AS MONEY COUNTS IT (R39 — the fresh audit's API11-07). This summed four tables itself, one read
+// each (PostgREST stops at 1,000 rows), a failed read as $0, and without the walk-ups, the shop, the reserves or a
+// refund. The review's week is lib/rhythm's — the seven business days ending today — which is report_sales(7) (0420) to
+// the day, and the week before is the fourteen less the seven (as Home reads it). Asked as the owner or admin running the
+// review (lib/salesReport): its own is_admin() and its own business decide. Unread, it says so, never $0.
 
 async function post(req: Request) {
   // AN OWNER'S OR ADMIN'S TO WRITE (R32 — the audit's API11-03): the database keeps the week's revenue (the digest's, API F5) to owners and admins (RLS:
@@ -82,8 +64,8 @@ async function post(req: Request) {
   if (existing) return NextResponse.json({ ok: true, note_id: existing.id, title: existing.title, existing: true });
 
   const [revThis, revPrior, goalsQ, initsQ, milesQ, eventsQ, incOpenQ, incFixedQ, decQ, overdue, dueNext, doneCt, portQ, actsQ] = await Promise.all([
-    revenue(tenant, wk.from, wk.next),
-    revenue(tenant, wk.priorFrom, wk.from),
+    salesReport(callerClient(req), 7),
+    salesReport(callerClient(req), 14),
     supabaseAdmin.from("goals").select("title, unit, target_value, current_value, updated_at, checkin_status").eq("tenant_id", tenant).eq("status", "active"),
     supabaseAdmin.from("initiatives").select("id, title, emoji, target_date").eq("tenant_id", tenant).neq("status", "done"),
     supabaseAdmin.from("initiative_milestones").select("initiative_id, title, due_on, done, done_at").eq("tenant_id", tenant),
@@ -118,7 +100,9 @@ async function post(req: Request) {
   const blockers = ((incOpenQ.data ?? []) as any[]).filter((i) => i.severity === "blocker");
   const decisions = (decQ.data ?? []) as any[];
 
-  const delta = revPrior > 0 ? Math.round(((revThis - revPrior) / revPrior) * 100) : null;
+  const thisCents = revThis?.revenueCents ?? null;
+  const priorCents = revThis && revPrior ? revPrior.revenueCents - revThis.revenueCents : null;
+  const delta = thisCents !== null && priorCents !== null && priorCents > 0 ? Math.round(((thisCents - priorCents) / priorCents) * 100) : null;
   const gLine = (g: any) => `**${g.title}** — ${Number(g.current_value).toLocaleString()} / ${Number(g.target_value).toLocaleString()}${g.unit ? ` ${g.unit}` : ""}`;
   const initLine = (i: any) => {
     const mine = miles.filter((m) => m.initiative_id === i.id);
@@ -157,7 +141,8 @@ async function post(req: Request) {
 
   const md = [
     `## The week that was`,
-    `- **Revenue (7d):** ${moneyRound(revThis)}${delta !== null ? ` — ${delta >= 0 ? "up" : "down"} ${Math.abs(delta)}% vs the week before (${moneyRound(revPrior)})` : revPrior === 0 && revThis === 0 ? " — pre-revenue week" : ""}`,
+    thisCents === null ? `- **Revenue (7d):** couldn't be read just now — open Money for it.`
+      : `- **Revenue (7d):** ${moneyRound(thisCents)}${delta !== null && priorCents !== null ? ` — ${delta >= 0 ? "up" : "down"} ${Math.abs(delta)}% vs the week before (${moneyRound(priorCents)})` : priorCents === 0 && thisCents === 0 ? " — pre-revenue week" : ""}`,
     `- **Tasks:** ${doneCt} finished · ${overdue} overdue right now`,
     ran.length ? `- **Events run:** ${ran.map((e) => `${e.title} (${nice(e.day)})`).join(" · ")}` : `- **Events run:** none this week`,
     `- **Incidents:** ${blockers.length ? blockers.map((b) => b.problem).join(" · ") : "no open blockers"}${(incFixedQ.count ?? 0) > 0 ? ` · ${incFixedQ.count} resolved this week` : ""}`,

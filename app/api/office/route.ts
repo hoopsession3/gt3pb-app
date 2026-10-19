@@ -61,7 +61,10 @@ async function post(req: Request) {
 
   // Authoritative price from the owner-set live values (the same source useOfficeSettings reads),
   // code constants as the fallback — read with the service role, never taken from the client.
-  const { data: ls } = await supabaseAdmin.from("live_status").select("office_price_cents, office_min_gallons").eq("id", 1).maybeSingle();
+  // The fallback is for a price never set, never for a read that failed (R39 — the fresh audit's API11-06): a booking during
+  // a blip was priced at the code's per gallon, not the owner's, and its pay link asked for that. It waits.
+  const { data: ls, error: priceError } = await supabaseAdmin.from("live_status").select("office_price_cents, office_min_gallons").eq("id", 1).maybeSingle();
+  if (priceError) return NextResponse.json({ error: "We couldn't read the price just now — try again in a moment. Nothing was booked." }, { status: 503 });
   const lsRow = ls as { office_price_cents?: number; office_min_gallons?: number } | null;
   const priceCents = lsRow?.office_price_cents ?? OFFICE.pricePerGallonCents;
   const minGallons = lsRow?.office_min_gallons ?? OFFICE.minGallons;
@@ -117,8 +120,10 @@ async function post(req: Request) {
       headcount, billing_terms: billing, standing_active: true, standing_gallons: q.gallons, market,
       access_instructions: access || null,
     };
-    const { data: existing } = await supabaseAdmin.from("business_accounts").select("id")
+    const { data: existing, error: existingError } = await supabaseAdmin.from("business_accounts").select("id")
       .eq("user_id", userId).ilike("company", companyNorm.replace(/[%_\\]/g, (c) => `\\${c}`)).maybeSingle();
+    // Unread is not "none yet" (R39 — API11-06): a blip set up a second standing account for the same company.
+    if (existingError) return NextResponse.json({ error: "Couldn't set up your standing account — try again in a moment, or text us." }, { status: 503 });
     if (existing?.id) {
       const { error } = await supabaseAdmin.from("business_accounts").update(acctRow).eq("id", existing.id);
       if (error) { console.warn(`[office] account update: ${error.message}`); return NextResponse.json({ error: "Couldn't update your standing account — try again in a moment, or text us." }, { status: 500 }); }

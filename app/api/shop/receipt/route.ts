@@ -9,6 +9,9 @@ import { route } from "@/lib/apiRoute";
 
 export const runtime = "nodejs";
 
+/** A receipt with its order, its lines or its tracking unread is not sent (R39 — API11-06). */
+const RECEIPT_UNREAD = "Couldn't read this order just now — try again in a moment. No receipt was sent.";
+
 // SEND A CUSTOMER THEIR RECEIPT AGAIN.
 //
 // The first cap order was charged, printed and never emailed (2026-09-29), and the only recovery
@@ -38,10 +41,13 @@ async function post(req: Request) {
   } catch { /* */ }
   if (!isUuid(id)) return NextResponse.json({ ok: false, error: "order id required" }, { status: 400 });
 
-  const { data: order } = await supabaseAdmin
+  const { data: order, error: orderError } = await supabaseAdmin
     .from("shop_orders")
     .select("id, email, user_id, ship_name, total_cents, status")
     .eq("tenant_id", tenant).eq("id", id).maybeSingle();
+  // A read that failed is not "not found" (R39 — the fresh audit's API11-06), and a receipt is sent whole or not at all:
+  // with its lines or its tracking unread, it would tell a customer they bought nothing, or that a shipped box hasn't.
+  if (orderError) return NextResponse.json({ ok: false, error: RECEIPT_UNREAD }, { status: 503 });
   if (!order) return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
 
   // Both reads below key off order.id — the row the tenant-filtered lookup returned — rather than
@@ -49,15 +55,17 @@ async function post(req: Request) {
   // no path here that reads an order the caller has not already been shown.
   //
   // scoped-by: order.id came from a lookup filtered on tenant_id AND id
-  const { data: items } = await supabaseAdmin
+  const { data: items, error: itemsError } = await supabaseAdmin
     .from("shop_order_items").select("title, qty, unit_cents").eq("order_id", order.id);
+  if (itemsError) return NextResponse.json({ ok: false, error: RECEIPT_UNREAD }, { status: 503 });
 
   // Tracking, when the printer has already shipped it — a receipt sent after the fact that still
   // says "we'll email tracking when it ships" is worse than useless to somebody waiting on a box.
   // scoped-by: order.id, same tenant-filtered lookup as the items read above
-  const { data: ship } = await supabaseAdmin
+  const { data: ship, error: shipError } = await supabaseAdmin
     .from("merch_fulfillments").select("tracking_number, tracking_url")
     .eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (shipError) return NextResponse.json({ ok: false, error: RECEIPT_UNREAD }, { status: 503 });
 
   // An operator may correct a bad address here — a typo in the email is one of the two ways a
   // receipt fails to arrive, and the other one is the provider. The corrected address is recorded

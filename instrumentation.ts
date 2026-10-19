@@ -15,6 +15,7 @@
 
 import { notSet } from "./lib/envSchema";
 import { errorKey, escapedErrorAlert, SERVER_ALERTS, SERVER_ROWS } from "./lib/errorKey";
+import { DB_DEADLINE_MS } from "./lib/dbDeadline";
 
 // WHAT THIS SERVER STARTED WITHOUT (R14, 2026-10-16 — the 10/10 audit's operations pass, F14). A secret missing in
 // production turned its feature off without a word: no service-role key, and no order saved, no alert raised, no error
@@ -49,7 +50,9 @@ export async function onRequestError(err: unknown, request: ReqInfo, context: Er
     const fingerprint = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
     const headers = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "return=minimal" };
-    const bump = () => fetch(`${base}/rest/v1/rpc/bump_client_error`, { method: "POST", headers, body: JSON.stringify({ p_fingerprint: fingerprint }) })
+    // A deadline on each (R39 — the fresh audit's API11-10): an error being filed never hangs the request that threw it.
+    const soon = () => AbortSignal.timeout(DB_DEADLINE_MS);
+    const bump = () => fetch(`${base}/rest/v1/rpc/bump_client_error`, { method: "POST", headers, body: JSON.stringify({ p_fingerprint: fingerprint }), signal: soon() })
       .then((r) => r.json()).then((v) => v === true).catch(() => false);
 
     // Seen before → bump the counter, no alert (the dedup that keeps this from flooding).
@@ -58,7 +61,7 @@ export async function onRequestError(err: unknown, request: ReqInfo, context: Er
     // THE SERVER'S BUDGET (R10b) — lib/errorKey's SERVER_ROWS and SERVER_ALERTS, the buckets route()'s throws spend too.
     // Fails open when the limiter can't be asked, as the intake does.
     const fits = (b: { bucket: string; windowMs: number; max: number }) =>
-      fetch(`${base}/rest/v1/rpc/rate_limit_hit`, { method: "POST", headers, body: JSON.stringify({ p_bucket: b.bucket, p_window_ms: b.windowMs, p_max: b.max }) })
+      fetch(`${base}/rest/v1/rpc/rate_limit_hit`, { method: "POST", headers, body: JSON.stringify({ p_bucket: b.bucket, p_window_ms: b.windowMs, p_max: b.max }), signal: soon() })
         .then((r) => r.json()).then((v) => v !== false).catch(() => true);
     if (!(await fits(SERVER_ROWS))) return;
 
@@ -66,6 +69,7 @@ export async function onRequestError(err: unknown, request: ReqInfo, context: Er
     const ins = await fetch(`${base}/rest/v1/client_errors?select=id`, {
       method: "POST", headers: { ...headers, Prefer: "return=representation" },
       body: JSON.stringify({ fingerprint, message, stack: stack || null, url: path || null, ua: `server · ${request?.method ?? "?"} · ${routeType ?? context?.routerKind ?? "unknown"}`, fatal: routeType === "render" }),
+      signal: soon(),
     }).catch(() => null);
     if (!ins?.ok) {
       // Unique-violation race (two instances, same brand-new error): the other one filed it, and this counts. Neither
@@ -81,7 +85,7 @@ export async function onRequestError(err: unknown, request: ReqInfo, context: Er
     // THE ANSWER IS READ (lib/serverAlerts' rule): asked twice; still refused, said in the platform's log in its words.
     let why = "";
     for (let attempt = 0; attempt < 2; attempt++) {
-      const r = await fetch(`${base}/rest/v1/alerts`, { method: "POST", headers, body: JSON.stringify(alert) }).catch(() => null);
+      const r = await fetch(`${base}/rest/v1/alerts`, { method: "POST", headers, body: JSON.stringify(alert), signal: soon() }).catch(() => null);
       if (r?.ok) return;
       why = r ? `the database answered ${r.status}` : "the database didn't answer";
     }

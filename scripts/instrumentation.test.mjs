@@ -227,7 +227,8 @@ const deployB = Object.assign(new Error("Cannot read properties of undefined (re
   };
   walk("instrumentation.ts");
   ok("instrumentation.ts imports only the app's own pure files — no node:crypto, no supabase-js, no package", bad.length === 0, bad);
-  ok("…and those are lib/envSchema, lib/errorKey, lib/deploySkew and lib/uuid", [...seen].sort().join(",") === ["instrumentation.ts", "lib/deploySkew.ts", "lib/envSchema.ts", "lib/errorKey.ts", "lib/uuid.ts"].join(","), [...seen]);
+  // R39: and lib/dbDeadline — the database's deadline, a number and a fetch wrapper, importing nothing (API11-10).
+  ok("…and those are lib/envSchema, lib/errorKey, lib/deploySkew, lib/uuid and lib/dbDeadline", [...seen].sort().join(",") === ["instrumentation.ts", "lib/dbDeadline.ts", "lib/deploySkew.ts", "lib/envSchema.ts", "lib/errorKey.ts", "lib/uuid.ts"].join(","), [...seen]);
 }
 
 console.log(`instrumentation: ${pass} passed, ${fail} failed`);

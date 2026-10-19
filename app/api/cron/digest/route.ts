@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { adminFromRequest, userFromRequest } from "@/lib/apiAuth";
+import { adminFromRequest, callerClient, userFromRequest } from "@/lib/apiAuth";
 import { limitsFit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { accountEmail, sendEmail, notifyCustomer, emailEnabled } from "@/lib/notify";
 import { moneyRound } from "@/lib/money";
 import { route } from "@/lib/apiRoute";
-import { addDays, etToday } from "@/lib/dates";
+import { salesReport } from "@/lib/salesReport";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,16 +18,6 @@ export const maxDuration = 60;
 // few an hour each, and for everyone together. The automated daily version runs in-DB via pg_cron → alerts. Returns
 // the composed summary so the button can confirm what went out.
 
-const since7d = () => new Date(Date.now() - 7 * 864e5).toISOString();
-const since60d = () => new Date(Date.now() - 60 * 864e5).toISOString();   // payment-id lookback for the walk-up dedupe
-const day6 = () => addDays(etToday(), -6);   // an office order counts on its delivery day: the last seven business days
-
-async function sum(table: "orders" | "drop_orders" | "delivery_orders" | "business_orders", filter: (q: any) => any, col = "total_cents"): Promise<number> {
-  try {
-    const { data } = await filter(supabaseAdmin!.from(table).select(col));
-    return (data ?? []).reduce((s: number, r: any) => s + (Number(r[col]) || 0), 0);
-  } catch { return 0; }
-}
 async function count(table: "incident_log" | "alerts", filter: (q: any) => any): Promise<number> {
   try {
     const { count: c } = await filter(supabaseAdmin!.from(table).select("id", { count: "exact", head: true }));
@@ -43,34 +33,14 @@ async function post(req: Request) {
     { bucket: `digest:u:${me?.id ?? "?"}`, windowMs: 3_600_000, max: 3 },
     { bucket: "digest:all", windowMs: 3_600_000, max: 10 },
   ]))) return NextResponse.json({ ok: false, error: "The digest just went out — try again in an hour." }, { status: 429 });
-  const week = since7d();
 
-  // Reconciled revenue (last 7d) — THE basis (0216): every paid app order once + Square WALK-UPS
-  // (event_sales rows matching no app order's payment id — the app charges through Square too, and
-  // the webhook mirrors every payment, so summing both raw would double-count).
-  const [cup, packs, deliv, office] = await Promise.all([
-    sum("orders", (q) => q.eq("paid", true).neq("status", "void").gte("created_at", week)),
-    sum("drop_orders", (q) => q.eq("paid", true).is("canceled_at", null).gte("created_at", week)),
-    sum("delivery_orders", (q) => q.eq("payment_status", "paid").is("canceled_at", null).gte("created_at", week)),
-    // An office order counts on its delivery day (0358): it is scheduled six weeks ahead, so its
-    // created_at is the night the schedule made it, not the week it was earned in.
-    sum("business_orders", (q) => q.eq("payment_status", "paid").is("canceled_at", null).gte("delivery_date", day6()).lte("delivery_date", etToday())),
-  ]);
-  let sq = 0;
-  try {
-    const [{ data: es }, ...idSets] = await Promise.all([
-      supabaseAdmin.from("event_sales").select("square_payment_id, amount_cents").gte("created_at", week),
-      supabaseAdmin.from("orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
-      supabaseAdmin.from("drop_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
-      supabaseAdmin.from("delivery_orders").select("payment_id").not("payment_id", "is", null).gte("created_at", since60d()),
-      // No created_at window: an office order is made up to six weeks before it is paid, so a 60-day
-      // window from its creation lets its payment through as a walk-up (report_sales has no window here).
-      supabaseAdmin.from("business_orders").select("payment_id").not("payment_id", "is", null),
-    ]);
-    const appIds = new Set(idSets.flatMap((r) => (r.data ?? []).map((x: any) => x.payment_id)));
-    sq = (es ?? []).reduce((s: number, r: any) => s + (appIds.has(r.square_payment_id) ? 0 : Number(r.amount_cents) || 0), 0);
-  } catch { /* walk-up leg is best-effort */ }
-  const rev = sq + cup + packs + deliv + office;
+  // THE WEEK'S REVENUE, AS MONEY COUNTS IT (R39 — the fresh audit's API11-07). This added the week up itself: each table
+  // in one read (PostgREST stops at 1,000 rows — a busy week's cups summed short), a read that failed counted as $0, and
+  // the walk-ups matched against at most 1,000 app payments of each kind (past that, an app payment counted again as a
+  // walk-up). It asks report_sales (0420) — the one sum Money and Home read — as the owner or admin who pressed the
+  // button: reconciled, refunds taken off, on the business's days, with the shop and the reserves the old sum left out.
+  // A sum that couldn't be read is said so, never $0.
+  const report = await salesReport(callerClient(req), 7);
 
   const [blockers, reorders, crit] = await Promise.all([
     count("incident_log", (q) => q.eq("resolved", false).eq("severity", "blocker")),
@@ -86,12 +56,15 @@ async function post(req: Request) {
     verdict = critical.length === 0 ? "no criteria yet" : blocked > 0 ? "NO-GO" : "on track";
   } catch { /* leave defaults */ }
 
-  const headline = `Revenue 7d ${moneyRound(rev)} · Launch ${verdict}${blocked ? ` (${blocked} blocked)` : ""} · Blockers ${blockers} · Reorders ${reorders} · Needs you ${crit}`;
+  const headline = `Revenue 7d ${report ? moneyRound(report.revenueCents) : "—"} · Launch ${verdict}${blocked ? ` (${blocked} blocked)` : ""} · Blockers ${blockers} · Reorders ${reorders} · Needs you ${crit}`;
+  const ch = report?.byChannel;
   const emailBody = [
     "GT3 Performance Bar — founder digest",
     "",
-    `Revenue (last 7 days, reconciled): ${moneyRound(rev)}`,
-    `   walk-up ${moneyRound(sq)} · cup ${moneyRound(cup)} · pack ${moneyRound(packs)} · delivery ${moneyRound(deliv)} · office ${moneyRound(office)}`,
+    ...(report && ch ? [
+      `Revenue (last 7 days, reconciled): ${moneyRound(report.revenueCents)}`,
+      `   walk-up ${moneyRound(ch.walkup)} · cup ${moneyRound(ch.cup)} · pack ${moneyRound(ch.packs)} · delivery ${moneyRound(ch.delivery)} · office ${moneyRound(ch.office)} · shop ${moneyRound(ch.shop)} · reserve ${moneyRound(ch.reserve)}`,
+    ] : ["Revenue (last 7 days): couldn't be read just now — open Money for it."]),
     `Launch readiness: ${verdict}${blocked ? ` — ${blocked} critical blocked` : ""}`,
     `Open blockers: ${blockers}`,
     `Reorders needed: ${reorders}`,

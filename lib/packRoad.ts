@@ -37,6 +37,8 @@ export async function packRoad<T extends RoadStop>(sb: SupabaseClient, road: rea
 /** What a pack route says when the road could not be checked, a stop's city is held, or no city is taking packs. */
 export const PACK_ROAD_WORDS = {
   unread: "We couldn't check the pickup schedule just now — try again in a moment. Nothing was charged.",
+  // A move charges nothing: what the person needs to hear is that their pack stayed where it was (R39).
+  unreadMove: "We couldn't check the pickup schedule just now — try again in a moment. Your pack hasn't moved.",
   heldStop: "That stop's city isn't taking orders right now — pick another pickup.",
   none: "We're not taking pack orders right now — check back soon.",
 } as const;

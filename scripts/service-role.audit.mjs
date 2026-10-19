@@ -62,7 +62,7 @@ function tenantScopedTables() {
 // Each entry says WHY. If you cannot write the why, it is not an exemption.
 const EXEMPT_ROUTES = {
   "billing/webhook": "Stripe calls this, not a person. There is no caller JWT to derive a tenant from; the event's own ids are the scope.",
-  "cron/digest": "An owner's or admin's button (R10b: adminFromRequest, a few an hour). It spans tenants on purpose while there is one — a second is blocked (0305's guard) until the digest is scoped by tenantFromRequest.",
+  "cron/digest": "An owner's or admin's button (R10b: adminFromRequest, a few an hour). Its revenue is report_sales's, asked as the caller — their own business (R39). The counts and the founders it writes to span tenants on purpose while there is one — a second is blocked (0305's guard) until the digest is scoped by tenantFromRequest.",
   "notes/inbound": "Inbound email webhook. No JWT; the recipient address is the scope.",
   "outlook/callback": "OAuth redirect from Microsoft, before a session exists.",
 };

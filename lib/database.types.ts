@@ -12302,6 +12302,8 @@ export type Database = {
         { Args: { p_id: string | null }; Returns: Database["public"]["Tables"]["offer_letters"]["Row"] }
       supersede_agreement:
         { Args: { p_id: string | null; p_why?: string | null }; Returns: Database["public"]["Tables"]["operator_agreements"]["Row"] }
+      sweep_checkout_claims:
+        { Args: Record<PropertyKey, never>; Returns: number }
       sweep_rate_limits:
         { Args: Record<PropertyKey, never>; Returns: number }
       take_signup_password:
