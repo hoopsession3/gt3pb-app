@@ -24,13 +24,16 @@ import { BadgeMark } from "@/components/nutrition/RookieBadge";
 // as scannable chips, the body reads clean, and the MEAL-STACK rail turns the teaching into an order —
 // primal_menu_for_lesson() hands back the drink stack already ordered BEFORE -> DURING -> AFTER off the
 // live menu, with price and whether it's currently pourable. A signed-in reader can mark it complete
-// (progress rides the customer spine). A pro lesson the reader hasn't unlocked never loads its body —
-// RLS returns nothing, and we show the unlock path instead of a dead end.
+// (progress rides the customer spine). A lesson the reader hasn't bought never loads its body — RLS returns nothing —
+// and the page shows its preview instead (R45, primal_lesson_previews: what it covers, how long it takes) with the way
+// in, never a dead end.
 
 type StackItem = { product_slug: string; name: string | null; line: string | null; timing: string | null; price_cents: number | null; accent: string | null; rationale: string | null; orderable: boolean };
 type Sibling = { slug: string; title: string; sort: number };
+type Preview = { title: string; subtitle: string | null; tier: string; est_minutes: number | null; summary: string | null };
 type LessonView = {
   found: boolean;
+  preview?: Preview | null;
   lesson?: { id: string; title: string; subtitle: string | null; tier: "rookie" | "pro"; est_minutes: number | null; summary: string | null; key_points: string[]; body: string | null; hero_image_url: string | null; module_id: string };
   pillar?: { slug: string; title: string; accent: string | null } | null;
   module?: { slug: string; title: string } | null;
@@ -57,7 +60,12 @@ export default function PrimalLesson({ slug }: { slug: string }) {
       .from("primal_lessons")
       .select("id, title, subtitle, tier, est_minutes, summary, key_points, body, hero_image_url, module_id")
       .eq("slug", slug).is("archived_at", null).maybeSingle();
-    if (!lraw) return empty; // unpublished, gated pro, or missing — the view shows the unlock/not-found state
+    if (!lraw) {
+      // Not this reader's to open, or not a lesson: its preview says which (anyone may read it, 0441).
+      const { data: prev } = await supabase.rpc("primal_lesson_previews");
+      const preview = ((prev as (Preview & { slug: string })[] | null) ?? []).find((p) => p.slug === slug) ?? null;
+      return { ...empty, preview };
+    }
     const lesson = { ...(lraw as LessonView["lesson"]) } as NonNullable<LessonView["lesson"]>;
     lesson.key_points = Array.isArray(lesson.key_points) ? lesson.key_points : [];
 
@@ -136,18 +144,28 @@ export default function PrimalLesson({ slug }: { slug: string }) {
   );
 
   if (!v || !v.found) {
-    // Either a Pro lesson the reader hasn't unlocked, or a bad link — offer the path forward, never a dead end.
+    // A lesson in the course this reader hasn't bought: what it covers, and the way in. A bad link: the way back.
+    const p = v?.preview ?? null;
     return (
       <section className="screen primal" id="s-primal-locked">
         <Watermark variant="landing" />
         <Masthead eyebrow={t("primal.eyebrow")} right={<AccountPill />} />
         <div className="pr-locked">
           <span className="pr-locked-ic"><Icon name="lock" /></span>
-          <h1 className="pr-h1"><EditableCopy k="primal.locked_h1" value={t("primal.locked_h1")} /> <i><EditableCopy k="primal.locked_h1_em" value={t("primal.locked_h1_em")} /></i></h1>
-          <EditableCopy k="primal.locked_lede" value={t("primal.locked_lede")} as="p" className="pr-lede" multiline />
+          {p ? <>
+            <div className="pr-eye">{p.tier === "pro" ? "Pro lesson" : "Rookie lesson"}{p.est_minutes ? ` · ${p.est_minutes} min` : ""}</div>
+            <h1 className="pr-h1">{p.title}</h1>
+            {p.subtitle && <p className="pr-lede">{p.subtitle}</p>}
+            {p.summary && <p className="pr-lede">{p.summary}</p>}
+            <EditableCopy k="primal.locked_lede" value={t("primal.locked_lede")} as="p" className="pr-locked-note" multiline />
+          </> : <>
+            <h1 className="pr-h1"><EditableCopy k="primal.locked_h1" value={t("primal.locked_h1")} /> <i><EditableCopy k="primal.locked_h1_em" value={t("primal.locked_h1_em")} /></i></h1>
+            <p className="pr-lede">This lesson isn&apos;t here any more, or the link has moved. The course has the rest.</p>
+          </>}
           <div className="pr-locked-cta">
-            <Link href="/primal" className="btn-sec">Browse free lessons</Link>
-            {!user && <span className="pr-locked-note">Already a member? <AccountPill /></span>}
+            <Link href="/primal#nu-pro" className="btn-pri" onClick={() => haptic("light")}>{p ? "See what GT3 Nutrition opens" : "See the course"}</Link>
+            <Link href="/primal#nu-library" className="btn-sec">The free pillar maps</Link>
+            {!user && <span className="pr-locked-note">Already bought it? <AccountPill /></span>}
           </div>
         </div>
         <ClosingBeat />

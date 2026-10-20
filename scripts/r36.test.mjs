@@ -24,8 +24,9 @@ const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n
 // ── 1 · the snapshot at 0437 ─────────────────────────────────────────────────────────────────────────────────────────
 {
   const snap = JSON.parse(read("supabase/schema.security.json"));
-  ok("the security snapshot was pulled once 0430–0437 were applied (its ledger's mark is 0437, 433 migrations)",
-    Number(snap.ledger?.max_seq) === 437 && Number(snap.ledger?.count) === 433, snap.ledger);
+  // R45: re-pulled at 0440 (436 migrations), after 0438–0440 — a later pull is still one taken after 0430–0437.
+  ok("the security snapshot was pulled once 0430–0437 were applied (its ledger's mark is 0437 or later)",
+    Number(snap.ledger?.max_seq) >= 437 && Number(snap.ledger?.count) >= 433, snap.ledger);
   const v = judge(snap);
   ok("…and judged clean: nothing hard, and every count at its ceiling or under",
     v.hard.length === 0 && v.publicRead.length <= CEILING.publicRead && v.definerExec.length <= CEILING.definerExec

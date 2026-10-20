@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-18T17:33:07.324Z",
+    "pulled_at": "2026-10-20T19:48:58.698Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
-    "source": "sql fallback (pg_class/pg_attribute), through the Supabase MCP (execute_sql): every relation's columns fingerprinted against production's, and the two that differed — message_sent (0429), push_subscriptions.seen_at (0428) — read in full",
-    "relations": 229,
-    "columns": 2908
+    "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
+    "relations": 232,
+    "columns": 2928
   },
   "academy_acknowledgements": [
     "user_id",
@@ -311,7 +311,8 @@
     "created_at",
     "tenant_id",
     "opportunity_id",
-    "market"
+    "market",
+    "quiet"
   ],
   "brand_assets": [
     "id",
@@ -387,9 +388,9 @@
     "alerted_overextract",
     "alerted_hold_soon",
     "alerted_hold_expired",
-    "brewer",
     "coffee_lot",
     "taste_notes",
+    "brewer",
     "stop_id",
     "drop_date",
     "field_op_id",
@@ -780,6 +781,18 @@
     "edited_by",
     "created_at"
   ],
+  "covered_settles": [
+    "id",
+    "tenant_id",
+    "order_kind",
+    "order_id",
+    "how",
+    "free_cup",
+    "credit",
+    "reason",
+    "by_user",
+    "created_at"
+  ],
   "credit_spends": [
     "id",
     "tenant_id",
@@ -1083,8 +1096,8 @@
     "created_at",
     "link",
     "warn",
-    "tenant_id",
     "stop_id",
+    "tenant_id",
     "meeting_note_id",
     "ai_proposal",
     "ai_has_answer",
@@ -2582,6 +2595,19 @@
     "truck_lat",
     "truck_lng",
     "pos_updated_at"
+  ],
+  "two_step_recovery_codes": [
+    "id",
+    "user_id",
+    "code_hash",
+    "made_at",
+    "used_at"
+  ],
+  "two_step_settings": [
+    "tenant_id",
+    "required",
+    "set_by",
+    "set_at"
   ],
   "user_activity": [
     "id",

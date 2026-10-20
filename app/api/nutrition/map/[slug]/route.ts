@@ -4,10 +4,11 @@ import { callerClient, staffFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { route } from "@/lib/apiRoute";
 import { proMap } from "@/lib/nutrition";
 
-// A PRO MAP, TO A MEMBER (R44). The Engine and the four pillar maps are GT3 Nutrition Pro (the owner's call: "Rookie
-// free, pillars Pro"). They are not public files: this route hands one over only to the crew (they write the course) or
-// to a customer with a live Pro entitlement (program_access, 0271 — read as the caller, so the database's own rule says
-// whose row it is). Anyone else is told it is Pro, not that it is missing. The files are kept in content/nutrition/pro
+// A COURSE MAP, TO A BUYER (R44; R45 turned which maps round). The Rookie maps are the course's — GT3 Nutrition, the
+// purchase (the owner's call, 2026-10-20: "rookies shouldn't be free, only the pillars"). They are not public files: this
+// route hands one over only to the crew (they write the course) or to a customer with a live GT3 Nutrition purchase
+// (program_access tier pro, 0271 — read as the caller, so the database's own rule says whose row it is). Anyone else is
+// told it is part of GT3 Nutrition, not that it is missing. The files are kept in content/nutrition/pro
 // (next.config's outputFileTracingIncludes ships them with this route). The free maps are public files; lib/nutrition
 // MAPS says which is which.
 
@@ -28,7 +29,7 @@ async function get(req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const user = await userFromRequest(req);
   if (!user) return Response.json({ ok: false, error: "Sign in to download the Pro maps." }, { status: 401 });
   const allowed = (await staffFromRequest(req)) || (await memberHasPro(req, user.id));
-  if (!allowed) return Response.json({ ok: false, error: "This map is part of GT3 Nutrition Pro." }, { status: 403 });
+  if (!allowed) return Response.json({ ok: false, error: "This map is part of GT3 Nutrition." }, { status: 403 });
   const bytes = await readFile(join(process.cwd(), "content", "nutrition", "pro", map.file));
   return new Response(new Uint8Array(bytes), {
     headers: {

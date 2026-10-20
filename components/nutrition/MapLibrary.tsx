@@ -10,11 +10,12 @@ import { haptic } from "@/lib/haptics";
 import { MAPS, mapHref, sizeLabel, type NutritionMap } from "@/lib/nutrition";
 
 // THE LIBRARY (R44) — every map the course was built from, as a static file to zoom, keep and search, the way the
-// owner's Rookie board always offered them ("Download for easy reference to better zoom, negate and search!"). Rookie
-// maps are anyone's; the Engine and pillar maps are Pro (lib/nutrition MAPS) and open only for a member or the crew —
-// for anyone else the row says Pro and points at what unlocks it. A search on the page narrows this list too.
+// owner's Rookie board always offered them ("Download for easy reference to better zoom, negate and search!"). The four
+// pillar maps are anyone's; the Rookie maps are the course's (lib/nutrition MAPS — R45, the owner's call) and open only
+// for a GT3 Nutrition buyer or the crew — for anyone else the row wears a lock and points at what opens it. The free
+// ones come first. A search on the page narrows this list too.
 
-/** A Pro map is asked for with the reader's sign-in (a plain link carries none), then saved the house's one way —
+/** A course map is asked for with the reader's sign-in (a plain link carries none), then saved the house's one way —
  *  lib/deviceActions: a download on the web, the share sheet in the iPhone app. */
 async function downloadPro(m: NutritionMap): Promise<string | null> {
   const r = await authedFetch(mapHref(m));
@@ -42,12 +43,12 @@ export default function MapLibrary({ query, isPro }: { query: string; isPro: boo
           <span className="nu-lib-t">{m.title}</span>
           <span className="nu-lib-s">{m.blurb}</span>
         </span>
-        <span className="nu-lib-go">{locked ? "Pro" : `PDF${size ? ` · ${size}` : ""}`}</span>
+        <span className="nu-lib-go">{locked ? "In the course" : m.tier === "free" ? `Free · PDF${size ? ` · ${size}` : ""}` : `PDF${size ? ` · ${size}` : ""}`}</span>
       </>
     );
     return locked ? (
       <a key={m.slug} href="#nu-pro" className="nu-lib-row pro fx-glow fx-rise" style={{ "--i": i } as React.CSSProperties} onClick={() => haptic("light")}
-        aria-label={`${m.title} — a Pro map. See what Pro unlocks.`}>{inner}</a>
+        aria-label={`${m.title} — part of GT3 Nutrition. See what opens it.`}>{inner}</a>
     ) : m.tier === "pro" ? (
       <button key={m.slug} type="button" className="nu-lib-row pro fx-glow fx-rise" style={{ "--i": i } as React.CSSProperties} disabled={busy === m.slug}
         aria-label={`Download ${m.title}${size ? `, ${size}` : ""}`}

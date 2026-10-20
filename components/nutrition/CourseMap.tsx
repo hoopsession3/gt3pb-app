@@ -6,13 +6,13 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { haptic } from "@/lib/haptics";
 import { lessonHref } from "@/lib/native";
-import { progressOf, type LessonLite, type ModuleLite, type PillarLite } from "@/lib/nutrition";
+import { isOpen, progressOf, type LessonLite, type ModuleLite, type PillarLite } from "@/lib/nutrition";
 
 // THE COURSE MAP (R44) — the owner's Miro boards and MindNode maps, redrawn from the course itself: GT3 Nutrition at the
 // root, each pillar, its modules, its lessons. The connectors draw themselves in (the playbook's line-draw); the chosen
 // point pulses; each step you move feels like a detent — a selection tick, and the boundary feel at either end — and
-// the same works from the arrow keys. Every point is a real button (Tab reaches it, a screen reader says it). What it
-// shows is what this reader can open: a Pro lesson they have not unlocked is not in the list RLS hands back.
+// the same works from the arrow keys. Every point is a real button (Tab reaches it, a screen reader says it). Every
+// lesson is on it (R45: its preview is anyone's); one this reader hasn't bought wears a lock and opens to what it covers.
 
 type Node =
   | { id: string; kind: "root"; depth: 0; label: string }
@@ -80,8 +80,9 @@ export default function CourseMap({ pillars, modules, order, done }: {
         </svg>
         <ol className="nu-map-rows" aria-label="The course, as a map">
           {nodes.map((n, i) => {
-            const isDone = n.kind === "lesson" && done.has(n.lesson.id);
-            const prog = n.kind === "pillar" ? progressOf(order.filter((l) => modules.some((m) => m.id === l.module_id && m.pillar_id === n.pillar.id)), done) : null;
+            const shut = n.kind === "lesson" && !isOpen(n.lesson);
+            const isDone = n.kind === "lesson" && !shut && done.has(n.lesson.id);
+            const prog = n.kind === "pillar" ? progressOf(order.filter((l) => isOpen(l) && modules.some((m) => m.id === l.module_id && m.pillar_id === n.pillar.id)), done) : null;
             const empty = n.kind === "pillar" && prog?.total === 0;
             return (
               <li key={n.id} className={n.depth === 0 ? "d0" : n.depth === 1 ? "d1" : n.depth === 2 ? "d2" : "d3"}>
@@ -91,16 +92,16 @@ export default function CourseMap({ pillars, modules, order, done }: {
                   className={`nu-map-node ${n.kind === "root" ? "root" : n.kind === "pillar" ? "pillar" : n.kind === "module" ? "module" : "lesson"}${isDone ? " done" : ""}${i === sel ? " sel" : ""}${empty ? " lock" : ""} fx-rise`}
                   style={{ "--i": Math.min(i, 12) } as React.CSSProperties}
                   aria-current={i === sel ? "true" : undefined}
-                  aria-label={`${n.label}${isDone ? ", done" : ""}${empty ? ", coming to Pro" : ""}`}
+                  aria-label={`${n.label}${isDone ? ", done" : ""}${shut ? ", in the course" : ""}${empty ? ", coming to the course" : ""}`}
                   onClick={() => choose(i, false)}
                   onKeyDown={(e) => onKey(e, i)}
                 >
                   <span className={`nu-map-dot${i === sel ? " fx-pulse" : ""}`} aria-hidden="true">
-                    {isDone ? <Icon name="check" size={10} /> : n.kind === "lesson" && n.lesson.tier === "pro" ? <Icon name="lock" size={9} /> : null}
+                    {isDone ? <Icon name="check" size={10} /> : shut ? <Icon name="lock" size={9} /> : null}
                   </span>
                   <span className="nu-map-label">{n.label}</span>
                   {prog && prog.total > 0 && <span className="nu-map-count">{prog.done}/{prog.total}</span>}
-                  {empty && <span className="nu-map-count">Pro</span>}
+                  {empty && <span className="nu-map-count">Soon</span>}
                 </button>
               </li>
             );
@@ -112,7 +113,7 @@ export default function CourseMap({ pillars, modules, order, done }: {
         {s.kind === "root" && <>
           <span className="nu-map-detail-n">Return to Primal</span>
           <span className="nu-map-detail-t">GT3 Nutrition</span>
-          <span className="nu-map-detail-s">{progressOf(order, done).done} of {order.length} lessons done. Five pillars, one system.</span>
+          <span className="nu-map-detail-s">{order.some(isOpen) ? `${progressOf(order.filter(isOpen), done).done} of ${order.filter(isOpen).length} lessons done. ` : `${order.length} lessons. `}Five pillars, one system.</span>
         </>}
         {s.kind === "pillar" && <>
           <span className="nu-map-detail-n">Pillar</span>
@@ -126,10 +127,10 @@ export default function CourseMap({ pillars, modules, order, done }: {
           {s.module.blurb && <span className="nu-map-detail-s">{s.module.blurb}</span>}
         </>}
         {s.kind === "lesson" && <>
-          <span className="nu-map-detail-n">{s.lesson.tier === "pro" ? "Pro lesson" : "Free lesson"}{done.has(s.lesson.id) ? " · done" : ""}</span>
+          <span className="nu-map-detail-n">{s.lesson.tier === "pro" ? "Pro lesson" : "Rookie lesson"}{!isOpen(s.lesson) ? " · in the course" : done.has(s.lesson.id) ? " · done" : ""}</span>
           <span className="nu-map-detail-t">{s.label}</span>
           {s.lesson.summary && <span className="nu-map-detail-s">{s.lesson.summary}</span>}
-          <Link href={lessonHref(s.lesson.slug)} className="btn-pri self-start" onClick={() => haptic("light")}>Open the lesson</Link>
+          <Link href={lessonHref(s.lesson.slug)} className="btn-pri self-start" onClick={() => haptic("light")}>{isOpen(s.lesson) ? "Open the lesson" : "See what it covers"}</Link>
         </>}
       </div>
     </div>

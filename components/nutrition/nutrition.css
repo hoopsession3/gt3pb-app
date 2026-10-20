@@ -70,6 +70,8 @@
 .nu-map-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nu-map-count{flex:0 0 auto;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.4px;color:var(--oa-cream-faint)}
 .nu-map-hint{font-family:var(--sans);font-size:12px;color:var(--oa-cream-faint);margin:8px 2px 0}
+/* R45 — how many of the map's lessons are the course's, and the way to it: a text link, 44pt tall */
+.nu-map-unlock{display:flex;align-items:center;min-height:44px;margin:2px 2px 0;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--gold2);text-decoration:none}
 .nu-map-detail{margin:12px 0 0;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r-xl);background:var(--ink-onLight-04);display:flex;flex-direction:column;gap:6px}
 .nu-map-detail-n{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold2)}
 .nu-map-detail-t{font-family:var(--sans);font-weight:700;font-size:16px;color:var(--oa-cream)}
@@ -91,7 +93,7 @@
 .nu-today{--glow-c:var(--gold2);display:flex;flex-direction:column;gap:12px;margin:18px 0 0;padding:18px;border:1px solid color-mix(in srgb, var(--brand-gold2) 35%, transparent);border-radius:var(--r-3xl);background:var(--ink-onLight-05);text-decoration:none;color:var(--oa-cream);text-align:left}
 .nu-today-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .nu-today-n{font-family:var(--mono);font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:var(--gold2)}
-.nu-today-k{font-family:var(--sans);font-size:12px;color:var(--oa-cream-faint)}
+.nu-today-k{display:inline-flex;align-items:center;gap:4px;font-family:var(--sans);font-size:12px;color:var(--oa-cream-faint)}
 .nu-today-t{font-family:var(--serif);font-weight:600;font-size:28px;line-height:1.1;letter-spacing:-.2px}
 .nu-today-p{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:var(--r-xl);background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);font-family:var(--sans);font-size:15px;line-height:1.45}
 .nu-today-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callerClient, userFromRequest } from "@/lib/apiAuth";
 import { route } from "@/lib/apiRoute";
-import { isMissingTable } from "@/lib/schemaSkew";
 import { hashCode, makeCodes, RECOVERY_WORDS } from "@/lib/recoveryCodes";
 
 // TWO-STEP RECOVERY CODES, MADE AND COUNTED (R37, 2026-10-19 — the fresh audit's UX11-10; Ryan: "Recovery codes"; 0438).
@@ -25,10 +24,8 @@ async function get(req: Request) {
   const user = await userFromRequest(req);
   if (!user) return NextResponse.json({ ok: false, error: "Sign in first." }, { status: 401 });
   // scoped-by: the caller's own verified id — a person's recovery codes are theirs, keyed by nothing the request sent.
-  // arrives-with: 0438 — before the paste the table isn't there: no count to say (null), and Settings says what codes are for.
   const { count, error } = await supabaseAdmin.from("two_step_recovery_codes").select("id", { count: "exact", head: true })
     .eq("user_id", user.id).is("used_at", null);
-  if (error && isMissingTable(error)) return NextResponse.json({ ok: true, left: null }, { headers: NO_STORE });
   if (error) return NextResponse.json({ ok: false, error: "We couldn't count your recovery codes just now." }, { status: 500 });
   return NextResponse.json({ ok: true, left: count ?? 0 }, { headers: NO_STORE });
 }
@@ -47,10 +44,8 @@ async function post(req: Request) {
   const codes = makeCodes();
   // The new ten are kept first, then the old ten go: a failure between leaves the old ones working, never none.
   // scoped-by: the caller's own verified id.
-  // arrives-with: 0438 — before the paste the table isn't there: said as not switched on yet, nothing made.
   const { data: made, error: madeError } = await supabaseAdmin.from("two_step_recovery_codes")
     .insert(codes.map((c) => ({ user_id: user.id, code_hash: hashCode(c) }))).select("id");
-  if (madeError && isMissingTable(madeError)) return NextResponse.json({ ok: false, error: RECOVERY_WORDS.notYet }, { status: 503 });
   if (madeError || !made || made.length !== codes.length) {
     return NextResponse.json({ ok: false, error: MADE_NONE }, { status: 500 });
   }

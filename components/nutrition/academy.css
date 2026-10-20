@@ -43,6 +43,8 @@
 .pr-card:active{background:var(--ink-onLight-05);box-shadow:0 0 0 1px color-mix(in srgb, var(--glow-c) 70%, transparent),0 0 26px color-mix(in srgb, var(--glow-c) 30%, transparent),0 12px 24px -12px rgba(0,0,0,.55)}
 .pr-card.done{background:var(--ink-onLight-04)}
 .pr-card.done::before{opacity:.4}
+.pr-card.shut::before{opacity:.35}   /* R45: a lesson in the course, not yet this reader's — its preview, quieter */
+.pr-card.shut .pr-card-t{color:var(--oa-cream-dim)}
 .pr-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .pr-card-t{font-family:var(--sans);font-weight:700;font-size:16px;letter-spacing:-.1px;color:var(--oa-cream);line-height:1.2}
 .pr-card-s{font-family:var(--sans);font-size:13px;line-height:1.5;color:var(--oa-cream-dim)}

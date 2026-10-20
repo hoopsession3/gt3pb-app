@@ -179,12 +179,12 @@ const { SITE, SITE_NAME, PUBLIC_PAGES, CANONICAL_OF, SITEMAP_PATHS, SHARE_IMAGE,
         && gr.MENU_COLUMNS === "slug,name,line,price_cents,sort,what,why,ingredients,excludes,timing,accent,sold_out,active,cup_orderable,caffeine,contains,tag,when_text", cat);
     ok("…and null when it can't be read (the code list stands in)", (await gr.catalogForGuests(stub(json([], 500)))) === null);
     const slugs = await gr.publicLessonSlugs(stub(json([{ slug: "a" }, { slug: "b" }, { slug: "a" }, { slug: "" }, { slug: 3 }, null])));
-    ok("publicLessonSlugs: the lessons a guest may read, once each, in the course's order, hourly; none when unread",
-      JSON.stringify(slugs) === '["a","b"]' && /primal_lessons\?select=slug&published_at=not\.is\.null&archived_at=is\.null&order=sort$/.test(calls.at(-1).url) && calls.at(-1).init.next.revalidate === 3600
+    ok("publicLessonSlugs: every lesson's preview (R45, 0441), once each, in the course's order, hourly; none when unread",
+      JSON.stringify(slugs) === '["a","b"]' && /rpc\/primal_lesson_previews\?select=slug$/.test(calls.at(-1).url) && calls.at(-1).init.next.revalidate === 3600
         && JSON.stringify(await gr.publicLessonSlugs(stub(new Error("down")))) === "[]", slugs);
     const l = await gr.publicLesson("fuel first/2", stub(json([{ title: " Fuel first ", subtitle: null, summary: "One line." }])));
     ok("publicLesson: a lesson anyone may read — its title and one-liner, asked by its slug, every ten minutes, three seconds at most",
-      l && l.title === "Fuel first" && l.summary === "One line." && /slug=eq\.fuel%20first%2F2&published_at=not\.is\.null&archived_at=is\.null&limit=1$/.test(calls.at(-1).url)
+      l && l.title === "Fuel first" && l.summary === "One line." && /rpc\/primal_lesson_previews\?select=title,subtitle,summary&slug=eq\.fuel%20first%2F2&limit=1$/.test(calls.at(-1).url)
         && calls.at(-1).init.next.revalidate === 600, l);
     ok("…null when it isn't one (a member's, unpublished, gone, untitled); undefined when the database couldn't be asked",
       (await gr.publicLesson("x", stub(json([])))) === null && (await gr.publicLesson("x", stub(json([{ title: "  " }])))) === null

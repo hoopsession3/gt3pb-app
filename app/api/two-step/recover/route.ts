@@ -4,7 +4,6 @@ import { bearerProvedWithin, userFromRequest } from "@/lib/apiAuth";
 import { isJsonObject, route } from "@/lib/apiRoute";
 import { callerIp, limitsFit } from "@/lib/rateLimit";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { isMissingTable } from "@/lib/schemaSkew";
 import { codeMatches, looksLikeCode, RECOVERY_WORDS } from "@/lib/recoveryCodes";
 
 // A RECOVERY CODE TAKES A LOST AUTHENTICATOR OFF (R37, 2026-10-19 — the fresh audit's UX11-10; Ryan: "Recovery codes";
@@ -39,10 +38,8 @@ async function post(req: Request) {
   if (!fits) return NextResponse.json({ ok: false, error: RECOVERY_WORDS.tooMany }, { status: 429 });
 
   // scoped-by: the caller's own verified id — their codes, keyed by nothing the request sent.
-  // arrives-with: 0438 — before the paste the table isn't there, so nobody has codes: said as none, nothing changed.
   const { data: rows, error: readError } = await supabaseAdmin.from("two_step_recovery_codes").select("id, code_hash")
     .eq("user_id", user.id).is("used_at", null);
-  if (readError && isMissingTable(readError)) return NextResponse.json({ ok: false, error: RECOVERY_WORDS.none }, { status: 422 });
   if (readError) return NextResponse.json({ ok: false, error: "We couldn't check that code just now — nothing was changed." }, { status: 500 });
   if (!rows?.length) return NextResponse.json({ ok: false, error: RECOVERY_WORDS.none }, { status: 422 });
   const hit = rows.find((r) => codeMatches(typed, r.code_hash));

@@ -20,7 +20,8 @@ import { haptic } from "@/lib/haptics";
 import Said from "@/components/Said";
 import RookieBadge from "@/components/nutrition/RookieBadge";
 import MapLibrary from "@/components/nutrition/MapLibrary";
-import { courseOrder, nextLesson, progressOf, rookieComplete } from "@/lib/nutrition";
+import { courseOrder, isOpen, nextLesson, progressOf, rookieComplete } from "@/lib/nutrition";
+import { readCourseLessons } from "@/lib/nutritionRead";
 
 // The map draws itself in when it is reached; it is not the first thing a phone paints.
 const CourseMap = dynamic(() => import("@/components/nutrition/CourseMap"));
@@ -31,8 +32,13 @@ const CourseMap = dynamic(() => import("@/components/nutrition/CourseMap"));
 // owner's boards redrawn), and every map as a static file to download and search (MapLibrary). One search narrows the
 // lessons and the library together.
 //
+// THE COURSE IS BOUGHT (R45, the owner's call: "rookies shouldn't be free, only the pillars"). Every lesson is shown —
+// its preview is anyone's (lib/nutritionRead) — and the ones this reader can't open yet wear a lock and open to what
+// they cover; the four pillar maps are the free download. Progress, Continue and the badge count the lessons a reader
+// can open, so nobody is told to continue into a paywall.
+//
 // RETURN TO PRIMAL — the native nutrition academy index (round 0273). Reads the published primal_*
-// tree through RLS (rookie lessons open to all, pro only to entitled/staff), lays it out systematically
+// tree (every lesson's preview, and in full what RLS opens to this reader), lays it out systematically
 // pillar -> module -> lesson, and makes it referenceable in one glance: a live search filters every
 // lesson by title/summary/key-point, and a customer's own progress shows as a check on each card.
 // Content lives in the DB (crew-editable in the Lessons manager); this file is pure presentation.
@@ -41,7 +47,7 @@ type Pillar = { id: string; slug: string; title: string; blurb: string | null; a
 type Module = { id: string; pillar_id: string; slug: string; title: string; blurb: string | null; sort: number };
 type Lesson = {
   id: string; module_id: string; slug: string; title: string; subtitle: string | null; tier: "rookie" | "pro";
-  est_minutes: number | null; summary: string | null; key_points: string[]; sort: number;
+  est_minutes?: number | null; summary?: string | null; key_points: string[]; sort: number; open?: boolean;
 };
 type Tree = { pillars: Pillar[]; modules: Module[]; lessons: Lesson[]; done: Set<string>; total: number; pro: boolean };
 
@@ -58,13 +64,12 @@ export default function PrimalAcademy() {
 
   const loader = useCallback(async (): Promise<Tree> => {
     if (!supabase) return { pillars: [], modules: [], lessons: [], done: new Set(), total: 0, pro: false };
-    const [pil, mod, les] = await Promise.all([
+    const [pil, mod, lessons] = await Promise.all([
       supabase.from("primal_pillars").select("id, slug, title, blurb, accent, icon, sort").order("sort"),
       supabase.from("primal_modules").select("id, pillar_id, slug, title, blurb, sort").order("sort"),
-      supabase.from("primal_lessons").select("id, module_id, slug, title, subtitle, tier, est_minutes, summary, key_points, sort").order("sort"),
+      readCourseLessons(supabase) as Promise<Lesson[]>,
     ]);
     if (pil.error) throw new Error(pil.error.message);
-    const lessons = ((les.data as Lesson[]) ?? []).map((l) => ({ ...l, key_points: Array.isArray(l.key_points) ? l.key_points : [] }));
     // progress is keyed by the customer spine — resolve our own customer row, then load completions.
     const done = new Set<string>();
     let pro = false;
@@ -74,7 +79,8 @@ export default function PrimalAcademy() {
       if (cid) {
         const { data: prog } = await supabase.from("primal_progress").select("lesson_id, status").eq("customer_id", cid).eq("status", "completed");
         for (const r of (prog as { lesson_id: string }[]) ?? []) done.add(r.lesson_id);
-        // Pro is a live program_access row (0271; its owner reads their own) — what unlocks the Pro maps.
+        // A live program_access row (0271; its owner reads their own) is the GT3 Nutrition purchase — what opens the
+        // course's lessons (0442) and its maps.
         const { data: acc } = await supabase.from("program_access").select("tier").eq("customer_id", cid).eq("tier", "pro").is("revoked_at", null).limit(1);
         pro = !!(acc as unknown[] | null)?.length;
       }
@@ -98,10 +104,13 @@ export default function PrimalAcademy() {
   }, [q, t]);
 
   const order = useMemo(() => (t ? courseOrder(t.pillars, t.modules, t.lessons) : []), [t]);
-  const prog = t ? progressOf(order, t.done) : { done: 0, total: 0, pct: 0 };
-  const next = t ? nextLesson(order, t.done) : null;
-  const rookie = order.filter((l) => l.tier === "rookie");
-  const earned = !!t && rookieComplete(order, t.done);
+  // What a reader can open is what they can be along in: a preview counts toward nothing until it is theirs.
+  const mine = useMemo(() => order.filter(isOpen), [order]);
+  const locked = order.length - mine.length;
+  const prog = t ? progressOf(mine, t.done) : { done: 0, total: 0, pct: 0 };
+  const next = t ? nextLesson(mine, t.done) : null;
+  const rookie = mine.filter((l) => l.tier === "rookie");
+  const earned = !!t && rookieComplete(mine, t.done);
   const hits = match ? match.size : 0;
   // The crew can open every map (they write the course); a member, with Pro.
   const isPro = !!t?.pro || (!!profile && roleOf(profile) !== "member");
@@ -120,7 +129,7 @@ export default function PrimalAcademy() {
         {user && t && prog.total > 0 && (
           <div className="nu-psegs" role="img" aria-label={`${prog.done} of ${prog.total} lessons complete`}>
             <div className="fx-segs">
-              {order.map((l, i) => <i key={l.id} className={t.done.has(l.id) ? "on" : undefined} style={{ "--i": i } as React.CSSProperties} />)}
+              {mine.map((l, i) => <i key={l.id} className={t.done.has(l.id) ? "on" : undefined} style={{ "--i": i } as React.CSSProperties} />)}
             </div>
             <span className="nu-psegs-n"><span>{prog.done}/{prog.total} complete</span><span>{Math.round(prog.pct * 100)}%</span></span>
           </div>
@@ -161,6 +170,7 @@ export default function PrimalAcademy() {
         <section className="nu-sec" aria-labelledby="nu-map-h">
           <div className="nu-sec-h"><h2 id="nu-map-h" className="nu-sec-n">The course map</h2><span className="nu-sec-s">{prog.done}/{prog.total} done</span></div>
           <CourseMap pillars={t.pillars} modules={t.modules} order={order} done={t.done} />
+          {locked > 0 && <a href="#nu-pro" className="nu-map-unlock" onClick={() => haptic("light")}>{locked === order.length ? "Every lesson" : `${locked} lesson${locked === 1 ? "" : "s"}`} open with GT3 Nutrition — see what’s in it ›</a>}
         </section>
       )}
 
@@ -198,16 +208,17 @@ export default function PrimalAcademy() {
                   <div className="pr-lessons">
                     {lessons.map((l, li) => {
                       const isDone = t.done.has(l.id);
+                      const shut = !isOpen(l);
                       return (
-                        <Link href={lessonHref(l.slug)} key={l.id} className={`pr-card fx-rise${isDone ? " done" : ""}`} style={{ "--accent": accent, "--i": li } as React.CSSProperties} onClick={() => haptic("light")}>
+                        <Link href={lessonHref(l.slug)} key={l.id} className={`pr-card fx-rise${isDone && !shut ? " done" : ""}${shut ? " shut" : ""}`} style={{ "--accent": accent, "--i": li } as React.CSSProperties} onClick={() => haptic("light")}>
                           <div className="pr-card-top">
                             <span className="pr-card-t">{l.title}</span>
-                            {l.tier === "pro" ? <span className="k-tag gold"><Icon name="lock" size={11} /> Pro</span> : <span className="k-tag">Free</span>}
+                            {shut ? <span className="k-tag gold"><Icon name="lock" size={11} /> In the course</span> : <span className="k-tag">{l.tier === "pro" ? "Pro" : "Rookie"}</span>}
                           </div>
                           {l.summary && <span className="pr-card-s">{l.summary}</span>}
                           <div className="pr-card-foot">
                             {l.est_minutes ? <span className="pr-min"><Icon name="clock" size={12} /> {l.est_minutes} min</span> : <span />}
-                            {isDone ? <span className="pr-check"><Icon name="check" size={13} /> Done</span> : <span className="pr-go">Read <Icon name="arrowRight" size={13} /></span>}
+                            {isDone && !shut ? <span className="pr-check"><Icon name="check" size={13} /> Done</span> : <span className="pr-go">{shut ? "See what it covers" : "Read"} <Icon name="arrowRight" size={13} /></span>}
                           </div>
                         </Link>
                       );

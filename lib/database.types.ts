@@ -12156,6 +12156,8 @@ export type Database = {
         { Args: Record<PropertyKey, never>; Returns: undefined }
       password_scope_everywhere:
         { Args: Record<PropertyKey, never>; Returns: boolean }
+      primal_lesson_previews:
+        { Args: Record<PropertyKey, never>; Returns: { id: string; module_id: string; slug: string; title: string; subtitle: string; tier: string; est_minutes: number; summary: string; sort: number }[] }
       primal_menu_for_lesson:
         { Args: { _lesson_id: string | null }; Returns: { product_slug: string; name: string; line: string; timing: string; price_cents: number; accent: string; rationale: string; orderable: boolean }[] }
       prior_business_day:

@@ -56,7 +56,9 @@ const N = loadTs("lib/nutrition.ts");
 // ── 2 · the maps ─────────────────────────────────────────────────────────────────────────────────────────────────────
 {
   const free = N.MAPS.filter((m) => m.tier === "free"), pro = N.MAPS.filter((m) => m.tier === "pro");
-  ok("fifteen maps: Rookie free, the pillars Pro (the owner's call)", N.MAPS.length === 15 && free.every((m) => m.level === "Rookie") && pro.every((m) => m.level !== "Rookie") && pro.length === 4);
+  ok("fifteen maps: the four pillars free, the Rookie maps the course's (the owner's call, R45: \"rookies shouldn't be free, only the pillars\")",
+    N.MAPS.length === 15 && free.length === 4 && free.every((m) => m.level === "Pillar") && pro.every((m) => m.level === "Rookie")
+    && JSON.stringify(free.map((m) => m.slug).sort()) === '["fuel","light","movement","stillness"]' && N.MAPS.slice(0, 4).every((m) => m.tier === "free"));
   ok("slugs and files are unique", new Set(N.MAPS.map((m) => m.slug)).size === 15 && new Set(N.MAPS.map((m) => m.file)).size === 15);
   const wrongSize = free.filter((m) => !existsSync(join(ROOT, "public/nutrition/maps", m.file)) || statSync(join(ROOT, "public/nutrition/maps", m.file)).size !== m.bytes);
   ok("every free map is a public PDF of exactly the size the row says", wrongSize.length === 0, wrongSize.map((m) => m.file));
@@ -75,7 +77,7 @@ const N = loadTs("lib/nutrition.ts");
   ok("the Pro route: only a named Pro map; a sign-in; the crew or a member with a live Pro row; Pro said, not missing",
     /const map = proMap\(slug\);\s+if \(!map\) return Response\.json\(\{[^}]+\}, \{ status: 404 \}\);/.test(r)
     && /if \(!user\) return Response\.json\(\{[^}]+\}, \{ status: 401 \}\);/.test(r)
-    && /const allowed = \(await staffFromRequest\(req\)\) \|\| \(await memberHasPro\(req, user\.id\)\);\s+if \(!allowed\) return Response\.json\(\{ ok: false, error: "This map is part of GT3 Nutrition Pro\." \}, \{ status: 403 \}\);/.test(r)
+    && /const allowed = \(await staffFromRequest\(req\)\) \|\| \(await memberHasPro\(req, user\.id\)\);\s+if \(!allowed\) return Response\.json\(\{ ok: false, error: "This map is part of GT3 Nutrition\." \}, \{ status: 403 \}\);/.test(r)
     && /\.from\("program_access"\)\.select\("tier"\)\.eq\("customer_id", cid\)\.eq\("tier", "pro"\)\.is\("revoked_at", null\)/.test(r)
     && /"Cache-Control": "private, no-store"/.test(r) && /export const GET = route\("nutrition\/map", get\);/.test(r));
   ok("…and reads the file by the map's own name, never the address's", /join\(process\.cwd\(\), "content", "nutrition", "pro", map\.file\)/.test(r) && !/join\([^)]*slug/.test(r));

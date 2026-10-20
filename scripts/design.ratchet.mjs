@@ -747,6 +747,8 @@ export const PROD_ROUTE = {
 // house sheet plus the course's two). Built b281b09 (R43) and this commit: /primal 269 429 → 273 154 bytes, /3mpire
 // 284 116 → 284 170, /order 273 897 → 273 951, /privacy 265 269 → 265 323. Crossed the rounding line on /3mpire (277 →
 // 278) and /order (267 → 268), recorded; /primal 263 → 267 and css 90 → 93, recorded.
+// 2026-10-20 (R45, the course is bought): /primal 16 → 17 chunks, the script the same 267 KB — the course's one read
+// (lib/nutritionRead: every lesson's preview laid over what RLS opens) is shared with Today's card, so it is its own chunk.
 export const WEIGHT = {
   "/truck":                    { js: 273, css: 90, chunks: 17 },
   "/events":                   { js: 273, css: 90, chunks: 17 },
@@ -767,7 +769,7 @@ export const WEIGHT = {
   "/built/gt3-built-k7m9x4q2": { js: 260, css: 90, chunks: 16 },
   "/display":                  { js: 261, css: 90, chunks: 16 },
   "/shop":                     { js: 293, css: 90, chunks: 19 },
-  "/primal":                   { js: 267, css: 93, chunks: 16 },
+  "/primal":                   { js: 267, css: 93, chunks: 17 },
   "/privacy":                  { js: 259, css: 90, chunks: 15 },
   "/terms":                    { js: 259, css: 90, chunks: 15 },
   "/":                         { js: 269, css: 90, chunks: 17 },

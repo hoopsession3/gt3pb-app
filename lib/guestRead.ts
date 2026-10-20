@@ -37,13 +37,16 @@ export async function catalogForGuests(get?: typeof fetch): Promise<MenuRow[] | 
 }
 
 // ── THE LESSONS ──────────────────────────────────────────────────────────────────────────────────────────────────────
-// Published rookie lessons are anyone's (0272's "primal lessons read"); a pro lesson is a member's, and a guest's read
-// never returns it — so the sitemap lists, and a lesson's page tells search about, only what a stranger may read.
+// Every live lesson's preview is anyone's (R45, primal_lesson_previews, 0441: title, subtitle, summary — never the body),
+// so the sitemap lists every lesson and a lesson's page tells search and a share card what it covers, bought or not.
+// Until 0441 is applied that read isn't there, and the table's own (0272: a Rookie lesson is anyone's) answers instead.
 const LESSON_LIVE = "published_at=not.is.null&archived_at=is.null";
+const PREVIEWS = "rpc/primal_lesson_previews";
 
 /** Every lesson anyone may read, by slug, once each, in the course's order. Read hourly; [] when it can't be read. */
 export async function publicLessonSlugs(get?: typeof fetch): Promise<string[]> {
-  const rows = await guestRead<{ slug?: unknown }>(`primal_lessons?select=slug&${LESSON_LIVE}&order=sort`, { revalidate: 3600 }, get);
+  const rows = await guestRead<{ slug?: unknown }>(`${PREVIEWS}?select=slug`, { revalidate: 3600 }, get)
+    ?? await guestRead<{ slug?: unknown }>(`primal_lessons?select=slug&${LESSON_LIVE}&order=sort`, { revalidate: 3600 }, get);
   return [...new Set((rows ?? []).map((r) => r?.slug).filter((s): s is string => typeof s === "string" && s.length > 0))];
 }
 
@@ -52,7 +55,9 @@ export type PublicLesson = { title: string; subtitle: string | null; summary: st
  *  gone); undefined when the database couldn't be asked. */
 export async function publicLesson(slug: string, get?: typeof fetch): Promise<PublicLesson | null | undefined> {
   const rows = await guestRead<Partial<PublicLesson>>(
-    `primal_lessons?select=title,subtitle,summary&slug=eq.${encodeURIComponent(slug)}&${LESSON_LIVE}&limit=1`, { revalidate: 600, timeoutMs: 3000 }, get);
+    `${PREVIEWS}?select=title,subtitle,summary&slug=eq.${encodeURIComponent(slug)}&limit=1`, { revalidate: 600, timeoutMs: 3000 }, get)
+    ?? await guestRead<Partial<PublicLesson>>(
+      `primal_lessons?select=title,subtitle,summary&slug=eq.${encodeURIComponent(slug)}&${LESSON_LIVE}&limit=1`, { revalidate: 600, timeoutMs: 3000 }, get);
   if (rows === null) return undefined;
   const r = rows[0];
   if (!r || typeof r.title !== "string" || !r.title.trim()) return null;

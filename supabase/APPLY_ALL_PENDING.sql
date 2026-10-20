@@ -17,250 +17,87 @@
 -- the others back with it. Each section below is wrapped in its own begin … commit: its locks end with it, and if one
 -- stops (a busy table's lock wait ran out), the ones above it stay applied and nothing below it runs — paste the file
 -- again a moment later; a migration already applied changes nothing the second time.
--- pending-from: 0440
--- generated-at: 2026-10-19
--- pending-count: 3
--- ledger-read-from: hand-read from the SQL editor
+-- pending-from: 0442
+-- generated-at: 2026-10-20
+-- pending-count: 1
+-- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- held: 0376_nobody_on_the_pass_during_service_is_an_alert.sql — NOT in this file; applied by hand once the condition in its header is met
 -- held: 0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql — NOT in this file; applied by hand once the condition in its header is met
+-- held: 0442_the_course_is_bought_and_the_pillars_are_given.sql — NOT in this file; applied by hand once the condition in its header is met
 -- ============================================================
--- 0438_a_way_back_without_the_authenticator.sql
+-- 0441_a_lessons_preview_is_anyones.sql
 -- ============================================================
-begin;   -- 0438, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
--- ── 0438 — A WAY BACK WITHOUT THE AUTHENTICATOR ──────────────────────────────────────────────────────────────────────
--- 2026-10-19. R37 of the 10/10 audit (the fresh audit at R31: accessibility UX11-10; Ryan, 2026-10-19: "Recovery codes").
--- Paste into Supabase → SQL Editor → Run. A second run changes nothing.
+begin;   -- 0441, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
+-- ── 0441 — A LESSON'S PREVIEW IS ANYONE'S ──────────────────────────────────────────────────────────────────────────
+-- 2026-10-20. R45 (Ryan, 2026-10-20: "rookies shouldn't be free, only the pillars — light, stillness, movement, fuel";
+-- the lessons locked with a preview kept). Paste into Supabase → SQL Editor → Run. A second run changes nothing.
 --
--- WHY. Two-step (0433) holds every owner's and admin's power to an authenticator's code. An owner who lost their phone
--- had one way back: another owner — or someone with the database's dashboard — taking the lost authenticator off their
--- account (0433's NO LOCKOUT). The business's only owner had no other owner, and someone who can't use the dashboard
--- had no way at all.
+-- WHY. Once the course is bought (0442, held until GT3 Nutrition is for sale in the Shop), a stranger's read of
+-- primal_lessons returns nothing — and the course map, the Today card, a locked lesson's page, the sitemap and a share
+-- card would have nothing to show. What a lesson covers is what sells it.
 --
--- WHAT. two_step_recovery_codes: ten one-time codes for each person who sets up an authenticator, made by the app's
--- server (app/api/two-step/codes — on a sign-in that gave the authenticator's code) and shown to them once, to print or
--- keep in Passwords. Any one of them, given on a sign-in proved in the last few minutes (app/api/two-step/recover), is
--- used up and takes the lost authenticator off the account through Supabase's own admin door; they set up a new one,
--- and the owners and admins are told it happened. A code is kept as its hash with its own salt (lib/recoveryCodes:
--- scrypt), never as itself. The table is closed to every API role — no policy, no grant — and only the server, with its
--- own key, reads or writes it.
+-- WHAT. primal_lesson_previews(): every live lesson as anyone may see it before buying — its title, subtitle, level,
+-- minutes and summary; never its body, key points or stack. Live lessons only, the caller's tenant only (a definer reads
+-- past RLS, so it says both itself, as 0283's restrictive policy would). Additive: nothing anyone reads today changes,
+-- except that a Pro lesson's title and summary are now seen before it is unlocked — which is the point.
 --
--- set lock_timeout (database F16): a new table and its index — nothing existing is locked.
--- existing rows: none — nobody has codes until they set up an authenticator, or make new ones in Settings & privacy.
--- changelog: below.
+-- set lock_timeout (database F16): one function made, one replaced (the stack's, with its gate).
+-- existing rows: none.
+-- changelog: none — the screens that read it say so when the course is bought (0442).
 
 set lock_timeout = '5s';
 
-create table if not exists public.two_step_recovery_codes (
-  id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null references auth.users(id) on delete cascade,
-  code_hash  text not null check (code_hash like 's1$%'),   -- lib/recoveryCodes: scrypt, its salt beside it — never the code
-  made_at    timestamptz not null default now(),
-  used_at    timestamptz
-);
--- The person's codes, and which are still unused: the key's own index (0435's rule — a delete of an account finds them).
-create index if not exists two_step_recovery_codes_user_id_fk_idx on public.two_step_recovery_codes (user_id, used_at);
-comment on table public.two_step_recovery_codes is
-  'Two-step recovery codes (0438): ten one-time codes per person with an authenticator, kept as scrypt hashes (lib/recoveryCodes). Made and used only by the app''s server (app/api/two-step/codes and recover) with its own key; closed to every API role. A used code takes the lost authenticator off the account; the owners and admins are told.';
-
-alter table public.two_step_recovery_codes enable row level security;
-revoke all on public.two_step_recovery_codes from public, anon, authenticated;
-grant select, insert, update, delete on public.two_step_recovery_codes to service_role;
-
-insert into public.changelog (title, category, area, summary, shipped_on, highlight)
-select v.title, v.category, v.area, v.summary, v.shipped_on::date, v.highlight
-from (values
-  ('A way back without your authenticator', 'security', 'Account',
-   'Setting up two-step sign-in now gives you ten one-time recovery codes to print or keep in Passwords. If you lose your authenticator, one of them — on a fresh sign-in — takes the lost one off your account so you can set up a new one, and the owners are told.',
-   '2026-10-19', false)
-) as v(title, category, area, summary, shipped_on, highlight)
-where not exists (select 1 from public.changelog c where c.title = v.title);
-
--- verify (numbers and booleans only):
---   select relrowsecurity from pg_class where oid = 'public.two_step_recovery_codes'::regclass;                   -- t
---   select has_table_privilege('authenticated', 'public.two_step_recovery_codes', 'select');                      -- f
---   select has_table_privilege('anon', 'public.two_step_recovery_codes', 'select');                               -- f
---   select count(*) from pg_policy where polrelid = 'public.two_step_recovery_codes'::regclass;                   -- 0
-select public.record_migration('0438_a_way_back_without_the_authenticator');
-reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
-commit;  -- 0438
-
--- ============================================================
--- 0439_a_checkouts_key_is_kept_as_long_as_it_can_matter.sql
--- ============================================================
-begin;   -- 0439, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
--- ── 0439 — A CHECKOUT'S KEY IS KEPT AS LONG AS IT CAN MATTER ───────────────────────────────────────────────────────
--- 2026-10-19. R39 of the 10/10 audit (the fresh audit at R31: API11-12; Ryan, 2026-10-18: "Keep working to improve to a
--- 10"). Paste into Supabase → SQL Editor → Run. A second run changes nothing.
---
--- WHY. public.checkout_claims (0371) keeps every checkout's key — the line that charges a card once — and nothing ever
--- deleted one. The app's other inboxes expire: webhook_events after 30 days (0230), message_sent after 90 (0429),
--- rate_limit_hits every night (0419). And a door anyone may call adds rows: "Check on my payment", asked about a key
--- never seen, closes it with a row of its own — so a script inside that door's limits (10 a minute an address, 120 for
--- everyone) could add about 170,000 a day, kept forever, the table and its key's index growing under every claim read on
--- the payment path.
---
--- WHAT. A nightly sweep (sweep_checkout_claims, the service role's alone): a settled key (done) goes after 90 days — no
--- retry of a checkout comes three months on — and a key a check closed having found nothing (done, nothing charged, its
--- answer "checked") after 7. A key whose outcome isn't settled — started, charged, unknown — is never swept: it is a
--- payment a person may still have to settle. An index on the settled keys' age keeps the sweep's read small.
---
--- set lock_timeout (database F16): an index on checkout_claims (its build holds a share lock on a small table), a function
--- and a job.
--- existing rows: the first sweep deletes the settled keys older than their window; no unsettled key is touched.
--- changelog: none — nothing anyone sees changes.
-
-set lock_timeout = '5s';
-
-create index if not exists checkout_claims_settled_idx on public.checkout_claims (updated_at) where state = 'done';
-
-create or replace function public.sweep_checkout_claims() returns integer
-  language sql security invoker set search_path = public as $$
-  with gone as (
-    delete from public.checkout_claims
-     where state = 'done'
-       and (updated_at < now() - interval '90 days'
-            or (updated_at < now() - interval '7 days' and coalesce(amount_cents, 0) = 0 and answer ->> 'checked' = 'true'))
-    returning 1
-  )
-  select count(*)::int from gone
+-- what anyone may know before buying
+create or replace function public.primal_lesson_previews()
+returns table (id uuid, module_id uuid, slug text, title text, subtitle text, tier text, est_minutes int, summary text, sort int)
+language sql stable security definer set search_path = '' as $$
+  select l.id, l.module_id, l.slug, l.title, l.subtitle, l.tier, l.est_minutes, l.summary, l.sort
+    from public.primal_lessons l
+   where l.published_at is not null
+     and l.archived_at is null
+     and l.tenant_id = public.effective_tenant()
+   order by l.sort, l.title;
 $$;
-comment on function public.sweep_checkout_claims() is
-  'Nightly (0439): settled checkout keys (done) older than 90 days, and keys a check closed having found nothing older than 7, are deleted; a key whose outcome is not settled (started, charged, unknown) never is. Returns how many went.';
-revoke all on function public.sweep_checkout_claims() from public, anon, authenticated;
-grant execute on function public.sweep_checkout_claims() to service_role;
+revoke all on function public.primal_lesson_previews() from public, anon, authenticated;
+grant execute on function public.primal_lesson_previews() to anon, authenticated;
+comment on function public.primal_lesson_previews() is
+  'Every live lesson of GT3 Nutrition as anyone may see it before buying (0441): title, subtitle, level, minutes, summary — never the body, key points or stack, which "primal lessons read" keeps for a live GT3 Nutrition purchase (program_access tier pro) and the crew.';
 
-do $$ begin perform cron.unschedule('checkout-claims-sweep'); exception when others then null; end $$;
-do $$ begin
-  perform cron.schedule('checkout-claims-sweep', '41 7 * * *', $q$select public.sweep_checkout_claims()$q$);
-exception when others then
-  raise notice '0439: pg_cron is not here — the sweep is: select public.sweep_checkout_claims()';
-end $$;
-
--- verify (numbers and booleans only):
---   select count(*) from pg_indexes where indexname = 'checkout_claims_settled_idx';                                 -- 1
---   select has_function_privilege('anon', 'public.sweep_checkout_claims()', 'execute');                              -- f
---   select has_function_privilege('authenticated', 'public.sweep_checkout_claims()', 'execute');                     -- f
---   select count(*) from cron.job where jobname = 'checkout-claims-sweep';                                           -- 1
-select public.record_migration('0439_a_checkouts_key_is_kept_as_long_as_it_can_matter');
-reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
-commit;  -- 0439
-
--- ============================================================
--- 0440_the_scheduled_check_is_judged_by_the_gap_it_keeps.sql
--- ============================================================
-begin;   -- 0440, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
--- ── 0440 — THE SCHEDULED CHECK IS JUDGED BY THE GAP IT KEEPS ─────────────────────────────────────────────────────
--- 2026-10-19. R41 (Ryan, 2026-10-19: an outside monitor for the site's uptime, and six hours for GitHub's check). Paste
--- into Supabase → SQL Editor → Run. A second run changes nothing.
---
--- WHY. heartbeat_watchdog (0255, 0327, 0340) opens "The uptime check went quiet" when nothing has stamped /api/health
--- for 90 minutes — three periods of production.yml's half-hourly schedule. GitHub doesn't keep that schedule: from
--- 2026-10-02 to 10-19 it ran 101 scheduled checks where the schedule names about 800 — one every two to six hours, the
--- longest gap 5h 45m — so the line opened and closed again on most days about a check that was doing what GitHub lets
--- it. A line that is usually false is one nobody reads: 0327's lesson, again.
---
--- WHAT. Whether the site is up is said from outside it now, every three minutes, by an uptime monitor that emails the
--- owner itself (RELEASE.md, "The outside monitor") — it answers even when the database can't, which this line never
--- could. This watchdog watches what only it can: that GitHub's deeper check — the ledger, the push function, the probes,
--- every route painted — still runs at all. It waits six hours, longer than any gap GitHub has kept, and its line says
--- what it is about. The title stays (the push function's policy names it: no deploy for a sentence). The line open now,
--- if one is, was opened by the rule this replaces, and is retired as 0340 retired the last.
---
--- set lock_timeout (database F16): one function replaced; the watchdog's own open line updated.
--- existing rows: an open heartbeat_stale line is acknowledged — ack_at now, ack_by null (a mechanism, not a person).
--- changelog: none — fewer false lines in the inbox is not a screen anyone opens.
-
-set lock_timeout = '5s';
-
--- heartbeat-stale-after: 360
--- scripts/smoke.cjs reads that marker and production.yml's quick schedule: it fails unless the number is at least three of
--- the schedule's periods and at least six hours — GitHub's longest measured gap (5h 45m, 2026-10-02 to 10-19) under it.
-create or replace function public.heartbeat_watchdog() returns void
-language plpgsql security definer set search_path = public as $$
-declare
-  hb         timestamptz;
-  counted    timestamptz;
-  open_id    uuid;
-  last_quiet timestamptz;
-  v_back     text;
-  quiet      interval;
-  quiet_in   text;
-  et         constant text := 'America/New_York';
-begin
-  select seen_at, counted_stamp into hb, counted from public.ops_heartbeat where id = 1;
-  if hb is null then return; end if;
-
-  -- last_seen_at is "when this was last true" (alert_open_once writes the wall clock), so for this
-  -- kind it is the last run that found the check quiet.
-  select a.id, a.last_seen_at into open_id, last_quiet
-    from public.alerts a
-   where a.kind = 'heartbeat_stale' and a.subject_id is null and a.ack_at is null
-   order by a.created_at desc
-   limit 1;
-
-  if hb > now() - interval '360 minutes' then
-    -- Checking in. An open line from an earlier silence must stop saying "nothing has checked" —
-    -- that sentence is now false. Written once: the text carries no clock that moves.
-    if open_id is not null then
-      v_back := 'GitHub''s check went quiet after '
-        || to_char(coalesce(counted, hb) at time zone et, 'Dy, Mon FMDD, FMHH12:MI AM')
-        || ' ET and was still quiet at '
-        || to_char(coalesce(last_quiet, now()) at time zone et, 'FMHH12:MI AM')
-        || ' ET. It has been running again since. Nothing to do unless it repeats — the count '
-        || 'on this line says how often it has.';
-      update public.alerts a set body = v_back
-       where a.id = open_id and a.body is distinct from v_back;
-    end if;
-    return;
-  end if;
-
-  quiet := now() - hb;
-  -- Past two hours the number is rounded DOWN, and the word "over" says so.
-  quiet_in := case
-    when quiet < interval '2 hours'  then floor(extract(epoch from quiet) / 60)::int               || ' minutes'
-    when quiet < interval '48 hours' then 'over ' || floor(extract(epoch from quiet) / 3600)::int  || ' hours'
-    else                                  'over ' || floor(extract(epoch from quiet) / 86400)::int || ' days'
-  end;
-
-  -- 'important', as 0327 decided: a check that has stopped is a gap worth fixing, not a payment failing. The title is
-  -- past tense so it stays true after the check comes back.
-  perform public.alert_open_once(
-    'heartbeat_stale', null, 'important', 'system',
-    'The uptime check went quiet',
-    'GitHub''s production check hasn''t reached /api/health since '
-      || to_char(hb at time zone et, 'Dy, Mon FMDD, FMHH12:MI AM') || ' ET — ' || quiet_in
-      || '. GitHub runs it every few hours (Actions › Production), never six apart until now: its schedule has stopped — '
-      || 'GitHub pauses it after 60 days without a push — or its runs can''t reach the app and are red. Whether the site '
-      || 'itself is up is the outside monitor''s to say: it emails you within minutes when it isn''t. The database is up: '
-      || 'this line could not exist otherwise.',
-    '/crew');
-
-  -- COUNT SILENCES, NOT RUNS (0327's rule, kept): a new silence is a stamp this watchdog has not counted, and it
-  -- re-surfaces the line for everyone who dismissed the last one (0340).
-  if open_id is not null and counted is distinct from hb then
-    update public.alerts set occurrences = occurrences + 1 where id = open_id;
-    delete from public.alert_reads where alert_id = open_id;
-  end if;
-
-  update public.ops_heartbeat set counted_stamp = hb where id = 1 and counted_stamp is distinct from hb;
-end $$;
-
-revoke all on function public.heartbeat_watchdog() from public, anon, authenticated;
-
-comment on function public.heartbeat_watchdog() is
-  'Raises ONE important alert (alert_open_once, kind heartbeat_stale, no subject) when GitHub''s production check (production.yml, which stamps /api/health with HEALTH_PROBE_SECRET) has not checked in for 6 hours — longer than any gap GitHub has kept between its scheduled runs (0440). The site''s own uptime is an outside monitor''s (RELEASE.md). Counts distinct silences via ops_heartbeat.counted_stamp, re-surfaces the line for everyone on a new one, and rewrites it to say so when the check resumes.';
-
--- THE LINE ALREADY IN THE INBOX, if there is one: opened by the 90-minute rule this replaces, about a check that was
--- running as often as GitHub lets it. Retired, not restated.
-update public.alerts
-   set ack_at = now()
- where kind = 'heartbeat_stale'
-   and ack_at is null;
+-- …and the drink stack a lesson recommends stays the lesson's. primal_menu_for_lesson (0272) reads it for any lesson id,
+-- past RLS — safe while the only ids a stranger could hold were a free lesson's. The preview hands out every id, so it
+-- asks what "primal lessons read" asks today (0272: a Rookie lesson is anyone's, a Pro lesson a member's); 0442 narrows
+-- both together when the course is bought.
+create or replace function public.primal_menu_for_lesson(_lesson_id uuid)
+returns table(product_slug text, name text, line text, timing text, price_cents int, accent text, rationale text, orderable boolean)
+language sql stable security definer set search_path = public as $$
+  select lp.product_slug, p.name, p.line, p.timing, p.price_cents, p.accent, lp.rationale,
+         coalesce(p.active, false) as orderable
+  from public.primal_lesson_products lp
+  left join public.products p on p.slug = lp.product_slug
+  where lp.lesson_id = _lesson_id
+    and (
+      (select public.is_staff())
+      or exists (
+        select 1 from public.primal_lessons l
+        where l.id = _lesson_id and l.published_at is not null and l.archived_at is null
+          and l.tenant_id = public.effective_tenant()
+          and (
+            l.tier = 'rookie'
+            or exists (
+              select 1 from public.program_access pa
+              join public.customers c on c.id = pa.customer_id
+              where c.user_id = (select auth.uid()) and pa.tier = l.tier and pa.revoked_at is null
+            )
+          )
+      )
+    )
+  order by case upper(coalesce(p.timing, ''))
+             when 'BEFORE' then 0 when 'DURING' then 1 when 'AFTER' then 2 else 3 end, lp.sort;
+$$;
 
 -- verify (numbers and booleans only):
---   select prosrc like '%360 minutes%' from pg_proc where proname = 'heartbeat_watchdog';                          -- t
---   select has_function_privilege('anon', 'public.heartbeat_watchdog()', 'execute');                               -- f
---   select count(*) from public.alerts where kind = 'heartbeat_stale' and ack_at is null;                          -- 0
-select public.record_migration('0440_the_scheduled_check_is_judged_by_the_gap_it_keeps');
+--   select has_function_privilege('anon', 'public.primal_lesson_previews()', 'execute');                            -- t
+--   select count(*) from public.primal_lesson_previews();                                                         -- the live lessons
+select public.record_migration('0441_a_lessons_preview_is_anyones');
 reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
-commit;  -- 0440
+commit;  -- 0441

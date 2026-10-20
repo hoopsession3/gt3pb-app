@@ -10,6 +10,11 @@
       "file": "0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql",
       "until": "R18's iPhone build (it sets a joiner's password again right after the code, and asks anyone whose password was taken to choose one) is on the phones — the App Store's, and TestFlight's for the crew; then pasted by itself with its own yes",
       "since": "2026-10-17"
+    },
+    {
+      "file": "0442_the_course_is_bought_and_the_pillars_are_given.sql",
+      "until": "GT3 Nutrition is for sale in the Shop and a purchase grants program_access (the round after R45) — applied before, nobody but the crew could open a lesson and nobody could buy the way in; then pasted by itself with its own yes",
+      "since": "2026-10-20"
     }
   ]
 }

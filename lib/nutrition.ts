@@ -1,18 +1,21 @@
 // GT3 NUTRITION — the course's shape, its downloadable maps, and the arithmetic of a reader's progress (R44).
 //
 // GT3 Nutrition is the brand; Return to Primal is its course. The lessons live in the database (primal_pillars →
-// primal_modules → primal_lessons, 0272), read through RLS: a Rookie lesson is anyone's, a Pro lesson a member's.
+// primal_modules → primal_lessons, 0272), read through RLS: every lesson is a member's — one GT3 Nutrition purchase
+// opens the whole course (0441) — and anyone may read its preview (primal_lesson_previews: title, summary, minutes), so
+// the map, the Today card and a locked lesson's page show what the course holds before it is bought.
 // This file is pure — the course screens, the Today card and the tests all ask it, and it reads nothing itself.
 //
 // THE MAPS. The owner built the course as Miro boards and MindNode maps; each one is kept in content/nutrition/source
 // (the app is the source of truth now, so a cheaper Miro plan loses nothing). A reader downloads a static copy of a
 // map to zoom and search it, the way the Rookie board always offered ("All framework and systems are downloadable PDF
-// files"). Rookie maps are free and served as public files; the Engine and the four pillar maps are Pro, served by
-// app/api/nutrition/map only to a member or the crew (the owner's call, 2026-10-20: "Rookie free, pillars Pro").
+// files"). The four pillar maps — Movement, Stillness, Light, Fuel — are free and served as public files; the Rookie
+// maps are the course's, served by app/api/nutrition/map only to a member or the crew (the owner's call, 2026-10-20:
+// "rookies shouldn't be free, only the pillars").
 
 export type MapTier = "free" | "pro";
 
-/** One downloadable map. `file` is its name under public/nutrition/maps (free) or content/nutrition/pro (Pro). */
+/** One downloadable map. `file` is its name under public/nutrition/maps (free) or content/nutrition/pro (the course's). */
 export type NutritionMap = {
   slug: string;
   title: string;
@@ -24,29 +27,29 @@ export type NutritionMap = {
 };
 
 export const MAPS: readonly NutritionMap[] = [
-  { slug: "rookie-hub", title: "Return to Primal · Rookie", blurb: "The whole Rookie path on one board: who it's for, the FAQ, and where to start.", tier: "free", level: "Rookie", file: "return-to-primal-rookie.pdf", bytes: 1704735 },
-  { slug: "seven-steps", title: "Go Animal-Based in 7 Steps", blurb: "The seven steps to make it a lifestyle, not a diet.", tier: "free", level: "Rookie", file: "seven-steps-animal-based.pdf", bytes: 67858 },
-  { slug: "animal-based-diet", title: "Animal-Based Diet", blurb: "The animal-based operating system, automated.", tier: "free", level: "Rookie", file: "animal-based-diet.pdf", bytes: 836678 },
-  { slug: "ruminant-meat", title: "Ruminant (Red) Meat Explained", blurb: "Why ruminant meat and its broth anchor the plate.", tier: "free", level: "Rookie", file: "ruminant-meat-explained.pdf", bytes: 70860 },
-  { slug: "raw-dairy", title: "Raw Dairy Explained", blurb: "What raw dairy brings, and how to start.", tier: "free", level: "Rookie", file: "raw-dairy-explained.pdf", bytes: 358187 },
-  { slug: "power-carbs", title: "Power Carbs Explained", blurb: "The carbs your body knows how to use, and how to stack them.", tier: "free", level: "Rookie", file: "power-carbs-explained.pdf", bytes: 83264 },
-  { slug: "vitamins-minerals", title: "Vitamins and Minerals Explained", blurb: "Each one: what it does, when you're low, best sources.", tier: "free", level: "Rookie", file: "vitamins-minerals-explained.pdf", bytes: 86834 },
-  { slug: "amino-acids", title: "Amino Acids Explained", blurb: "Essential and conditional amino acids, and where they come from.", tier: "free", level: "Rookie", file: "amino-acids-explained.pdf", bytes: 87793 },
-  { slug: "sugar-cravings", title: "Break Sugar Cravings in 7 Days", blurb: "A day-by-day system for the habit that's hardest to break.", tier: "free", level: "Rookie", file: "break-sugar-cravings.pdf", bytes: 68918 },
-  { slug: "meal-stacking", title: "Meal Stacking for Rookies", blurb: "Build a plate by the feeling you want from it.", tier: "free", level: "Rookie", file: "meal-stacking-for-rookies.pdf", bytes: 264557 },
-  { slug: "meal-stacking-kids", title: "Meal Stacking for Kids", blurb: "The same system for picky eaters.", tier: "free", level: "Rookie", file: "meal-stacking-for-kids.pdf", bytes: 142796 },
-  { slug: "movement", title: "Return to Primal · Movement", blurb: "Stabilization, expansion, activation — and the movement loop.", tier: "pro", level: "Pillar", file: "movement.pdf", bytes: 255037 },
-  { slug: "stillness", title: "Return to Primal · Stillness", blurb: "Stillness as an intentional weapon, stage by stage.", tier: "pro", level: "Pillar", file: "stillness.pdf", bytes: 277033 },
-  { slug: "light", title: "Return to Primal · Light", blurb: "How light sets your rhythm, energy and sleep.", tier: "pro", level: "Pillar", file: "light.pdf", bytes: 221864 },
-  { slug: "fuel", title: "Return to Primal · Fuel", blurb: "Fuel as a signal: what to build, burn and store.", tier: "pro", level: "Pillar", file: "fuel.pdf", bytes: 280131 },
+  { slug: "movement", title: "Return to Primal · Movement", blurb: "Stabilization, expansion, activation — and the movement loop.", tier: "free", level: "Pillar", file: "movement.pdf", bytes: 255037 },
+  { slug: "stillness", title: "Return to Primal · Stillness", blurb: "Stillness as an intentional weapon, stage by stage.", tier: "free", level: "Pillar", file: "stillness.pdf", bytes: 277033 },
+  { slug: "light", title: "Return to Primal · Light", blurb: "How light sets your rhythm, energy and sleep.", tier: "free", level: "Pillar", file: "light.pdf", bytes: 221864 },
+  { slug: "fuel", title: "Return to Primal · Fuel", blurb: "Fuel as a signal: what to build, burn and store.", tier: "free", level: "Pillar", file: "fuel.pdf", bytes: 280131 },
+  { slug: "rookie-hub", title: "Return to Primal · Rookie", blurb: "The whole Rookie path on one board: who it's for, the FAQ, and where to start.", tier: "pro", level: "Rookie", file: "return-to-primal-rookie.pdf", bytes: 1704735 },
+  { slug: "seven-steps", title: "Go Animal-Based in 7 Steps", blurb: "The seven steps to make it a lifestyle, not a diet.", tier: "pro", level: "Rookie", file: "seven-steps-animal-based.pdf", bytes: 67858 },
+  { slug: "animal-based-diet", title: "Animal-Based Diet", blurb: "The animal-based operating system, automated.", tier: "pro", level: "Rookie", file: "animal-based-diet.pdf", bytes: 836678 },
+  { slug: "ruminant-meat", title: "Ruminant (Red) Meat Explained", blurb: "Why ruminant meat and its broth anchor the plate.", tier: "pro", level: "Rookie", file: "ruminant-meat-explained.pdf", bytes: 70860 },
+  { slug: "raw-dairy", title: "Raw Dairy Explained", blurb: "What raw dairy brings, and how to start.", tier: "pro", level: "Rookie", file: "raw-dairy-explained.pdf", bytes: 358187 },
+  { slug: "power-carbs", title: "Power Carbs Explained", blurb: "The carbs your body knows how to use, and how to stack them.", tier: "pro", level: "Rookie", file: "power-carbs-explained.pdf", bytes: 83264 },
+  { slug: "vitamins-minerals", title: "Vitamins and Minerals Explained", blurb: "Each one: what it does, when you're low, best sources.", tier: "pro", level: "Rookie", file: "vitamins-minerals-explained.pdf", bytes: 86834 },
+  { slug: "amino-acids", title: "Amino Acids Explained", blurb: "Essential and conditional amino acids, and where they come from.", tier: "pro", level: "Rookie", file: "amino-acids-explained.pdf", bytes: 87793 },
+  { slug: "sugar-cravings", title: "Break Sugar Cravings in 7 Days", blurb: "A day-by-day system for the habit that's hardest to break.", tier: "pro", level: "Rookie", file: "break-sugar-cravings.pdf", bytes: 68918 },
+  { slug: "meal-stacking", title: "Meal Stacking for Rookies", blurb: "Build a plate by the feeling you want from it.", tier: "pro", level: "Rookie", file: "meal-stacking-for-rookies.pdf", bytes: 264557 },
+  { slug: "meal-stacking-kids", title: "Meal Stacking for Kids", blurb: "The same system for picky eaters.", tier: "pro", level: "Rookie", file: "meal-stacking-for-kids.pdf", bytes: 142796 },
 ];
 
-/** Where a map is downloaded from: a free map is a public file; a Pro map asks the server, which checks membership. */
+/** Where a map is downloaded from: a free map is a public file; a course map asks the server, which checks membership. */
 export function mapHref(m: Pick<NutritionMap, "tier" | "file" | "slug">): string {
   return m.tier === "free" ? `/nutrition/maps/${m.file}` : `/api/nutrition/map/${m.slug}`;
 }
 
-/** A Pro map by its slug — the only maps app/api/nutrition/map serves. */
+/** A course (paid) map by its slug — the only maps app/api/nutrition/map serves. */
 export function proMap(slug: string): NutritionMap | null {
   return MAPS.find((m) => m.tier === "pro" && m.slug === slug) ?? null;
 }
@@ -62,7 +65,18 @@ export function sizeLabel(bytes: number): string {
 
 export type PillarLite = { id: string; slug: string; title: string; sort: number };
 export type ModuleLite = { id: string; pillar_id: string; title: string; sort: number };
-export type LessonLite = { id: string; module_id: string; slug: string; title: string; tier: "rookie" | "pro"; sort: number; key_points?: string[]; summary?: string | null; est_minutes?: number | null };
+export type LessonLite = { id: string; module_id: string; slug: string; title: string; tier: "rookie" | "pro"; sort: number; key_points?: string[]; summary?: string | null; est_minutes?: number | null; open?: boolean };
+
+/** A lesson this reader may open — its full row came back. A preview (primal_lesson_previews) is `open: false`. */
+export const isOpen = (l: Pick<LessonLite, "open">): boolean => l.open !== false;
+
+/** The course as previews, with the lessons this reader can open laid over them: one list, every lesson in it, each
+ *  marked open or not. A full row wins over its preview (it carries the key points). */
+export function mergeLessons(previews: readonly LessonLite[], full: readonly LessonLite[]): LessonLite[] {
+  const byId = new Map<string, LessonLite>(previews.map((l) => [l.id, { ...l, open: false }]));
+  for (const l of full) byId.set(l.id, { ...byId.get(l.id), ...l, open: true });
+  return [...byId.values()];
+}
 
 /** The lessons in the order the course is taken: pillar by pillar, module by module, lesson by lesson. A lesson whose
  *  module or pillar this reader cannot see is left out (it has nowhere to sit on the path). */
@@ -125,15 +139,19 @@ export function dayNumber(now: Date): number {
 }
 
 /** One lesson matched to the day the reader picked, or — with no day — one of the course's own key points as the day's
- *  tip, turning over daily. Only lessons this reader can open are offered (the order is already RLS-shaped). */
+ *  tip, turning over daily. A reader who hasn't bought the course is offered the same lessons as previews: their
+ *  summaries are the line, and the card opens the preview that sells it. */
 export function todayPick(day: StackDay | null, order: readonly LessonLite[], done: ReadonlySet<string>, dayNo: number): TodayPick {
   if (!order.length) return { kind: "none" };
   if (day) {
     const lesson = order.find((l) => l.slug === DAY_LESSON[day]) ?? nextLesson(order, done) ?? order[0];
     const pts = (lesson.key_points ?? []).filter(Boolean);
-    return { kind: "lesson", lesson, kicker: DAY_KICKER[day], point: pts.length ? pts[((dayNo % pts.length) + pts.length) % pts.length] : null };
+    return { kind: "lesson", lesson, kicker: DAY_KICKER[day], point: pts.length ? pts[((dayNo % pts.length) + pts.length) % pts.length] : (lesson.summary?.trim() || null) };
   }
-  const tips = order.flatMap((l) => (l.key_points ?? []).filter(Boolean).map((point) => ({ lesson: l, point })));
+  let tips = order.flatMap((l) => (l.key_points ?? []).filter(Boolean).map((point) => ({ lesson: l, point })));
+  // Nobody's bought the course: its key points aren't theirs to read, but every lesson's summary is — the day's line is
+  // one of those, turning over daily, and the card opens the lesson's preview.
+  if (!tips.length) tips = order.filter((l) => l.summary && l.summary.trim()).map((l) => ({ lesson: l, point: (l.summary as string).trim() }));
   if (!tips.length) return { kind: "lesson", lesson: nextLesson(order, done) ?? order[0], kicker: "From GT3 Nutrition", point: null };
   const t = tips[((dayNo % tips.length) + tips.length) % tips.length];
   return { kind: "tip", lesson: t.lesson, point: t.point };

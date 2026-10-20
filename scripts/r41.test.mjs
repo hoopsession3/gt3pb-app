@@ -30,8 +30,11 @@ const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 // ── 2 · the paste file ────────────────────────────────────────────────────────────────────────────────────────────────
 {
   const paste = read("supabase/APPLY_ALL_PENDING.sql");
-  ok("the paste file carries 0440, its own transaction, after 0438 and 0439", /^-- pending-from: 0440$/m.test(paste) && /^-- pending-count: 3$/m.test(paste)
-    && paste.indexOf("begin;   -- 0438,") < paste.indexOf("begin;   -- 0439,") && paste.indexOf("begin;   -- 0439,") < paste.indexOf("begin;   -- 0440,"));
+  // Until production's ledger holds it (R45: 0440 was applied 2026-10-20 — the paste moved on, and carries none of the three).
+  ok("the paste file carries 0440, its own transaction, after 0438 and 0439 — until production holds them",
+    (/^-- pending-from: 0440$/m.test(paste) && /^-- pending-count: 3$/m.test(paste)
+      && paste.indexOf("begin;   -- 0438,") < paste.indexOf("begin;   -- 0439,") && paste.indexOf("begin;   -- 0439,") < paste.indexOf("begin;   -- 0440,"))
+    || (!/^-- pending-from: 04[0-3]\d$/m.test(paste) && !/begin;   -- 04(38|39|40),/.test(paste)));
 }
 
 // ── 3 · the smoke holds the pair ──────────────────────────────────────────────────────────────────────────────────────

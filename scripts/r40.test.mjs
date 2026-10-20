@@ -192,7 +192,8 @@ async function standIn(answers) {
   // By its shape (R41): the highest file in the directory, a count that is its sections', the ones production lacks first.
   const highest = (await import("./migrations.pending.mjs")).migrationFiles().map((m) => m.file ?? m.name ?? String(m)).filter((f) => /^\d{4}_/.test(f)).sort().at(-1)?.slice(0, 4);
   ok("the plan reads the paste file: what is pending, by file", paste.from === highest && paste.count === paste.files.length
-    && paste.files.slice(0, 2).join() === "0438_a_way_back_without_the_authenticator.sql,0439_a_checkouts_key_is_kept_as_long_as_it_can_matter.sql", { paste, highest });
+    // by its shape, not its names (R45: production took 0438–0440 — what is pending moves on)
+    && paste.files.length > 0 && paste.files.every((f) => /^\d{4}_[a-z0-9_]+\.sql$/.test(f)) && [...paste.files].sort().join() === paste.files.join(), { paste, highest });
   ok("…and a migration's own 'when' from its header — a moment or an order, not its changelog or its verify lines",
     whenLines("-- WHY. …\n-- Deploy the push function BEFORE pasting this one.\n-- changelog: below.\n-- verify: paste after\nselect 1;").join("|") === "Deploy the push function BEFORE pasting this one.");
   const steps = releaseSteps({ pending: [{ file: "0439_x.sql" }], held: [{ file: "0424_y.sql", until: "the iPhone build is on the phones" }], pushVersion: "made-up R0", snapshot: { notChecked: false } });
@@ -205,8 +206,9 @@ async function standIn(answers) {
     p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
     p.on("close", (c) => resolve({ code: c, out }));
   });
-  ok("…and `npm run release:plan` runs on this tree: the paste file's two by name and count, what is held, the push function, the snapshot, then the steps",
-    plan.code === 0 && new RegExp(`written as of ${paste.from}\\): ${paste.count}\\n  · 0438_`).test(plan.out) && /Held on purpose \(supabase\/held\.json\): 2\n  · 0376_/.test(plan.out)
+  ok("…and `npm run release:plan` runs on this tree: the paste file's by name and count, what is held, the push function, the snapshot, then the steps",
+    plan.code === 0 && new RegExp(`written as of ${paste.from}\\): ${paste.count}\\n  · ${paste.files[0].replace(/\./g, "\\.")}`).test(plan.out)
+      && new RegExp(`Held on purpose \\(supabase\\/held\\.json\\): ${JSON.parse(read("supabase/held.json")).held.length}\\n  · 0376_`).test(plan.out)
       && /The push function this tree carries: \d{4}-\d{2}-\d{2} R\d+/.test(plan.out) && /The security snapshot: pulled /.test(plan.out) && /\n  1\. On the patch's tree: npm ci && npm run release/.test(plan.out), plan.out.slice(0, 900));
   const rel = read("RELEASE.md");
   ok("RELEASE.md: the gate, the push, the database after the deploy, the push function, what is held, the iPhone app, what each red line means, and the way back",

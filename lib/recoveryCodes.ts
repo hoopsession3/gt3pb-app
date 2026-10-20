@@ -65,5 +65,4 @@ export const RECOVERY_WORDS = {
   giveCode: "Give your authenticator's code on this sign-in first, then make new recovery codes.",
   tooMany: "Too many tries — wait an hour, then try again.",
   nothingOn: "There's no authenticator on your account to take off",
-  notYet: "Recovery codes aren't switched on yet — try again in a little while.",
 } as const;

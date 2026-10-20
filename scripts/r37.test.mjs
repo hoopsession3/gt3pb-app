@@ -230,15 +230,11 @@ let mine = [];
   rowsOf(ME)[0].used_at = new Date().toISOString();
   ok("…a used one isn't counted, and nobody else's are", (await ask(CODES.GET, T.meFresh1)).j.left === 9 && (await ask(CODES.GET, T.newFresh1)).j.left === 0);
   rowsOf(ME)[0].used_at = null;
-  w.fail.two_step_recovery_codes = { select: { code: "PGRST205", message: "Could not find the table 'public.two_step_recovery_codes' in the schema cache" } };
-  const early = await ask(CODES.GET, T.meFresh1);
-  w.fail.two_step_recovery_codes = { insert: { code: "PGRST205", message: "Could not find the table 'public.two_step_recovery_codes' in the schema cache" } };
-  const earlyMake = await ask(CODES.POST, T.meFresh2, {});
   w.fail.two_step_recovery_codes = { select: { code: "08006", message: "connection failure" } };
   const broke = await ask(CODES.GET, T.meFresh1);
   delete w.fail.two_step_recovery_codes;
-  ok("before 0438 is pasted: no count to say (null, not a failure) — and making them says they aren't switched on yet, nothing made",
-    early.status === 200 && early.j.left === null && earlyMake.status === 503 && earlyMake.j.error === RC.RECOVERY_WORDS.notYet && rowsOf(ME).length === 10, { early, earlyMake });
+  // 0438 is in production (R45 retired the paths that waited for it): the table is always there, so a read that fails is
+  // a failure.
   ok("…any other failure to count is a failure (500), not \"none\"", broke.status === 500 && broke.j.left === undefined, broke);
 }
 
@@ -354,11 +350,6 @@ let mine = [];
   const crowd = await ask(RECOVER.POST, T.meFresh1, { code: mine[7] });
   counts["recover-ip:203.0.113.7"] = 0;
   ok("…and thirty from one address, whoever is asking → 429", crowd.status === 429, crowd);
-  w.fail.two_step_recovery_codes = { select: { code: "PGRST205", message: "Could not find the table 'public.two_step_recovery_codes' in the schema cache" } };
-  const early = await ask(RECOVER.POST, T.meFresh1, { code: mine[7] });
-  delete w.fail.two_step_recovery_codes;
-  ok("before 0438 is pasted: nobody has codes — said as none (with who can help), never a failure",
-    early.status === 422 && early.j.error === RC.RECOVERY_WORDS.none, early);
   w.fail.two_step_recovery_codes = { select: { code: "08006", message: "connection failure" } };
   const broke = await ask(RECOVER.POST, T.meFresh1, { code: mine[7] });
   delete w.fail.two_step_recovery_codes;
@@ -389,8 +380,9 @@ let mine = [];
     /<ol ref=\{codesRef\} aria-label="Your ten recovery codes" className="mt-3 mb-0 p-0 list-none grid grid-cols-2 /.test(setup) && /Copy all ten/.test(setup) && /\$\{left\} of 10 left — each works once/.test(setup)
     && />Make new codes<\/button>/.test(setup));
   const paste = read("supabase/APPLY_ALL_PENDING.sql");
-  ok("the paste file carries 0438 — and still holds back 0376 and 0424",
-    /0438_a_way_back_without_the_authenticator/.test(paste) && /select public\.record_migration\('0438_a_way_back_without_the_authenticator'\);/.test(paste)
+  // R45: production's ledger holds 0438 (applied with 0439 and 0440), so the paste moved on without it.
+  ok("0438 is production's now, out of the paste file — and 0376 and 0424 are still held back",
+    !/0438_a_way_back_without_the_authenticator/.test(paste)
     && !/select public\.record_migration\('0376/.test(paste) && !/select public\.record_migration\('0424/.test(paste));
   const book = code(read("app/api/book/route.ts"));
   ok("/api/book: 0434 is in production, so one insert — the before-the-paste second one, which announced a burst's lead after all, is gone",
