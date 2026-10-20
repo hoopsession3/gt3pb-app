@@ -137,12 +137,12 @@ const COPY_DEFAULT_LIST: { key: string; default: string }[] = [
   { key: "shop.done_title_em", default: "in" },
   { key: "shop.done_lede", default: "Thanks — we’ve got it. You’ll get an email now, and tracking the moment it ships." },
   { key: "shop.keep", default: "Keep shopping" },
-  // ── Primal academy (/primal) — Return to Primal index. ──
-  { key: "primal.eyebrow", default: "Return to Primal" },
-  { key: "primal.hero_eye", default: "The nutrition system" },
+  // ── GT3 Nutrition (/primal) — the brand; Return to Primal is its course (R44, the owner's call). ──
+  { key: "primal.eyebrow", default: "GT3 Nutrition" },
+  { key: "primal.hero_eye", default: "GT3 Nutrition · the course" },
   { key: "primal.hero_h1", default: "Return to" },
   { key: "primal.hero_h1_em", default: "Primal" },
-  { key: "primal.hero_lede", default: "Real fuel, explained simply. Five pillars, quick to reference, free to start — and every lesson ends in a stack you can actually order. Educational, never medical." },
+  { key: "primal.hero_lede", default: "Real fuel, explained simply. A systematic path, quick to reference, free to start — and every lesson ends in a stack you can actually order. Educational, never medical." },
   { key: "primal.empty", default: "The academy is being written. Check back soon — the first lessons drop this week." },
   { key: "primal.cta_eye", default: "Go deeper" },
   { key: "primal.cta_body", default: "The full Return to Primal system — every pillar, the Pro modules, and your personal protocol — is coming to a membership. Rookie stays free, always." },
@@ -237,7 +237,7 @@ const COPY_DEFAULT_LIST: { key: string; default: string }[] = [
   { key: "sheet.closing_cta", default: "Reserve a pack for the next drop ›" },
   { key: "sheet.made_moment", default: "Made the moment you order, and you'll taste it." },
   // ── Menu page — the Primal link, sold-out badge, reserve link (adoption pass 2026-08-10). ──
-  { key: "menu.nav_primal", default: "Return to Primal" },
+  { key: "menu.nav_primal", default: "GT3 Nutrition" },
   { key: "menu.sold_out", default: "SOLD OUT" },
   { key: "menu.not_here", default: "NOT AT THIS STOP" },
   { key: "menu.empty", default: "Nothing's on the menu right now — check back soon." },

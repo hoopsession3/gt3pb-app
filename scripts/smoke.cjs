@@ -9202,9 +9202,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const hl = read("lib/haptics.ts");
 
   // ── the vocabulary, run ──
-  const FEELS = ["selection", "light", "medium", "heavy", "success", "warning", "error", "threshold", "release", "boundary", "toggleOn", "toggleOff", "increase", "decrease", "start", "live", "paid", "alert"];
+  const FEELS = ["selection", "light", "medium", "heavy", "success", "warning", "error", "threshold", "release", "boundary", "toggleOn", "toggleOff", "increase", "decrease", "start", "live", "paid", "alert", "signature"];
   const P = H.HAPTIC_PATTERNS;
-  ok("haptics: eighteen feels, each with its pattern — a tap is one number, a signature a few beats that ends on a beat, not a pause",
+  ok("haptics: nineteen feels, each with its pattern — a tap is one number, a signature a few beats that ends on a beat, not a pause",
     JSON.stringify(Object.keys(P)) === JSON.stringify(FEELS)
     && Object.values(P).every((p) => (typeof p === "number" ? p > 0 && p <= 200 : Array.isArray(p) && p.length % 2 === 1 && p.every((n) => Number.isInteger(n) && n > 0))), Object.keys(P));
   ok("haptics: the pairs say themselves by weight — a release under its threshold, down under up, off under on, light under medium under heavy",
@@ -11559,7 +11559,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     const pv = legal.slice(legal.indexOf("export function PrivacyText("), legal.indexOf("export const LEGAL_TITLE"));
     const tm = legal.slice(legal.indexOf("export function TermsText("), legal.indexOf("export function PrivacyText("));
     ok("Primal: a pillar with no lesson to read is not drawn, and progress shows only to someone signed in",
-      /if \(pillarLessons\.length === 0\) return null;/.test(pr) && /\{user && t && t\.total > 0 && \(/.test(pr));
+      /if \(pillarLessons\.length === 0\) return null;/.test(pr) && /\{user && t && prog\.total > 0 && \(/.test(pr));
     ok("Book the bar: the event first, then who to answer — and what we can do without says optional",
       bk.indexOf('htmlFor="b-date"') > 0 && bk.indexOf('htmlFor="b-date"') < bk.indexOf('htmlFor="b-name"') && bk.indexOf('htmlFor="b-notes"') < bk.indexOf('htmlFor="b-name"')
       && (bk.match(/ <span>\(optional\)<\/span><\/label>/g) || []).length === 4 && /id="b-phone" className="auth-input" enterKeyHint="send"/.test(bk));

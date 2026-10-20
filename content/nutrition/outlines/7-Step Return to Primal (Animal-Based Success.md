@@ -1,0 +1,50 @@
+- <"/ / -7-Step Return to Primal (Animal-Based Success
+  - aster the Bas
+    - " / Pick your core foods
+      - ?Stick to a base of 5–7 foods you enjoy and can prepare easily (Rotate red meat, eggs, fruit, and dairy.
+    - " / Repeat meals with rhythm
+      - HSimplicity builds consistency — and consistency builds transformation.
+    - &" / Wait to stack extras
+      - zThe internet loves organ meats, raw liver shots, bone marrow, and exotic add-ons — but don’t complicate the beginning.
+  - Salt, Fat & Honey
+    - " / Keep fat on the meat
+      - (Don’t go lean unless you have a reason
+    - " / Salt every plate
+      - Salt sharpens hydration
+    - Use Honey
+      - 'Post-training, late-day, or mental dips
+  - Digestion  Changes
+    - " / Add support if needed
+      - Edd fermented dairy or ACV, and give your system space to recalibrate.
+    - Recalibration
+      - When switching from modern food to primal fuel, digestion changes — that’s part of the reset. Don’t panic if your gut talks back.
+    - " / Simplify to Reset
+      - WCut back to 3-ingredient meals when digestion feels off. Then layer complexity back in.
+  - What’s Allowed
+    - ?" / What to EAT freely
+      - Ruminant meat (beef, bison, lamb), eggs, raw dairy (milk, cheese, kefir), seasonal fruit (berries, bananas, dates), raw honey, high-quality salt
+    - What to REMOVE toxic foods)
+      - }Seed oils (canola, soybean, corn), added sugar, grains, vegetable spreads, processed bars, fake meat, anything with a barcode
+    - Focus on fuel
+      - kMost people sabotage themselves by obsessing over what they’re “cutting out.” Instead, flip the lens.
+  - Identity Shift
+    - atiety ignals
+      - GRecognize satiety signals – Stop eating when the body says “done”
+    - motional atin
+      - PEnd emotional eating – Eat because it’s time, not because you’re triggered
+    - our itual
+      - ~Eat at the same times, in the same sequence, with the same intention. Ritual reduces decision fatigue and sharpens compliance.
+  - dratio
+    - lt | Wate
+      - cProcessed foods hide water and sodium. Once you go primal, both must be reintroduced intentionally. 9ea salt, spring water, raw milk, and lemon + mineral wate
+    - air meals
+      - 8"& / $Pair meals with mineral-rich drinks "" / Raw milk, lemon water, broth
+    - raining + Ouput
+      - a"$ / "Match thirst to training + output Adjust based on real demand 0. your hydration should be as real as your food.
+  - Avoid Burnout
+    - " / Double down on texture
+      - ;Cycle between ground, slow-cooked, seared, raw (if trained)
+    - hange Cuts
+      - HChange cuts, textures, and preparation styles within the animal kingdom.
+    - " / Swap sources weekly
+      - Repetition builds results — but monotony kills momentum. Rotate primal proteins like beef, bison, lamb, duck eggs, wild fish, and raw dairy to keep meals exciting.

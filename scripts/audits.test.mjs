@@ -1193,7 +1193,7 @@ end $$;`;
 // ── haptics.audit: the three rules, on the calls this repo made before the round and makes now ──────
 // The failing shapes are the ones production carried until 2026-10-05, copied from the files named.
 {
-  const FEELS = ["selection", "light", "medium", "heavy", "success", "warning", "error", "threshold", "release", "boundary", "toggleOn", "toggleOff", "increase", "decrease", "start", "live", "paid", "alert"];
+  const FEELS = ["selection", "light", "medium", "heavy", "success", "warning", "error", "threshold", "release", "boundary", "toggleOn", "toggleOff", "increase", "decrease", "start", "live", "paid", "alert", "signature"];
   const J = (src, file = "components/X.tsx") => judgeHaptics(file, hapticsIn(src, file), FEELS).map((b) => b.rule);
   const IMP = `import { haptic } from "@/lib/haptics";\n`;
   // 1. one home
@@ -1232,8 +1232,8 @@ end $$;`;
   ok("haptics: a file with no union or no table is not a vocabulary", judgeVocabulary(vocabularyOf(`export const HAPTIC = { tick: 6 };`)).length === 2);
   {
     const v = vocabularyOf(readFileSync(new URL("../lib/haptics.ts", import.meta.url), "utf8"));
-    ok("haptics: lib/haptics.ts as it stands reads as the eighteen feels, each with its pattern",
-      v.feels?.map((f) => f.name).join() === FEELS.join() && v.table?.length === 18 && judgeVocabulary(v).length === 0, v.feels?.map((f) => f.name));
+    ok("haptics: lib/haptics.ts as it stands reads as the nineteen feels, each with its pattern",
+      v.feels?.map((f) => f.name).join() === FEELS.join() && v.table?.length === 19 && judgeVocabulary(v).length === 0, v.feels?.map((f) => f.name));
   }
   // 4. an error says so — the shapes production carried until 2026-10-06 (app/crew/page.tsx), and now
   ok("haptics: an error toast on the default variant fails — the event card's refused write (app/crew/page.tsx update, until 2026-10-06)",

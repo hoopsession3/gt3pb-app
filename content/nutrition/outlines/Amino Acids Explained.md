@@ -1,0 +1,246 @@
+- Essential Amino Acids / These are the amino acids your body cannot make on its own. They must come from your diet. Without them, your body can’t build muscle, repair tissue, make hormones, or run key brain and metabolic processes. / Insight: If you miss these, performance and recovery suffer quickly — there’s no “backup plan” inside your biology. Consistent, high-quality animal-based sources keep your system running at full capacity.
+- Nonessential Amino Acids / Your body can make these on its own — but only if it has the right raw materials (other amino acids, vitamins, and minerals). Stress, illness, hard training, or nutrient deficiencies can slow that production, making food sources important for optimal levels. / Insight: Think of these as “conditionally essential” when your system is under pressure. Supplying them through animal-based foods ensures your body isn’t burning extra energy to make them when it could be using that energy to perform and repair.
+- opy Right @GT 3NUTRITION
+- mino Acids
+  - Cysteine
+    - Best Sources
+      - y"$ / "Eggs (especially yolks), raw milk,"" /  grass-fed beef, asture raised pork
+    - " / When levels are low
+      - ."? / =Weak hair/nails, slow healing, joint pain, toxin sensitivity.
+    - What it does
+      - ePrecursor to glutathione (master antioxidant), supports detox, collagen production, and joint repair.
+  - Essential Amino Acids / These are the amino acids your body cannot make on its own. They must come from your diet. Without them, your body can’t build muscle, repair tissue, make hormones, or run key brain and metabolic processes. / Insight: If you miss these, performance and recovery suffer quickly — there’s no “backup plan” inside your biology. Consistent, high-quality animal-based sources keep your system running at full capacity.
+  - Aspartic Acid
+    - " / When levels are low
+      - &"- / +Chronic fatigue, depression, poor endurance
+    - What it does
+      - K"L / JConverts carbs into energy, aids liver detox, supports hormone production.
+    - Best Sources
+      - u"U / SGrass-fed beef, lamb, pasture-raised chicken, wild-caught salmon, sardines, banana.
+  - erine
+    - What it does
+      - 9"@ / >Supports brain signaling, fat metabolism, and immune response.
+    - Best Sources
+      - o"b / `Grass-fed beef, lamb, pasture-raised chicken, corn/soy-free eggs, wild-caught salmon, raw dairy.
+    - " / When levels are low
+      - ?"= / ;Neurological issues, poor digestion of fats, weak immunity.
+  - Phenylalanine
+    - " / When levels are low
+      - N"1 / /Depression, brain fog, low motivation, fatigue.
+    - Best Sources
+      - V"c / aGrass-fed beef, lamb, pasture-raised pork, pasture-raised chicken, corn/soy-free eggs, raw dairy.
+    - What it Does
+      - O"a / _Converts into dopamine, norepinephrine, and epinephrine to support mood, focus, and motivation.
+  - Threonine
+    - " / When levels are low
+      - G"8 / 6Digestive issues, poor skin elasticity, weak immunity.
+    - What it Does
+      - O"k / iBuilds collagen and elastin for joint, skin, and gut health; supports immune function and fat metabolism.
+    - Best Sources
+      - P"i / gGrass-fed beef, lamb, pasture-raised pork, corn/soy-free eggs, wild-caught salmon, sardines, raw dairy.
+  - Leucine
+    - "( / &What can I expect when levels are low?
+      - "l / jMaster selling one product on one channel for at least one year until you add complexity to your business.
+    - "6 / 4What can I expect from my body when levels are high?
+      - You also do not need more than one social media platform to scale to 6 figures. Instead of being mediocre at a bunch of platforms, be great at one.
+    - What it Does
+      - "* / (Activates muscle protein synthesis (MPS)
+  - Histidine
+    - What it Does
+      - `"l / jProduces histamine for immune response, supports red blood cell production, and helps protect nerve cells.
+    - est Sources
+      - h"i / gGrass-fed beef, lamb, pasture-raised pork, corn/soy-free eggs, wild-caught salmon, sardines, raw dairy.
+    - hen levels are low?
+      - T", / *Poor immunity, slow healing, nerve issues.
+  - Tryptophan
+    - What it Does
+      - O"^ / \Precursor to serotonin and melatonin, supporting better mood, relaxation, and sleep quality.
+    - est Sources
+      - L"Y / WPasture-raised turkey, chicken, lamb, corn/soy-free eggs, raw dairy, raw honey, banana.
+    - 5" / When levels are low
+      - 0Irritability, insomnia, mood swings, depression.
+  - roline
+    - What it does
+      - M"9 / 7Collagen formation, wound healing, joint/tendon health.
+    - Best Sources
+      - \"? / =Gelatin, bone broth, grass-fed beef, lamb, egg whites, dairy.
+    - " / When levels are low
+      - 0Joint pain, slow recovery, weak skin elasticity.
+  - Isoleucine
+    - hen levels are low
+      - V"= / ;Reduced stamina, slower recovery, poor blood sugar control.
+    - est Sources
+      - `"i / gGrass-fed beef, lamb, pasture-raised pork, corn/soy-free eggs, wild-caught salmon, sardines, raw dairy.
+    - What it Does
+      - _"j / huels muscles during exercise, supports immune function, and stabilizes energy levels throughout the day.
+  - Alanine
+    - hen lev els ar e low
+      - ,Fatigue, blood sugar crashes, poor recovery.
+    - ha t it does
+      - rConverts protein to energy during exercise, supports blood sugar stability, and removes toxins from muscle tissue.
+    - est Sources
+      - Grass-fed beef, lamb, pasture-raised pork, pasture-raised chicken, corn/soy-free eggs, wild-caught salmon, raw dairy, raw honey.
+  - Methionine
+    - What it Does
+      - Supports detoxification, liver health, and joint repair while aiding in collagen and keratin production for healthy skin, hair, and nails.
+    - " / When levels are low
+      - R"9 / 7Weak hair/nails, joint pain, poor detox, slow recovery.
+    - est S ources
+      - _"T / RGrass-fed beef, lamb, corn/soy-free eggs, wild-caught salmon, sardines, raw dairy.
+  - Valine
+    - " / When levels are low
+      - G"" /  Muscle fatigue, slower recovery, low endurance.
+    - Best Sources
+      - H"_ / ]Grass-fed beef, lamb, pasture-raised pork, corn/soy-free eggs, wild-caught salmon, raw dairy.
+    - What it Does
+      - C"e / cProvides sustained energy during workouts, supports muscle coordination, and helps prevent fatigue.
+  - Identity
+    - " / Be It Before You See It
+      - Ultimately, your success will come from who you are, not the tactics or strategies you use. All the strategies work. What matters is how you show up in the world and how you approach your work. Approach it like a professional, as if you were already the highly successful person you desire to be. Be it and then you’ll see it manifest.
+    - " / Remove Money Blocks
+      - One major obstacle you’ll likely encounter are your beliefs about money and how much is possible for you to make, how much you deserve or can charge, or what it means about you as a person. Realize money is an infinite resource that does not care about morality or your beliefs about it. Money is neutral, but it does operate according to certain ‘laws’ or principles. Make an effort to understand these principles. See the 7 Laws of Abundance mind map here.
+    - " / Uncompromising Vision
+      - Build a business that gives you what you want. Create a vision for your future and be uncompromising with that vision. Reverse engineer what it takes and work towards it. Don’t get distracted by other so-called ‘opportunities.’
+  - Asparagine
+    - What it does
+      - *"K / ISupports brain function, protein synthesis, and nervous system stability.
+    - " / When levels are low
+      - "& / $Fatigue, confusion, reduced stamina.
+    - est Sources
+      - Grass-fed beef, lamb, raw dairy, eggs, turkey, asparagus.
+  - Glutamic Acid
+    - Best Sources
+      - Grass-fed beef, as ture raised  / XY") / 'poultry, eggs, aged cheeses, bone broth
+    - " / When levels are low
+      - ?") / 'Poor memory, mental fatigue, low focus.
+    - What it does
+      - J"M / KPrimary excitatory neurotransmitter, supports learning, memory, gut health.
+  - Lysine
+    - est Sources
+      - O""m / kGrass-fed beef, lamb, pasture-raised pork, pasture-raised chicken, wild-caught salmon, sardines, raw dairy.
+    - What it Does
+      - Z"f / dBuilds collagen for skin, tendons, and bones, supports calcium absorption, and boosts immune health.
+    - " / When levels are low
+      - L": / 8Poor healing, hair loss, fatigue, increased injury risk.
+  - Nonessential Amino Acids / Your body can make these on its own — but only if it has the right raw materials (other amino acids, vitamins, and minerals). Stress, illness, hard training, or nutrient deficiencies can slow that production, making food sources important for optimal levels. Think of these as “conditionally essential” when your system is under pressure. Supplying them through animal-based foods ensures your body isn’t burning extra energy to make them when it could be using that energy to perform and repair.
+  - Glycine
+    - " / When levels are low
+      - )"8 / 6Poor sleep, joint stiffness, low resilience to stress.
+    - Best Sources
+      - I"\ / ZCollagen-rich cuts (oxtail, shank, skin), bone broth, pork skin, raw milk, honeydew melon.
+    - What it does
+      - M"M / KCalming neurotransmitter, collagen builder, supports detox, improves sleep.
+  - Glutamine
+    - What it Does
+      - W"_ / ]Fuels the gut lining, supports immune function, and speeds recovery after stress or exercise.
+    - hen levels are low?
+      - L"0 / .Digestive issues, low immunity, slow recovery.
+    - est Sources
+      - G"T / RGrass-fed beef, pasture-raised chicken, corn/soy-free eggs, raw dairy, bone broth.
+  - Essential Amino Acids / These are the amino acids your body cannot make on its own. They must come from your diet. Without them, your body can’t build muscle, repair tissue, make hormones, or run key brain and metabolic processes. If you miss these, performance and recovery suffer quickly — there’s no “backup plan” inside your biology. Consistent, high-quality animal-based sources keep your system running at full capacity.
+  - 2 Hours On 20%
+    - " / Money Making Activities
+      - Most people focus the vast majority of their time on “maintenance” activities rather than money-making activities. The first 2 hours of each day should be focused on the real needle-movers like content creation, product creation, copywriting, etc.
+    - " / Automate, Delegate, Eliminate
+      - The tasks that don’t move the needle much should be automated, delegated, or eliminated whenever possible so you can dedicate more time to the needle-moving activities.
+    - " / Done Before Noon
+      - If you spend 2-4 hours per day on the most important activities, you can out-produce almost everyone and at the same time work less than everyone. The goal: done working before noon every day. This is only possible if you’re extremely efficient with your time and energy and develop your ability to focus.
+  - Arginine
+    - est Sources
+      - Grass-fed beef, lamb, pasture-raised pork, pasture-raised chicken, corn/soy-free eggs, wild-caught salmon, sardines, raw dairy, raw honey, watermelon.
+    - What it does
+      - *"u / sBoosts nitric oxide production for better blood flow, supports wound healing, immune function, and hormone release.
+    - " / When levels are low
+      - N"T / RPoor circulation, slow healing, weak immune defense, reduced exercise performance.
+  - yrosine
+    - Best Sources
+      - w"S / QGrass-fed beef, lamb, pasture-raised pork, corn/soy-free eggs, raw dairy, banana.
+    - " / When levels are low
+      - =": / 8Low motivation, depression, brain fog, cold intolerance.
+    - What it does
+      - }"d / bPrecursor to dopamine, norepinephrine, and thyroid hormones; supports mood, focus, and metabolism.
+  - Owned Media
+    - Reach At Will
+      - Having an email list gives you the ability to reach people at will instead of being dependent on social algorithms. With the click of a button, you can reach thousands of people, whenever you want.
+    - " / Reduce Dependencies
+      - Once you have some traction, you want to reduce dependencies, meaning to not be dependent on any one platform in order to reach your audience. You should start building an email list as soon as possible so you can “own” your audience.
+    - " / Your Own Social Platform
+      - It’s also a good idea to build a free community of some kind, which acts almost as your own social media platform. This is another way to reach people and also builds trust and connection with you, a key ingredient in making sales.
+  - Tryptophan
+    - What it Does
+      - O"^ / \Precursor to serotonin and melatonin, supporting better mood, relaxation, and sleep quality.
+    - " / When levels are low
+      - I"1 / /rritability, insomnia, mood swings, depression.
+    - est Sources
+      - T"Y / WPasture-raised turkey, chicken, lamb, corn/soy-free eggs, raw dairy, raw honey, banana.
+  - Leucine
+    - est Sources
+      - uGrass-fed beef, lamb, pasture-raised pork, pasture-raised chicken, corn/soy-free eggs, wild-caught salmon, raw dairy.
+    - hat it Does
+      - Activates muscle protein synthesis for growth and repair, supports stable energy, and helps regulate blood sugar. Key for athletic recovery and lean muscle retention.
+    - hat can I expe t when le s ar e low?
+      - 7Muscle breakdown, poor recovery, weakness, slow repair.
+  - Aspartic Acid
+    - New Opportunity
+      - Ideally, your product should be positioned as a “new opportunity” or a “fresh” approach to solving a common problem. Think about how you can position your product as superior to other solutions out there by making it faster, simpler, easier, or better in some way.
+    - Unique Angle
+      - To make a product that sells like crazy, it should be unique in some way, different from what anyone else is doing. What makes your product better? What makes it uniquely yours?
+    - Superior Method
+      - Why is your product superior to other solutions? Why should someone buy your product and not someone else’s? Your product should make the buyer’s life easier in some way. People want speed, ease, and convenience.
+  - Tryptophan
+    - 2% Conversion Rate
+      - The average conversion rate for digital products priced between $200 and $2000 is approximately 2%. Meaning you’ll make about 1 sales for every 50 leads.
+    - Price Point
+      - To maximize your income but also your freedom, your product should be priced between $200 and $2,000. At this price point, your sales can be largely automated without the need for things like sales calls, coaching calls, and big launches.
+    - 50 Leads Per Day
+      - So to make one sale per day, you’ll need about 50 leads (or clicks) per day. If you’re sending traffic to an opt-in page, you’ll need at least 100 clicks per day to average 50 leads per day.
+- " / Daily Sales System
+  - 100 Clicks
+    - 50 Leads Per Day
+      - So to make one sale per day, you’ll need about 50 leads (or clicks) per day. If you’re sending traffic to an opt-in page, you’ll need at least 100 clicks per day to average 50 leads per day.
+    - Price Point
+      - To maximize your income but also your freedom, your product should be priced between $200 and $2,000. At this price point, your sales can be largely automated without the need for things like sales calls, coaching calls, and big launches.
+    - 2% Conversion Rate
+      - The average conversion rate for digital products priced between $200 and $2000 is approximately 2%. Meaning you’ll make about 1 sales for every 50 leads.
+  - SLO Funnels
+    - " / Money As Leverage
+      - A self-liquidating offer funnel used money as leverage instead of time. The goal is to create a lead generation machine that runs on autopilot and “liquidates” your advertising costs.
+    - " / Break Even Point
+      - The goal with an SLO funnel is just to break even, ideally within 7 days. For example: you pay $500 to send 50 people through your automated sales funnel that sells your $500 course. One person buys. Your ad costs are covered and you got 50 new leads for “free” essentially.
+    - " / All Roads Lead to One
+      - After you build your automated selling system, you should focus all of your energy on sending traffic to it. Everything you create on social media should connect in some way to your product or sales funnel. Don’t have multiple links in your bio. Send people to ONE place.
+  - Identity
+    - " / Remove Money Blocks
+      - One major obstacle you’ll likely encounter are your beliefs about money and how much is possible for you to make, how much you deserve or can charge, or what it means about you as a person. Realize money is an infinite resource that does not care about morality or your beliefs about it. Money is neutral, but it does operate according to certain ‘laws’ or principles. Make an effort to understand these principles. See the 7 Laws of Abundance mind map here.
+    - " / Uncompromising Vision
+      - Build a business that gives you what you want. Create a vision for your future and be uncompromising with that vision. Reverse engineer what it takes and work towards it. Don’t get distracted by other so-called ‘opportunities.’
+    - " / Be It Before You See It
+      - Ultimately, your success will come from who you are, not the tactics or strategies you use. All the strategies work. What matters is how you show up in the world and how you approach your work. Approach it like a professional, as if you were already the highly successful person you desire to be. Be it and then you’ll see it manifest.
+  - Differentiation
+    - Unique Angle
+      - To make a product that sells like crazy, it should be unique in some way, different from what anyone else is doing. What makes your product better? What makes it uniquely yours?
+    - Superior Method
+      - Why is your product superior to other solutions? Why should someone buy your product and not someone else’s? Your product should make the buyer’s life easier in some way. People want speed, ease, and convenience.
+    - New Opportunity
+      - Ideally, your product should be positioned as a “new opportunity” or a “fresh” approach to solving a common problem. Think about how you can position your product as superior to other solutions out there by making it faster, simpler, easier, or better in some way.
+  - Owned Media
+    - " / Reduce Dependencies
+      - Once you have some traction, you want to reduce dependencies, meaning to not be dependent on any one platform in order to reach your audience. You should start building an email list as soon as possible so you can “own” your audience.
+    - Reach At Will
+      - Having an email list gives you the ability to reach people at will instead of being dependent on social algorithms. With the click of a button, you can reach thousands of people, whenever you want.
+    - " / Your Own Social Platform
+      - It’s also a good idea to build a free community of some kind, which acts almost as your own social media platform. This is another way to reach people and also builds trust and connection with you, a key ingredient in making sales.
+  - 2 Hours On 20%
+    - " / Done Before Noon
+      - If you spend 2-4 hours per day on the most important activities, you can out-produce almost everyone and at the same time work less than everyone. The goal: done working before noon every day. This is only possible if you’re extremely efficient with your time and energy and develop your ability to focus.
+    - " / Automate, Delegate, Eliminate
+      - The tasks that don’t move the needle much should be automated, delegated, or eliminated whenever possible so you can dedicate more time to the needle-moving activities.
+    - " / Money Making Activities
+      - Most people focus the vast majority of their time on “maintenance” activities rather than money-making activities. The first 2 hours of each day should be focused on the real needle-movers like content creation, product creation, copywriting, etc.
+  - Leucine
+    - "6 / 4What can I expect from my body when levels are high?
+      - You also do not need more than one social media platform to scale to 6 figures. Instead of being mediocre at a bunch of platforms, be great at one.
+    - What it Does
+      - "* / (Activates muscle protein synthesis (MPS)
+    - "( / &What can I expect when levels are low?
+      - "l / jMaster selling one product on one channel for at least one year until you add complexity to your business.

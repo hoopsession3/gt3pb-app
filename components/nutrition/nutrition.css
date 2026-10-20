@@ -1,0 +1,100 @@
+/* GT3 NUTRITION'S STYLESHEET (R44) — loaded with the course's own components (components/nutrition, PrimalAcademy,
+   PrimalLesson), so no other page carries it: every route downloads app/globals.css, and the course is one of them.
+   The tokens (--ease-out-cubic, --dur-*, --glow-c) and Reduce Motion's rule stay in app/globals.css with the house's. */
+/* ═══ THE MOTION KIT (R44) — the Haptics and Motion Playbook's recipes, as classes any screen can wear. Only transform,
+   opacity and box-shadow move (nothing reflows, so layout shift stays at zero); Reduce Motion is the global rule above
+   (durations and delays to nothing): every state still shows, at once. ═══ */
+@keyframes fxRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fxPop{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:none}}
+@keyframes fxPulse{from{opacity:.55;transform:scale(1)}to{opacity:0;transform:scale(1.8)}}
+@keyframes fxDraw{to{stroke-dashoffset:0}}
+@keyframes fxSeg{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+/* staggered entrance — each child carries --i; the whole list arrives inside ~380ms */
+.fx-rise{animation:fxRise var(--dur-stagger) var(--ease-out-cubic) both;animation-delay:calc(var(--i,0) * 45ms)}
+/* shape transition — a thing that appears because you did something (a badge, a check, a done state) */
+.fx-pop{animation:fxPop var(--dur-shape) var(--ease-out-cubic) both}
+/* line-draw — an svg whose strokes carry pathLength="1" draws itself in */
+.fx-draw [pathLength]{stroke-dasharray:1;stroke-dashoffset:1;animation:fxDraw var(--dur-draw) var(--ease-out-cubic) forwards;animation-delay:calc(var(--d,0) * 1ms)}
+/* pulse ring — the live selection; the ring is the element's own colour */
+.fx-pulse{position:relative}
+.fx-pulse::after{content:"";position:absolute;inset:-3px;border-radius:var(--r-pill);border:2px solid currentColor;animation:fxPulse var(--dur-pulse) ease-out infinite;pointer-events:none}
+/* segmented progress — each lesson a segment; the done ones fill one after another, 160ms each, 70ms apart */
+.fx-segs{display:flex;gap:3px;height:6px}
+.fx-segs>i{flex:1;border-radius:var(--r-pill);background:var(--ink2-onLight-08);overflow:hidden;position:relative}
+.fx-segs>i.on::after{content:"";position:absolute;inset:0;background:var(--seg,var(--gold2));transform-origin:left center;animation:fxSeg 160ms var(--ease-out-cubic) both;animation-delay:calc(var(--i,0) * 70ms)}
+/* the glow, for anything pressable that is not a .pr-card */
+.fx-glow{transition:transform var(--dur-glow) var(--ease-out-cubic),box-shadow var(--dur-glow) var(--ease-out-cubic)}
+.fx-glow:focus-visible{transform:translateY(-2px);box-shadow:0 0 0 1px color-mix(in srgb, var(--glow-c) 70%, transparent),0 0 26px color-mix(in srgb, var(--glow-c) 30%, transparent),0 12px 24px -12px rgba(0,0,0,.55)}
+@media (hover:hover){.fx-glow:hover{transform:translateY(-2px);box-shadow:0 0 0 1px color-mix(in srgb, var(--glow-c) 70%, transparent),0 0 26px color-mix(in srgb, var(--glow-c) 30%, transparent),0 12px 24px -12px rgba(0,0,0,.55)}}
+.fx-glow:active{box-shadow:0 0 0 1px color-mix(in srgb, var(--glow-c) 70%, transparent),0 0 26px color-mix(in srgb, var(--glow-c) 30%, transparent),0 12px 24px -12px rgba(0,0,0,.55)}
+
+/* ═══ GT3 NUTRITION (R44) — continue, the badge, the course map, the library, the Today card ═══ */
+.nu-continue{display:flex;align-items:center;gap:14px;margin:22px 0 0;padding:14px 16px;border:1px solid color-mix(in srgb, var(--brand-gold2) 40%, transparent);border-radius:var(--r-3xl);background:var(--ink-onLight-05);text-decoration:none;color:var(--oa-cream);text-align:left}
+.nu-continue-x{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.nu-continue-n{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--oa-cream-faint)}
+.nu-continue-t{font-family:var(--sans);font-weight:700;font-size:16px;line-height:1.25}
+.nu-continue-go{color:var(--gold2);font-size:20px}
+.nu-psegs{margin:12px 0 0;display:flex;flex-direction:column;gap:6px}
+.nu-psegs-n{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--oa-cream-faint)}
+.nu-badge{display:flex;align-items:center;gap:16px;margin:22px 0 0;padding:16px;border:1px solid var(--line);border-radius:var(--r-3xl);background:var(--ink-onLight-03);text-align:left}
+.nu-badge.earned{border-color:color-mix(in srgb, var(--brand-gold2) 55%, transparent);background:radial-gradient(120% 120% at 0 0,color-mix(in srgb, var(--brand-gold2) 16%, transparent),var(--ink-onLight-03))}
+.nu-badge-mark{flex:0 0 auto;width:64px;height:64px;color:var(--gold2)}
+.nu-badge:not(.earned) .nu-badge-mark{color:var(--oa-cream-faint);opacity:.6}
+.nu-badge-x{display:flex;flex-direction:column;gap:3px;min-width:0}
+.nu-badge-n{font-family:var(--mono);font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:var(--gold2)}
+.nu-badge-t{font-family:var(--serif);font-weight:600;font-size:20px;line-height:1.1;color:var(--oa-cream)}
+.nu-badge-s{font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--oa-cream-dim)}
+.nu-sec{margin:34px 0 0}
+.nu-sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px}
+.nu-sec-n{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:var(--gold2)}
+.nu-sec-s{font-family:var(--sans);font-size:13px;color:var(--oa-cream-faint)}
+/* the course map — the boards, redrawn: a trunk from GT3 Nutrition to each pillar, its modules and lessons. The
+   points are buttons in rows of 44px; the connectors are an svg behind them, drawn in */
+.nu-map{position:relative;border:1px solid var(--line);border-radius:var(--r-3xl);background:radial-gradient(120% 90% at 0 0,var(--ink-onLight-05),var(--ink-onLight-03));padding:10px 0;overflow:hidden}
+.nu-map-lines{position:absolute;left:0;top:10px;pointer-events:none}
+.nu-map-lines path{fill:none;stroke:var(--line2);stroke-width:1.5}
+.nu-map-rows{list-style:none;margin:0;padding:0;position:relative}
+.nu-map-rows li{display:flex;align-items:center;height:44px}
+.nu-map-rows .d1{padding-left:29px}.nu-map-rows .d2{padding-left:51px}.nu-map-rows .d3{padding-left:73px}.nu-map-rows .d0{padding-left:7px}
+.nu-map-node{--glow-c:var(--gold2);display:flex;align-items:center;gap:9px;min-height:40px;max-width:calc(100% - 12px);padding:0 12px 0 6px;border:1px solid transparent;border-radius:var(--r-xl);background:none;color:var(--oa-cream);font-family:var(--sans);font-size:15px;font-weight:600;text-align:left;cursor:pointer;transition:background var(--dur-glow),border-color var(--dur-glow),box-shadow var(--dur-glow) var(--ease-out-cubic)}
+.nu-map-node.root{font-family:var(--serif);font-size:17px}
+.nu-map-node.pillar{font-weight:750}
+.nu-map-node.module{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gold2)}
+.nu-map-node.lock{color:var(--oa-cream-faint)}
+.nu-map-node.sel{border-color:color-mix(in srgb, var(--brand-gold2) 55%, transparent);background:var(--ink-onLight-05)}
+.nu-map-node:focus-visible{outline:none;border-color:var(--gold2);box-shadow:0 0 0 1px color-mix(in srgb, var(--glow-c) 70%, transparent),0 0 26px color-mix(in srgb, var(--glow-c) 30%, transparent),0 12px 24px -12px rgba(0,0,0,.55)}
+.nu-map-dot{flex:0 0 auto;width:14px;height:14px;border-radius:50%;border:2px solid var(--line2);background:var(--ink-onLight-05);display:flex;align-items:center;justify-content:center;color:var(--gold2)}
+.nu-map-node.root .nu-map-dot{border-color:var(--red);background:var(--red)}
+.nu-map-node.done .nu-map-dot{border-color:var(--gold2);background:color-mix(in srgb, var(--brand-gold2) 25%, transparent)}
+.nu-map-node.sel .nu-map-dot{border-color:var(--gold2);color:var(--gold2)}
+.nu-map-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nu-map-count{flex:0 0 auto;font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.4px;color:var(--oa-cream-faint)}
+.nu-map-hint{font-family:var(--sans);font-size:12px;color:var(--oa-cream-faint);margin:8px 2px 0}
+.nu-map-detail{margin:12px 0 0;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r-xl);background:var(--ink-onLight-04);display:flex;flex-direction:column;gap:6px}
+.nu-map-detail-n{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold2)}
+.nu-map-detail-t{font-family:var(--sans);font-weight:700;font-size:16px;color:var(--oa-cream)}
+.nu-map-detail-s{font-family:var(--sans);font-size:15px;line-height:1.5;color:var(--oa-cream-dim)}
+/* the library — every map, as a static file to zoom and search */
+.nu-lib{display:flex;flex-direction:column;gap:9px}
+.nu-lib-row{--glow-c:var(--gold2);display:flex;align-items:center;gap:12px;min-height:56px;padding:11px 14px;border:1px solid var(--line);border-radius:var(--r-xl);background:var(--ink-onLight-03);text-decoration:none;color:var(--oa-cream)}
+.nu-lib-row.pro{--glow-c:var(--red-h)}
+.nu-lib-ic{flex:0 0 auto;width:34px;height:34px;display:flex;align-items:center;justify-content:center;color:var(--gold2)}
+.nu-lib-row.pro .nu-lib-ic{color:var(--red-h)}
+.nu-lib-x{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.nu-lib-t{font-family:var(--sans);font-weight:650;font-size:15px;line-height:1.25}
+.nu-lib-s{font-family:var(--sans);font-size:12px;line-height:1.4;color:var(--oa-cream-faint)}
+.nu-lib-go{flex:0 0 auto;font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--gold2);white-space:nowrap}
+.nu-lib-row.pro .nu-lib-go{color:var(--red-h)}
+/* the lesson's done moment — the check draws itself in */
+.pr-done-badge .nu-check{width:20px;height:20px}
+/* the Today card */
+.nu-today{--glow-c:var(--gold2);display:flex;flex-direction:column;gap:12px;margin:18px 0 0;padding:18px;border:1px solid color-mix(in srgb, var(--brand-gold2) 35%, transparent);border-radius:var(--r-3xl);background:var(--ink-onLight-05);text-decoration:none;color:var(--oa-cream);text-align:left}
+.nu-today-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.nu-today-n{font-family:var(--mono);font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:var(--gold2)}
+.nu-today-k{font-family:var(--sans);font-size:12px;color:var(--oa-cream-faint)}
+.nu-today-t{font-family:var(--serif);font-weight:600;font-size:28px;line-height:1.1;letter-spacing:-.2px}
+.nu-today-p{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:var(--r-xl);background:color-mix(in srgb, var(--brand-gold2) 10%, transparent);font-family:var(--sans);font-size:15px;line-height:1.45}
+.nu-today-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.nu-today-meta{font-family:var(--mono);font-size:11px;letter-spacing:.6px;color:var(--oa-cream-faint)}
+.nu-today-go{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border-radius:var(--r-xl);background:var(--red);color:#fff;font-family:var(--sans);font-weight:650;font-size:15px}
+

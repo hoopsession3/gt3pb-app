@@ -1,5 +1,7 @@
 "use client";
 
+import "@/components/nutrition/academy.css";
+import "@/components/nutrition/nutrition.css";
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -13,6 +15,10 @@ import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import { money } from "@/lib/money";
 import { lessonHref } from "@/lib/native";
+import Said from "@/components/Said";
+import { haptic } from "@/lib/haptics";
+import { badgeSeenKey } from "@/lib/nutrition";
+import { BadgeMark } from "@/components/nutrition/RookieBadge";
 
 // A single Return to Primal lesson (round 0273). Systematic + referenceable: the key points sit up top
 // as scannable chips, the body reads clean, and the MEAL-STACK rail turns the teaching into an order —
@@ -41,6 +47,8 @@ export default function PrimalLesson({ slug }: { slug: string }) {
   const t = useSiteCopy();
   const [saving, setSaving] = useState(false);
   const [justDone, setJustDone] = useState(false);
+  const [saveErr, setSaveErr] = useState(false);
+  const [earnedNow, setEarnedNow] = useState(false);
 
   const loader = useCallback(async (): Promise<LessonView> => {
     const empty: LessonView = { found: false, stack: [], siblings: [], customerId: null, done: false };
@@ -85,13 +93,31 @@ export default function PrimalLesson({ slug }: { slug: string }) {
   const markComplete = async () => {
     if (!supabase || !v?.lesson) return;
     if (!v.customerId) return; // not signed in — CTA routes to join instead
-    setSaving(true);
+    setSaving(true); setSaveErr(false);
     const { error } = await supabase.from("primal_progress").upsert(
       { customer_id: v.customerId, lesson_id: v.lesson.id, status: "completed", completed_at: new Date().toISOString() },
       { onConflict: "customer_id,lesson_id" }
     );
     setSaving(false);
-    if (!error) { setJustDone(true); board.reload(); }
+    // A save that failed is felt and said — before R44 the button just came back, as if nothing had been asked.
+    if (error) { haptic("error"); setSaveErr(true); return; }
+    // THE BADGE, WHERE IT IS EARNED (R44). If this was the last Rookie lesson, the heartbeat — GT3's one signature
+    // haptic — plays under the finger that finished it, with the badge drawing in; once per reader on this phone.
+    // Any other lesson: success, with the check drawing in.
+    let last = false;
+    try {
+      const [{ data: rook }, { data: mine }] = await Promise.all([
+        supabase.from("primal_lessons").select("id").eq("tier", "rookie").not("published_at", "is", null).is("archived_at", null),
+        supabase.from("primal_progress").select("lesson_id").eq("customer_id", v.customerId).eq("status", "completed"),
+      ]);
+      const doneIds = new Set(((mine as { lesson_id: string }[]) ?? []).map((r) => r.lesson_id));
+      const ids = ((rook as { id: string }[]) ?? []).map((r) => r.id);
+      last = ids.length > 0 && ids.every((id) => doneIds.has(id));
+    } catch { /* the badge waits for the course page; the lesson is saved */ }
+    let seen = true;
+    if (last && user) { try { seen = localStorage.getItem(badgeSeenKey(user.id)) === "1"; localStorage.setItem(badgeSeenKey(user.id), "1"); } catch { seen = false; } }
+    if (last && !seen) { haptic("signature"); setEarnedNow(true); } else haptic("success");
+    setJustDone(true); board.reload();
   };
 
   if (board.status === "loading") return <section className="screen primal"><Masthead eyebrow={t("primal.eyebrow")} right={<AccountPill />} /><div className="pr-note">Loading…</div></section>;
@@ -147,7 +173,7 @@ export default function PrimalLesson({ slug }: { slug: string }) {
       <Masthead eyebrow={t("primal.eyebrow")} right={<AccountPill />} />
 
       <nav className="pr-crumb" aria-label="Breadcrumb">
-        <Link href="/primal">Academy</Link>
+        <Link href="/primal">GT3 Nutrition</Link>
         {pillar && <><Icon name="chevronRight" size={12} /><Link href={`/primal#pillar-${pillar.slug}`}>{pillar.title}</Link></>}
         {module && <><Icon name="chevronRight" size={12} /><span>{module.title}</span></>}
       </nav>
@@ -163,7 +189,7 @@ export default function PrimalLesson({ slug }: { slug: string }) {
           <div className="pr-keys-n">The quick version</div>
           <ul>
             {lesson.key_points.map((k, i) => (
-              <li key={i}><span className="pr-key-dot" aria-hidden /><span>{k}</span></li>
+              <li key={i} className="fx-rise" style={{ "--i": i + 1 } as React.CSSProperties}><span className="pr-key-dot" aria-hidden /><span>{k}</span></li>
             ))}
           </ul>
         </div>
@@ -205,10 +231,30 @@ export default function PrimalLesson({ slug }: { slug: string }) {
       )}
 
       <div className="pr-actions">
+        {earnedNow && (
+          <Said as="div" className="nu-badge earned fx-pop mb-3">
+            <BadgeMark earned />
+            <div className="nu-badge-x">
+              <span className="nu-badge-n">Badge earned</span>
+              <span className="nu-badge-t">Return to Primal · Rookie</span>
+              <span className="nu-badge-s">Every Rookie lesson done. You won&apos;t be a rookie for long.</span>
+            </div>
+          </Said>
+        )}
         {isDone ? (
-          <div className="pr-done-badge"><Icon name="check" size={16} /> Completed — nice work</div>
+          <>
+            <div className={`pr-done-badge${justDone ? " fx-pop" : ""}`}>
+              <svg className={`nu-check${justDone ? " fx-draw" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} /></svg>
+              Completed — nice work
+            </div>
+            {next && <Link href={lessonHref(next.slug)} className="btn-pri btn-wide mt-3 fx-rise" onClick={() => haptic("light")}>Next lesson: {next.title} ›</Link>}
+            {!next && <Link href="/primal" className="btn-sec btn-wide mt-3 fx-rise">Back to GT3 Nutrition</Link>}
+          </>
         ) : v.customerId ? (
-          <button type="button" className="btn-pri btn-wide" onClick={markComplete} disabled={saving}>{saving ? "Saving…" : "Mark complete"}</button>
+          <>
+            <button type="button" className="btn-pri btn-wide" onClick={markComplete} disabled={saving}>{saving ? "Saving…" : "Mark complete"}</button>
+            {saveErr && <p className="pr-note pr-note-err mt-3! mb-0!" role="alert">That didn&apos;t save — check your connection, then try again.</p>}
+          </>
         ) : (
           <div className="pr-signin-row">
             <span>Track your progress —</span> <AccountPill />

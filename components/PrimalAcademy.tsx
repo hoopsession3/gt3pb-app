@@ -1,9 +1,12 @@
 "use client";
 
+import "@/components/nutrition/academy.css";
+import "@/components/nutrition/nutrition.css";
 import { useMemo, useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth, roleOf } from "@/components/AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AccountPill from "@/components/AccountPill";
 import EditCopyPill from "@/components/EditCopyPill";
@@ -13,8 +16,21 @@ import Icon from "@/components/Icon";
 import { Masthead, ClosingBeat } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import { lessonHref } from "@/lib/native";
+import { haptic } from "@/lib/haptics";
 import Said from "@/components/Said";
+import RookieBadge from "@/components/nutrition/RookieBadge";
+import MapLibrary from "@/components/nutrition/MapLibrary";
+import { courseOrder, nextLesson, progressOf, rookieComplete } from "@/lib/nutrition";
 
+// The map draws itself in when it is reached; it is not the first thing a phone paints.
+const CourseMap = dynamic(() => import("@/components/nutrition/CourseMap"));
+
+// GT3 NUTRITION — the course's home (R44): GT3 Nutrition is the brand, Return to Primal its course. A reader picks up
+// where they left off (Continue opens their next lesson), sees how far along they are lesson by lesson (a segment each,
+// filling in turn), the Rookie badge waiting or earned, the course as a map they can move through (CourseMap — the
+// owner's boards redrawn), and every map as a static file to download and search (MapLibrary). One search narrows the
+// lessons and the library together.
+//
 // RETURN TO PRIMAL — the native nutrition academy index (round 0273). Reads the published primal_*
 // tree through RLS (rookie lessons open to all, pro only to entitled/staff), lays it out systematically
 // pillar -> module -> lesson, and makes it referenceable in one glance: a live search filters every
@@ -27,21 +43,21 @@ type Lesson = {
   id: string; module_id: string; slug: string; title: string; subtitle: string | null; tier: "rookie" | "pro";
   est_minutes: number | null; summary: string | null; key_points: string[]; sort: number;
 };
-type Tree = { pillars: Pillar[]; modules: Module[]; lessons: Lesson[]; done: Set<string>; total: number };
+type Tree = { pillars: Pillar[]; modules: Module[]; lessons: Lesson[]; done: Set<string>; total: number; pro: boolean };
 
 const ICON: Record<string, Parameters<typeof Icon>[0]["name"]> = {
   flame: "coffee", activity: "target", moon: "clock", sun: "sparkles", droplet: "jar",
 };
 
 export default function PrimalAcademy() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   // `t` is the loaded lesson tree below (board.data), so the site-copy hook is `copy` here to
   // avoid shadowing it — the one file in this pass where the house `t = useSiteCopy()` name collides.
   const copy = useSiteCopy();
   const [q, setQ] = useState("");
 
   const loader = useCallback(async (): Promise<Tree> => {
-    if (!supabase) return { pillars: [], modules: [], lessons: [], done: new Set(), total: 0 };
+    if (!supabase) return { pillars: [], modules: [], lessons: [], done: new Set(), total: 0, pro: false };
     const [pil, mod, les] = await Promise.all([
       supabase.from("primal_pillars").select("id, slug, title, blurb, accent, icon, sort").order("sort"),
       supabase.from("primal_modules").select("id, pillar_id, slug, title, blurb, sort").order("sort"),
@@ -51,15 +67,19 @@ export default function PrimalAcademy() {
     const lessons = ((les.data as Lesson[]) ?? []).map((l) => ({ ...l, key_points: Array.isArray(l.key_points) ? l.key_points : [] }));
     // progress is keyed by the customer spine — resolve our own customer row, then load completions.
     const done = new Set<string>();
+    let pro = false;
     if (user) {
       const { data: cust } = await supabase.from("customers").select("id").eq("user_id", user.id).maybeSingle();
       const cid = (cust as { id?: string } | null)?.id;
       if (cid) {
         const { data: prog } = await supabase.from("primal_progress").select("lesson_id, status").eq("customer_id", cid).eq("status", "completed");
         for (const r of (prog as { lesson_id: string }[]) ?? []) done.add(r.lesson_id);
+        // Pro is a live program_access row (0271; its owner reads their own) — what unlocks the Pro maps.
+        const { data: acc } = await supabase.from("program_access").select("tier").eq("customer_id", cid).eq("tier", "pro").is("revoked_at", null).limit(1);
+        pro = !!(acc as unknown[] | null)?.length;
       }
     }
-    return { pillars: (pil.data as Pillar[]) ?? [], modules: (mod.data as Module[]) ?? [], lessons, done, total: lessons.length };
+    return { pillars: (pil.data as Pillar[]) ?? [], modules: (mod.data as Module[]) ?? [], lessons, done, total: lessons.length, pro };
   }, [user]);
 
   const board = useAsyncData<Tree>(loader, [user?.id ?? "anon"]);
@@ -77,7 +97,14 @@ export default function PrimalAcademy() {
     return hit;
   }, [q, t]);
 
-  const doneCount = t ? t.lessons.filter((l) => t.done.has(l.id)).length : 0;
+  const order = useMemo(() => (t ? courseOrder(t.pillars, t.modules, t.lessons) : []), [t]);
+  const prog = t ? progressOf(order, t.done) : { done: 0, total: 0, pct: 0 };
+  const next = t ? nextLesson(order, t.done) : null;
+  const rookie = order.filter((l) => l.tier === "rookie");
+  const earned = !!t && rookieComplete(order, t.done);
+  const hits = match ? match.size : 0;
+  // The crew can open every map (they write the course); a member, with Pro.
+  const isPro = !!t?.pro || (!!profile && roleOf(profile) !== "member");
 
   return (
     <section className="screen primal" id="s-primal">
@@ -90,29 +117,51 @@ export default function PrimalAcademy() {
         <EditableCopy k="primal.hero_lede" value={copy("primal.hero_lede")} as="p" className="pr-lede" multiline />
         {/* Progress is yours once you are signed in (2026-10-10, round 2): a guest saw "0/3 complete" under
             a bar nothing they could do would move — lessons are only marked done for an account. */}
-        {user && t && t.total > 0 && (
-          <div className="pr-progress" aria-label={`${doneCount} of ${t.total} lessons complete`}>
-            <div className="pr-bar"><span style={{ width: `${Math.round((doneCount / Math.max(1, t.total)) * 100)}%` }} /></div>
-            <span className="pr-progress-n">{doneCount}/{t.total} complete</span>
+        {user && t && prog.total > 0 && (
+          <div className="nu-psegs" role="img" aria-label={`${prog.done} of ${prog.total} lessons complete`}>
+            <div className="fx-segs">
+              {order.map((l, i) => <i key={l.id} className={t.done.has(l.id) ? "on" : undefined} style={{ "--i": i } as React.CSSProperties} />)}
+            </div>
+            <span className="nu-psegs-n"><span>{prog.done}/{prog.total} complete</span><span>{Math.round(prog.pct * 100)}%</span></span>
           </div>
         )}
+        {/* Continue: the lesson to open next, so coming back is one tap. Signed in only — a guest has no place to keep. */}
+        {user && next && (
+          <Link href={lessonHref(next.slug)} className="nu-continue fx-glow fx-rise" onClick={() => haptic("light")}>
+            <span className="nu-continue-x">
+              <span className="nu-continue-n">{prog.done ? "Pick up where you left off" : "Start here"}</span>
+              <span className="nu-continue-t">{next.title}</span>
+            </span>
+            <span className="nu-continue-go" aria-hidden="true">›</span>
+          </Link>
+        )}
+        {user && rookie.length > 0 && <RookieBadge earned={earned} done={rookie.filter((l) => t?.done.has(l.id)).length} total={rookie.length} />}
       </header>
 
       <div className="pr-search">
         <Icon name="search" size={16} />
         <input
           type="search" value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="Search lessons — carbs, hydration, iron…" aria-label="Search lessons"
+          placeholder="Search lessons and maps — carbs, iron, sleep…" aria-label="Search lessons and maps"
         />
         {q && <button type="button" className="pr-search-x" onClick={() => setQ("")} aria-label="Clear search"><Icon name="close" size={14} /></button>}
       </div>
 
-      {board.status === "loading" && <div className="pr-note">Loading the academy…</div>}
+      {q && t && <Said as="p" className="pr-note mt-2! mb-0!">{hits ? `${hits} lesson${hits === 1 ? "" : "s"} match “${q.trim()}”` : `No lesson mentions “${q.trim()}” — the maps below may.`}</Said>}
+
+      {board.status === "loading" && <div className="pr-note">Loading the course…</div>}
       {/* "Pull to refresh" named a gesture this page does not have (2026-10-11, the App Store audit): the pull lives in
           the crew console alone (components/PullToRefresh). The way to try again is a button, here. */}
       {board.status === "error" && <div className="pr-note pr-note-err"><Said as="span" assertive>Couldn’t load lessons.</Said> <button type="button" className="btn-ter" onClick={() => void board.reload()}>Try again</button></div>}
       {t && t.total === 0 && board.status === "ready" && (
         <EditableCopy k="primal.empty" value={copy("primal.empty")} as="div" className="pr-note" multiline />
+      )}
+
+      {t && order.length > 0 && !q && (
+        <section className="nu-sec" aria-labelledby="nu-map-h">
+          <div className="nu-sec-h"><h2 id="nu-map-h" className="nu-sec-n">The course map</h2><span className="nu-sec-s">{prog.done}/{prog.total} done</span></div>
+          <CourseMap pillars={t.pillars} modules={t.modules} order={order} done={t.done} />
+        </section>
       )}
 
       {t && t.pillars.map((p) => {
@@ -147,10 +196,10 @@ export default function PrimalAcademy() {
                     {m.blurb && <span className="pr-module-b">{m.blurb}</span>}
                   </div>
                   <div className="pr-lessons">
-                    {lessons.map((l) => {
+                    {lessons.map((l, li) => {
                       const isDone = t.done.has(l.id);
                       return (
-                        <Link href={lessonHref(l.slug)} key={l.id} className={`pr-card${isDone ? " done" : ""}`} style={{ "--accent": accent } as React.CSSProperties}>
+                        <Link href={lessonHref(l.slug)} key={l.id} className={`pr-card fx-rise${isDone ? " done" : ""}`} style={{ "--accent": accent, "--i": li } as React.CSSProperties} onClick={() => haptic("light")}>
                           <div className="pr-card-top">
                             <span className="pr-card-t">{l.title}</span>
                             {l.tier === "pro" ? <span className="k-tag gold"><Icon name="lock" size={11} /> Pro</span> : <span className="k-tag">Free</span>}
@@ -171,8 +220,13 @@ export default function PrimalAcademy() {
         );
       })}
 
+      <section className="nu-sec" id="nu-library" aria-labelledby="nu-lib-h">
+        <div className="nu-sec-h"><h2 id="nu-lib-h" className="nu-sec-n">The maps</h2><span className="nu-sec-s">Download, zoom, search</span></div>
+        <MapLibrary query={q} isPro={isPro} />
+      </section>
+
       {t && t.total > 0 && (
-        <div className="pr-cta-block">
+        <div className="pr-cta-block" id="nu-pro">
           <EditableCopy k="primal.cta_eye" value={copy("primal.cta_eye")} as="div" className="pr-cta-n" />
           <EditableCopy k="primal.cta_body" value={copy("primal.cta_body")} as="p" className="pr-cta-body" multiline />
           {/* CTA text is inside a <Link> — plain copy(), not EditableCopy (nested-interactive rule). */}

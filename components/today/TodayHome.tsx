@@ -262,6 +262,8 @@ const DailyStack = dynamic(() => import("@/components/DailyStack"));
 // Loaded only for the truck-off lead, where it is drawn (its alerts code is not every member's Today).
 const RemindMe = dynamic(() => import("./RemindMe"));
 const CrewWelcomeRow = dynamic(() => import("@/components/CrewWelcomeRow"));
+// GT3 Nutrition's card (R44): one lesson for the day picked in the stack, or the day's tip. Its own chunk, after the rows.
+const NutritionToday = dynamic(() => import("@/components/nutrition/NutritionToday"));
 
 function MiniStamps({ n }: { n: number }) {
   return (
@@ -304,6 +306,7 @@ function Rows({ t, quiet, first, ordering, stopMenu }: { t: T; quiet: boolean; f
           sub={<span className="whitespace-normal">{first ? t("today.stack_first_sub") : t("home.dialed_sub")}</span>}
           trailing={<span className="text-cream-dim"><Icon name="chevronRight" /></span>} onClick={() => setStack(true)} />
       </div>
+      <NutritionToday stamp={stack} />
       {profile && <MemberCard open={card} onClose={() => setCard(false)} />}
       {stack && (
         <Sheet open={stack} onClose={() => setStack(false)} label={t("home.dialed_title")} header={<h2 className="k-title">{t("home.dialed_title")}</h2>}>

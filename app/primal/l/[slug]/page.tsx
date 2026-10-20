@@ -10,8 +10,8 @@ import { publicLesson } from "@/lib/guestRead";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const lesson = await publicLesson(slug);
-  if (lesson === undefined) return { title: "Return to Primal" };
-  if (lesson === null) return { title: "Return to Primal", ...PRIVATE_META };
+  if (lesson === undefined) return { title: "GT3 Nutrition" };
+  if (lesson === null) return { title: "GT3 Nutrition", ...PRIVATE_META };
   return { title: lesson.title, ...publicMeta(lessonPath(slug), lessonDescription(lesson), "article") };
 }
 

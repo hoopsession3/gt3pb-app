@@ -173,7 +173,7 @@ export async function judgeSite(base, { ok, production = false, get = fetch, wai
       const r = await ask(url.slice(SITE.length));
       const h = readHead(r.text);
       const pass = r.status === 200 && h.canonical[0] === url && !h.meta("robots").some((v) => /noindex/i.test(v)) && !/noindex/i.test(r.robots) && !!h.meta("description")[0]
-        && h.meta("og:url")[0] === url && h.meta("og:type")[0] === "article" && !/^Return to Primal — /.test(h.titles[0] || "");
+        && h.meta("og:url")[0] === url && h.meta("og:type")[0] === "article" && !/^GT3 Nutrition — /.test(h.titles[0] || "");
       return { pass, detail: r.status !== 200 ? said(r) : JSON.stringify({ title: h.titles[0], canonical: h.canonical, robots: h.meta("robots") }) };
     };
     for (const url of lessons.slice(0, 3)) {
@@ -198,7 +198,7 @@ export async function judgeSite(base, { ok, production = false, get = fetch, wai
     const r = await ask("/primal/l/r42-no-database");
     const h = readHead(r.text);
     ok("found: a lesson whose read can't be made is never noindex for it — the page as it was, with no address of its own",
-      r.status === 200 && !h.meta("robots").some((v) => /noindex/i.test(v)) && h.canonical.length === 0 && h.titles[0] === `Return to Primal — ${SITE_NAME}`,
+      r.status === 200 && !h.meta("robots").some((v) => /noindex/i.test(v)) && h.canonical.length === 0 && h.titles[0] === `GT3 Nutrition — ${SITE_NAME}`,
       r.status !== 200 ? said(r) : JSON.stringify({ title: h.titles[0], robots: h.meta("robots"), canonical: h.canonical }));
   }
 

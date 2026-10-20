@@ -40,7 +40,7 @@ function switchTick() {
 }
 
 /** What happened, in the hand. Each one's pattern, and when to use it, is in PATTERN below. */
-export type Feel = "selection" | "light" | "medium" | "heavy" | "success" | "warning" | "error" | "threshold" | "release" | "boundary" | "toggleOn" | "toggleOff" | "increase" | "decrease" | "start" | "live" | "paid" | "alert";
+export type Feel = "selection" | "light" | "medium" | "heavy" | "success" | "warning" | "error" | "threshold" | "release" | "boundary" | "toggleOn" | "toggleOff" | "increase" | "decrease" | "start" | "live" | "paid" | "alert" | "signature";
 
 const PATTERN: Record<Feel, number | readonly number[]> = {
   selection: 6,                  // a choice changed — a tab, a page, a size, a mode
@@ -61,6 +61,8 @@ const PATTERN: Record<Feel, number | readonly number[]> = {
   live: [16, 50, 16, 50, 26],    // going live: two beats, then the engine — once per go-live
   paid: [10, 30, 18],            // money settled — a payment through, a pack flips to paid in your hand
   alert: [200, 100, 200],        // look up now — a new order on the pass, a guest outside
+  signature: [12, 138, 8],       // GT3's one brand moment, the heartbeat — firm, then soft 150 ms later. Used once: the
+                                 // GT3 Nutrition Rookie badge, the first time it is earned (R44, the Haptics and Motion Playbook)
 };
 
 /** The table, read-only, for the tests and the audit. Nothing in the app plays a pattern itself. */
@@ -97,6 +99,7 @@ const UIKIT_STEPS: Record<Feel, readonly UIKitStep[]> = {
   live: [{ kind: "impact", style: "MEDIUM" }, { kind: "impact", style: "MEDIUM", after: 110 }, { kind: "impact", style: "HEAVY", after: 110 }],
   paid: [{ kind: "notification", type: "SUCCESS" }],
   alert: [{ kind: "notification", type: "WARNING" }, { kind: "notification", type: "WARNING", after: 300 }],
+  signature: [{ kind: "impact", style: "MEDIUM" }, { kind: "impact", style: "LIGHT", after: 150 }],
 };
 
 /** The iPhone table, read-only, for the tests. */

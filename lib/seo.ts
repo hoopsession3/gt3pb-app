@@ -56,7 +56,7 @@ export const PUBLIC_PAGES: Readonly<Record<string, string>> = {
   "/3mpire": "The 3MPIRE, GT3's membership: a stamp on every drink and the next cup on us after ten — and $5 each when a friend joins with your code.",
   "/book": "Book the GT3 Performance Bar for your event — offsites, run clubs, launches, weddings. We bring the full bar and pour on site.",
   "/craft": "How GT3 builds every drink from whole, recognizable food: coffee to switch on, coconut and minerals to carry you, bone broth to rebuild.",
-  "/primal": "Return to Primal: real fuel, explained simply. Five pillars, free to start, and every lesson ends in a stack you can order. Educational, never medical.",
+  "/primal": "GT3 Nutrition — Return to Primal: real fuel, explained simply. Free to start, and every lesson ends in a stack you can order. Educational, never medical.",
   "/privacy": "What GT3 Performance Bar collects to run your order and nothing more, who sees it, and how your data stays your call. Payments never touch our servers.",
   "/terms": "The terms for ordering from GT3 Performance Bar: orders, packs and delivery, texts, and what can change.",
   "/texts": "What GT3 Performance Bar texts — only your own orders: a confirmation, a pickup reminder, your porch drop, any change — how you say yes, and how you stop.",

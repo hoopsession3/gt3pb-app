@@ -133,7 +133,7 @@ const { SITE, SITE_NAME, PUBLIC_PAGES, CANONICAL_OF, SITEMAP_PATHS, SHARE_IMAGE,
     /\{APP_BUILD \? null : <script type="application\/ld\+json" dangerouslySetInnerHTML=\{\{ __html: jsonLdText\(businessJsonLd\(\)\) \}\} \/>\}/.test(lay));
   const lesson = read("app/primal/l/[slug]/page.tsx");
   ok("a lesson: public → its title, one-liner and address; a member's → noindex; a read that failed → neither",
-    /if \(lesson === undefined\) return \{ title: "Return to Primal" \};/.test(lesson) && /if \(lesson === null\) return \{ title: "Return to Primal", \.\.\.PRIVATE_META \};/.test(lesson)
+    /if \(lesson === undefined\) return \{ title: "GT3 Nutrition" \};/.test(lesson) && /if \(lesson === null\) return \{ title: "GT3 Nutrition", \.\.\.PRIVATE_META \};/.test(lesson)
       && /return \{ title: lesson\.title, \.\.\.publicMeta\(lessonPath\(slug\), lessonDescription\(lesson\), "article"\) \};/.test(lesson));
 }
 
@@ -258,7 +258,7 @@ const { SITE, SITE_NAME, PUBLIC_PAGES, CANONICAL_OF, SITEMAP_PATHS, SHARE_IMAGE,
     og: { title, description, ...(url ? { url } : {}), site_name: SITE_NAME, locale: "en_US", image, "image:width": "1200", "image:height": "630", "image:alt": SHARE_IMAGE.alt, type: "website" },
     tw: { card: "summary_large_image", title, description, image },
   });
-  const NAMES = { "/truck": "Find Us", "/events": "Find Us", "/menu": "Menu", "/shop": "Shop", "/reserve": "Reserve", "/delivery": "Delivery", "/3mpire": "3MPIRE", "/book": "Book the bar", "/craft": "Our craft", "/primal": "Return to Primal", "/privacy": "Privacy policy", "/terms": "Terms", "/texts": "Texts" };
+  const NAMES = { "/truck": "Find Us", "/events": "Find Us", "/menu": "Menu", "/shop": "Shop", "/reserve": "Reserve", "/delivery": "Delivery", "/3mpire": "3MPIRE", "/book": "Book the bar", "/craft": "Our craft", "/primal": "GT3 Nutrition", "/privacy": "Privacy policy", "/terms": "Terms", "/texts": "Texts" };
   const MENU = [{ slug: "rise", name: "RISE", line: "Activation", cents: 1100, why: "Lift." }, { slug: "ember", name: "EMBER", line: "Fuel", cents: 1250, why: "Warm." }];
   const menuLd = (list) => seo.menuJsonLd([...new Set(list.map((d) => d.line))].map((line) => ({ line, drinks: list.filter((d) => d.line === line).map((d) => ({ name: d.name, line: d.line, why: d.why, priceCents: d.cents })) })));
   const label = (c) => (c % 100 ? (c / 100).toFixed(2) : String(c / 100));
@@ -280,9 +280,9 @@ const { SITE, SITE_NAME, PUBLIC_PAGES, CANONICAL_OF, SITEMAP_PATHS, SHARE_IMAGE,
       const c = card(`Kept — ${SITE_NAME}`, HOME_DESCRIPTION);
       pages[p] = { type: "text/html", body: doc({ title: `Kept — ${SITE_NAME}`, description: HOME_DESCRIPTION, robots: "noindex, nofollow", og: c.og, tw: c.tw, ...(wrong.page?.[p] ?? {}) }) };
     }
-    const lc = card(`Return to Primal — ${SITE_NAME}`, HOME_DESCRIPTION);
-    pages["/primal/l/r42-no-database"] = { type: "text/html", body: doc({ title: `Return to Primal — ${SITE_NAME}`, description: HOME_DESCRIPTION, og: lc.og, tw: lc.tw, ...(wrong.page?.["/primal/l/r42-no-database"] ?? {}) }) };
-    pages["/primal/l/r42-no-such-lesson"] = { type: "text/html", body: doc({ title: `Return to Primal — ${SITE_NAME}`, description: HOME_DESCRIPTION, robots: "noindex, nofollow", og: lc.og, tw: lc.tw }) };
+    const lc = card(`GT3 Nutrition — ${SITE_NAME}`, HOME_DESCRIPTION);
+    pages["/primal/l/r42-no-database"] = { type: "text/html", body: doc({ title: `GT3 Nutrition — ${SITE_NAME}`, description: HOME_DESCRIPTION, og: lc.og, tw: lc.tw, ...(wrong.page?.["/primal/l/r42-no-database"] ?? {}) }) };
+    pages["/primal/l/r42-no-such-lesson"] = { type: "text/html", body: doc({ title: `GT3 Nutrition — ${SITE_NAME}`, description: HOME_DESCRIPTION, robots: "noindex, nofollow", og: lc.og, tw: lc.tw }) };
     for (const u of wrong.lessons ?? []) {
       const path = u.slice(SITE.length), c = card(`Fuel first — ${SITE_NAME}`, "One line.", u);
       c.og.type = "article";

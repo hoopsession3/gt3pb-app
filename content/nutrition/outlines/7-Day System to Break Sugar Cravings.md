@@ -1,0 +1,51 @@
+- "& / $7-Day System to Break Sugar Cravings
+  - Protein First
+    - Lead With 30g
+      - Start every meal with a dense protein source — not carbs. This creates satiety, fuels the brain, and lowers the volume on cravings within days.
+    - " / Prevent the Crash
+      - e"& / $Stable glucose means fewer cravings. kProtein regulates blood sugar, supports neurotransmitters like dopamine and serotonin, and keeps you full.
+    - Neurotransmitters
+      - <"D / BSugar cravings usually mean you’re under-fed, not over-indulged. @Fuel Neurotransmitters – Amino acids > artificial sugar highs.
+  - Remove Triggers
+    - 	" / Purge the Access
+      -  / ^_"". / ,Willpower fails when sugar’s within reach. _ Your environment shapes your choices. Clean your pantry, your glove box, and your desk drawer.
+    - Control the Cue
+      - R""r / peplace the behavior — instead of grabbing candy under stress, sip bone broth, go for a walk, or chew mint gum.
+    - " / Replace the Ritual
+      - a""$ / "Swap comfort loops, not just food. 9 Create a ritual that soothes you without sabotaging you.
+  - Awareness
+    - Hidden Sugars
+      - Read labels. They lie n"F / DLook for hidden sugars in sauces, breads, and packaged health foods.
+    - Track
+      - U"@ / >Track Without Judgment – Awareness creates space for change. kYou can’t change what you don’t see. Today is all about tracking your sugar intake with brutal honesty.
+    - riggers
+      - Notice emotional cravings — stress, boredom, and fatigue often wear a sugar mask. Write down what you eat, when, and why. This begins the process of separating you from the craving.
+  - Brain Chemistry
+    - Win Early
+      - R" / Start with action,  / du" / Complete a hard task early"". / , — movement, journaling, or cold exposure.
+    - 	" / Nourish the Brain
+      - Feed your chemistry, not your compulsion. TSugar is a counterfeit dopamine hit. Real dopamine comes from action, not addiction.
+    - " / Rewire the Reward
+      - Q"2 / 0Then eat foods that nourish your nervous system. 9" / New inputs, new outputs O. When you give your brain what it needs, it stops screaming for sugar to cope.
+  - Intentional
+    - " / Conscious Sweetness
+      - ~" / Intentional > impulsive. D We’re not demonizing sweetness — we’re redefining the source. ?njoy a natural, nutrient-rich sweet (berries, raw honey, dates)
+    - Normalization
+      - "8 / 6Money flows to those who normalize making a lot of it.
+    - Expansion
+      - "a / _Money flows to those who know there is no limit to it and thus allow it to expand and multiply.
+  - Identity Shift
+    - Write Your Code
+      - U"+ / )Write your food philosophy. Make it real.  Make it yours.
+    - " / Lead With Clarity
+      - Beliefs drive behavior. J Cravings may whisper, but now you have a framework to respond, not react.
+    - 
+" / Own Your Identity
+      - [" / You are not your craving.  / st""A / ?ou’re someone who chooses clarity, strength, and nourishment.
+  -  / " / Crush Blood Sugar Spikes
+    - Balance = Safety
+      - Stable blood sugar = calm biology.  / VX"H / F Your body will stop begging for sugar when it no longer fears famine.
+    - " / Flatten the Curve
+      - N" / Less crash = less craving . Even  / no""i / ghealthy sugars like fruit can cause a crash when eaten alone. Keep your meals balanced and intentional.
+    - No Naked Carbs
+      - Carbs need company . Most cravings come from blood sugar chaos — a spike, a crash, then a reach for relief. Pair every carb with fat or protein to flatten that curve.

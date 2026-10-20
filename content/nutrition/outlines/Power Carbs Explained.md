@@ -1,0 +1,163 @@
+- <Non Toxic Carbs / The ones your body actually knows how to use . / Use key search wor s like: / * workout, energy skin, glow, digestion , post work out, savory, potassium , vitamin c, focus memory vision  brain hydration
+  -  / 
+  -  / 
+  -  / 
+  -  / 
+  -  / 
+  - Non-Sweet Fruits (Skinless & Seedless) / Avocado, Pumpkin, Squash, Zucchini, Cucumber, Olives lower in plant toxins than their leafy cousins. Avocados bring monounsaturated fats, potassium, and fiber; squash and pumpkin offer low-fructose glucose sources without the inflammation. / 🔬 Why it works: Soft fiber + low oxalate + vitamins A & E + healthy fats = steady, gut-friendly fuel. / 🔥 Use it: As a slow carb or fat source — great with meals for metabolic flexibility.  /   / 
+    - Olives
+      - How to Absorb
+        - •Eat cured (avoid seed oils — look for brine or EVOO only) / •Rinse before eating if packed in heavy salt / •Pair with vitamin C-rich foods to support iron absorption
+      - Benefits
+        - •Rich in polyphenols and monounsaturated fats / •Supports anti-inflammatory pathways and hormone balance / •Gut-friendly and anti-microbial
+      - How to Stack
+        - •Savory snack: Olives + raw cheese = fat + salt synergy / •Fat bomb: Olives + avocado + herbs = Mediterranean primal stack / •Meal accent: Chopped olives + squash mash = umami mineral pop
+    - Squash
+      - How to Absorb
+        - •Roast or steam (makes it easier to digest + more glucose available) / •Combine with animal fat or coconut for optimal hormone and energy support / •Chew thoroughly or mash for sensitive digestion
+      - Benefits
+        - Butternut, delicata, yellow squash, etc.) / •High in Vitamin C, B6, and Magnesium / •Potassium (~450mg per cup) – helps regulate blood pressure and stress / •Gentle complex carbs, ideal for metabolic repair and blood sugar stability
+      - How to Stack
+        - •Lunch fuel: Squash + grass-fed butter + thyme / •Sweet primal carb: Squash + honey + cinnamon + ghee / •Workout recovery: Squash + bone broth + salt = carb + collagen + minerals
+    - Cucumber
+      - How to Stack
+        - •Pre-meal: Cucumber + apple cider vinegar + salt = gut prep shot / •Cooling snack: Cucumber slices + mint + coconut yogurt = summer gut cooler / •Hydration reset: Cucumber water + lemon + minerals = primal electrolyte infusion
+      - How to Absorb
+        - •Eat peeled and seedless for best results (skin and seeds may irritate some guts) / •Pair with sea salt or vinegar for enhanced mineral uptake / •Best raw, especially before meals
+      - Benefits
+        - •Vitamin K, Silica, Potassium, and Molybdenum / •Very hydrating (~95% water), alkalizing, and detox-supportive / •Supports skin, connective tissue, and kidney function / •Great for digestion and mild detox
+    - Pumpkin
+      - Benefits
+        - Also applies to kabocha, acorn, and similar / •Beta-carotene (Vitamin A precursor) – essential for vision, skin, immune system / •Vitamin C, E, Iron, Potassium, Manganese / •Anti-inflammatory, gut-soothing, and blood sugar-friendly / •Gentle fiber supports gut motility
+      - How to Stack
+        - •Bedtime fuel: Pumpkin mash + ghee + cinnamon = slow carb release / •Post-lift: Pumpkin + raw cream + honey = anabolic carb + fat recovery / •Savory: Pumpkin + bone broth + herbs = gut-nourishing primal soup
+      - How to Absorb
+        - •Cook until soft (steamed or roasted) to reduce plant defenses and enhance digestibility / •Add fat (ghee, coconut oil) to absorb fat-soluble nutrients / •Combine with a sprinkle of sea salt to enhance mineral absorption
+    - Avocado
+      - How to Stack
+        - •Brain fuel: Avocado + raw honey drizzle = fat + glucose synergy / •Workout recovery: Avocado + egg yolk + salt = primal replenishment / •Digestion support: Mashed avocado + kimchi = creamy + fermented stack
+      - Benefits
+        - •Potassium (708mg per 150g) – more than bananas; crucial for nerve function and hydration / •Folate (B9) – supports DNA repair, mood, and energy metabolism / •Vitamin K1, B5, B6, E, and Magnesium – for brain function, hormonal health, and blood pressure / •Rich in oleic acid (a heart-healthy monounsaturated fat) / •Helps absorb fat-soluble vitamins (A, D, E, K) from other foods
+      - How to Absorb
+        - •Best absorbed with salt and lemon juice to improve flavor and electrolyte synergy / •Eat raw (not cooked) to preserve enzyme content and healthy fats / •Combine with animal protein to enhance absorption of fat-soluble vitamins
+  - Strategic Carbs are used situationally for training, recovery, or metabolic flexibility once gut healing and hormonal balance are stable  /   / 
+    - White Rice
+      - How to Stack
+        - •Post-lift refuel: White rice + grass-fed ghee + sea salt = clean carb + fat + mineral support / •Asian ancestral stack: White rice + wild salmon + fermented veg = glucose + omega-3 + gut boost / •Reset meal: White rice + avocado + lime juice = light, clean, energy-supportive dish
+      - Benefits
+        - •Clean, high-glycemic glucose source → ideal for post-workout glycogen replenishment / •Very low in plant defense chemicals (compared to brown rice, quinoa, oats, etc.) / •Contains small amounts of Manganese, Magnesium, and B Vitamins (if not over-refined) / •Easily digestible for most, especially when rinsed, soaked, and well-cooked
+      - How to Absorb
+        - •Rinse thoroughly to remove starch and arsenic residue / •Soak before cooking if possible (1–2 hrs) for better digestibility / •Cook with bone broth or raw butter to stabilize blood sugar / •Always add salt or minerals — rice is sodium-depleting if eaten alone
+    - arr ots  /   /   / 
+      - ow to Stack
+        - <Hormone detox snack: Grated raw carrot + coconut oil + salt /Dinner side: Roasted carrots + ghee + rosemary <Immune support: Carrot mash + raw cream = Vitamin A delivery
+      - ow to Ab sorb
+        - 8Raw = hormone detox (especially when grated and salted) CCooked = more beta-carotene available but higher glycemic response AAdd fat (ghee, raw dairy, coconut) for better absorption of A & K
+      - Benefits
+        - 8High in Vitamin A, K1, B6, Biotin, Fiber, and Potassium 4Contains antioxidants like lutein and beta-carotene <Known to support liver detox and estrogen clearance when raw
+    - wee Potato  / 
+      - How to Stack
+        - <Training days: Sweet potato + salt + ghee = glycogen reload JGut reset: Cold mashed sweet potato + kefir = prebiotic + probiotic combo EMuscle builder: Sweet potato + beef + avocado = clean carb-load plate
+      - How to Absorb
+        - >Bake or roast until soft → breaks down lectins and oxalates =Peel the skin — where most anti-nutrients are concentrated FCooling post-cooking (then lightly reheating) boosts resistant starch 6Pair with fat (ghee or tallow) to slow glucose release
+      - Benefits
+        - JHigh in Vitamin A (as beta-carotene), Vitamin C, B6, Manganese, Potassium BSupports muscle glycogen, antioxidant protection, and skin repair HOffers resistant starch when cooled → gut fuel for beneficial bacteria  / 
+    - ams  / 
+      - Benefits
+        - 4Rich in Potassium, B6, Fiber, Manganese, and Copper LHormone-supportive — some yams contain diosgenin, a natural phytoestrogen KMore starchy and less sweet than sweet potatoes, good for sustained glucose
+      - How to
+        - HHormonal support: Yam + ghee + cinnamon (for women or adrenal recovery) >Performance: Roasted yam cubes + salted avocado + ground lamb @Sleep support: Yam + raw milk + nutmeg = glucose + calcium stack
+      - How to Absorb
+        - CSteam, roast, or bake — always cook fully to reduce plant toxins Peel before eating 8Works well with acid (lemon or ACV) to support digestion
+    - Coconut
+      - How to Stack
+        - •Gut reset: Coconut meat + papaya = digestive-friendly, enzyme-rich blend / •Training energy: Coconut oil + honey pre-workout = dual fuel system / •Rehydration: Coconut water + salt + lime = primal electrolyte drink
+      - Benefits
+        - •Rich in MCTs (Medium Chain Triglycerides) → rapid energy, no bile needed / •Contains Lauric Acid, a natural antiviral + antibacterial / •Provides Copper, Manganese, Selenium, and small amounts of Iron / •Great for adrenal support, brain fuel, and gut healing
+      - How to Absorb
+        - •Best fresh or cold-pressed; avoid canned with additives / •Pair with carbs (like fruit or squash) for balanced energy release / •Coconut oil is heat-stable, great for cooking. Coconut water best raw + mineralized.
+    - erbs  / 
+      - enefits
+        - :resh(Rosemary, Thyme, Basil, Oregano, Dill, Mint, Parsley) ARich in antioxidants, trace minerals, and natural antimicrobials LSupport bile flow, digestive enzyme release, and anti-inflammatory response BMany (like rosemary and mint) enhance focus and cognitive clarity >Parsley + dill are natural detoxifiers and estrogen modulators
+      - How to Absorb
+        - =Use fresh or lightly fermented (dried versions lose potency) ECombine with fat (e.g., Microcharge) to unlock fat-soluble compounds EAdd to meals after cooking to preserve enzyme and antioxidant content
+      - How to Stack
+        - GLiver support: Parsley + lemon + cucumber water = natural detox elixir @Focus enhancer: Mint + berries + raw yogurt = cognition booster NMeal primer: Fresh rosemary + olive oil on squash or meat = digestive ignition
+    - aw Honey  / 
+      - enefits
+        - QProvides rapid fuel via glucose + fructose for brain, liver, and muscle glycogen BPacked with enzymes, prebiotics, trace minerals, and antioxidants 'Naturally antibacterial and antifungal 9Supports immune function, hormone health, and deep sleep AReplenishes liver glycogen to regulate cortisol and energy levels  /   /   /   / 
+      - How to tack
+        - aUse raw honey + sea salt + warm water first thing in the morning to energize and clear brain fog mCombine raw honey with raw milk or ghee at night to fuel your liver during sleep and prevent cortisol spikes nBefore lifting, mix honey with sea salt and lemon water (or watermelon juice) to improve performance and pump lTo break a fast, pair honey with papaya and coconut or kefir for gentle glucose and digestive enzyme synergy
+      - ow to Absorb
+        - ^Take it on an empty stomach in the morning with a pinch of sea salt to restore liver glycogen YBefore bed, pair with raw milk or ghee to stabilize blood sugar and support sleep cycles iPre-workout, combine with salt and water (or fruit juice) for immediate glycogen and electrolyte delivery
+  - Sweet Fruit (Seed free)Banana, Berries, Mango, Pineapple, Watermelon, Papaya, Oranges, etc. / These fruits are designed to be eaten. Plants want you to eat their ripe fruit — it’s their delivery system for seeds. When you remove the seeds, what you’re left with is bioavailable hydration + glucose wrapped in a vitamin cocktail. / 🔬 Why it works: Simple carbs plus vitamin C, potassium, and fiber — with minimal plant defense chemicals if eaten ripe and seed-free. / 🔥 Use it: Mid-morning or post-workout. Pair with fat (like raw dairy or suet) to slow the insulin spike and amplify absorption.  /   / 
+    - Bananas
+      - ow to Absorb
+        - " / •""R / PEat ripe for maximum glucose absorption; slightly green = more resistant starch / "" / •""/ / -Chew thoroughly to activate salivary enzymes / "" / •""P / NPair with Microcharge (ghee or suet) to slow glucose spike and improve satiety
+      - ow to Stack
+        - " / •""= / ;Post-lift: Banana + raw honey + sea salt = glycogen reload / "" / •""L / JGut protocol: Half-ripe banana + sauerkraut = gut lining + probiotic flow / "" / •""O / MAfternoon focus: Banana + raw cream = clean glucose wave + fat for brain fuel
+      - Benefits
+        - " / •""O / MHigh in potassium → supports nerve function, muscle contraction, hydration / "" / •""I / GFast-acting glucose + prebiotic fiber (especially when slightly green) / "" / •""/ / -Calms the gut and boosts serotonin production
+    - Papaya
+      - How to Stack
+        - 7Gut reset: Papaya + kefir = enzyme + probiotic pairing :Post-fasting: Papaya + Microcharge = soft digestive entry EGlow support: Papaya + lemon juice + raw milk = skin-nourishing combo
+      - How to Absorb
+        - Nt fully ripe and seedless (seeds = bitter and anti-fertility in some studies) 8Pair with ferments or salt to multiply digestive impact 6Avoid over-chilling — enzymes work best at room temp
+      - Benefits
+        - DLoaded with Vitamin C, A, E, Folate, Potassium, and Papain (enzyme) >Gentle on the gut, supports protein digestion and skin repair $Anti-inflammatory and supports detox  /   /   / 
+    - Pineapple
+      - Benefits
+        - DHigh in Vitamin C, B1 (Thiamine), Manganese, and Bromelain (enzyme) /Supports protein digestion and muscle recovery %Anti-inflammatory and immune-boosting  /   / 
+      - How to Absorb
+        - 1Eat raw and ripe — bromelain is heat-sensitive DDon’t pair with dairy if sensitive (can curdle protein digestion) (Eat post-protein meal for digestive help
+      - How to Stack
+        - B•Meat digestion: Pineapple + steak = nature’s meat tenderizer 8Inflammation cooldown: Pineapple + mint + coconut water <Pre-bed detox: Pineapple + lemon water = liver & enzyme love
+    - Watermelon
+      - How to Absorb
+        - .Eat ripe and cold (great post-sweat or sauna) 7Salt before eating to enhance sodium-potassium balance %Best alone or 30 minutes before meals
+      - How to Stack
+        - •Hydration bomb: Watermelon + sea salt = primal electrolyte fix / •Pump stack: Watermelon + honey pre-training = glycogen + vasodilation / •Clean start: Watermelon cubes + mint = digestive reset
+      - Benefits
+        - ELoaded with Potassium, Citrulline, Lycopene (a powerful antioxidant) 192% water → perfect for hydration + blood flow GCitrulline boosts nitric oxide → supports circulation and performance  /   / 
+    - Oranges
+      - How to Absorb
+        - Fresh-juiced or peeled whole QBest alone or before food (citrus can clash with fats/protein in sensitive guts) )Salt boosts adrenal and hydration synergy
+      - How to Stack
+        - •Morning fuel: Orange juice + salt = cortisol-friendly wake-up / •Immune stack: Orange + raw honey + ginger / •Refresh: Orange wedges + mint + sparkling mineral water
+      - Benefits
+        - :High in Vitamin C, A (as beta-carotene), E, K, and Copper /Natural digestive enzymes (especially amylase) 6Antioxidant-rich — supports immune function and skin
+    - angos
+      - Benefits
+        - :High in Vitamin C, A (as beta-carotene), E, K, and Copper /Natural digestive enzymes (especially amylase) 6Antioxidant-rich — supports immune function and skin
+      - How to Absorb
+        - )Eat fully ripe (soft and sweet-smelling) 'Peel skin to reduce plant defense load DAdd a squeeze of lime + pinch of salt for mineral-enhanced digestion
+      - How to Stack
+        - <Pre-workout: Mango + coconut water + salt = primal Gatorade (Digestive boost: Mango + kefir + ginger BSleep prep: Mango + raw milk + honey = glucose + calcium + calming
+    - pples
+      - How to Absorb
+        - >Peel skin and remove seeds (contain small amounts of cyanide) 8Eat organic — apples are high on the Dirty Dozen list 3Best solo or with light protein, not with heavy fat
+      - How to Stack
+        - •If tolerated: Peeled apple + cinnamon + ghee = low-toxin apple pie / •Craving helper: Peeled apple + lemon + salt = clean glucose snack / •Reset: Apple + raw cheese (if dairy is tolerated)
+      - Benefits
+        - PContain Quercetin (natural antihistamine), Vitamin C, Potassium, Pectin (fiber) ?Can support digestion and feed healthy bacteria (if tolerated) /Antioxidants may support blood sugar regulation  / 
+    - Cantaloupe
+      - Benefits
+        - SVery high in Vitamin A (as beta-carotene) → supports vision, skin, immune health BRich in Vitamin C, Potassium, Folate, Magnesium, and Water (90%+) 6Naturally hydrating and alkalizing, easy on digestion FContains antioxidants like lutein + zeaxanthin that support eye health  /   /   / 
+      - How to Stack
+        - PAM Hydration Reset: Cantaloupe + Celtic sea salt = adrenal-friendly fruit water UPre-training: Cantaloupe cubes + raw honey + lemon juice = quick fuel + electrolytes KFasting exit: Cantaloupe + coconut water = gentle, glucose-rich soft entry EGlow booster: Cantaloupe + papaya + mint = skin-nourishing carb salad
+      - How to Absorb
+        - ZEat fully ripe (soft flesh, sweet aroma) — underripe cantaloupe = more resistant starch SEat alone or before meals for best digestion (due to water content and mild fiber) LAdd a pinch of salt to enhance potassium-sodium balance and increase flavor GBest raw and fresh — enzymes and vitamin C degrade with time or heat
+    - Berries
+      - How to Stack
+        - /AM brain boost: Berries + tallow or raw yogurt 5Post-walk: Berries + raw cheese = snack with purpose OGlymphatic support: Berries + honey before bed = brain detox + antioxidant flow
+      - How to Absorb
+        - ;Eat fresh, ideally organic (berries are pesticide sponges) FCombine with fat (Microcharge or dairy) to enhance antioxidant uptake 1Chew thoroughly — fiber requires saliva enzymes
+      - Benefits
+        - ((Strawberries, Blueberries, Raspberries) 6Packed with Vitamin C, K1, Manganese, and polyphenols 0Low glycemic → supports blood sugar stability LHigh in antioxidants (especially anthocyanins for brain and cellular repair)  /   / 
+    - anana
+      - enefits
+- "> / <Non Toxic Carbs / The ones your body actually knows how to use
+  - Raw Local Honey Nature’s glucose IV — but with intelligence. / Raw honey is not just sugar. It’s a full-spectrum carb source packed with enzymes, trace minerals, and immune-boosting compounds. Used wisely, it becomes a targeted fuel source for the brain, liver, and muscles — and helps replenish glycogen post-exertion. / 🔬 Why it works: Easily digestible monosaccharides (glucose + fructose), loaded with prebiotic and antioxidant value. / 🔥 Use it: First thing in the morning for liver glycogen, before bed for sleep, or post-workout.  /   / 
+  - Sweet Fruit (Seed free)Banana, Berries, Mango, Pineapple, Watermelon, Papaya, Oranges, etc. / These fruits are designed to be eaten. Plants want you to eat their ripe fruit — it’s their delivery system for seeds. When you remove the seeds, what you’re left with is bioavailable hydration + glucose wrapped in a vitamin cocktail. / 🔬 Why it works: Simple carbs plus vitamin C, potassium, and fiber — with minimal plant defense chemicals if eaten ripe and seed-free. / 🔥 Use it: Mid-morning or post-workout. Pair with fat (like raw dairy or suet) to slow the insulin spike and amplify absorption.  /   / 
+  - Tallow, Suet, Grass-Fed Butter, Ghee / These aren’t carbs, but they are the metabolic firewood that let you burn carbs cleanly and efficiently. They buffer insulin, support hormone production, and provide the fat-soluble vitamin matrix (A, D, E, K2) that fruit carbs ride in on. / 🔬 Why it works: These fats make carbs functional. Without them, fruit is just sugar. With them, it’s fuel with purpose. / 🔥 Use it: Cook your squash in ghee. Dip fruit in cream. Fuel mitochondria.)  /   / 
+  -  /   / 

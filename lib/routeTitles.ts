@@ -21,7 +21,7 @@ export const SECTION_TITLE: Readonly<Record<string, string>> = {
 /** Every other screen, by its first path segment. The tabs' names are the tab bar's. */
 const ROUTE_TITLE: Readonly<Record<string, string>> = {
   "": "Today", truck: "Find Us", events: "Find Us", menu: "Menu", shop: "Shop", "3mpire": "3MPIRE",
-  book: "Book the bar", craft: "Our craft", reserve: "Reserve", delivery: "Delivery", primal: "Primal",
+  book: "Book the bar", craft: "Our craft", reserve: "Reserve", delivery: "Delivery", primal: "GT3 Nutrition",
   academy: "Academy", agreement: "Agreement", offer: "Your offer", architecture: "System map", scan: "Scan",
   playbook: "Playbook", privacy: "Privacy", terms: "Terms", office: "Your GT3", driver: "Delivery run",
   display: "Display", built: "Partner share", crew: "Crew", order: "Your order", texts: "Texts",

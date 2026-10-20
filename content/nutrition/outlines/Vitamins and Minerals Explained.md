@@ -1,0 +1,247 @@
+- " / Daily Sales System
+  - SLO Funnels
+    - " / Break Even Point
+      - The goal with an SLO funnel is just to break even, ideally within 7 days. For example: you pay $500 to send 50 people through your automated sales funnel that sells your $500 course. One person buys. Your ad costs are covered and you got 50 new leads for “free” essentially.
+    - " / All Roads Lead to One
+      - After you build your automated selling system, you should focus all of your energy on sending traffic to it. Everything you create on social media should connect in some way to your product or sales funnel. Don’t have multiple links in your bio. Send people to ONE place.
+    - " / Money As Leverage
+      - A self-liquidating offer funnel used money as leverage instead of time. The goal is to create a lead generation machine that runs on autopilot and “liquidates” your advertising costs.
+  - 2 Hours On 20%
+    - " / Done Before Noon
+      - If you spend 2-4 hours per day on the most important activities, you can out-produce almost everyone and at the same time work less than everyone. The goal: done working before noon every day. This is only possible if you’re extremely efficient with your time and energy and develop your ability to focus.
+    - " / Automate, Delegate, Eliminate
+      - The tasks that don’t move the needle much should be automated, delegated, or eliminated whenever possible so you can dedicate more time to the needle-moving activities.
+    - " / Money Making Activities
+      - Most people focus the vast majority of their time on “maintenance” activities rather than money-making activities. The first 2 hours of each day should be focused on the real needle-movers like content creation, product creation, copywriting, etc.
+  - The Rule of One
+    - One Year
+      - "l / jMaster selling one product on one channel for at least one year until you add complexity to your business.
+    - One Product
+      - The biggest mistake people make is diversifying too soon. You do not need more than one product until you’re beyond 6 figures per year.
+    - One Channel
+      - You also do not need more than one social media platform to scale to 6 figures. Instead of being mediocre at a bunch of platforms, be great at one.
+  - Identity
+    - " / Remove Money Blocks
+      - One major obstacle you’ll likely encounter are your beliefs about money and how much is possible for you to make, how much you deserve or can charge, or what it means about you as a person. Realize money is an infinite resource that does not care about morality or your beliefs about it. Money is neutral, but it does operate according to certain ‘laws’ or principles. Make an effort to understand these principles. See the 7 Laws of Abundance mind map here.
+    - " / Uncompromising Vision
+      - Build a business that gives you what you want. Create a vision for your future and be uncompromising with that vision. Reverse engineer what it takes and work towards it. Don’t get distracted by other so-called ‘opportunities.’
+    - " / Be It Before You See It
+      - Ultimately, your success will come from who you are, not the tactics or strategies you use. All the strategies work. What matters is how you show up in the world and how you approach your work. Approach it like a professional, as if you were already the highly successful person you desire to be. Be it and then you’ll see it manifest.
+  - 100 Clicks
+    - Price Point
+      - To maximize your income but also your freedom, your product should be priced between $200 and $2,000. At this price point, your sales can be largely automated without the need for things like sales calls, coaching calls, and big launches.
+    - 2% Conversion Rate
+      - The average conversion rate for digital products priced between $200 and $2000 is approximately 2%. Meaning you’ll make about 1 sales for every 50 leads.
+    - 50 Leads Per Day
+      - So to make one sale per day, you’ll need about 50 leads (or clicks) per day. If you’re sending traffic to an opt-in page, you’ll need at least 100 clicks per day to average 50 leads per day.
+  - Owned Media
+    - Reach At Will
+      - Having an email list gives you the ability to reach people at will instead of being dependent on social algorithms. With the click of a button, you can reach thousands of people, whenever you want.
+    - " / Your Own Social Platform
+      - It’s also a good idea to build a free community of some kind, which acts almost as your own social media platform. This is another way to reach people and also builds trust and connection with you, a key ingredient in making sales.
+    - " / Reduce Dependencies
+      - Once you have some traction, you want to reduce dependencies, meaning to not be dependent on any one platform in order to reach your audience. You should start building an email list as soon as possible so you can “own” your audience.
+  - Differentiation
+    - Superior Method
+      - Why is your product superior to other solutions? Why should someone buy your product and not someone else’s? Your product should make the buyer’s life easier in some way. People want speed, ease, and convenience.
+    - New Opportunity
+      - Ideally, your product should be positioned as a “new opportunity” or a “fresh” approach to solving a common problem. Think about how you can position your product as superior to other solutions out there by making it faster, simpler, easier, or better in some way.
+    - Unique Angle
+      - To make a product that sells like crazy, it should be unique in some way, different from what anyone else is doing. What makes your product better? What makes it uniquely yours?
+- Vitamins Minerals
+  - Identity
+    - " / Be It Before You See It
+      - Ultimately, your success will come from who you are, not the tactics or strategies you use. All the strategies work. What matters is how you show up in the world and how you approach your work. Approach it like a professional, as if you were already the highly successful person you desire to be. Be it and then you’ll see it manifest.
+    - " / Uncompromising Vision
+      - Build a business that gives you what you want. Create a vision for your future and be uncompromising with that vision. Reverse engineer what it takes and work towards it. Don’t get distracted by other so-called ‘opportunities.’
+    - " / Remove Money Blocks
+      - One major obstacle you’ll likely encounter are your beliefs about money and how much is possible for you to make, how much you deserve or can charge, or what it means about you as a person. Realize money is an infinite resource that does not care about morality or your beliefs about it. Money is neutral, but it does operate according to certain ‘laws’ or principles. Make an effort to understand these principles. See the 7 Laws of Abundance mind map here.
+  - Magnesium
+    - ow To Absorb
+      - Fatty fish, broth, organ meats. Best with: Dinner or before bed Time: Night nWhy: Calms the nervous system, supports sleep, and relieves muscle cramps. Don’t take early unless training.
+    - What It Does
+      - sHelps you relax your muscles, regulate your heartbeat, and sleep deeply — and powers over 300 chemical reactions!
+    - igns Of Low
+      - +Cramping calves, poor sleep, sugar cravings
+  - 2 Hours On 20%
+    - " / Done Before Noon
+      - If you spend 2-4 hours per day on the most important activities, you can out-produce almost everyone and at the same time work less than everyone. The goal: done working before noon every day. This is only possible if you’re extremely efficient with your time and energy and develop your ability to focus.
+    - " / Money Making Activities
+      - Most people focus the vast majority of their time on “maintenance” activities rather than money-making activities. The first 2 hours of each day should be focused on the real needle-movers like content creation, product creation, copywriting, etc.
+    - " / Automate, Delegate, Eliminate
+      - The tasks that don’t move the needle much should be automated, delegated, or eliminated whenever possible so you can dedicate more time to the needle-moving activities.
+  - Calcium
+    - igns Of Low
+      - ,Twitching eyelids, weak nails, restless legs
+    - What It Does
+      - Z"d / bBuilds bones, helps your heart beat, and sends signals between nerves and muscles like Morse code.
+    - ow To Absorb
+      - Raw dairy, sardines with bones Time: Evening or post-meal GWhy: Supports muscle relaxation and bone repair — ideal before sleep.
+  - Vitamin B 6 (Pyridoxine/PL)
+    - What It Does
+      - sHelps convert food into brain chemicals like dopamine and serotonin. Without B6, your mood controller might glitch.
+    - ow To Absorb
+      - Found in liver, red meat, eggs y","( / & / Time: Morning or before training / Why: dThese fuel your brain and mitochondria — best taken when your engine is revving, not winding down.
+    - igns of Low
+      - 9"9 / 7Tingling hands/feet, vivid dreams, low stress tolerance
+  - Vitamin B7 (Biotin)
+    - ow To Absorb
+      - Found in liver, red meat, eggs Time: Morning or before training / Why: These fuel your brain and mitochondria — best taken when your engine is revving, not winding down.
+    - igns Of Low
+      - "' / %Weak nails, brittle hair, itchy scalp
+    - What It Does
+      - u"^ / \It helps your body turn fats and proteins into strong nails, glowing skin, and flowing hair.
+  - Differentiation
+    - Unique Angle
+      - To make a product that sells like crazy, it should be unique in some way, different from what anyone else is doing. What makes your product better? What makes it uniquely yours?
+    - New Opportunity
+      - Ideally, your product should be positioned as a “new opportunity” or a “fresh” approach to solving a common problem. Think about how you can position your product as superior to other solutions out there by making it faster, simpler, easier, or better in some way.
+    - Superior Method
+      - Why is your product superior to other solutions? Why should someone buy your product and not someone else’s? Your product should make the buyer’s life easier in some way. People want speed, ease, and convenience.
+  - inc
+    - What It Does
+      - u"Z / XHeals wounds, supports testosterone, and activates your immune system’s defense squad.
+    - igns Of Low
+      - .Low libido, white spots on nails, slow healing
+    - ow To Absorb
+      - ed m eat-based meals (beef, oysters) -Time: Evening (but not with calcium or iron) bWhy: Too much zinc early can compete with copper or iron. Evening helps recovery + hormone repair.
+  - Iron  / (Heme Iron)
+    - What It Does
+      - "] / [Iron carries oxygen in your blood, making sure every cell gets the air it needs to breathe.
+    - igns Of Low
+      - 9Cold hands, dizziness standing up, low exercise tolerance
+    - How to Absorb
+      - 3Best with: Red meat, on an empty stomach if needed Time: Morning or midday qWhy: Absorbs better without calcium; don’t pair with dairy. Add Vitamin C-rich foods (fruit/liver) for a boost.
+  - " / Vitamin E (Tocopherols)
+    - ow To Absorb
+      - G"* / (Fatty meals (eggs, butter, liver, meat) / "" / Time: Morning or mid-day / " uWhy: Fat helps absorption. Ingesting them earlier supports hormone rhythm and avoids digestive sluggishness at night.
+    - igns Of Low
+      - "- / +Dry lips, slow wound healing, easy bruising
+    - What It Does
+      - {"{ / yVitamin E is your body’s built-in antioxidant. It protects your cells from damage like a shield deflecting laser beams.
+  - Phosphorus
+    - What I t Does
+      - TPart of every cell membrane and crucial for storing and transferring energy via ATP.
+    - ow To Absorb
+      - Red m eat + eggs -Time: Any time — often paired with protein :Why: Needed daily for ATP — powers literally everything.
+    - igns Of Low
+      - #Weakness, joint pain, low endurance
+  - " / Vitamin B5 (Pantothenic Acid)
+    - What It Does
+      - ]"V / TIt helps you make Coenzyme A, which builds hormones and breaks down fats for energy.
+    - igns of Low
+      - "3 / 1Burned out feeling after stress, slow hair growth
+    - ow To Absorb
+      - Found in liver, red meat, eggs Time: Morning or before training / Why: These fuel your brain and mitochondria — best taken when your engine is revving, not winding down.
+  - Vitamin B3 (Niacin)
+    - ow To Absorb
+      - Found in liver, red meat, eggs Time: Morning or before training / Why: These fuel your brain and mitochondria — best taken when your engine is revving, not winding down.
+    - What It Does
+      - Niacin becomes NAD⁺, which your body uses to power cells and repair your DNA — like recharging your battery and fixing the wiring all at once.
+    - gns Of Low
+      - "7 / 5Poor skin tone, flushed cheeks randomly, irritability
+  - Owned Media
+    - Reach At Will
+      - Having an email list gives you the ability to reach people at will instead of being dependent on social algorithms. With the click of a button, you can reach thousands of people, whenever you want.
+    - " / Your Own Social Platform
+      - It’s also a good idea to build a free community of some kind, which acts almost as your own social media platform. This is another way to reach people and also builds trust and connection with you, a key ingredient in making sales.
+    - " / Reduce Dependencies
+      - Once you have some traction, you want to reduce dependencies, meaning to not be dependent on any one platform in order to reach your audience. You should start building an email list as soon as possible so you can “own” your audience.
+  - Vitamin A (Retinol)
+    - ow To Absorb
+      - G"" /  Eat liver lightly seared or raw.
+    - igns Of Low
+      - #"@ / >Needing brighter lights to read, dry eyes/skin, dull skin tone
+    - What It Does
+      - wIt helps your eyes adjust in the dark, builds strong skin cells, and boosts your immune army so they’re battle-ready.
+  - Vitamin K2 (MK-4)
+    - What It Does
+      - m"{ / yIt directs calcium into bones (not arteries) like a traffic cop, helping you avoid brittle bones and heart calcification.
+    - igns Of Low
+      - "7 / 5Tight calves, sensitive teeth, visible plaque buildup
+    - How To Absorb
+      - G"* / (Fatty meals (eggs, butter, liver, meat) / "" / Time: Morning or mid-day / ""w / uWhy: Fat helps absorption. Ingesting them earlier supports hormone rhythm and avoids digestive sluggishness at night.
+  - Sodium
+    - ow To Absorb
+      - Unrefined salt in morning water. / First thing in the morning or around workouts Time: Morning and post-exercise wWhy: Balance fluids, regulate blood pressure, and power nerve signals. A pinch of salt in morning water = game changer.
+    - igns Of Low
+      - 2Low blood pressure, brain fog, dizzy when standing
+    - What It Does
+      - [" / Manages hydration, blood  / rs""P / Npressure, and nerve firing — too little and you feel like a deflated balloon
+  - Vitamin D (D3)
+    - What It Does
+      - Vitamin D grabs calcium and shoves it into your bones, helps regulate your hormones, and even tells your immune cells when to attack (or chill out).
+    - gns Of Low
+      - "= / ;Low motivation in winter, afternoon slump, minor bone aches
+    - ow To Absorb
+      - "G / ECofactor in over 100 enzyme reactions including amino acid metabolism
+  - Copper
+    - igns Of Low
+      - (Premature gray hair, fatigue, poor focus
+    - What It Does
+      - i"S / QTeams up with iron to build red blood cells and supports brain energy production.
+    - ow To Absorb
+      - Best with: Organs (liver, kidney, shellfish) / Time: Anytime with food (preferably not with heavy zinc) / Why: Small amounts go a long way — don’t megadose.
+  - Vitamin C (Ascorbic Acid)
+    - ow to Absor
+      - "G / ECofactor in over 100 enzyme reactions including amino acid metabolism
+    - What It Does
+      - d"] / [It’s the maintenance crew — fixing tissues, boosting immunity, and helping absorb iron.
+    - igns Of Low
+      - "1 / /Bleeding gums when brushing, fatigue, dull skin
+  - " / Vitamin B2 (Riboflavin)
+    - igns Of Low
+      - "9 / 7Dry corners of the mouth, eye strain, light sensitivity
+    - What It Does
+      - cIt helps ignite chemical reactions in your mitochondria to make ATP — your cellular energy money.
+    - ow To Absorb
+      - Found in liver, red meat, eggs Time: Morning or before training / Why: These fuel your brain and mitochondria — best taken when your engine is revving, not winding down.
+  - Vitamin B9 (Folate)
+    - ow To Absorb
+      - Found in liver, red meat, eggs Time: Morning or before training / Why: These fuel your brain and mitochondria — best taken when your engine is revving, not winding down.
+    - igns Of Low
+      - ") / 'Pale skin, frequent sighing, poor focus
+    - What It Does
+      - ^"d / bHelps your body make new cells and red blood cells — like a construction worker with blueprints.
+  - dine
+    - What It Does
+      - ]"r / pBuilds thyroid hormones that control how fast your body burns energy — like the dial on your internal furnace.
+    - ow To  Absorb
+      - "Organs (liver, kidney, shellfish) 9Time: Anytime with food (preferably not with heavy zinc) 6Why: Small amounts go a long way — don’t megadose.
+    - igns Of L ow
+      - 9Cold hands, dizziness standing up, low exercise tolerance
+  - Vitamin B12 Methylcobalamin
+    - What It Does
+      - The nerve protector! e / B12 wraps your nerves in insulation (myelin), helps make red blood cells, and powers mental clarity.
+    - ign Of Low
+      - ~"' / %Cold hands/feet, mood dips, brain fog
+    - ow To Absorb
+      - Found in liver, red meat, eggs !Time: Morning or before training iWhy: These fuel your brain and mitochondria — best taken when your engine is revving, not winding down.
+  - Vitamin B1 (Thiamine)
+    - ow To Absor
+      - Found in liver, red meat, eggs Time: Morning or before training / Why: These fuel your brain and mitochondria — best taken when your engine is revving, not winding down.
+    - What It Does
+      - e"m / kB1 helps your body turn carbs into clean energy and keeps your nervous system wiring from short-circuiting.
+    - igns Of L ow
+      - "3 / 1Craving carbs often, brain fog after eating sugar
+  - Potassium
+    - ow To Absorb
+      - Red meat, fruit, coconut water. 9Best with: First thing in the morning or around workouts Time: Morning and post-exercise wWhy: Balance fluids, regulate blood pressure, and power nerve signals. A pinch of salt in morning water = game changer.
+    - What It Does
+      - d"[ / YKeeps your muscles pumping and your cells hydrated — and balances sodium like yin-yang.
+    - ign s Of Low
+      - 0Muscle fatigue, thumping heartbeat, irritability
+  - SLO Funnels
+    - " / Money As Leverage
+      - A self-liquidating offer funnel used money as leverage instead of time. The goal is to create a lead generation machine that runs on autopilot and “liquidates” your advertising costs.
+    - " / All Roads Lead to One
+      - After you build your automated selling system, you should focus all of your energy on sending traffic to it. Everything you create on social media should connect in some way to your product or sales funnel. Don’t have multiple links in your bio. Send people to ONE place.
+    - " / Break Even Point
+      - The goal with an SLO funnel is just to break even, ideally within 7 days. For example: you pay $500 to send 50 people through your automated sales funnel that sells your $500 course. One person buys. Your ad costs are covered and you got 50 new leads for “free” essentially.
+  - Selenium
+    - ow To Absorb
+      - Organs (liver, kidney, shellfish) / Time: Anytime with food (preferably not with heavy zinc) / Why: Small amounts go a long way — don’t megadose.
+    - igns Of Low
+      - 9Cold hands, dizziness standing up, low exercise tolerance
+    - What It Does
+      - ]"j / hWorks with glutathione to neutralize oxidative stress — keeps your thyroid and cells from overheating.
