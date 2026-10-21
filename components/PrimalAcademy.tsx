@@ -25,6 +25,8 @@ import { readCourseLessons } from "@/lib/nutritionRead";
 
 // The map draws itself in when it is reached; it is not the first thing a phone paints.
 const CourseMap = dynamic(() => import("@/components/nutrition/CourseMap"));
+// The way in (R46): the card form is the Square SDK's, loaded when the block is reached, not with the course.
+const CourseBuy = dynamic(() => import("@/components/nutrition/CourseBuy"));
 
 // GT3 NUTRITION — the course's home (R44): GT3 Nutrition is the brand, Return to Primal its course. A reader picks up
 // where they left off (Continue opens their next lesson), sees how far along they are lesson by lesson (a segment each,
@@ -240,8 +242,10 @@ export default function PrimalAcademy() {
         <div className="pr-cta-block" id="nu-pro">
           <EditableCopy k="primal.cta_eye" value={copy("primal.cta_eye")} as="div" className="pr-cta-n" />
           <EditableCopy k="primal.cta_body" value={copy("primal.cta_body")} as="p" className="pr-cta-body" multiline />
+          {/* THE WAY IN (R46): GT3 Nutrition, one time, at the catalog's price — or, bought, said so. */}
+          <CourseBuy owned={isPro} signedIn={!!user} onBought={() => void board.reload()} />
           {/* CTA text is inside a <Link> — plain copy(), not EditableCopy (nested-interactive rule). */}
-          <Link href="/reserve" className="btn-pri btn-wide max-w-[320px] mx-auto">{copy("primal.cta_link")}</Link>
+          <Link href="/reserve" className="btn-ter mx-auto">{copy("primal.cta_link")}</Link>
         </div>
       )}
 

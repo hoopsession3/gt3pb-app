@@ -99,4 +99,7 @@
 .nu-today-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .nu-today-meta{font-family:var(--mono);font-size:11px;letter-spacing:.6px;color:var(--oa-cream-faint)}
 .nu-today-go{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border-radius:var(--r-xl);background:var(--red);color:#fff;font-family:var(--sans);font-weight:650;font-size:15px}
-
+/* R46 — the way in: GT3 Nutrition, one time (components/nutrition/CourseBuy) */
+.nu-buy{display:flex;flex-direction:column;gap:10px;max-width:360px;margin:16px auto 6px;text-align:center}
+.nu-buy-fine{font-family:var(--sans);font-size:13px;line-height:1.5;color:var(--oa-cream-faint);margin:0}
+.nu-buy-owned{font-family:var(--sans);font-size:15px;font-weight:600;color:var(--gold2);margin:16px auto 6px;text-align:center}

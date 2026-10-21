@@ -43,7 +43,7 @@ async function post(req: Request) {
 
   const { data: order, error: orderError } = await supabaseAdmin
     .from("shop_orders")
-    .select("id, email, user_id, ship_name, total_cents, status")
+    .select("id, email, user_id, ship_name, ship_address, total_cents, status")
     .eq("tenant_id", tenant).eq("id", id).maybeSingle();
   // A read that failed is not "not found" (R39 — the fresh audit's API11-06), and a receipt is sent whole or not at all:
   // with its lines or its tracking unread, it would tell a customer they bought nothing, or that a shipped box hasn't.
@@ -93,6 +93,8 @@ async function post(req: Request) {
     items: (items ?? []) as { title: string; qty: number; unit_cents?: number | null }[],
     tracking_number: (ship as { tracking_number?: string | null } | null)?.tracking_number ?? null,
     tracking_url: (ship as { tracking_url?: string | null } | null)?.tracking_url ?? null,
+    // A course (R46) ships nothing: no address on the order, and its receipt says where it is read.
+    digital: !(order as { ship_address?: unknown }).ship_address,
   }, true);
 
   const sent = await tellCustomer({

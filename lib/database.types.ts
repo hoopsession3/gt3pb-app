@@ -8460,6 +8460,7 @@ export type Database = {
           source: string
           granted_at: string
           revoked_at: string | null
+          order_id: string | null
         }
         Insert: {
           id?: string
@@ -8469,6 +8470,7 @@ export type Database = {
           source?: string
           granted_at?: string
           revoked_at?: string | null
+          order_id?: string | null
         }
         Update: {
           id?: string
@@ -8478,6 +8480,7 @@ export type Database = {
           source?: string
           granted_at?: string
           revoked_at?: string | null
+          order_id?: string | null
         }
         Relationships: [
           {
@@ -8485,6 +8488,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_access_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "shop_orders"
             referencedColumns: ["id"]
           },
           {

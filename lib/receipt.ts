@@ -26,7 +26,12 @@ export type ReceiptOrder = {
   items: ReceiptLine[];
   tracking_number?: string | null;
   tracking_url?: string | null;
+  /** Nothing to ship (R46 — GT3 Nutrition, the course): the receipt says where it is, not that tracking follows. */
+  digital?: boolean;
 };
+
+/** Where a bought course is read — said on its receipt, sent or resent. */
+export const COURSE_HOME = "https://app.gt3pb.com/primal";
 
 /** The short reference a customer quotes back. The order id is a UUID; nobody reads one aloud. */
 export function orderRef(id: string): string {
@@ -88,7 +93,9 @@ export function orderReceipt(o: ReceiptOrder, resent = false): { subject: string
       `Total ${total}`,
       `Order #${ref}`,
       "",
-      o.tracking_number
+      o.digital
+        ? `It's yours now — every lesson and every map, for good. Sign in with this email and open GT3 Nutrition: ${COURSE_HOME}`
+        : o.tracking_number
         ? `On its way. Tracking: ${o.tracking_number}${o.tracking_url ? `\n${o.tracking_url}` : ""}`
         : "We'll email tracking the moment it ships.",
     ].join("\n"),

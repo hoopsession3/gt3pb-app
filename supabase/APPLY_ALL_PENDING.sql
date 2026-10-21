@@ -17,87 +17,74 @@
 -- the others back with it. Each section below is wrapped in its own begin … commit: its locks end with it, and if one
 -- stops (a busy table's lock wait ran out), the ones above it stay applied and nothing below it runs — paste the file
 -- again a moment later; a migration already applied changes nothing the second time.
--- pending-from: 0442
--- generated-at: 2026-10-20
+-- pending-from: 0443
+-- generated-at: 2026-10-21
 -- pending-count: 1
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- held: 0376_nobody_on_the_pass_during_service_is_an_alert.sql — NOT in this file; applied by hand once the condition in its header is met
 -- held: 0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql — NOT in this file; applied by hand once the condition in its header is met
 -- held: 0442_the_course_is_bought_and_the_pillars_are_given.sql — NOT in this file; applied by hand once the condition in its header is met
 -- ============================================================
--- 0441_a_lessons_preview_is_anyones.sql
+-- 0443_gt3_nutrition_is_for_sale.sql
 -- ============================================================
-begin;   -- 0441, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
--- ── 0441 — A LESSON'S PREVIEW IS ANYONE'S ──────────────────────────────────────────────────────────────────────────
--- 2026-10-20. R45 (Ryan, 2026-10-20: "rookies shouldn't be free, only the pillars — light, stillness, movement, fuel";
--- the lessons locked with a preview kept). Paste into Supabase → SQL Editor → Run. A second run changes nothing.
+begin;   -- 0443, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
+-- ── 0443 — GT3 NUTRITION IS FOR SALE ───────────────────────────────────────────────────────────────────────────────
+-- 2026-10-21. R46 (Ryan, 2026-10-21: "One-time buy" — $47 as the founding price, $97 once the Rookie path is written;
+-- "you do it now"). Paste into Supabase → SQL Editor → Run. A second run changes nothing.
 --
--- WHY. Once the course is bought (0442, held until GT3 Nutrition is for sale in the Shop), a stranger's read of
--- primal_lessons returns nothing — and the course map, the Today card, a locked lesson's page, the sitemap and a share
--- card would have nothing to show. What a lesson covers is what sells it.
+-- WHY. The course is sold now (R45 locked nothing yet — 0442 waits for this): one purchase, one time, opens every lesson
+-- and every map. Nothing in the database said what the course costs, or tied the access a purchase gives to the payment
+-- that bought it — so a refund could not take the access back.
 --
--- WHAT. primal_lesson_previews(): every live lesson as anyone may see it before buying — its title, subtitle, level,
--- minutes and summary; never its body, key points or stack. Live lessons only, the caller's tenant only (a definer reads
--- past RLS, so it says both itself, as 0283's restrictive policy would). Additive: nothing anyone reads today changes,
--- except that a Pro lesson's title and summary are now seen before it is unlocked — which is the point.
+-- WHAT.
+--   1. The product: one shop_products row, kind 'program_tier', program_tier 'pro' (0271's spine) — "GT3 Nutrition ·
+--      Return to Primal", $47, published. Its price is the catalog's like every product's; app/api/nutrition/checkout
+--      charges what this row says, never what a page sent.
+--   2. program_access.order_id: the shop order that bought it (nullable — the crew's comps and coaches' grants have none).
+--   3. A refund takes it back: when a shop order moves to refunded or canceled, the access that order granted is revoked
+--      (revoked_at now). A grant from anywhere else is not touched.
 --
--- set lock_timeout (database F16): one function made, one replaced (the stack's, with its gate).
--- existing rows: none.
--- changelog: none — the screens that read it say so when the course is bought (0442).
+-- set lock_timeout (database F16): one column added, one trigger function and its trigger made, one row written.
+-- existing rows: one product row added (none like it exists). No access row changes.
+-- changelog: none — GT3 Nutrition's own line arrives with 0442, when the course is bought.
 
 set lock_timeout = '5s';
 
--- what anyone may know before buying
-create or replace function public.primal_lesson_previews()
-returns table (id uuid, module_id uuid, slug text, title text, subtitle text, tier text, est_minutes int, summary text, sort int)
-language sql stable security definer set search_path = '' as $$
-  select l.id, l.module_id, l.slug, l.title, l.subtitle, l.tier, l.est_minutes, l.summary, l.sort
-    from public.primal_lessons l
-   where l.published_at is not null
-     and l.archived_at is null
-     and l.tenant_id = public.effective_tenant()
-   order by l.sort, l.title;
-$$;
-revoke all on function public.primal_lesson_previews() from public, anon, authenticated;
-grant execute on function public.primal_lesson_previews() to anon, authenticated;
-comment on function public.primal_lesson_previews() is
-  'Every live lesson of GT3 Nutrition as anyone may see it before buying (0441): title, subtitle, level, minutes, summary — never the body, key points or stack, which "primal lessons read" keeps for a live GT3 Nutrition purchase (program_access tier pro) and the crew.';
+-- 1 · the product
+insert into public.shop_products (kind, program_tier, title, public_title, blurb, price_cents, published_at, sort)
+select 'program_tier', 'pro', 'GT3 Nutrition · Return to Primal', 'GT3 Nutrition',
+       'The whole Return to Primal course — every lesson, its key points and its stack, and every map to keep. One time, yours for good.',
+       4700, now(), 0
+where not exists (
+  select 1 from public.shop_products where kind = 'program_tier' and program_tier = 'pro' and archived_at is null
+);
 
--- …and the drink stack a lesson recommends stays the lesson's. primal_menu_for_lesson (0272) reads it for any lesson id,
--- past RLS — safe while the only ids a stranger could hold were a free lesson's. The preview hands out every id, so it
--- asks what "primal lessons read" asks today (0272: a Rookie lesson is anyone's, a Pro lesson a member's); 0442 narrows
--- both together when the course is bought.
-create or replace function public.primal_menu_for_lesson(_lesson_id uuid)
-returns table(product_slug text, name text, line text, timing text, price_cents int, accent text, rationale text, orderable boolean)
-language sql stable security definer set search_path = public as $$
-  select lp.product_slug, p.name, p.line, p.timing, p.price_cents, p.accent, lp.rationale,
-         coalesce(p.active, false) as orderable
-  from public.primal_lesson_products lp
-  left join public.products p on p.slug = lp.product_slug
-  where lp.lesson_id = _lesson_id
-    and (
-      (select public.is_staff())
-      or exists (
-        select 1 from public.primal_lessons l
-        where l.id = _lesson_id and l.published_at is not null and l.archived_at is null
-          and l.tenant_id = public.effective_tenant()
-          and (
-            l.tier = 'rookie'
-            or exists (
-              select 1 from public.program_access pa
-              join public.customers c on c.id = pa.customer_id
-              where c.user_id = (select auth.uid()) and pa.tier = l.tier and pa.revoked_at is null
-            )
-          )
-      )
-    )
-  order by case upper(coalesce(p.timing, ''))
-             when 'BEFORE' then 0 when 'DURING' then 1 when 'AFTER' then 2 else 3 end, lp.sort;
-$$;
+-- 2 · the order that bought it
+alter table public.program_access add column if not exists order_id uuid references public.shop_orders(id) on delete set null;
+create index if not exists program_access_order on public.program_access(order_id) where order_id is not null;
+
+-- 3 · a refund takes it back
+create or replace function public.program_access_follows_its_order() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status in ('refunded', 'canceled') and old.status is distinct from new.status then
+    update public.program_access
+       set revoked_at = now()
+     where order_id = new.id and revoked_at is null;
+  end if;
+  return new;
+end $$;
+revoke all on function public.program_access_follows_its_order() from public, anon, authenticated;
+
+drop trigger if exists program_access_follows_its_order_tg on public.shop_orders;
+create trigger program_access_follows_its_order_tg
+  after update of status on public.shop_orders
+  for each row execute function public.program_access_follows_its_order();
 
 -- verify (numbers and booleans only):
---   select has_function_privilege('anon', 'public.primal_lesson_previews()', 'execute');                            -- t
---   select count(*) from public.primal_lesson_previews();                                                         -- the live lessons
-select public.record_migration('0441_a_lessons_preview_is_anyones');
+--   select count(*) from public.shop_products where kind = 'program_tier' and program_tier = 'pro' and archived_at is null;   -- 1
+--   select price_cents from public.shop_products where kind = 'program_tier' and program_tier = 'pro' and archived_at is null; -- 4700
+--   select count(*) from pg_trigger where tgname = 'program_access_follows_its_order_tg';                                       -- 1
+select public.record_migration('0443_gt3_nutrition_is_for_sale');
 reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
-commit;  -- 0441
+commit;  -- 0443

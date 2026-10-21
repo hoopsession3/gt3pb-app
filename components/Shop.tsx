@@ -13,7 +13,7 @@ import Watermark from "@/components/Watermark";
 import Icon from "@/components/Icon";
 import { announce } from "@/components/Announcer";
 import { useStepFocus } from "@/components/useStepFocus";
-import { Masthead, ClosingBeat } from "@/components/kit";
+import { Masthead, ClosingBeat, InfoRow } from "@/components/kit";
 import { useSiteCopy } from "@/lib/copy";
 import OrderFunnel from "@/components/OrderFunnel";
 import Reserves from "@/components/Reserves";
@@ -181,7 +181,11 @@ export default function Shop() {
           <EditableCopy k="shop.tagline" value={t("shop.tagline")} as="p" className="shop-stmt" multiline />
           {board.status === "loading" && <div className="shop-note">Loading the shop…</div>}
           {board.status === "error" && <Said assertive className="shop-note err">Couldn’t load the shop. Try again in a moment.</Said>}
-          {board.status === "ready" && products.length === 0 && <EditableCopy k="shop.empty" value={t("shop.empty")} as="div" className="shop-note" />}
+          {/* GT3 NUTRITION IS IN THE SHOP (R46 — Ryan: "Does it lead them to the shop tab?"). The course is sold where it is
+              read — on its own page, where what it holds is shown — and the Shop points there. */}
+          <Link href="/primal#nu-pro" className="block no-underline mb-3" onClick={() => haptic("light")}>
+            <InfoRow name="GT3 Nutrition — the course" sub="Return to Primal: every lesson, every map. One time." trailing={<Icon name="arrowRight" size={16} />} />
+          </Link>
           <div className="shop-grid">
             {products.map((p) => (
               <button type="button" key={p.id} className="shop-card" data-shop-card={p.id} onClick={() => { opened.current = p.id; setActive(p); setView("product"); }}>

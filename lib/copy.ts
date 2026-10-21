@@ -144,7 +144,7 @@ const COPY_DEFAULT_LIST: { key: string; default: string }[] = [
   { key: "primal.hero_h1_em", default: "Primal" },
   { key: "primal.hero_lede", default: "Real fuel, explained simply. A systematic path, quick to reference — the pillar maps free to keep, the course yours when you buy it — and every lesson ends in a stack you can actually order. Educational, never medical." },
   { key: "primal.empty", default: "The academy is being written. Check back soon — the first lessons drop this week." },
-  { key: "primal.cta_eye", default: "Go deeper" },
+  { key: "primal.cta_eye", default: "GT3 Nutrition · one time" },
   { key: "primal.cta_body", default: "The full Return to Primal course — Rookie first, then every pillar — opens with one GT3 Nutrition purchase: every lesson, its key points and its stack, and every map to keep. The four pillar maps are free, above." },
   { key: "primal.cta_link", default: "Start with a stack ›" },
   // ── Primal lesson (/primal/l/…) — locked state + the meal-stack rail. ──
