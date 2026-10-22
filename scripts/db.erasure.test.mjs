@@ -266,7 +266,7 @@ ok("the weekly audit prune runs again, keeps the year, and the switch it uses en
 // deleted: only about the person · books: kept, emptied of them · work: kept, unsigned · signed: contracts,
 // kept as signed · business: a company's account the person only used (a company's request stays the company's, unsigned — 0359)
 const DECIDED = {
-  deleted: ["academy_acknowledgements", "agent_convos", "check_ins", "loyalty_ledger", "profiles", "reviews", "rsvps", "subscription_interest",
+  deleted: ["academy_acknowledgements", "agent_convos", "check_ins", "loyalty_ledger", "profiles", "program_access", "reviews", "rsvps", "subscription_interest",
             "team_invites", "text_consents", "user_activity", "vip_verifications"],
   books: ["customer_messages", "customers", "delivery_orders", "drop_orders", "jug_ledger", "loop_txns", "shop_orders"],
   work: ["account_activities", "agent_knowledge", "alerts", "asset_maintenance", "brew_batch_steps", "brew_batches", "comments", "compliance_checks",

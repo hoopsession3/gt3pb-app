@@ -187,6 +187,7 @@ const Studio = dynamic(() => import("@/components/Studio"), { loading: () => <Po
 const ShootPlanner = dynamic(() => import("@/components/ShootPlanner"), { loading: () => <PourFill label="Loading…" /> });
 const MenuManager = dynamic(() => import("@/components/MenuManager"), { loading: () => <PourFill label="Loading…" /> });
 const LessonsManager = dynamic(() => import("@/components/LessonsManager"), { loading: () => <PourFill label="Loading…" /> });
+const CourseStudents = dynamic(() => import("@/components/nutrition/CourseStudents"), { loading: () => <PourFill label="Loading…" /> });
 const MerchManager = dynamic(() => import("@/components/MerchManager"), { loading: () => <PourFill label="Loading…" /> });
 const ShopOrders = dynamic(() => import("@/components/ShopOrders"), { loading: () => <PourFill label="Loading…" /> });
 const OperatorDeal = dynamic(() => import("@/components/OperatorDeal"), { loading: () => <PourFill label="Loading…" /> });
@@ -307,7 +308,7 @@ const SEC_INSIDE: Record<OpSection, string[]> = {
   driver: ["Next run — porches & zips", "Driver mode — map & run list", "The ONE place outcomes are logged (swap · fresh · hold · not home)"],
   customers: ["Customer list — guests & members", "Cross-channel order history (cup · pickup · delivery)", "Loyalty — points & credit", "Contact info for outreach", "Messages — a live message or ad, to everyone in the app", "Members — who pays monthly, and who's waiting for a plan", "Funnels — where people drop off"],
   money: ["Performance — sales & margin on last week, what's owed to you, the next drop", "Needs attention — waiting shop orders, chargebacks, late invoices, refunds that disagree, budgets over", "Do next — log a purchase; get paid: what's owed, chargebacks & refunds (made in Square; the switches are in Settings)", "Reports — sales, events, subscriptions, margins by product & COGS, spend vs budget", "Records — order history; the shop's orders are in the Catalog", "The Playbook (/playbook, owners) — every growth play + where its numbers land here"],
-  catalog: ["Menu & products — every drink and product, its price, and whether it's on", "The Shop · merch — and its orders: send, ship, refund", "Reserve drops — the limited drops, and who is owed one", "Return to Primal · lessons", "Membership plans — what members pay, and what they get", "Discount codes — mint one, see who used it, turn one off", "Founding perks — what a founding member gets, and what a VIP gets"],
+  catalog: ["Menu & products — every drink and product, its price, and whether it's on", "The Shop · merch — and its orders: send, ship, refund", "Reserve drops — the limited drops, and who is owed one", "GT3 Nutrition · students — who has the course, how far along; give it, export it", "GT3 Nutrition · lessons — write and publish them", "Membership plans — what members pay, and what they get", "Discount codes — mint one, see who used it, turn one off", "Founding perks — what a founding member gets, and what a VIP gets"],
   team: ["Staff roster — change a role on the person's row", "Who's on what & the org chart", "Deals & offers — operator agreements and offer letters", "Training & academy", "Manager approvals", "Invites, lane owners & Train the AI — in Settings"],
   ask: ["Recipes & the why", "Gear & stock how-to", "The GT3 playbook"],
   settings: ["You — your account; notifications: order alerts and the pass's sound on this phone, what pings you & quiet hours; display: day, dark or auto, text size (everyone)", "Business — payments & checkout: card, pay at pickup (pickup orders only: delivery is always prepaid on the card), subscriptions; ordering & delivery: the cup-ordering dial, office delivery pricing; locations & markets; team & permissions: invites & lane owners (a role is changed on Team's roster); reports: the founder digest; integrations & Outlook's two-way sync; the AI; brand & customer app: every line guests read, the app splash", "Advanced — the activity log, app health (errors & every audit run), and the dropdown lists every picker offers"],
@@ -6332,7 +6333,8 @@ export default function AdminPage() {
               waits on us, and links here. Both kept their ids (lib/panelHome). */}
           <Panel id="shoporders" title="The Shop · orders" sub="Paid merch orders — send, ship, refund"><ShopOrders /></Panel>
           <Panel id="resv" title="Reserve drops" sub="The limited drops to sell, and who is owed one"><ReservesAdmin /></Panel>
-          <Panel id="lessons" title="Return to Primal · lessons" sub="The lessons members can take"><LessonsManager /></Panel>
+          <Panel id="students" title="GT3 Nutrition · students" sub="Who has the course, how far they are — give it, export it"><CourseStudents /></Panel>
+          <Panel id="lessons" title="GT3 Nutrition · lessons" sub="Write, edit and publish the Return to Primal lessons"><LessonsManager /></Panel>
           </Column>
           <Column>
           <SectionHeader label="Memberships & offers" />

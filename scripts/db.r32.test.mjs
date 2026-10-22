@@ -229,17 +229,20 @@ ok("a program already running on its UTC date keeps its weeks: that date is writ
 // same file pasted again then finishes the rest.
 const PASTE = readFileSync(join(ROOT, "supabase/APPLY_ALL_PENDING.sql"), "utf8");
 const pendingSeqs = [...PASTE.matchAll(/^--\s*={10,}\s*\n--\s*(\d{4})_\S*\.sql\s*$/gm)].map((m) => Number(m[1]));
-const ledger = async (d) => (await d.query(`select seq::int from public.schema_migrations where seq >= 430 order by seq`)).rows.map((r) => r.seq);
+// The schema the paste lands on is production's: every migration before the first one pending (R47 — 0443 was applied
+// by itself, so "before 0430" no longer is), the held ones included as they sit beside it.
+const BASE = String(pendingSeqs[0] ?? 430).padStart(4, "0");
+const ledger = async (d) => (await d.query(`select seq::int from public.schema_migrations where seq >= $1 order by seq`, [Number(BASE)])).rows.map((r) => r.seq);
 ok("the paste file wraps each of its migrations in its own begin … commit", pendingSeqs.length > 0
   && (PASTE.match(/^begin;/gm) || []).length === pendingSeqs.length && (PASTE.match(/^commit;/gm) || []).length === pendingSeqs.length, pendingSeqs);
 {
-  const d = await fullSchema({ before: "0430" });
+  const d = await fullSchema({ before: BASE });
   await d.exec(PASTE);
   ok("the paste file, as one query: every pending migration lands, in order", JSON.stringify(await ledger(d)) === JSON.stringify(pendingSeqs), await ledger(d));
   await d.close();
 }
 {
-  const d = await fullSchema({ before: "0430" });
+  const d = await fullSchema({ before: BASE });
   const mid = pendingSeqs[Math.floor(pendingSeqs.length / 2)];
   const broken = PASTE.replace(new RegExp(`^(begin;   -- ${String(mid).padStart(4, "0")},[^\n]*)$`, "m"), "$1\nselect 1 / 0;   -- made up: this migration stops");
   let stopped = null;

@@ -15,6 +15,7 @@ import { downloadCsv } from "@/lib/csv";
 import { money, moneyPlain } from "@/lib/money";
 import { useChanged } from "@/lib/useChanged";
 import { failureWords } from "@/lib/failureWords";
+import CourseOnRecord from "@/components/nutrition/CourseOnRecord";
 
 // The customer book — first reader of the identity spine. Rows are `customers` (canonical,
 // resolve_customer-backed): every human who's ever ordered, cup, pickup or delivery, whether or
@@ -200,6 +201,8 @@ export function CrmDetail({ c }: { c: Customer }) {
               ))}
             </>
           )}
+          {/* GT3 NUTRITION (R47): enrolled or not, how, how far — and Give / Take back, an owner's or an admin's. */}
+          <CourseOnRecord customerId={c.id} canGive={canTier} />
           {hasLoyalty && (
             <>
               <div className="crm-tier">

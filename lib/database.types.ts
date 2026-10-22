@@ -8461,6 +8461,9 @@ export type Database = {
           granted_at: string
           revoked_at: string | null
           order_id: string | null
+          note: string | null
+          granted_by: string | null
+          revoked_by: string | null
         }
         Insert: {
           id?: string
@@ -8471,6 +8474,9 @@ export type Database = {
           granted_at?: string
           revoked_at?: string | null
           order_id?: string | null
+          note?: string | null
+          granted_by?: string | null
+          revoked_by?: string | null
         }
         Update: {
           id?: string
@@ -8481,6 +8487,9 @@ export type Database = {
           granted_at?: string
           revoked_at?: string | null
           order_id?: string | null
+          note?: string | null
+          granted_by?: string | null
+          revoked_by?: string | null
         }
         Relationships: [
           {
@@ -11980,6 +11989,12 @@ export type Database = {
         { Args: { p_rule: string | null; p_label: string | null; p_link: string | null; p_authority: string | null; p_lead_days: number | null; p_lead_basis: string | null; p_checked_against: string | null; p_note?: string | null }; Returns: string }
       countersign_agreement:
         { Args: { p_id: string | null; p_typed_name: string | null }; Returns: Database["public"]["Tables"]["operator_agreements"]["Row"] }
+      course_give:
+        { Args: { p_customer: string | null; p_note?: string | null }; Returns: Json }
+      course_students:
+        { Args: Record<PropertyKey, never>; Returns: { customer_id: string; name: string; email: string; user_id: string; source: string; granted_at: string; revoked_at: string; order_id: string; paid_cents: number; note: string; done: number; total: number; rookie_done: number; rookie_total: number; last_done_at: string }[] }
+      course_take_back:
+        { Args: { p_customer: string | null }; Returns: Json }
       credit_wallet:
         { Args: { p_user_id: string | null; p_points: number | null; p_total_cents: number | null; p_order_id: string | null; p_channel: string | null }; Returns: undefined }
       crew_devices:
