@@ -8,13 +8,19 @@ import { useOperatorSection, sectionsForRole, SECTION_LABEL, type OpSection } fr
 import { readTopRecents } from "./recents";
 import type { Recent } from "@/lib/recents";
 import { APP_BUILD } from "@/lib/native";
+import { PANEL_INDEX, panelMatches } from "@/lib/panelIndex";
+import { scrollToAnchor } from "@/lib/anchors";
 import Said from "./Said";
 import { useChanged } from "@/lib/useChanged";
 import { ModalAnnouncer } from "./Announcer";
 
 // COMMAND PALETTE — ⌘K / Ctrl-K quick-jump for the crew console. Type to jump to any role-allowed
 // section or run a quick action, keyboard-first (↑↓ ⏎ esc). The "this is a real product" flourish.
-type Item = { id: string; label: string; hint: string; run: () => void };
+//
+// EVERY PANEL, BY THE WORDS AN OWNER TYPES (R48 — the console audit: "store", "merch", "course", "discount" found
+// nothing). Typed, it also finds each panel the reader's role can open — by its title, its section and the words in
+// lib/panelIndex — and opens it where it lives. Empty, it stays the sections and actions it always was.
+type Item = { id: string; label: string; hint: string; run: () => void; match?: (q: string) => boolean };
 
 export default function CommandPalette() {
   const { profile } = useAuth();
@@ -76,13 +82,20 @@ export default function CommandPalette() {
       ...(APP_BUILD ? [] : [{ id: "act:scan", label: "Scan a member card", hint: "Action", run: () => router.push("/scan") }]),
       { id: "act:cust", label: "Customer view", hint: "Action", run: () => router.push("/") },
     ];
-    return [...recentItems, ...secs, ...actions];
+    const allowed = new Set<OpSection>(sectionsForRole(role));
+    const panels: Item[] = PANEL_INDEX.filter((e) => allowed.has(e.section)).map((e) => ({
+      id: `panel:${e.id}`, label: e.title, hint: SECTION_LABEL[e.section],
+      run: () => { setSection(e.section); scrollToAnchor(e.id); },
+      match: (q: string) => panelMatches(e, SECTION_LABEL[e.section], q),
+    }));
+    return [...recentItems, ...secs, ...actions, ...panels];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, setSection, router, recents]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return t ? items.filter((i) => i.label.toLowerCase().includes(t)) : items;
+    // Empty: sections and actions. Typed: anything whose name has it, and every panel the words find.
+    return t ? items.filter((i) => (i.match ? i.match(t) : i.label.toLowerCase().includes(t))) : items.filter((i) => !i.match);
   }, [q, items]);
 
   useEffect(() => {
@@ -113,10 +126,10 @@ export default function CommandPalette() {
         {/* A COMBOBOX, SAID AS ONE (R12 — the 10/10 audit, F8): ↑ ↓ moved a highlight a screen reader never heard. The field
             says it controls a list of options and which one is picked (aria-activedescendant), as the address field's
             does; the options are the list's; "No match" is said when it comes. */}
-        <input autoFocus className="cmdk-in" placeholder="Jump to a section or action…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onInputKey}
+        <input autoFocus className="cmdk-in" placeholder="Search — a section, a panel, “merch”, “course”…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onInputKey}
           aria-label="Jump to" role="combobox" aria-autocomplete="list" aria-expanded={filtered.length > 0} aria-controls="cmdk-list"
           aria-activedescendant={filtered[sel] ? `cmdk-opt-${sel}` : undefined} />
-        <div className="cmdk-list" id="cmdk-list" role="listbox" aria-label="Sections and actions">
+        <div className="cmdk-list" id="cmdk-list" role="listbox" aria-label="Sections, panels and actions">
           {filtered.map((i, idx) => (
             <button key={i.id} id={`cmdk-opt-${idx}`} type="button" role="option" aria-selected={idx === sel} tabIndex={-1}
               className={`cmdk-item${idx === sel ? " on" : ""}`} onMouseEnter={() => setSel(idx)} onClick={() => activate(i)}>

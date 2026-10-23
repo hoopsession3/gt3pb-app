@@ -9528,7 +9528,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && LAY.settingsGate("pay") === null && LAY.settingsGate(undefined) === null);
   ok("settings page: by category — You, Business, Advanced, one row per topic; what the business sells or says is not a setting",
     JSON.stringify(LAY.SETTINGS_LAYOUT.map((s) => s.label)) === JSON.stringify(["You", "Business", "Advanced"])
-    && LAY.SETTINGS_LAYOUT.reduce((n, s) => n + s.panels.length, 0) === 14
+    // R48: + the store's row — doors to Catalog (components/GoLine), the things themselves still not settings
+    && LAY.SETTINGS_LAYOUT.reduce((n, s) => n + s.panels.length, 0) === 15
     && ["menu", "plans", "cust-codes", "cust-perks", "set-broadcast", "set-changelog", "merch", "lessons"].every((id) => LAY.settingsGate(id) === null));
   ok("settings page: a part names the row that holds it, and so does a copy group — a row itself, or anything outside Settings, has no holder",
     LAY.settingsHolder("set-alerts") === "set-notify" && LAY.settingsHolder("set-sound") === "set-notify" && LAY.settingsHolder("set-theme") === "set-display"
@@ -9540,6 +9541,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     "set-account": ["<AccountRow />"],
     "set-notify": ["<DeviceAlerts />", "<PassSound />", "<NotifPrefs userId={userId} />"],
     "set-display": ["<Appearance />", "<DisplayControls />"],
+    "set-store": ['<GoLine to="catalog" anchor="menu">', '<GoLine to="catalog" anchor="merch">', '<GoLine to="catalog" anchor="students">', '<GoLine to="catalog" anchor="lessons">',
+      '<GoLine to="catalog" anchor="resv">'],   // its plans, codes and orders doors are Customers' and Money's too — drawn once is theirs
     "set-pay": ["<PaymentSettings />"], "set-ordering": ["<CupOrderingDial />", "<OfficeSettings />"], "set-markets": ["<MarketsPanel />"],
     "set-team": ['<GoLine to="team" anchor="team-members">Add someone, or change a role</GoLine>', '<OrgChart part="lanes" />'], "set-digest": ["<FounderDigest />"],
     "set-integrations": ["<IntegrationsPanel />", "<OutlookConnect />"], "set-ai": ["<AiTraining />", "<CopilotDirectory />", "<AiSpend />"],

@@ -49,6 +49,7 @@ export const SETTINGS_LAYOUT: readonly SettingsSection[] = [
     ] },                                                                     // then text size, bold, spacing
   ] },
   { label: "Business", panels: [
+    { id: "set-store", gate: "admin" },                                      // R48: the store — doors to Catalog's menu, merch, course, drops, plans, codes
     { id: "set-pay", gate: "admin" },                                        // card checkout, pay at pickup, subscriptions
     { id: "set-ordering", gate: "admin", parts: [
       { id: "set-dial", gate: "admin" },                                     // when cup pre-orders open

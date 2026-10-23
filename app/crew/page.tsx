@@ -5394,6 +5394,21 @@ function SettingsHome({ userId, isAdmin, isOwner }: { userId: string | null; isA
       <div className="set-grp set-biz">
       {isAdmin && <SectionHeader label="Business" annotation="owners & admins" />}
       <SetList>
+        {/* THE STORE, FROM SETTINGS (R48 — Ryan, 2026-10-23: "one would think that what I'm looking for would be in settings
+            under business"). What the business sells lives in Catalog, beside its orders and its customers; Settings keeps
+            one row that names all of it and opens each where it is — a door, not a second copy (components/GoLine). */}
+        {isAdmin && (
+          <Panel id="set-store" title="Store & catalog" sub="What you sell — the menu, merch, GT3 Nutrition, drops, plans and codes" remember={false}>
+            <GoLine to="catalog" anchor="menu">Menu & products — prices, on or off, sold out</GoLine>
+            <GoLine to="catalog" anchor="merch">The Shop · merch — live, hidden, prices</GoLine>
+            <GoLine to="catalog" anchor="students">GT3 Nutrition — the course, its price, its students</GoLine>
+            <GoLine to="catalog" anchor="lessons">GT3 Nutrition · lessons</GoLine>
+            <GoLine to="catalog" anchor="resv">Reserve drops</GoLine>
+            <GoLine to="catalog" anchor="plans">Membership plans</GoLine>
+            <GoLine to="catalog" anchor="cust-codes">Discount codes</GoLine>
+            <GoLine to="catalog" anchor="shoporders">The Shop · orders</GoLine>
+          </Panel>
+        )}
         {isAdmin && <Panel id="set-pay" title="Payments & checkout" sub="Card checkout, pay at pickup, subscriptions" value={v(g.pay)} remember={false}><PaymentSettings /></Panel>}
         {isAdmin && (
           <Panel id="set-ordering" title="Ordering & delivery" sub="When cup pre-orders open; office delivery’s price and minimum" value={v(g.ordering)} remember={false}>

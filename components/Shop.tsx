@@ -102,6 +102,14 @@ export default function Shop() {
   }, []);
   const board = useAsyncData<Product[]>(loader, []);
   const products = board.data ?? [];
+  // Whether GT3 Nutrition is on sale (its catalog row, published) — the Shop's row for it follows the owner's switch.
+  const courseLoader = useCallback(async (): Promise<boolean> => {
+    if (!supabase) return false;
+    const { data, error } = await supabase.from("shop_products").select("id").eq("kind", "program_tier").not("published_at", "is", null).is("archived_at", null).limit(1);
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  }, []);
+  const courseOnSale = useAsyncData<boolean>(courseLoader, []).data === true;
 
   const count = cart.reduce((n, l) => n + l.qty, 0);
   const total = cart.reduce((n, l) => n + l.product.price_cents * l.qty, 0);
@@ -183,9 +191,12 @@ export default function Shop() {
           {board.status === "error" && <Said assertive className="shop-note err">Couldn’t load the shop. Try again in a moment.</Said>}
           {/* GT3 NUTRITION IS IN THE SHOP (R46 — Ryan: "Does it lead them to the shop tab?"). The course is sold where it is
               read — on its own page, where what it holds is shown — and the Shop points there. */}
-          <Link href="/primal#nu-pro" className="block no-underline mb-3" onClick={() => haptic("light")}>
-            <InfoRow name="GT3 Nutrition — the course" sub="Return to Primal: every lesson, every map. One time." trailing={<Icon name="arrowRight" size={16} />} />
-          </Link>
+          {/* Only while the course is on sale (R48: the owner's Hidden takes it off the Shop too). */}
+          {courseOnSale && (
+            <Link href="/primal#nu-pro" className="block no-underline mb-3" onClick={() => haptic("light")}>
+              <InfoRow name="GT3 Nutrition — the course" sub="Return to Primal: every lesson, every map. One time." trailing={<Icon name="arrowRight" size={16} />} />
+            </Link>
+          )}
           <div className="shop-grid">
             {products.map((p) => (
               <button type="button" key={p.id} className="shop-card" data-shop-card={p.id} onClick={() => { opened.current = p.id; setActive(p); setView("product"); }}>

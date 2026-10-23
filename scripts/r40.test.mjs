@@ -59,7 +59,7 @@ const code = (t) => t.split("\n").map((l) => l.replace(/^\s*#.*$/, "").replace(/
   ok("the lint ratchet is the first audit, its eslint report handed to render.audit — one pass, not two",
     s.audit.startsWith("LINT_OUT=.lint.json node scripts/lint.ratchet.mjs && LINT_JSON=.lint.json node scripts/render.audit.mjs && ")
       && /if \(process\.env\.LINT_OUT\) writeFileSync\(process\.env\.LINT_OUT, out\);/.test(read("scripts/lint.ratchet.mjs")) && read(".gitignore").split("\n").includes("/.lint.json"));
-  ok("…the secrets audit runs with every audit", / && node scripts\/secrets\.audit\.mjs$/.test(s.audit));
+  ok("…the secrets audit runs with every audit", / && node scripts\/secrets\.audit\.mjs(?: && node scripts\/console\.audit\.mjs)?$/.test(s.audit));
   ok("`npm run release` is verify, then npm's advisories — the two CI runs — and `advisories` asks what ships, high and critical",
     s.release === "npm run verify && npm run advisories" && s.advisories === "npm audit --omit=dev --audit-level=high" && s["release:plan"] === "node scripts/release.plan.mjs");
   const ci = code(read(".github/workflows/ci.yml"));

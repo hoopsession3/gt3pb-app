@@ -13,6 +13,10 @@ import { readMedia, toColumns, heroWasRemoved, type MediaItem } from "@/lib/shop
 import { parseSkuBlock, formatSkuBlock } from "@/lib/apliiqOrder";
 import { money, moneyPlain } from "@/lib/money";
 import { plainFailure, failureWords } from "@/lib/failureWords";
+import BulkBar, { type BulkAction } from "@/components/BulkBar";
+import Icon from "@/components/Icon";
+import { toggle } from "@/lib/bulk";
+import { downloadCsv } from "@/lib/csv";
 
 // THE SHOP · merch manager (0273/0274) — the crew's publish + curation surface for the storefront.
 // Products arrive three ways: the in-house studio capsule (seeded), a bulk Apliiq catalog sync, and a
@@ -55,6 +59,12 @@ export default function MerchManager() {
   const [showArchived, setShowArchived] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [na, setNa] = useState({ title: "", price: "", apliiq: "", image: "", sizes: "", colors: "" });
+  // MANY AT ONCE (R48 — Ryan: "take off multiple items offline"): Select, then pick rows — by state and search — and Make
+  // live, Hide or Archive them together (components/BulkBar: asks with the count, names what didn't take, holds an Undo).
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [stateFilter, setStateFilter] = useState<"all" | "live" | "hidden" | "archived">("all");
+  const [q, setQ] = useState("");
 
   const loader = useCallback(async (): Promise<Product[]> => {
     if (!supabase) return [];
@@ -124,6 +134,30 @@ export default function MerchManager() {
   const archivedCount = products.filter((p) => p.archived_at).length;
   const shown = products.filter((p) => showArchived || !p.archived_at);
   const live = products.filter((p) => p.published_at && !p.archived_at).length;
+  const stateOf = (p: Product): "live" | "hidden" | "archived" => (p.archived_at ? "archived" : p.published_at ? "live" : "hidden");
+  const ql = q.trim().toLowerCase();
+  const pickable = products.filter((p) => (stateFilter === "all" ? !p.archived_at : stateOf(p) === stateFilter)
+    && (!ql || `${p.public_title ?? ""} ${p.title}`.toLowerCase().includes(ql)));
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const nameOf = (id: string) => { const p = byId.get(id); return p ? (p.public_title || p.title) : "an item"; };
+  // What each row was before — the Undo writes exactly this back.
+  const before = new Map(products.map((p) => [p.id, { published_at: p.published_at, archived_at: p.archived_at }]));
+  const setVis = (id: string, cols: { published_at: string | null; archived_at: string | null }) => async (): Promise<string | null> => {
+    if (!supabase) return "not connected";
+    const { data, error } = await supabase.from("shop_products").update({ ...cols, updated_at: new Date().toISOString() }).eq("id", id).select("id");
+    return error ? plainFailure(error) : data?.length ? null : "you can't change this one";
+  };
+  const bulkActions: BulkAction[] = [
+    { key: "live", label: "Make live", verb: "Make live", verbPast: "Made live", where: "in the shop",
+      apply: (id) => { const p = byId.get(id); if (p && !(p.price_cents > 0)) return Promise.resolve("no price yet"); return setVis(id, { published_at: p?.published_at ?? new Date().toISOString(), archived_at: null })(); },
+      undo: (id) => setVis(id, before.get(id) ?? { published_at: null, archived_at: null })() },
+    { key: "hide", label: "Hide", verb: "Hide", verbPast: "Hid", where: "from the shop",
+      apply: (id) => setVis(id, { published_at: null, archived_at: null })(),
+      undo: (id) => setVis(id, before.get(id) ?? { published_at: null, archived_at: null })() },
+    { key: "archive", label: "Archive", verb: "Archive", verbPast: "Archived",
+      apply: (id) => setVis(id, { published_at: byId.get(id)?.published_at ?? null, archived_at: new Date().toISOString() })(),
+      undo: (id) => setVis(id, before.get(id) ?? { published_at: null, archived_at: null })() },
+  ];
 
   return (
     <AsyncSection state={board} isEmpty={() => false} emptyTitle="No products yet" errorTitle="Couldn't load the shop">
@@ -134,6 +168,11 @@ export default function MerchManager() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button type="button" className="btn-sec btn-sm" onClick={() => setShowAdd((s) => !s)}>{showAdd ? "Close" : "+ Add product"}</button>
               <button type="button" className="btn-sec btn-sm" onClick={sync} disabled={syncing}>{syncing ? "Syncing…" : "Sync from Apliiq"}</button>
+              <button type="button" className="btn-sec btn-sm" onClick={() => void downloadCsv("gt3-merch.csv", (selecting ? pickable : shown).map((p) => ({
+                title: p.public_title || p.title, state: stateOf(p), price: moneyPlain(p.price_cents), cost: p.cost_cents != null ? moneyPlain(p.cost_cents) : "",
+                apliiq_id: p.apliiq_product_id ?? "", options: p.variants.length,
+              })))}>Export CSV</button>
+              <button type="button" className="btn-sec btn-sm" aria-pressed={selecting} onClick={() => { setSelecting((v) => !v); setPicked(new Set()); }}>{selecting ? "Done" : "Select"}</button>
             </div>
           </div>
           <div className="h-sub">
@@ -177,7 +216,30 @@ export default function MerchManager() {
             </div>
           )}
 
-          {shown.map((p) => (
+          {selecting && (
+            <>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {(["all", "live", "hidden", "archived"] as const).map((f) => (
+                  <button key={f} type="button" className={`k-chip${stateFilter === f ? " on" : ""}`} aria-pressed={stateFilter === f} onClick={() => setStateFilter(f)}>
+                    {f === "all" ? "All" : f === "live" ? "Live" : f === "hidden" ? "Hidden" : "Archived"}
+                  </button>
+                ))}
+                <input aria-label="Search merch" className="crm-search flex-1 min-w-0" placeholder="Search merch" value={q} onChange={(e) => setQ(e.target.value)} />
+              </div>
+              <BulkBar shownIds={pickable.map((p) => p.id)} selected={picked} setSelected={setPicked} nameOf={nameOf} actions={bulkActions} onDone={() => void reload()} />
+              {pickable.map((p) => (
+                <label key={p.id} className="flex items-center gap-3 min-h-11 py-1 cursor-pointer">
+                  <input type="checkbox" className="size-5 shrink-0" checked={picked.has(p.id)} onChange={() => setPicked(toggle(picked, p.id))} aria-label={`Select ${p.public_title || p.title}`} />
+                  <span className="flex-1 min-w-0 truncate">{p.public_title || p.title}</span>
+                  <span className="k-tag">{stateOf(p) === "live" ? "Live" : stateOf(p) === "hidden" ? "Hidden" : "Archived"}</span>
+                  <span className="shrink-0 tabular-nums">{money(p.price_cents)}</span>
+                </label>
+              ))}
+              {pickable.length === 0 && <div className="h-sub">Nothing here{ql ? ` matches “${q.trim()}”` : ""}.</div>}
+            </>
+          )}
+
+          {!selecting && shown.map((p) => (
             <MerchRow key={p.id} p={p} all={products} open={openId === p.id} onToggle={() => setOpenId(openId === p.id ? null : p.id)}
               onOpen={(t) => openTwin(t)} onSaved={reload} toast={toast} />
           ))}
@@ -308,7 +370,9 @@ function MerchRow({ p, all, open, onToggle, onOpen, onSaved, toast }: {
           name={<>
             {d.image_url
               ? <img src={d.image_url} alt="" style={{ width: 26, height: 26, borderRadius: 5, objectFit: "cover", marginRight: 2, verticalAlign: "middle" }} />
-              : <span className="prod-dot" style={{ background: "#8a8577" }} />}
+              // No photo yet: a tile the photo's size, so every row lines up (R48 — a 9px dot made photo-less rows sit
+              // differently from the ones with a mockup).
+              : <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: 5, marginRight: 2, verticalAlign: "middle", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--ink-onLight-05)", color: "var(--cream-m)" }}><Icon name="package" size={14} /></span>}
             {d.public_title || d.title}
           </>}
           nameExtra={<>{!published && <span className="prod-off">{d.archived_at ? "archived" : "hidden"}</span>}</>}
@@ -397,11 +461,14 @@ function MerchRow({ p, all, open, onToggle, onOpen, onSaved, toast }: {
 
           <label className="prod-f"><span>Visibility</span>
             <select value={life} onChange={(e) => setLife(e.target.value as Life)} aria-label="Product visibility">
-              <option value="hidden">Hidden — not in the shop, still editable</option>
-              <option value="published">Published — visible in /shop</option>
-              <option value="archived">Archived — pulled from the shop entirely</option>
+              {/* Short words that fit a phone's field (R48 — "Hidden — not in the shop, still edi…" was cut off), the same
+                  three the list's tag and the bulk bar say; what each means is the line under the field. */}
+              <option value="published">Live</option>
+              <option value="hidden">Hidden</option>
+              <option value="archived">Archived</option>
             </select>
           </label>
+          <div className="dp-hint">{life === "published" ? "In the shop — customers see it and can buy it." : life === "hidden" ? "Not in the shop. Still here to edit, and to make live." : "Pulled from the shop and tucked away — Show archived brings it back."}</div>
           {life === "published" && d.published_at && <div className="dp-hint">Live since {new Date(d.published_at).toLocaleDateString()}.</div>}
           {life === "archived" && d.published_at && <div className="dp-hint">Was live since {new Date(d.published_at).toLocaleDateString()} — set back to Published to restore it.</div>}
           <div className="prod-actions" style={{ flexWrap: "wrap" }}>

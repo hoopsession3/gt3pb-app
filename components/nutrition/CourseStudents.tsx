@@ -14,6 +14,7 @@ import AsyncSection from "@/components/AsyncSection";
 import { InfoRow } from "@/components/kit";
 import { Segmented } from "@/components/controls";
 import Icon from "@/components/Icon";
+import CourseProduct from "@/components/nutrition/CourseProduct";
 import { courseKpis, filterStudents, howWord, isLive, progressWords, rookieEarned, studentsCsv, type Student } from "@/lib/courseStudents";
 
 // GT3 NUTRITION · STUDENTS (R47 — Ryan: "how can i see the users, etc, industry standard things"). What every course
@@ -73,6 +74,8 @@ export default function CourseStudents() {
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the students" emptyTitle="" loadingLabel="Loading students…">
       {(d) => (
         <div className="adm-sec">
+          {/* The course itself — its price and whether it's on sale (R48) — above who has it. */}
+          <CourseProduct canEdit={canGive} />
           <div className="grid grid-cols-2 gap-2 mb-3">
             <InfoRow name={String(k.students)} sub={`students · ${k.bought} bought, ${k.given} given`} />
             <InfoRow name={money(k.revenueCents)} sub={`revenue · ${money(k.revenue30Cents)} in 30 days (${k.sold30} sold)`} />

@@ -8,7 +8,7 @@ import { Segmented } from "@/components/controls";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { haptic } from "@/lib/haptics";
-import { money } from "@/lib/money";
+import { money, moneyPlain } from "@/lib/money";
 import {
   FILTERS, availabilityOf, citiesByProduct, emptyLine, filterCounts, flipToast, nameOf, outInLine, rowSpoken, shownGroups, shownRow,
   undoOpen, undoStart, type CatalogFilter, type CatalogProduct, type City86,
@@ -16,6 +16,9 @@ import {
 import AsyncSection from "./AsyncSection";
 import ProductPage, { AvailSwitch } from "./ProductPage";
 import { plainFailure, failureWords } from "@/lib/failureWords";
+import BulkBar, { type BulkAction } from "@/components/BulkBar";
+import { toggle } from "@/lib/bulk";
+import { downloadCsv } from "@/lib/csv";
 
 // MENU / PRODUCT manager — the catalog as a managed, relational record. Edit every attribute
 // (name, line, price, description, ingredients), set the recipe (which inventory items a serving
@@ -62,6 +65,10 @@ export default function MenuManager() {
   const [held, setHeld] = useState<Record<string, CatalogProduct>>({});
   // A second tap while the first is still on its way is the same tap (read in the handlers only, never while drawing).
   const flying = useRef(new Set<string>());
+  // MANY AT ONCE (R48): Select, then pick drinks — the filter and the search above decide what "all" means — and put
+  // them on or off the menu, or mark them sold out or back, together (components/BulkBar).
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const loader = useCallback(async (): Promise<CatalogProduct[]> => {
     if (!supabase) return [];
@@ -93,6 +100,22 @@ export default function MenuManager() {
   const counts = useMemo(() => filterCounts(products, q), [products, q]);
   const shown = groups.reduce((n, g) => n + g.items.length, 0);
   const live = openId ? products.find((p) => p.id === openId) ?? null : null;
+  const shownIds = groups.flatMap((g) => g.items.map((p) => p.id));
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const before = new Map((board.data ?? []).map((p) => [p.id, { active: p.active, sold_out: p.sold_out }]));
+  const write = (id: string, cols: { active?: boolean; sold_out?: boolean }) => async (): Promise<string | null> => {
+    if (!supabase) return "not connected";
+    const { data, error } = await supabase.from("products").update(cols).eq("id", id).select("id");
+    return error ? plainFailure(error) : data?.length ? null : "you can't change this one";
+  };
+  const back = (id: string) => write(id, before.get(id) ?? {})();
+  const bulkActions: BulkAction[] = [
+    { key: "on", label: "Put on the menu", verb: "Put on the menu", verbPast: "Put on the menu",
+      apply: (id) => { const p = byId.get(id); if (p && (!p.name?.trim() || !(p.price_cents > 0))) return Promise.resolve("it needs a name and a price first"); return write(id, { active: true })(); }, undo: back },
+    { key: "off", label: "Take off the menu", verb: "Take off the menu", verbPast: "Took off the menu", apply: (id) => write(id, { active: false })(), undo: back },
+    { key: "out", label: "Sold out", verb: "Mark sold out", verbPast: "Marked sold out", apply: (id) => write(id, { sold_out: true })(), undo: back },
+    { key: "in", label: "Back in stock", verb: "Put back in stock", verbPast: "Put back in stock", apply: (id) => write(id, { sold_out: false })(), undo: back },
+  ];
   const page = live ?? (openId ? opened : null);
 
   const create = async () => {
@@ -169,6 +192,10 @@ export default function MenuManager() {
                   SectionHeader title but relies on the button staying a SIBLING of .k-sec, not a
                   child of it — moving the button inside SectionHeader's `right` would hide it too. */}
               <button type="button" className="btn-sec btn-sm shrink-0" onClick={create}>+ New item</button>
+              <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => void downloadCsv("gt3-menu.csv", groups.flatMap((g) => g.items).map((p) => ({
+                name: nameOf(p), line: p.line ?? "", price: moneyPlain(p.price_cents), on_menu: p.active ? "yes" : "no", sold_out: p.sold_out ? "yes" : "no",
+              })))}>Export CSV</button>
+              <button type="button" className="btn-sec btn-sm shrink-0" aria-pressed={selecting} onClick={() => { setSelecting((v) => !v); setPicked(new Set()); }}>{selecting ? "Done" : "Select"}</button>
             </div>
             {/* The four-line paragraph, as one quiet line (2026-10-12): the panel's own sub says what the list is. */}
             <p className="m-0 mb-3 text-caption text-cream-muted">The app charges these prices, card and cash.</p>
@@ -179,13 +206,22 @@ export default function MenuManager() {
             <Segmented kind="choice" label="Show" fill value={filter} onChange={(k) => { haptic("selection"); setFilter(k); }}
               options={FILTERS.map((f) => ({ key: f.key, label: <>{f.label}{counts[f.key] > 0 && <span className="k-seg-n">{counts[f.key]}</span>}</> }))} />
             <p className="sr-only" role="status">{`${shown} of ${products.length} shown`}</p>
+            {selecting && <BulkBar shownIds={shownIds} selected={picked} setSelected={setPicked} nameOf={(id) => nameOf(byId.get(id) ?? ({ name: "an item" } as CatalogProduct))}
+              actions={bulkActions} noun={["drink", "drinks"]} onDone={() => void reload()} />}
             {groups.length === 0 ? (
               <p className="cp-line dim mt-3">{emptyLine(filter, q)}{" "}<button type="button" className="btn-ter" onClick={showAll}>Show everything</button></p>
             ) : groups.map((g) => (
               <section key={g.key || "none"} className="mt-4">
                 <h3 className="m-0 font-mono text-caption2 font-medium uppercase tracking-eyebrow text-cream-muted">{g.label}</h3>
                 <div className="k-rows">
-                  {g.items.map((p) => <MenuRow key={p.id} p={p} onOpen={() => open(p)} onFlip={() => { void flip(p); }} />)}
+                  {g.items.map((p) => selecting ? (
+                    <label key={p.id} className="flex items-center gap-3 min-h-14 px-1 cursor-pointer">
+                      <input type="checkbox" className="size-5 shrink-0" checked={picked.has(p.id)} onChange={() => setPicked(toggle(picked, p.id))} aria-label={`Select ${nameOf(p)}`} />
+                      <span className="flex-1 min-w-0 truncate">{nameOf(p)}</span>
+                      <span className="k-tag">{!p.active ? "Off" : p.sold_out ? "Sold out" : "On"}</span>
+                      <span className="prod-px shrink-0">{money(p.price_cents)}</span>
+                    </label>
+                  ) : <MenuRow key={p.id} p={p} onOpen={() => open(p)} onFlip={() => { void flip(p); }} />)}
                 </div>
               </section>
             ))}
