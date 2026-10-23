@@ -276,7 +276,9 @@ export default function CommandBoard() {
         const leadDays = lead?.target_date ? daysTo(lead.target_date) : null;
         const leadWhen = leadDays == null ? "no date" : leadDays < 0 ? `${-leadDays} day${leadDays === -1 ? "" : "s"} past its date`
           : leadDays === 0 ? "due today" : leadDays === 1 ? "due tomorrow" : `${leadDays} days left`;
-        const leadName = lead ? `${lead.emoji ? `${lead.emoji} ` : ""}${lead.title} — ` : "";
+        // The date first (R49): on a phone the one line is cut at its end, and "84 days past its date" is the part that
+        // matters — after a long initiative's name it was the part cut off.
+        const leadName = lead ? ` · ${lead.emoji ? `${lead.emoji} ` : ""}${lead.title}` : "";
         const leadRest = [leadMs.length ? `${leadOpen} of ${leadMs.length} milestone${leadMs.length === 1 ? "" : "s"} open` : null,
           lead && launch.launch?.id === lead.id ? VERDICT_WORDS[launch.verdict] : null].filter(Boolean).map((s) => ` · ${s}`).join("");
         return (
@@ -355,8 +357,8 @@ export default function CommandBoard() {
 
             {/* ── Initiatives · the launch — one row; the initiatives and the launch's gates are its own screen ── */}
             <CommandFold id="initiatives" title="Initiatives" count={data.inits.length}
-              status={lead ? <>{leadName}<span className={leadDays != null && leadDays < 0 ? "text-warn" : undefined}>{leadWhen}</span>{leadRest}</> : "None active"}
-              label={`Initiatives, ${data.inits.length} active${lead ? ` — ${leadName}${leadWhen}${leadRest}` : ""}. Opens the initiatives and the launch's readiness`}>
+              status={lead ? <><span className={leadDays != null && leadDays < 0 ? "text-warn" : undefined}>{leadWhen}</span>{leadName}{leadRest}</> : "None active"}
+              label={`Initiatives, ${data.inits.length} active${lead ? ` — ${leadWhen}${leadName}${leadRest}` : ""}. Opens the initiatives and the launch's readiness`}>
             <div className="cmd">
             {data.inits.length === 0 && !isAdmin && <EmptyState title="No active initiatives" />}
             {data.inits.map((it) => {

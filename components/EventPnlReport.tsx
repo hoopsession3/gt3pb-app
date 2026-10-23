@@ -68,14 +68,14 @@ export default function EventPnlReport() {
                 {rows.map((r, i) => {
                   const id = r.id;
                   // No saved costs: the net is the menu's blend and nothing fixed — say so on the row it is true of.
-                  const assumed = r.costs_saved === false
-                    ? ` · no costs saved: ingredients at ${Math.round(r.cogs_pct * 100)}%, nothing for booth, travel or permit`
-                    : "";
+                  // Said short on the row (R49 — the long sentence, on every row, took four lines of each on a phone); the
+                  // note under the list says what stood in for them.
+                  const assumed = r.costs_saved === false ? " · costs not saved" : "";
                   return (
                     <InfoRow
                       key={i}
-                      name={r.event}
-                      nameExtra={id ? <span className="rpt-pnl-go" aria-hidden>›</span> : null}
+                      // The chevron follows the last word (R49: as the row's extra it sat at the far edge when a name wrapped).
+                      name={<span>{r.event}{id ? <span className="rpt-pnl-go" aria-hidden>{"\u00a0›"}</span> : null}</span>}
                       meta={`${r.orders} orders · ${Math.round((1 - r.cogs_pct) * 100)}% gross${r.fixed_cents > 0 ? ` · ${moneyRound(r.fixed_cents)} fixed` : ""}${assumed}`}
                       trailing={
                         <div className="rpt-pnl-r">

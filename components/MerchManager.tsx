@@ -369,10 +369,10 @@ function MerchRow({ p, all, open, onToggle, onOpen, onSaved, toast }: {
           bodyClick={onToggle} expanded={open} ariaLabel={`${d.title} — edit product`}
           name={<>
             {d.image_url
-              ? <img src={d.image_url} alt="" style={{ width: 26, height: 26, borderRadius: 5, objectFit: "cover", marginRight: 2, verticalAlign: "middle" }} />
+              ? <img src={d.image_url} alt="" style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 5, objectFit: "cover", marginRight: 2, verticalAlign: "middle" }} />
               // No photo yet: a tile the photo's size, so every row lines up (R48 — a 9px dot made photo-less rows sit
               // differently from the ones with a mockup).
-              : <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: 5, marginRight: 2, verticalAlign: "middle", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--ink-onLight-05)", color: "var(--cream-m)" }}><Icon name="package" size={14} /></span>}
+              : <span aria-hidden="true" style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 5, marginRight: 2, verticalAlign: "middle", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--ink-onLight-05)", color: "var(--cream-m)" }}><Icon name="package" size={14} /></span>}
             {d.public_title || d.title}
           </>}
           nameExtra={<>{!published && <span className="prod-off">{d.archived_at ? "archived" : "hidden"}</span>}</>}

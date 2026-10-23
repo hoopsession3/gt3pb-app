@@ -97,8 +97,10 @@ export function auditedTables(files = readdirSync(join(ROOT, "supabase/migration
   const out = new Set();
   for (const f of files) {
     const sql = readFileSync(join(ROOT, "supabase/migrations", f), "utf8").replace(/^\s*--.*$/gm, "");
-    for (const m of sql.matchAll(/create trigger \w+\s+after[^;]*?on public\.(\w+)[^;]*?execute function public\.log_admin_audit\(\)/gi)) out.add(m[1]);
-    for (const m of sql.matchAll(/array\s*\[([^\]]+)\]([\s\S]{0,700}?)log_admin_audit\(\)/gi)) {
+    // Either trail: Settings › Activity log reads 0260's admin_audit and 0042's audit_log (R49), so a table under
+    // either trigger has its history on the screen.
+    for (const m of sql.matchAll(/create trigger \w+\s+after[^;]*?on public\.(\w+)[^;]*?execute function public\.(?:log_admin_audit|audit_row)\(\)/gi)) out.add(m[1]);
+    for (const m of sql.matchAll(/array\s*\[([^\]]+)\]([\s\S]{0,700}?)(?:log_admin_audit|audit_row)\(\)/gi)) {
       for (const t of m[1].matchAll(/'(\w+)'/g)) out.add(t[1]);
     }
   }
@@ -124,11 +126,13 @@ export function scoreList(L, { panels, audited, src }) {
 }
 
 // ── THE FLOOR: each list's score as it stands (R48). Only up — raise a row in the same change that earns it. ──
+// R49: twenty-one rows up a point — history (8) now counts 0042's audit_log, which the Activity log reads since R49, and
+// 0446 put nine more tables under it; the Activity log is searchable (2), so it is 4/4.
 export const FLOOR = {
-  menu: "10/10", merch: "10/10", shoporders: "3/5", resv: "3/10", students: "5/10", lessons: "3/10", plans: "3/5", codes: "4/10", perks: "3/5",
-  pay: "2/6", sales: "2/3", pnl: "1/3", snapshot: "1/3", spend: "3/10", orders: "4/5", custbook: "4/10", vip: "2/10", broadcast: "2/10",
-  reviews: "3/10", offers: "2/10", operators: "3/10", prepboard: "3/10", gaps: "2/10", shoots: "3/10", activity: "3/4", lists: "3/10",
-  pass: "3/6", drops: "3/10", delivery: "7/10", office: "2/10", brew: "3/10", inventory: "3/10", gear: "3/10", today: "7/10",
+  menu: "10/10", merch: "10/10", shoporders: "4/5", resv: "3/10", students: "5/10", lessons: "3/10", plans: "3/5", codes: "4/10", perks: "3/5",
+  pay: "3/6", sales: "2/3", pnl: "1/3", snapshot: "1/3", spend: "4/10", orders: "5/5", custbook: "4/10", vip: "2/10", broadcast: "3/10",
+  reviews: "4/10", offers: "3/10", operators: "4/10", prepboard: "4/10", gaps: "3/10", shoots: "4/10", activity: "4/4", lists: "4/10",
+  pass: "4/6", drops: "4/10", delivery: "8/10", office: "3/10", brew: "4/10", inventory: "4/10", gear: "4/10", today: "8/10",
 };
 
 export function run(list = false) {

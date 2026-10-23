@@ -96,6 +96,7 @@ export const ENV: readonly EnvEntry[] = [
   { name: "NEXT_PUBLIC_GT3_WEB_ONLY", side: "public", need: "platform", what: "the web-only pages the iPhone build opens in a browser sheet (scripts/build.app.mjs)" },
   { name: "NEXT_PUBLIC_GT3_APP_CSP", side: "public", need: "platform", what: "the iPhone build's content security policy (scripts/build.app.mjs)" },
   { name: "NEXT_PUBLIC_BUILD_COMMIT", side: "public", need: "platform", what: "which build a tab is (next.config.ts, from Vercel's commit) — and, in the iPhone build, the commit it archives (R40)" },
+  { name: "GT3_DIST_DIR", side: "server", need: "platform", what: "the build's folder — .next-console for the console's phone check (scripts/smoke.console.mjs, R49); unset everywhere else, .next" },
   { name: "GT3_BUILD_COMMIT", side: "server", need: "platform", what: "the commit the iPhone build archives (ios.yml) — carried into it as NEXT_PUBLIC_BUILD_COMMIT; empty elsewhere" },
   { name: "VERCEL", side: "server", need: "platform", what: "set by Vercel" },
   { name: "VERCEL_ENV", side: "server", need: "platform", what: "set by Vercel: production, preview or development" },

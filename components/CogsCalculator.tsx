@@ -85,7 +85,7 @@ export default function CogsCalculator() {
           {drinks.map(({ p, cogs, m }) => (
             <div key={p.id} className="cogs-wrap">
               <button type="button" className="cogs-row" onClick={() => setOpenId(openId === p.id ? null : p.id)} aria-expanded={openId === p.id}>
-                <span className="cogs-name">{p.name}{p.line ? <em> · {p.line}</em> : null}{!cogs.hasRecipe && <span className="cogs-flag">no recipe</span>}{cogs.hasRecipe && cogs.uncosted > 0 && <span className="cogs-flag">{cogs.uncosted} uncosted</span>}</span>
+                <span className="cogs-name"><span className="cogs-nm">{p.name}</span>{(p.line || !cogs.hasRecipe || cogs.uncosted > 0) && <span className="cogs-meta">{p.line ? <em>{p.line}</em> : null}{!cogs.hasRecipe && <span className="cogs-flag">no recipe</span>}{cogs.hasRecipe && cogs.uncosted > 0 && <span className="cogs-flag">{cogs.uncosted} uncosted</span>}</span>}</span>
                 <span className="cogs-v">{money(p.price_cents)}</span>
                 <span className="cogs-v">{cogs.hasRecipe ? money(cogs.cents) : "—"}</span>
                 <span className={`cogs-v cogs-${marginCls(m.pct)}`}>{cogs.hasRecipe && cogs.uncosted === 0 && p.price_cents > 0 ? `${m.pct}%` : "—"}</span>
@@ -120,7 +120,7 @@ export default function CogsCalculator() {
           {batches.map(({ r, b }) => (
             <div key={r.id} className="cogs-wrap">
               <button type="button" className="cogs-row" onClick={() => setOpenId(openId === r.id ? null : r.id)} aria-expanded={openId === r.id}>
-                <span className="cogs-name">{r.name}{r.style ? <em> · {r.style}</em> : null}{b.uncosted > 0 && <span className="cogs-flag">{b.uncosted} uncosted</span>}</span>
+                <span className="cogs-name"><span className="cogs-nm">{r.name}</span>{(r.style || b.uncosted > 0) && <span className="cogs-meta">{r.style ? <em>{r.style}</em> : null}{b.uncosted > 0 && <span className="cogs-flag">{b.uncosted} uncosted</span>}</span>}</span>
                 <span className="cogs-v">{money(b.batchCents)}</span>
                 <span className="cogs-v">{money(b.perGalCents)}</span>
                 <span className="cogs-v">{b.bottles > 0 ? money(b.perBottleCents) : "—"}</span>

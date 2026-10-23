@@ -854,7 +854,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .bce-del{flex-shrink:0;background:none;border:none;color:var(--cream-d);font-size:15px;cursor:pointer;padding:2px 6px}
 /* ── Maintenance & audits dashboard (Settings, 0198) ── */
 .mnt{display:flex;flex-direction:column;gap:14px}
-.mnt-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mnt-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .mnt-kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r-xl);padding:12px 10px;display:flex;flex-direction:column;gap:3px;text-align:center}
 .mnt-kpi.warn{border-color:rgba(207,154,74,.5)}
 /* .spend-kpi shares this tile exactly (2026-07-16, CSS consolidation pass) — was a byte-identical
@@ -962,9 +962,12 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
    margin to close the seam. With no card there is no seam — it is simply the indented body of the
    row above it. */
 .cogs-row[aria-expanded="true"]{border-bottom-color:transparent}
-.cogs-name{font-family:var(--sans);font-weight:650;font-size:13px;color:var(--cream);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* R49: name, then its line and flag — never cut */
+.cogs-name{display:flex;flex-direction:column;gap:2px;min-width:0;font-family:var(--sans);font-weight:650;font-size:13px;color:var(--cream)}
+.cogs-nm{overflow-wrap:anywhere}
+.cogs-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .cogs-name em{font-style:normal;font-weight:400;color:var(--cream-d);font-size:11px}
-.cogs-flag{margin-left:6px;font-family:var(--mono);font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--warn);background:rgba(207,154,74,.14);border-radius:5px;padding:1px 5px;white-space:nowrap}
+.cogs-flag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--warn);background:rgba(207,154,74,.14);border-radius:5px;padding:1px 5px;white-space:nowrap}
 .cogs-v{font-family:var(--mono);font-size:13px;color:var(--cream)}
 .cogs-ok{color:var(--ok)}.cogs-gold{color:var(--gold2)}.cogs-red{color:var(--red-h)}
 .cogs-detail{background:rgba(255,255,255,.03);border-radius:var(--r-xl);margin:0 0 8px;padding:9px 12px}
@@ -2303,7 +2306,9 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
 .spend-foot{font-family:var(--sans);font-size:11px;color:var(--cream-d);line-height:1.45;margin-top:2px}
 
 /* ── Studio — collaborative marketing studio ── */
-.studio-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.studio-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+/* R49: the search keeps its room, Select beside it */
+.studio-top > input[type=search]{flex:1 1 calc(100% - 110px);min-width:0}
 .studio-back{background:none;border:none;color:var(--gold2);font-family:var(--sans);font-weight:600;font-size:15px;cursor:pointer;padding:4px 0}
 .studio-presence{display:flex;align-items:center;gap:6px}
 .studio-peer{width:24px;height:24px;border-radius:50%;background:var(--gold);color:#1a1610;font-family:var(--sans);font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg,#161310);margin-left:-8px}
@@ -2604,7 +2609,7 @@ h5.pr-h{font-size:13px;color:var(--cream-d)}
    (2026-07-09). Two failure families: gold pills whose day background darkened past what ink text
    can sit on (→ white labels), and classes that hardcode dark-theme colors (pink crit text, cream
    chip text, light-blue link, light-red pills) that never flipped for the cream ground. */
-.app.crew-day :is(.cos-tg.on,.skip-link,.cal-nudge button,.oa-msg.user,.insp-yes,.qd-fab,.cmt-av,.cmt-count,.studio-peer,.prof-av,.org-av,.fn-day.on){color:var(--card)}
+.app.crew-day :is(.cos-tg.on,.skip-link,.cal-nudge button,.oa-msg.user,.insp-yes,.qd-fab,.cmt-av,.cmt-count,.studio-peer,.prof-av,.org-av){color:var(--card)}
 /* contrast fix (2026-07-15 crew-day audit): .subnav-tab.on and .studio-view.on are translucent-tint
    pills (not solid gold like the rest of the list above) whose OWN dark-theme rule already sets
    color:var(--gold2) — that's correct in both themes and shouldn't have been swept into the white-text
@@ -2846,14 +2851,16 @@ body:has(.conc-sheet) .rail{display:flex}
 .prod-line{font-family:var(--sans);font-size:12px;color:var(--cream-m);margin-left:auto}
 .prod-px{font-family:var(--mono);font-size:15px;color:var(--gold2)}
 .prod-body{padding:0 15px 15px;border-top:1px solid var(--line)}
-.prod-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.prod-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+/* R49: a pair too wide for a phone stacks */
+@media (max-width:480px){.prod-grid.stack-sm{grid-template-columns:minmax(0,1fr)}}
 .prod-f{display:flex;flex-direction:column;gap:4px;margin-top:9px}
 .prod-f span{font-family:var(--sans);font-weight:600;font-size:12px;color:var(--cream-m)}
 .prod-f input,.prod-f textarea,.prod-f select,.prod-addc select,.prod-addc input{background-color:var(--bg,#0d0b08);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--cream);font-family:var(--sans);font-size:16px;-webkit-appearance:none;appearance:none}
 .app.crew-day .prod-f input,.app.crew-day .prod-f textarea,.app.crew-day .prod-f select,.app.crew-day .prod-addc select,.app.crew-day .prod-addc input{background-color:var(--card)}
 .prod-f input:focus,.prod-f textarea:focus,.prod-f select:focus{border-color:var(--gold2)}
 .prod-f input,.prod-f textarea,.prod-f select{width:100%;min-width:0}
-.prod-toggle{display:flex;align-items:center;gap:8px;margin-top:12px;font-family:var(--sans);font-size:15px;color:var(--cream)}
+.prod-toggle{display:flex;align-items:center;gap:8px;min-height:32px;margin-top:12px;font-family:var(--sans);font-size:15px;color:var(--cream)}
 .prod-recipe{margin-top:14px;border-top:1px solid var(--line);padding-top:11px}
 .prod-comp{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;font-family:var(--sans);font-size:13px;color:var(--cream);border-bottom:1px solid var(--line)}
 .prod-addc{display:flex;gap:7px;align-items:center;margin-top:9px}
@@ -4512,9 +4519,6 @@ button.mkpi-tile:active{transform:scale(.98)}
 .fn{display:flex;flex-direction:column;gap:14px}
 .fn-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .fn-sub{font-family:var(--sans);font-size:12px;color:var(--cream-m)}
-.fn-days{display:inline-flex;background:var(--card);border:1px solid var(--line2);border-radius:9px;padding:2px}
-.fn-day{background:none;border:none;border-radius:7px;padding:5px 10px;color:var(--cream-m);font-family:var(--sans);font-weight:700;font-size:12px;cursor:pointer;-webkit-appearance:none;appearance:none}
-.fn-day.on{background:var(--gold);color:#1a1610}
 .fn-block{background:var(--card);border:1px solid var(--line);border-radius:var(--r-2xl);padding:13px 14px}
 .fn-block-h{display:flex;align-items:center;gap:8px;margin-bottom:11px}
 .fn-block-h b{font-family:var(--sans);font-weight:700;font-size:15px;color:var(--cream)}
@@ -4525,7 +4529,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 .fn-bar{height:8px;background:rgba(255,255,255,.05);border-radius:var(--r-pill);overflow:hidden}
 .fn-bar>span{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--gold),var(--gold2));transition:width .3s ease}
 .fn-drop{font-family:var(--sans);font-size:11px;color:#c98b7a;margin-top:3px}
-.app.crew-day .fn-block,.app.crew-day .fn-days{background:var(--card);border-color:var(--ink2-onLight-10)}
+.app.crew-day .fn-block{background:var(--card);border-color:var(--ink2-onLight-10)}
 .app.crew-day .fn-bar{background:var(--ink2-onLight-06)}
 
 /* ── Live deal ROI what-if (Pipeline · New Deal form) ── */
@@ -4735,7 +4739,7 @@ button.mkpi-tile:active{transform:scale(.98)}
 .pbd-row{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:11px;border:1px solid var(--line2);background:var(--card)}
 .pbd-row.crit{border-color:rgba(196,69,60,.42)}
 .pbd-row.over{border-color:color-mix(in srgb, var(--brand-gold2) 42%, transparent)}
-.pbd-check{flex:0 0 auto;width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line2);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.pbd-check{flex:0 0 auto;width:24px;height:24px;border-radius:7px;border:1.5px solid var(--line2);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .pbd-check>span{width:10px;height:10px;border-radius:3px;background:transparent;transition:background .15s}
 @media (hover:hover){.pbd-check:hover>span{background:var(--gold)}}
 .pbd-check:active{transform:scale(.9)}
@@ -5083,8 +5087,8 @@ button.pipe-dealrow-t{background:none;border:none;margin:0;padding:0;text-align:
 .goal-log{display:flex;gap:8px;align-items:center}
 .goal-log .auth-input{width:110px;padding:8px 10px}
 .goal-new{border:1px dashed var(--line2);border-radius:var(--r-2xl);padding:13px;display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
-.goal-new-row{display:flex;gap:8px}
-.goal-new-row .auth-input{flex:1;min-width:0}
+.goal-new-row{display:flex;flex-wrap:wrap;gap:8px}
+.goal-new-row .auth-input{flex:1 1 180px;min-width:0}
 .goal-edit-btn{flex:0 0 auto;background:none;border:none;padding:2px;color:var(--cream-m);cursor:pointer;-webkit-appearance:none;appearance:none}
 @media (hover:hover){.goal-edit-btn:hover{color:var(--gold2)}}
 .goal-edit{border:1px dashed var(--line2);border-radius:var(--r-2xl);padding:13px;display:flex;flex-direction:column;gap:8px}
@@ -5511,6 +5515,8 @@ input,select,textarea,progress{accent-color:var(--gold2)}
 .codes-f{display:flex;flex-direction:column;gap:5px;flex:1;min-width:140px}
 .codes-f>span{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--cream-m)}
 .codes-warn{font-family:var(--sans);font-size:13px;color:var(--warn);margin:0}
+/* R49: a warning is never the part cut */
+.k-rsub:has(.codes-warn){white-space:normal}
 .codes-reach{font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--cream-m);margin:0}
 .codes-code{font-family:var(--mono);font-weight:600;font-size:15px;letter-spacing:1px;color:var(--cream)}
 
@@ -6072,7 +6078,7 @@ button.k-switch::after{content:"";position:absolute;inset:-7px -2px}
 /* THE RHYTHM CARD'S ACTION — a gold pill, filled: an action is a button, not another outlined box inside the box.
    Day-theme white label comes from the solid-gold-pill list near line 2940. */
 .rhythm-ledger{margin-top:14px}
-.rhythm-ledger>summary{font-family:var(--sans);font-weight:650;font-size:13px;color:var(--gold2);cursor:pointer;list-style:none}
+.rhythm-ledger>summary{padding-block:8px;font-family:var(--sans);font-weight:650;font-size:13px;color:var(--gold2);cursor:pointer;list-style:none}
 .rhythm-ledger>summary::-webkit-details-marker{display:none}
 .rhythm-ledger>summary::before{content:'›';display:inline-block;margin-right:6px;transition:transform .15s}
 .rhythm-ledger[open]>summary::before{transform:rotate(90deg)}
@@ -7290,3 +7296,8 @@ html[data-less-glass] :is(.cmdk-scrim,.qd-scrim){-webkit-backdrop-filter:none;ba
   .k-switch[aria-checked="true"]{background:Highlight}
 }
 
+
+/* R49 (WCAG 2.5.8): small word-buttons reach 24px past their look, as .k-seg-opt::after does */
+.spb-bud,.pbd-group-t,.rhythm-last,.rec-link,.st-discuss,.sc-view-live{position:relative}
+.spb-bud::after,.pbd-group-t::after,.rhythm-last::after,.rec-link::after,.st-discuss::after,.sc-view-live::after{content:"";position:absolute;inset:-8px -4px}
+.k-bd[role=button]{align-self:stretch;display:flex;flex-direction:column;justify-content:center;min-height:44px}

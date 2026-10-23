@@ -94,7 +94,7 @@ export default function CourseStudents() {
 
           {canGive && (
             <div className="flex flex-wrap items-center gap-2 mb-3">
-              <input aria-label="Give the course — their email" placeholder="Give the course — their email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="flex-1 min-w-0" />
+              <input aria-label="Give the course — their email" placeholder="Their email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="flex-1 min-w-0" />
               <button type="button" className="btn-sec btn-sm" onClick={give} disabled={giving}>{giving ? "Giving…" : "Give"}</button>
             </div>
           )}
@@ -102,7 +102,7 @@ export default function CourseStudents() {
           <Segmented label="Which students" kind="choice" size="sm" value={how} onChange={setHow}
             options={[{ key: "all", label: "Everyone" }, { key: "bought", label: "Bought" }, { key: "given", label: "Given" }, { key: "back", label: "Taken back" }]} />
           <div className="flex items-center gap-2 mt-2 mb-2">
-            <input aria-label="Search students" className="crm-search flex-1 min-w-0" placeholder="Search name or email" value={q} onChange={(e) => setQ(e.target.value)} />
+            <input aria-label="Search students" className="crm-search flex-1 min-w-0" placeholder="Search students" value={q} onChange={(e) => setQ(e.target.value)} />
             <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => downloadCsv("gt3-nutrition-students.csv", studentsCsv(shown))}>Export CSV</button>
           </div>
 

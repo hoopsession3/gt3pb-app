@@ -70,13 +70,13 @@ export default function LessonsManager() {
             <SectionHeader label="Return to Primal · lessons" />
             <button type="button" className="btn-sec btn-sm" onClick={() => setShowStructure((s) => !s)}>{showStructure ? "Hide structure" : "Pillars & modules"}</button>
           </div>
-          <div className="h-sub">Write the customer nutrition academy. New lessons are born hidden — fill them in, link the menu stack, then publish. Rookie is free; Pro unlocks through a membership.</div>
+          <div className="h-sub">Write the customer nutrition academy. New lessons are born hidden — fill them in, link the menu stack, then publish. The four pillars are free; every other lesson opens with GT3 Nutrition.</div>
 
           {showStructure && <StructureEditor pillars={b.pillars} modules={b.modules} onSaved={reload} toast={toast} />}
 
           {/* create a lesson */}
           <div className="prod-addc" style={{ marginTop: 12, flexWrap: "wrap" }}>
-            <select aria-label="Module for the new lesson" value={newMod} onChange={(e) => setNewMod(e.target.value)}>
+            <select aria-label="Module for the new lesson" value={newMod} onChange={(e) => setNewMod(e.target.value)} className="basis-full!">
               <option value="">+ new lesson in…</option>
               {b.pillars.map((p) => (
                 <optgroup key={p.id} label={p.title}>

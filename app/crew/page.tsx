@@ -4864,7 +4864,7 @@ function OrdersHistory() {
               total: moneyPlain(o.total_cents), status: STATUS_WORD[o.status] ?? o.status, paid: ledgerWord(o),
             })))}>Export CSV</button>
             <SectionHeader label="Order history" right={done > 0 ? <span className="k-count">{done} completed</span> : undefined} />
-            <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name · order # · item · amount" aria-label="Search order history" />
+            <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search orders" aria-label="Search order history" />
             {term && <div className="h-sub" style={{ margin: "2px 2px 10px" }}>{shown.length} match{shown.length === 1 ? "" : "es"}</div>}
             <div className="k-rows">
               {shown.map((o) => (

@@ -77,6 +77,9 @@ const appCors = {
 };
 
 const nextConfig: NextConfig = {
+  // The console's phone check (R49, scripts/smoke.console.mjs) builds a second time against its stand-in database, into
+  // its own folder, so the release build beside it is never overwritten. Unset everywhere else: .next as always.
+  distDir: process.env.GT3_DIST_DIR || ".next",
   // The web build says it is the web (2026-10-06, the iPhone round), so lib/native APP_BUILD is decided
   // when the bundle is made and every app-only branch — components/NativeBridge and the Capacitor
   // plugins behind it — is dropped from the web's bundle rather than shipped and skipped.

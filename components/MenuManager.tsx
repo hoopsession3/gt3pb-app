@@ -183,6 +183,9 @@ export default function MenuManager() {
               {/* The search shares the row "+ New item" was alone on (2026-10-12) — the base field, 44pt and 16px. */}
               <input type="search" className="flex-1 appearance-none" value={q} onChange={(e) => setQ(e.target.value)}
                 placeholder="Search the menu" aria-label="Search the menu" enterKeyHint="search" autoComplete="off" />
+              {/* Select beside the search, as a phone's lists keep it (R49): on an SE the three buttons don't share a row, and
+                  Select was left alone on a line of its own. */}
+              <button type="button" className="btn-sec btn-sm shrink-0" aria-pressed={selecting} onClick={() => { setSelecting((v) => !v); setPicked(new Set()); }}>{selecting ? "Done" : "Select"}</button>
               {/* "+New item" just opens a blank draft — it doesn't commit anything, so it's not
                   the primary action (see ProductPage's Save for that). .btn-sec, same tier Studio.tsx
                   uses for its own deliberate-but-not-committing actions. Kept inside .studio-top
@@ -195,7 +198,6 @@ export default function MenuManager() {
               <button type="button" className="btn-sec btn-sm shrink-0" onClick={() => void downloadCsv("gt3-menu.csv", groups.flatMap((g) => g.items).map((p) => ({
                 name: nameOf(p), line: p.line ?? "", price: moneyPlain(p.price_cents), on_menu: p.active ? "yes" : "no", sold_out: p.sold_out ? "yes" : "no",
               })))}>Export CSV</button>
-              <button type="button" className="btn-sec btn-sm shrink-0" aria-pressed={selecting} onClick={() => { setSelecting((v) => !v); setPicked(new Set()); }}>{selecting ? "Done" : "Select"}</button>
             </div>
             {/* The four-line paragraph, as one quiet line (2026-10-12): the panel's own sub says what the list is. */}
             <p className="m-0 mb-3 text-caption text-cream-muted">The app charges these prices, card and cash.</p>

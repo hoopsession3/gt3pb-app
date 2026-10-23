@@ -90,7 +90,8 @@ export default function ShopOrders() {
                 {queueHeadline(queue)}
               </p>
 
-              <div className="so-kpis">
+              {/* Four even tiles: a row of four with room, 2×2 on a phone (R49 — they wrapped ragged, uneven widths). */}
+              <div className="grid grid-cols-2 min-[560px]:grid-cols-4 gap-2 mb-3">
                 <span className="so-kpi"><b>{queue?.on_us ?? 0}</b><i>on us</i></span>
                 <span className="so-kpi"><b>{queue?.on_printer ?? 0}</b><i>at the printer</i></span>
                 <span className="so-kpi"><b>{queue?.on_carrier ?? 0}</b><i>in transit</i></span>

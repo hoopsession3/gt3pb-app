@@ -107,7 +107,8 @@ export default function MaintenanceLog() {
         const shown = rows.filter((a) => filter === "all" || a.kind === filter);
         return (
           <div className="mnt">
-            <div className="mnt-kpis">
+            {/* Two by two on an SE (R49 — four across, "today" ran 2px out of App health). */}
+            <div className="mnt-kpis max-[389px]:grid-cols-2">
               <div className="mnt-kpi"><span className="mnt-k-v">{stats.total}</span><span className="mnt-k-l">audits logged</span></div>
               <div className="mnt-kpi"><span className="mnt-k-v">{stats.avg ?? "—"}{stats.avg != null && <small>/10</small>}</span><span className="mnt-k-l">avg score</span></div>
               <div className={`mnt-kpi${stats.overdue ? " warn" : ""}`}><span className="mnt-k-v">{stats.overdue}</span><span className="mnt-k-l">overdue</span></div>

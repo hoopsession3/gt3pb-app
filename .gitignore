@@ -60,3 +60,7 @@ next-env.d.ts
 # the iPhone app: the static export (npm run build:app) and its scratch copy of the tree
 /out/
 /.app-build/
+
+# the console phone check (R49): its own build and its screenshots
+/.next-console/
+/.smoke-console/

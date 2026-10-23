@@ -92,7 +92,15 @@ export default function SiteCopyEditor() {
                     <div className="sc-row-h"><label className="sc-label" htmlFor={`sc-${m.key}`}>{m.label}</label>{overridden && <span className="sc-pill">edited</span>}</div>
                     {m.multiline
                       ? <textarea id={`sc-${m.key}`} className="sc-in" rows={3} value={valueOf(m.key, m.default)} onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value }))} />
-                      : <input id={`sc-${m.key}`} className="sc-in" value={valueOf(m.key, m.default)} onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value }))} />}
+                      // A one-line string longer than a phone's field shows whole (R49 — the sentence being edited
+                      // was cut at the field's edge): a box that grows to it, and Return doesn't add a line.
+                      // Decided by the default's length, which doesn't change while typing (a box that swapped
+                      // under the finger would lose the cursor).
+                      : (m.default ?? "").length > 26
+                        ? <textarea id={`sc-${m.key}`} className="sc-in" rows={Math.min(4, Math.ceil((m.default ?? "").length / 30))} value={valueOf(m.key, m.default)}
+                            onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+                            onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value.replace(/\n/g, " ") }))} />
+                        : <input id={`sc-${m.key}`} className="sc-in" value={valueOf(m.key, m.default)} onChange={(e) => setDraft((p) => ({ ...p, [m.key]: e.target.value }))} />}
                     <div className="sc-actions">
                       <button type="button" className="btn-pri btn-sm" disabled={busy === m.key || !dirty(m.key, m.default)} onClick={() => save(m.key, m.default)}>{busy === m.key ? "Saving…" : "Save"}</button>
                       <button type="button" className="btn-ter" disabled={busy === m.key || !overridden} onClick={() => reset(m.key)}>Reset to default</button>

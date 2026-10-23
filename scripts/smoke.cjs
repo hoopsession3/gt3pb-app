@@ -13690,7 +13690,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const rd = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
   const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.replace(/^\s*\/\/.*$/, "")).join("\n");
   const crm = code(rd("components/CrmPanel.tsx")), vq = code(rd("components/VipQueue.tsx")), scan = code(rd("app/scan/page.tsx"));
-  const at = code(rd("components/AuditTrail.tsx"));
+  const at = code(rd("components/AuditTrail.tsx")) + code(rd("lib/activity.ts"));
   ok("customer card: the tier picker is an admin's, the loyalty edit the owner's; everyone else reads them",
     /const canTier = canOf\(profile\)\.admin;/.test(crm) && /const canLoyalty = roleOf\(profile\) === "owner";/.test(crm)
     && /\{canTier \? \(\s*<div className="crm-tier-seg"/.test(crm) && /\{canLoyalty \? \(\s*<div className="crm-loy">/.test(crm)
@@ -13702,7 +13702,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     /const ownCard = !!code && \(code === profile\?\.referral_code \|\| code === user\?\.id\);/.test(scan)
     && /This is your card — another crew member stamps it, gives its free cup and uses its credit\./.test(scan) && /\/stamp limit\/i\.test/.test(scan));
   ok("Activity log: a tier line names the member, read from their profile, not kept in the log",
-    /customers: "Tier"/.test(at) && /r\.table_name === "customers" && r\.row_pk/.test(at) && /\|\| "a member"/.test(at));
+    /customers: "Tier"/.test(at) && /r\.table === "customers" && r\.rowPk/.test(at) && /\|\| "a member"/.test(at));
 }
 
 // ── ONE SHEET, FOUR ROWS · THE OFFER FIRST (2026-10-12, A2 of the account audit; the owner approved the mockups) ──
@@ -15639,7 +15639,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     navKey.length > 0 && !/\.click\(\)/.test(navKey) && /tabs\[next\]\?\.focus\(\);/.test(navKey)
       && /<div className="opnav-lanes" role="tablist" aria-label="Crew console"/.test(nav) && /tabIndex=\{rovingTab\(i, litAt\)\}/.test(nav)
       && /<\/div>\s*<button type="button" className=\{`tab\$\{moreOn \? " on" : ""\}`\} aria-haspopup="dialog"/.test(nav) && /\.opnav-lanes\{display:flex;flex:var\(--lanes,4\) 1 0%;min-width:0\}/.test(g));
-  const radios = { "components/BrewPlanner.tsx": "Size it by", "components/FunnelReport.tsx": "Window", "components/OrderFunnel.tsx": "Fulfillment", "components/PrepBoard.tsx": "Filter prep",
+  // FunnelReport's "Window" is the kit's <Segmented kind="choice"> since R49 — a radio group with the same keys (controls.tsx).
+  const radios = { "components/BrewPlanner.tsx": "Size it by", "components/OrderFunnel.tsx": "Fulfillment", "components/PrepBoard.tsx": "Filter prep",
     "components/QuickDock.tsx": "Who can see this note", "components/StatusCard.tsx": "Card finish", "components/YouPrefs.tsx": "Appearance", "app/crew/page.tsx": "Who can see this note",
     "components/CrmPanel.tsx": "Member tier and VIP status", "components/crew/CupOrderingDial.tsx": "When cup pre-orders open" };
   const unroved = Object.entries(radios).filter(([f, label]) => !new RegExp(`role="radiogroup" aria-label="${label}"[^>]*onKeyDown=\\{\\(e\\) => rovingKeys\\(e,`).test(rd(f)));

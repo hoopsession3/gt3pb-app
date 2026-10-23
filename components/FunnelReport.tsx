@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import { rovingKeys, rovingTab } from "./roving";
+import { Segmented } from "./controls";
 
 // FUNNELS — where people drop off, from anonymous step counts (funnel_events, 0199). No cookies, no
 // personal data: each funnel is a fixed step sequence and we show the count at each step as a bar
@@ -42,12 +42,10 @@ export default function FunnelReport() {
     <div className="fn">
       <div className="fn-head">
         <span className="fn-sub">Anonymous step counts — no cookies, no personal data.</span>
-        {/* A filter, so a radio group: one Tab stop, arrows along it (R12 — the 10/10 audit, F7). */}
-        <div className="fn-days" role="radiogroup" aria-label="Window" onKeyDown={(e) => rovingKeys(e, 3, [7, 14, 30].indexOf(days), (i) => setDays([7, 14, 30][i]))}>
-          {[7, 14, 30].map((d, i) => (
-            <button key={d} type="button" role="radio" aria-checked={days === d} tabIndex={rovingTab(i, [7, 14, 30].indexOf(days))} className={`fn-day${days === d ? " on" : ""}`} onClick={() => setDays(d)}>{d}d</button>
-          ))}
-        </div>
+        {/* A filter, so a choice (a radio group: one Tab stop, arrows along it — R12, F7) — the kit's, the same control as
+            Sales' 7d / 30d / 90d two panels up (R49: this one was drawn its own way, bordered chips beside a grey track). */}
+        <Segmented label="Window" kind="choice" size="sm" value={String(days) as "7" | "14" | "30"} onChange={(k) => setDays(Number(k))}
+          options={[{ key: "7", label: "7d" }, { key: "14", label: "14d" }, { key: "30", label: "30d" }]} />
       </div>
 
       <AsyncSection state={board} isEmpty={(data) => data.length === 0} emptyTitle="No funnel activity yet in this window" emptySub="It fills in as guests move through order, reserve, delivery and sign-up." errorTitle="Couldn't load the funnel report">

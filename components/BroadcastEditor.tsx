@@ -99,10 +99,10 @@ export default function BroadcastEditor() {
         </div>
       </div>
 
-      <label className="prod-f"><span>Headline</span><input value={d.title} onChange={(e) => set("title", e.target.value)} maxLength={120} placeholder="e.g. Saturday drop is live — order ahead" /></label>
+      <label className="prod-f"><span>Headline</span><input value={d.title} onChange={(e) => set("title", e.target.value)} maxLength={120} placeholder="e.g. Saturday drop is live" /></label>
       <label className="prod-f" style={{ marginTop: 8 }}><span>Message (optional)</span><textarea className="ev-input ev-area" rows={2} maxLength={600} value={d.body ?? ""} onChange={(e) => set("body", e.target.value)} placeholder="One or two lines of detail." /></label>
 
-      <div className="prod-grid" style={{ marginTop: 8 }}>
+      <div className="prod-grid stack-sm" style={{ marginTop: 8 }}>
         <label className="prod-f"><span>Type</span><select value={d.kind} onChange={(e) => set("kind", e.target.value as Draft["kind"])}>{KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
         <label className="prod-f"><span>Look</span><select value={d.style} onChange={(e) => set("style", e.target.value as Draft["style"])}>{STYLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       </div>
@@ -110,9 +110,9 @@ export default function BroadcastEditor() {
 
       <div className="prod-grid" style={{ marginTop: 8 }}>
         <label className="prod-f"><span>Button label (optional)</span><input value={d.cta_label ?? ""} onChange={(e) => set("cta_label", e.target.value)} maxLength={40} placeholder="e.g. Order now" /></label>
-        <label className="prod-f"><span>Button link</span><input value={d.cta_href ?? ""} onChange={(e) => set("cta_href", e.target.value)} placeholder="/reserve or https://…" /></label>
+        <label className="prod-f"><span>Button link</span><input value={d.cta_href ?? ""} onChange={(e) => set("cta_href", e.target.value)} placeholder="/reserve" /></label>
       </div>
-      <div className="prod-grid" style={{ marginTop: 8 }}>
+      <div className="prod-grid stack-sm" style={{ marginTop: 8 }}>
         <label className="prod-f"><span>Show from (optional)</span><input type="datetime-local" value={d.starts_at ? d.starts_at.slice(0, 16) : ""} onChange={(e) => set("starts_at", e.target.value ? new Date(e.target.value).toISOString() : null)} /></label>
         <label className="prod-f"><span>Hide after (optional)</span><input type="datetime-local" value={d.ends_at ? d.ends_at.slice(0, 16) : ""} onChange={(e) => set("ends_at", e.target.value ? new Date(e.target.value).toISOString() : null)} /></label>
       </div>

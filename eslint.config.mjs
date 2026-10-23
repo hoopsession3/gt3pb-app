@@ -21,6 +21,9 @@ const eslintConfig = defineConfig([
     // problems in minified output), and the build's own working copy while it builds.
     "ios/**",
     ".app-build/**",
+    // The console's phone check (R49, scripts/smoke.console.mjs): its own build and its pictures.
+    ".next-console/**",
+    ".smoke-console/**",
   ]),
 
   // COMMONJS FILES ARE COMMONJS.
