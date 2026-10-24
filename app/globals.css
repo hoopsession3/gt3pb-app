@@ -4134,10 +4134,6 @@ body:has(.conc-sheet) .rail{display:flex}
 .tm-hire-chosen .note-arch{margin-left:auto;flex:none;min-height:44px;padding:0 4px}
 .tm-hire-next{margin:0;font-family:var(--sans);font-size:12px;line-height:1.45;color:var(--cream-m)}
 
-/* order-history search box */
-.adm-search{margin:2px 0 12px}
-.app.crew-day .adm-search{background:rgba(0,0,0,.05);color:var(--cream)}
-.adm-search:focus{border-color:var(--gold2,#B8902F)}
 
 /* event completion / lifecycle (OwnerDetails) */
 .ownerdet-life{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 2px}

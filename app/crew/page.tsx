@@ -22,7 +22,6 @@ import { panelHome } from "@/lib/panelHome";
 import { useWakeLock } from "@/lib/useWakeLock";
 import { unlockAudio } from "@/lib/chime";
 import { keepPassOpen, passWasOpen, PASS_OPEN_BEAT_MS } from "@/lib/passOpen";
-import { groupItems } from "@/lib/passBoard";
 import { usePassHeartbeat } from "@/components/usePassHeartbeat";
 import { useEtDay } from "@/lib/useEtDay";
 import { useMinute } from "@/lib/useMinute";
@@ -75,7 +74,6 @@ import { useBack } from "@/components/useBack";
 import { useBackStep } from "@/components/useBackStep";
 import { CrumbProvider, Breadcrumbs, useCrumb, useCrumbs } from "@/components/Crumbs";
 import { recordRecent } from "@/components/recents";
-import { ledgerWord } from "@/lib/collect";
 import MenuRigChips, { MENU_RIG_COLUMNS, type MenuRigPatch, type MenuRigValue } from "@/components/MenuRigChips";
 import { wrote } from "@/lib/wrote";
 // ── Code-split (2026-07-29, speed round): every component below renders only inside ONE section
@@ -190,6 +188,7 @@ const LessonsManager = dynamic(() => import("@/components/LessonsManager"), { lo
 const CourseStudents = dynamic(() => import("@/components/nutrition/CourseStudents"), { loading: () => <PourFill label="Loading…" /> });
 const MerchManager = dynamic(() => import("@/components/MerchManager"), { loading: () => <PourFill label="Loading…" /> });
 const ShopOrders = dynamic(() => import("@/components/ShopOrders"), { loading: () => <PourFill label="Loading…" /> });
+const OrderLedger = dynamic(() => import("@/components/OrderLedger"), { loading: () => <PourFill label="Loading…" /> });
 const OperatorDeal = dynamic(() => import("@/components/OperatorDeal"), { loading: () => <PourFill label="Loading…" /> });
 const OfferLetters = dynamic(() => import("@/components/OfferLetters"), { loading: () => <PourFill label="Loading…" /> });
 const ScheduleGaps = dynamic(() => import("@/components/ScheduleGaps"), { loading: () => <PourFill label="Loading…" /> });
@@ -217,7 +216,7 @@ import { projectEvent, reconcile, DEFAULT_ECON, planWords, type EventEcon, type 
 import { buildBrief } from "@/lib/eventbrief";
 import { fetchInventory, inventoryForEvent, type InventoryResp } from "@/lib/inventory";
 import { fetchAssets, type AssetsResp } from "@/lib/assets";
-import type { Stop, EventRow, EventTask, BookingRequest, Order, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, NoteAddendum, NoteFile, Comment } from "@/lib/db";
+import type { Stop, EventRow, EventTask, BookingRequest, Reserve, Subscription, Vendor, VendorLocation, MeetingNote, NoteAddendum, NoteFile, Comment } from "@/lib/db";
 import { uploadToBucket } from "@/lib/uploads";
 import { resolveVendor, addVendorLocation, type VendorMatch, type ResolveDecision } from "@/lib/vendorLink";
 const VendorResolve = dynamic(() => import("@/components/VendorResolve"), { loading: () => <PourFill label="Loading…" /> });
@@ -238,8 +237,6 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { SECTION_TITLE } from "@/lib/routeTitles";
 import { announce } from "@/components/Announcer";
 import Button from "@/components/Button";
-import { orderNo } from "@/lib/activeOrder";
-import { STATUS_WORD } from "@/lib/orderStatus";
 import { scrollMotion } from "@/lib/motion";
 import { rovingKeys, rovingTab } from "@/components/roving";
 import { eventTotals, type EventTotals } from "@/lib/eventTotals";
@@ -4835,77 +4832,11 @@ function SubInterest() {
 }
 
 // ───────────────────────── order history (review past orders) ─────────────────────────
+// ORDER HISTORY IS EVERY ORDER, BY THE DAY IT WAS BOUGHT (R51 — Ryan, 2026-10-24: "pull orders and attach orders based on
+// the date of purchase"). It was the truck's cups alone, done or void, in the order they were finished; it is every
+// channel now — cups, pickups, deliveries, office, the shop — under the day each was bought (components/OrderLedger).
 function OrdersHistory() {
-  const [q, setQ] = useState("");
-  const { nameOf } = useAppStable(); // the Catalog's names (R2): what the Pass printed
-  // The orders the history shows, for the channel's question below (R38).
-  const shownIds = useRef<Set<string>>(new Set());
-  const ordersState = useAsyncData<Order[]>(async () => {
-    if (!supabase) throw new Error("Supabase client not configured");
-    // A FAILED READ IS NOT "NO COMPLETED ORDERS YET" (2026-10-12): the error went unread, null became [], and the
-    // history — and its CSV for the accountant — read as empty. It is an error now, with Try again.
-    const { data, error } = await supabase.from("orders").select("*").in("status", ["done", "void"]).order("status_changed_at", { ascending: false }).limit(300);
-    if (error) throw new Error(error.message);
-    const rows = (data as Order[]) ?? [];
-    shownIds.current = new Set(rows.map((o) => o.id));
-    return rows;
-  }, []);
-  // READ AGAIN ONLY FOR ITS OWN ORDERS (R38 — the fresh audit's PERF F6). Every move of every ticket — new, making, ready —
-  // re-read all 300 finished orders on each device with Money open, through a whole service. It reads again now when an
-  // order becomes done or void, or an order it shows changes (an undo, a refund's flag) — asked of the change's own row.
-  useRealtimeTable([{ table: "orders", when: (row) => row.status === "done" || row.status === "void" || shownIds.current.has(String(row.id ?? "")) }], ordersState.reload);
-  return (
-    <AsyncSection
-      state={ordersState}
-      isEmpty={() => false}
-      emptyTitle="No completed orders yet"
-      emptySub="They appear here after pickup."
-      loadingLabel="Loading order history…"
-      errorTitle="Couldn't load order history"
-      errorSub="This is not an empty history — we could not read the orders just now."
-    >
-      {(rows) => {
-        const done = rows.filter((r) => r.status === "done").length;
-        // Under pressure a manager needs to LOOK UP an order — filter by name, order #, item, or amount.
-        const term = q.trim().toLowerCase();
-        const shown = term
-          ? rows.filter((o) => {
-              const name = (o.customer ?? "guest").toLowerCase();
-              const id = o.id.slice(0, 4).toLowerCase();
-              const items = o.items.map(nameOf).join(" ").toLowerCase();
-              // "#4F2A" as the ticket, the bar and the customer's Today print it finds it too (R3b).
-              const no = term.replace(/^#/, "");
-              return name.includes(term) || (!!no && id.includes(no)) || items.includes(term) || moneyPlain(o.total_cents).includes(term);
-            })
-          : rows;
-        return (
-          <div className="adm-sec">
-            {/* "It's my data" (enterprise round P2) — the accountant handoff, from the rows shown */}
-            <button type="button" className="btn-sec btn-sm shrink-0 mb-2" onClick={() => downloadCsv("gt3-orders.csv", shown.map((o) => ({
-              when: o.status_changed_at ?? "", order: orderNo(o.id), customer: o.customer ?? "guest",
-              items: o.items.map(nameOf).join(" · "),
-              total: moneyPlain(o.total_cents), status: STATUS_WORD[o.status] ?? o.status, paid: ledgerWord(o),
-            })))}>Export CSV</button>
-            <SectionHeader label="Order history" right={done > 0 ? <span className="k-count">{done} completed</span> : undefined} />
-            <input className="adm-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search orders" aria-label="Search order history" />
-            {term && <div className="h-sub" style={{ margin: "2px 2px 10px" }}>{shown.length} match{shown.length === 1 ? "" : "es"}</div>}
-            <div className="k-rows">
-              {shown.map((o) => (
-                <InfoRow
-                  key={o.id}
-                  name={<RecordLink kind="customer" id={o.customer_id}>{o.customer ?? "Guest"}</RecordLink>}
-                  nameExtra={<span className={`adm-substat ${o.status === "void" ? "past_due" : "active"}`}>{orderNo(o.id)} · {STATUS_WORD[o.status] ?? o.status}</span>}
-                  meta={<>{groupItems(o.items).map((g) => `${g.qty > 1 ? g.qty + "× " : ""}${nameOf(g.id)}`).join(" · ")} · {money(o.total_cents)} · {new Date(o.status_changed_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</>}
-                />
-              ))}
-            </div>
-            {rows.length === 0 && <EmptyState title="No completed orders yet" sub="They appear here after pickup." />}
-            {rows.length > 0 && shown.length === 0 && <EmptyState title={`No matches for “${q.trim()}”`} sub="Try a different name, order #, item, or amount." />}
-          </div>
-        );
-      }}
-    </AsyncSection>
-  );
+  return <OrderLedger />;
 }
 
 // "Turn on order alerts" lived here (EnableAlerts) until 2026-10-06 (the settings round). Ryan, the
@@ -6323,7 +6254,7 @@ export default function AdminPage() {
           </SetList>
           <SectionHeader label="Records" />
           <SetList>
-            <Panel id="orders" title="Order history" sub="Cup orders, done or void"><OrdersHistory /></Panel>
+            <Panel id="orders" title="Orders · by the day bought" sub="Every channel — cups, pickups, delivery, office, shop"><OrdersHistory /></Panel>
           </SetList>
           {/* The shop's queue is the Catalog's now, beside the merch it fulfils; Needs attention above says when an
               order waits on us. */}

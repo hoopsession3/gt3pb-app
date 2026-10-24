@@ -238,9 +238,12 @@ function handClock() {
     /const customerCount = total === null \? 0 : Math\.max\(0, total - staff\.length\);/.test(crew));
   const roles = routeLoader({})("lib/roles.ts");
   ok("…and STAFF_ROLES is exactly every role that isn't a member's (what the roster drew)", roles.STAFF_ROLES.slice().sort().join() === roles.ALL_ROLES.filter((r) => r !== "member").sort().join());
-  ok("the order history reads again only for its own orders — one becoming done or void, or one it shows",
-    /useRealtimeTable\(\[\{ table: "orders", when: \(row\) => row\.status === "done" \|\| row\.status === "void" \|\| shownIds\.current\.has\(String\(row\.id \?\? ""\)\) \}\], ordersState\.reload\);/.test(crew)
-    && /shownIds\.current = new Set\(rows\.map\(\(o\) => o\.id\)\);/.test(crew));
+  // R51: the history is every channel by the day bought (components/OrderLedger) — the rule kept: a purchase it doesn't show
+  // yet, or one it shows reaching its end, reads it again; a ticket's moves on the Pass don't.
+  const ledger = read("components/OrderLedger.tsx");
+  ok("the order history reads again only for what changes it — a purchase it doesn't show, or one it shows reaching its end",
+    /useRealtimeTable\(\["orders", "drop_orders", "delivery_orders", "shop_orders"\]\.map\(\(table\) => \(\{ table, when: \(row: Record<string, unknown>\) => \{/.test(ledger)
+    && /if \(!shownIds\.current\.has\(String\(row\.id \?\? ""\)\)\) return true;/.test(ledger) && /shownIds\.current = new Set\(lines\.map\(\(l\) => l\.id\)\);/.test(ledger));
   ok("the live event's catalog and costs are read for the event — on its going live, a product's change, and a minute's safety read on screen — not with every order",
     /useRealtimeTable\(\["products"\], loadSide, \{ enabled: !!liveId \}\);/.test(crew)
     && /const t = setInterval\(\(\) => \{ if \(document\.visibilityState === "visible"\) loadSide\(\); \}, 60_000\);/.test(crew) && /const totals = await eventTotals\(supabase, eid\);\s*return \{ live: \{ ev: e as EventRow, stats: totals \} \};/.test(crew)

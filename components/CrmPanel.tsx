@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { CHANNELS, CHANNEL_WORD, readLedger, type Channel, type LedgerLine } from "@/lib/orderLedger";
 import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
 import { canOf, roleOf } from "@/lib/roles";
@@ -32,23 +33,15 @@ export type Customer = {
   vip_verified: boolean | null;
   created_at: string;
 };
-type CrmOrder = {
-  id: string;
-  channel: "cup" | "pickup" | "delivery";
-  total_cents: number | null;
-  payment_status: string | null;
-  fulfillment_status: string | null;
-  created_at: string;
-};
+// A customer's orders are the ledger's (R51, lib/orderLedger): every channel — the shop's too, which all_orders never had —
+// dated by the day each was bought.
+type CrmOrder = LedgerLine;
 
-const CH_LABEL: Record<CrmOrder["channel"], string> = { cup: "Cup", pickup: "Pickup", delivery: "Delivery" };
-// The fulfillment status in words (R3b — no raw placed / in_prep on a screen); one set for every channel the record shows.
-const FULFILL_WORD: Record<string, string> = { placed: "Placed", in_prep: "In progress", fulfilled: "Fulfilled", canceled: "Canceled" };
 
 type Loyalty = { points: number | null; credit_cents: number | null; founding_member: boolean | null;
                  role: string | null } | null;
 type Perk = { label: string; requires_vip: boolean };
-type Detail = { orders: CrmOrder[]; loyalty: Loyalty; perks: Perk[]; hasProof: boolean };
+type Detail = { orders: CrmOrder[]; ordersFailed: Channel[]; loyalty: Loyalty; perks: Perk[]; hasProof: boolean };
 // The three states staff actually pick between (0252). VIP stays exactly what 0249/0250 built — a
 // bonus layer that only ever sits on top of Founding, never its own rung — this is just a derived
 // view over the two real columns (tier, vip_verified) so the radiogroup below can render one
@@ -64,6 +57,7 @@ export function CrmDetail({ c }: { c: Customer }) {
   const { profile } = useAuth();
   const canTier = canOf(profile).admin;
   const canLoyalty = roleOf(profile) === "owner";
+  const [allOrders, setAllOrders] = useState(false);
   const [pts, setPts] = useState("");
   const [credit, setCredit] = useState("");
   const [founding, setFounding] = useState(false);
@@ -74,16 +68,14 @@ export function CrmDetail({ c }: { c: Customer }) {
   const uiTier: UiTier = tier === "founding" ? (vip ? "founding_vip" : "founding") : "member";
 
   const loader = useCallback(async (): Promise<Detail> => {
-    if (!supabase) return { orders: [], loyalty: null, perks: [], hasProof: false };
+    if (!supabase) return { orders: [], ordersFailed: [], loyalty: null, perks: [], hasProof: false };
     // Founding VIP (0250): a bottle-verified customer sees every plain-Founding perk PLUS the
     // requires_vip ones; everyone else only sees the non-VIP set. Filtered here, not client-side,
     // so this card can never show a perk staff would need to explain "well, actually you don't get."
     let perkQuery = supabase.from("member_benefits").select("label, requires_vip").eq("active", true).eq("scope", "tier").eq("tier", "founding");
     if (!c.vip_verified) perkQuery = perkQuery.eq("requires_vip", false);
     const [ords, prof, perkRes, proofRes] = await Promise.all([
-      supabase.from("all_orders")
-        .select("id, channel, total_cents, payment_status, fulfillment_status, created_at")
-        .eq("customer_id", c.id).order("created_at", { ascending: false }).limit(200),
+      readLedger(supabase, { customerId: c.id, limit: 200 }),
       c.user_id
         // role rides along so this card can tell a customer from someone already on the crew — see
         // the hire link below for why that matters.
@@ -95,12 +87,13 @@ export function CrmDetail({ c }: { c: Customer }) {
       // still tell the two apart instead of quietly losing that distinction 0249 was built to show.
       supabase.from("vip_verifications").select("id").eq("customer_id", c.id).eq("status", "verified").limit(1),
     ]);
-    if (ords.error) throw new Error(ords.error.message);
+    if (ords.failed.length === CHANNELS.length) throw new Error("Couldn't read this customer's orders");
     if (prof.error) throw new Error(prof.error.message);
     if (perkRes.error) throw new Error(perkRes.error.message);
     if (proofRes.error) throw new Error(proofRes.error.message);
     return {
-      orders: (ords.data as CrmOrder[]) ?? [],
+      orders: ords.lines,
+      ordersFailed: ords.failed,
       loyalty: prof.data as Loyalty,
       perks: (perkRes.data as Perk[] | null) ?? [],
       hasProof: ((proofRes.data as { id: string }[] | null)?.length ?? 0) > 0,
@@ -108,6 +101,7 @@ export function CrmDetail({ c }: { c: Customer }) {
   }, [c.id, c.user_id, c.vip_verified]);
   const board = useAsyncData(loader, [c.id, c.user_id]);
   const orders = board.data?.orders ?? [];
+  const ordersFailed = board.data?.ordersFailed ?? [];
   const perks = board.data?.perks ?? [];
   const hasProof = board.data?.hasProof ?? false;
 
@@ -177,8 +171,9 @@ export function CrmDetail({ c }: { c: Customer }) {
     } finally { setTierBusy(false); }
   };
 
-  const lifetime = orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + (o.total_cents ?? 0), 0);
-  const open = orders.filter((o) => o.payment_status !== "paid" && o.fulfillment_status !== "canceled").reduce((s, o) => s + (o.total_cents ?? 0), 0);
+  const lifetime = orders.filter((o) => o.isPaid && !o.canceled).reduce((s, o) => s + o.totalCents, 0);
+  const open = orders.filter((o) => !o.isPaid && !o.canceled).reduce((s, o) => s + o.totalCents, 0);
+  const thisYear = String(new Date().getFullYear());
 
   return (
     <AsyncSection state={board} isEmpty={() => false} loadingLabel="Loading history…" errorTitle="Couldn't load this customer's history" emptyTitle="Nothing here yet">
@@ -191,14 +186,19 @@ export function CrmDetail({ c }: { c: Customer }) {
               <div className="crm-note" style={{ marginTop: 10 }}>
                 {orders.length} order{orders.length === 1 ? "" : "s"} · {money(lifetime)} paid{open > 0 ? ` · ${money(open)} open` : ""}
               </div>
-              {orders.slice(0, 12).map((o) => (
+              {/* Newest first, by the day bought — the year said when it isn't this one; twelve, then all of them. */}
+              {(allOrders ? orders : orders.slice(0, 12)).map((o) => (
                 <div className="crm-ord" key={`${o.channel}-${o.id}`}>
-                  <span className="ch">{CH_LABEL[o.channel]}</span>
-                  <b>{new Date(o.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</b>
-                  <span>{o.fulfillment_status ? FULFILL_WORD[o.fulfillment_status] ?? o.fulfillment_status : "—"}</span>
-                  <span className="px">{o.total_cents != null ? money(o.total_cents) : "—"}</span>
+                  <span className="ch">{CHANNEL_WORD[o.channel]}</span>
+                  <b>{new Date(`${o.day}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", ...(o.day.startsWith(thisYear) ? {} : { year: "numeric" }) })}</b>
+                  <span>{o.state}</span>
+                  <span className="px">{money(o.totalCents)}</span>
                 </div>
               ))}
+              {orders.length > 12 && (
+                <button type="button" className="btn-ter" onClick={() => setAllOrders((v) => !v)}>{allOrders ? "Show the latest 12" : `Show all ${orders.length}`}</button>
+              )}
+              {ordersFailed.length > 0 && <p className="crm-note" role="alert">Couldn&apos;t read their {ordersFailed.map((ch) => CHANNEL_WORD[ch].toLowerCase()).join(", ")} orders — they aren&apos;t counted here.</p>}
             </>
           )}
           {/* GT3 NUTRITION (R47): enrolled or not, how, how far — and Give / Take back, an owner's or an admin's. */}

@@ -62,7 +62,7 @@ const css = read("app/globals.css");
   ok("words fit their fields: shorter hints, a long copy line in a box that grows (and keeps the cursor), the splash's pair wraps",
     /placeholder="Their email"/.test(read("components/nutrition/CourseStudents.tsx")) && /placeholder="Search students"/.test(read("components/nutrition/CourseStudents.tsx"))
       && /placeholder="\/reserve"/.test(read("components/BroadcastEditor.tsx")) && /placeholder="e\.g\. Flow cacao per gallon"/.test(read("components/AiTraining.tsx"))
-      && /placeholder="Search orders" aria-label="Search order history"/.test(read("app/crew/page.tsx"))
+      && /placeholder="Search orders" aria-label="Search the orders"/.test(read("components/OrderLedger.tsx"))
       && /\(m\.default \?\? ""\)\.length > 26/.test(read("components/SiteCopyEditor.tsx")) && /if \(e\.key === "Enter"\) e\.preventDefault\(\);/.test(read("components/SiteCopyEditor.tsx"))
       && /\.goal-new-row\{display:flex;flex-wrap:wrap;gap:8px\}/.test(css));
   ok("the lessons' new-lesson picker has its own row, and its words say what's free now (the four pillars)",

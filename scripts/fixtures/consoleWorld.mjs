@@ -66,6 +66,9 @@ export async function seedConsoleWorld(db) {
     await run(`order ${who}`, `insert into public.orders (customer, items, total_cents, paid, status, tenant_id, created_at, payment_status) values ($1, $2, $3, true, $4, $5, now() - make_interval(mins => $6), 'paid')`,
       [who, ["RISE"], total, status, T1, 10 + i * 7]);
   }
+  // A drop pickup and a delivery, days apart (R51: the order ledger is grouped by the day each was bought).
+  await run("pickup", `insert into public.drop_orders (name, phone, size, glass, total_cents, paid, drop_date, tenant_id, customer_id, created_at) values ('Pat Morales', '+18645550103', 6, 'new', 3600, true, current_date + 1, $1, $2, now() - interval '2 days')`, [T1, cust[2] ?? null]);
+  await run("delivery", `insert into public.delivery_orders (delivery_date, name, phone, address_street, address_city, address_zip, pack_size, rise_count, flow_count, bottle_subtotal_cents, delivery_fee_cents, total_cents, tenant_id, customer_id, created_at) values (current_date + 2, 'Kim Ng', '+18645550102', '1200 Laurens Rd Apt 4B', 'Greenville', '29607', 6, 3, 3, 3600, 500, 4100, $1, $2, now() - interval '4 days')`, [T1, cust[1] ?? null]);
   // Spend.
   for (const [cat, desc, cents, days] of [["supplies", "Cups, lids and sleeves — 1,000 count", 18450, 2], ["supplies", "Generator fuel", 6400, 5], ["ingredients", "Organic cold brew concentrate (Cleanest Cuppa) — 5 gal", 21000, 9]]) {
     await run(`expense ${desc}`, `insert into public.expenses (tenant_id, category, description, amount_cents, spent_on, created_by) values ($1, $2, $3, $4, current_date - $5::int, $6)`, [T1, cat, desc, cents, days, OWNER.id]);

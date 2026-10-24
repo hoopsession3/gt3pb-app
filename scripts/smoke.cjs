@@ -6037,7 +6037,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     && /if \(error\) toast\("Didn't save — check the porch", "error"\); else notifyDelivered\(o\);/.test(read("components/DriverRun.tsx")) && /if \(!error\) notifyDelivered\(o\);/.test(read("components/DriverRun.tsx"))
     && !/haptic\("success"\); notifyDelivered\(o\);/.test(read("components/DriverRun.tsx")));
   ok("orders export: the paid column is lib/collect's ledger word — it called every unpaid order 'at pickup', picked up or not",
-    /paid: ledgerWord\(o\),/.test(crewSrc) && !/paid: o\.paid \? "paid online" : "at pickup"/.test(crewSrc));
+    // R51: the history is every channel (components/OrderLedger); the window's channels still take lib/collect's word.
+    /const ledger = \(r: Row\) => \{ const w = ledgerWord\(r as Collectable\);/.test(read("lib/orderLedger.ts")) && /paid: ledger\(r\), isPaid: isSettled\(r as Collectable\)/.test(read("lib/orderLedger.ts")) && /paid: l\.paid, status: l\.state/.test(read("components/OrderLedger.tsx"))
+      && !/paid: o\.paid \? "paid online" : "at pickup"/.test(crewSrc));
   // R20: the rule is lib/eventTotals' (totalsFromRows — db.r20 holds the database to it) and 0426's event_totals (the database's).
   const etSrc = code(read("lib/eventTotals.ts")), m25src = read("supabase/migrations/0426_an_events_takings_are_counted_where_they_are.sql");
   ok("event HUD: a card paid online is not counted twice — once as the order, again as its own Square payment — nor any other app payment Square files against the event (the R20 review: report_sales' rule)",
@@ -12264,7 +12266,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && /const monthStart = businessMonthStart\(\);/.test(spend) && /const month = monthKey\(businessMonthStart\(\)\);/.test(spend));
   ok("money: the console's money panels read their errors — subscribers, subscription interest, order history, product economics",
     /const \{ data, error \} = await supabase\.from\("subscriptions"\)\.select\("\*"\)/.test(crew) && /const \{ data, error \} = await supabase\.from\("subscription_interest"\)/.test(crew)
-      && /const \{ data, error \} = await supabase\.from\("orders"\)\.select\("\*"\)\.in\("status", \["done", "void"\]\)/.test(crew)
+      && /failed: res\.filter\(\(r\) => r\.rows === null\)\.map\(\(r\) => r\.ch\)/.test(fs.readFileSync(path.join(__dirname, "..", "lib/orderLedger.ts"), "utf8"))
       && /if \(live\.error\) throw new Error\(live\.error\.message\);\s*if \(prods\.error\) throw new Error\(prods\.error\.message\);/.test(crew));
   ok("money: and the panels that read in parts read every part — spend's report and categories, the shop's queue, an agreement's integrity and hours, an offer's approvals, history and letter",
     /if \(c\.error\) throw new Error\(c\.error\.message\);/.test(spend) && /if \(!rep \|\| rep\.error\) throw/.test(spend)
@@ -14039,10 +14041,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const hand = ["components/pass/Ticket.tsx", "components/pass/ThePass.tsx", "app/api/orders/cancel/route.ts", "app/crew/page.tsx", "components/OrderStatus.tsx", "components/today/TodayHome.tsx", "components/Notifications.tsx"];
   ok("one number: no screen builds #4F2A by hand — lib/activeOrder.orderNo, or the Pass's ticketNo, which is it",
     hand.every((f) => !/slice\(0, 4\)\.toUpperCase\(\)/.test(rd(f))) && /export const ticketNo = orderNo;/.test(rd("lib/orderStatus.ts")), hand.filter((f) => /slice\(0, 4\)\.toUpperCase\(\)/.test(rd(f))));
-  const crew = rd("app/crew/page.tsx");
   ok("one number: the crew's order history shows it, finds it typed with its #, and exports it as printed — its status in the Pass's words",
-    /\{orderNo\(o\.id\)\} · \{STATUS_WORD\[o\.status\] \?\? o\.status\}/.test(crew) && /const no = term\.replace\(\/\^#\/, ""\);/.test(crew)
-    && /order: orderNo\(o\.id\)/.test(crew) && /status: STATUS_WORD\[o\.status\] \?\? o\.status/.test(crew));
+    // R51: the history is components/OrderLedger — the cup's state is the Pass's word (lib/orderLedger STATUS_WORD).
+    /meta=\{`\$\{orderNo\(l\.id\)\} · /.test(rd("components/OrderLedger.tsx")) && /q\.toLowerCase\(\)\.replace\(\/#\/g, ""\)/.test(rd("lib/orderLedger.ts"))
+    && /order: orderNo\(l\.id\)/.test(rd("components/OrderLedger.tsx")) && /state: STATUS_WORD\[status\] \?\? \(status \|\| "—"\)/.test(rd("lib/orderLedger.ts")));
 }
 
 // ── EVERY ORDER A TICKET (2026-10-13, R3b of the customer audit — board 09, approved; 0395) ──

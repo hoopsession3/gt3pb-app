@@ -460,7 +460,7 @@ function LoopQuickLog({ porches }: { porches: readonly DOrder[] }) {
       <input className="min-h-11" inputMode="numeric" value={n} onChange={(e) => { setN(e.target.value.replace(/\D/g, "")); setMsg(null); }} placeholder="bottles" aria-label="Loop bottles returned" />
       {people.length > 0 && (
         <select className="min-h-11" value={whose} onChange={(e) => setWhose(e.target.value)} aria-label="Whose bottles">
-          <option value="">Whose? — not recorded</option>
+          <option value="">Whose bottles?</option>
           {people.map((o) => <option key={o.customer_id as string} value={o.customer_id as string}>{o.name}{o.refill_count > 0 ? " · swap" : ""}</option>)}
         </select>
       )}

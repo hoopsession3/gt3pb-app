@@ -65,8 +65,9 @@ export const LISTS = [
   { key: "snapshot", name: "Subscriptions", file: "components/SnapshotReport.tsx", panel: "snapshot", tables: [], perm: "read-only",
     na: { 3: "a report", 4: "a report", 5: "a report", 6: "a report", 7: "a report", 8: "a report — it changes nothing", 9: "read-only" } },
   { key: "spend", name: "Spend vs budget", file: "components/SpendBudget.tsx", panel: "spend", tables: ["expenses", "budgets"], perm: "0209 spend policies" },
-  { key: "orders", name: "Order history", file: PAGE, fn: "OrdersHistory", panel: "orders", tables: ["orders"], perm: "orders staff policies",
-    na: { 3: "a record of cups sold; each is voided on its own receipt", 4: "the same", 5: "the same", 6: "the same", 7: "a void is a refund" } },
+  // R51: every channel, by the day bought (components/OrderLedger) — a record; each order is changed on its own board.
+  { key: "orders", name: "Orders · by the day bought", file: "components/OrderLedger.tsx", panel: "orders", tables: ["orders", "drop_orders", "delivery_orders", "business_orders", "shop_orders"], perm: "each channel's staff policies",
+    na: { 3: "a record of what was bought; each order is changed on its own board (the Pass, pickups, delivery, office, the shop)", 4: "the same", 5: "the same", 6: "the same", 7: "a void or a refund is its own receipt" } },
   { key: "custbook", name: "Customer book", file: "components/CrmPanel.tsx", panel: "cust-book", tables: ["customers", "profiles"], perm: "0392 admin_set_customer_tier; 0414 admin_set_member" },
   { key: "vip", name: "Bottle-owner proofs", file: "components/VipQueue.tsx", panel: "cust-vip", tables: ["vip_verifications"], perm: "0392 vip review" },
   { key: "broadcast", name: "Broadcast", file: "components/BroadcastEditor.tsx", panel: "cust-broadcast", tables: ["broadcasts"], perm: "0351 broadcasts admin write" },

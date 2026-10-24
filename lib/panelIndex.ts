@@ -29,7 +29,7 @@ export const PANEL_INDEX: readonly PanelEntry[] = [
   { id: "econ", section: "money", title: "Margins by product", words: ["margin", "cost", "profit per drink", "prices"] },
   { id: "cogs", section: "money", title: "COGS calculator", words: ["cogs", "cost of goods", "recipe cost"] },
   { id: "spend", section: "money", title: "Spend vs budget", words: ["spend", "budget", "expenses", "receipts", "purchases"] },
-  { id: "orders", section: "money", title: "Order history", words: ["orders", "cup orders", "void", "history", "receipts"] },
+  { id: "orders", section: "money", title: "Orders · by the day bought", words: ["orders", "order history", "cup orders", "shop orders", "pickups", "deliveries", "office orders", "purchase date", "date", "void", "history", "receipts", "accountant", "export"] },
   // ── Customers ──
   { id: "cust-vip", section: "customers", title: "Bottle-owner proofs", words: ["vip", "bottle", "proof", "verify", "founding"] },
   { id: "cust-book", section: "customers", title: "Customer book", words: ["customers", "guests", "members", "people", "users", "contacts", "loyalty", "points"] },
