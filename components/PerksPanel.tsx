@@ -13,6 +13,7 @@ import Icon from "@/components/Icon";
 import { InfoRow } from "@/components/kit";
 import { haptic } from "@/lib/haptics";
 import { plainFailure, failureWords } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
 
 // FOUNDING PERKS — the tier side of member_benefits (0176), CodesPanel's sibling for the other
 // scope. A perk is the same kind of rule a code is (kind × target × value), just keyed to a tier
@@ -129,9 +130,17 @@ export default function PerksPanel() {
 
   return (
     <div className="codes">
-      <div className="codes-head">
-        <div className="codes-sub">Set what each tier gets — Member, Founding, or Founding-VIP-only. Applied live at checkout, no deploy.</div>
-        <button type="button" className="btn-ter" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "+ New perk"}</button>
+      <div className="codes-head flex-wrap">
+        {/* R50: the lead line has the row, the actions the row under it — beside it, on a phone the line was squeezed to a column. */}
+        <div className="codes-sub basis-full">Set what each tier gets — Member, Founding, or Founding-VIP-only. Applied live at checkout, no deploy.</div>
+        <span className="flex flex-wrap gap-2 items-center shrink-0 ml-auto">
+          {/* R50: the perks, as a file (the console audit's point 10). */}
+          <button type="button" className="btn-sec btn-sm shrink-0" disabled={!board.data?.length} onClick={() => void downloadCsv("gt3-perks.csv", (board.data ?? []).map((r) => ({
+            "Who gets it": whoText(r), Perk: valueText(r), "Applies to": targetLabel(r.target, products), Label: r.label,
+            Active: r.active ? "yes" : "no", Created: r.created_at,
+          })))}>Export CSV</button>
+          <button type="button" className="btn-ter" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "+ New perk"}</button>
+        </span>
       </div>
 
       {open && (

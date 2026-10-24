@@ -128,11 +128,12 @@ export function scoreList(L, { panels, audited, src }) {
 // ── THE FLOOR: each list's score as it stands (R48). Only up — raise a row in the same change that earns it. ──
 // R49: twenty-one rows up a point — history (8) now counts 0042's audit_log, which the Activity log reads since R49, and
 // 0446 put nine more tables under it; the Activity log is searchable (2), so it is 4/4.
+// R50: every list exports what it shows (10), and eleven more are searchable (2) — 27 rows up.
 export const FLOOR = {
-  menu: "10/10", merch: "10/10", shoporders: "4/5", resv: "3/10", students: "5/10", lessons: "3/10", plans: "3/5", codes: "4/10", perks: "3/5",
-  pay: "3/6", sales: "2/3", pnl: "1/3", snapshot: "1/3", spend: "4/10", orders: "5/5", custbook: "4/10", vip: "2/10", broadcast: "3/10",
-  reviews: "4/10", offers: "3/10", operators: "4/10", prepboard: "4/10", gaps: "3/10", shoots: "4/10", activity: "4/4", lists: "4/10",
-  pass: "4/6", drops: "4/10", delivery: "8/10", office: "3/10", brew: "4/10", inventory: "4/10", gear: "4/10", today: "8/10",
+  menu: "10/10", merch: "10/10", shoporders: "5/5", resv: "5/10", students: "5/10", lessons: "5/10", plans: "4/5", codes: "5/10", perks: "4/5",
+  pay: "5/6", sales: "3/3", pnl: "3/3", snapshot: "3/3", spend: "4/10", orders: "5/5", custbook: "4/10", vip: "4/10", broadcast: "5/10",
+  reviews: "5/10", offers: "5/10", operators: "5/10", prepboard: "5/10", gaps: "5/10", shoots: "5/10", activity: "4/4", lists: "5/10",
+  pass: "5/6", drops: "5/10", delivery: "10/10", office: "5/10", brew: "5/10", inventory: "5/10", gear: "5/10", today: "9/10",
 };
 
 export function run(list = false) {

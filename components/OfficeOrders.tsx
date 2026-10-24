@@ -18,7 +18,8 @@ import EmptyState from "./EmptyState";
 import { InfoRow } from "@/components/kit";
 import FoldCard from "@/components/crew/FoldCard";
 import Icon from "@/components/Icon";
-import { money } from "@/lib/money";
+import { money, moneyPlain } from "@/lib/money";
+import { downloadCsv } from "@/lib/csv";
 import { usePrompt } from "@/components/PromptSheet";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useMinute } from "@/lib/useMinute";
@@ -73,6 +74,7 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
   const [empties, setEmpties] = useState<Record<string, number>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showLater, setShowLater] = useState(false);
+  const [q, setQ] = useState("");   // R50: search the route (the console audit's point 2)
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { rows: [], later: [], standingN: 0, requests: [], due: null };
@@ -289,7 +291,12 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
       {(data) => {
         const { standingN, later, requests } = data;
         const route = data.rows.filter((o) => o.status !== "delivered");
-        const rows = showLater ? [...route, ...later, ...data.rows.filter((o) => o.status === "delivered")] : data.rows;
+        const all = showLater ? [...route, ...later, ...data.rows.filter((o) => o.status === "delivered")] : data.rows;
+        const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+        const rows = all.filter((o) => {
+          const hay = [o.company, o.contact_phone ?? "", o.address_street, o.address_city, o.address_zip].join(" ").toLowerCase();
+          return terms.every((t) => hay.includes(t));
+        });
         // ITS DAY (2026-10-10, the Live Ops fold). Live Ops is today; the route drew every order on it all
         // week — on a Saturday, 1,100px of Monday under the Pass. It is one row now (the day, how many
         // deliveries, the gallons to fill) until it is today's work: the delivery day, a delivery that is
@@ -340,12 +347,25 @@ export default function OfficeOrders({ onDue, onRows }: { onDue?: (day: string |
                 })}
               </div>
             )}
-            {rows.length === 0 && later.length === 0 && <EmptyState title="No orders booked yet" sub="Generate the schedule above." />}
+            {all.length === 0 && later.length === 0 && <EmptyState title="No orders booked yet" sub="Generate the schedule above." />}
             {later.length > 0 && (
               <button type="button" className="btn-ter" onClick={() => setShowLater((v) => !v)} aria-expanded={showLater}>
                 {showLater ? "Hide" : "Show"} the next weeks — {later.length} more deliver{later.length === 1 ? "y" : "ies"}, through {mondayLabel(later[later.length - 1].delivery_date)}
               </button>
             )}
+            {/* R50: search the route, and the rows shown as a file (the console audit's points 2 and 10). */}
+            {all.length > 0 && (
+              <div className="flex items-center gap-2 my-2">
+                <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search offices" aria-label="Search the office route" enterKeyHint="search" autoComplete="off" />
+                <button type="button" className="btn-sec btn-sm shrink-0" disabled={!rows.length} onClick={() => void downloadCsv("gt3-office-orders.csv", rows.map((o) => ({
+                  company: o.company, phone: o.contact_phone ?? "", street: o.address_street, city: o.address_city, zip: o.address_zip,
+                  delivery_date: o.delivery_date, window: windowHours(o.delivery_window), gallons: o.gallons, standing: o.standing ? "yes" : "no",
+                  status: o.status, terms: o.billing_terms, payment: o.payment_status, total: moneyPlain(o.total_cents),
+                  jugs_out: o.jugs_out, jugs_in: o.jugs_in ?? "",
+                })))}>Export CSV</button>
+              </div>
+            )}
+            {all.length > 0 && rows.length === 0 && <p className="h-sub">No matches.</p>}
             <div className="k-rows">
               {rows.map((o) => {
                 const open = openId === o.id;

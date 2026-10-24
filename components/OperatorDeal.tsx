@@ -32,6 +32,7 @@ import { fullestName } from "@/lib/customerKnown";
 import { readParam, dropParam } from "@/lib/urlParam";
 import Said from "./Said";
 import { failureWords } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
 
 // OPERATOR DEAL — build, price and negotiate a market operator's agreement.
 //
@@ -205,11 +206,21 @@ export default function OperatorDeal({ mine = false }: { mine?: boolean } = {}) 
             <SectionHeader
               label={mine ? "Your agreement" : "Operator agreements"}
               annotation={mine ? (rows.length === 1 ? "1 version" : `${rows.length} versions`) : `${rows.length} on file`} />
-            {!mine && (
-              <button type="button" className="btn-sec" onClick={() => createDraft()} disabled={busy || creating}>
-                {busy ? "Creating…" : "+ New agreement"}
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* R50: the rows shown, as a file (the console audit's point 10). */}
+              <button type="button" className="btn-sec btn-sm shrink-0" disabled={!rows.length} onClick={() => void downloadCsv("gt3-operator-agreements.csv", rows.map((r) => ({
+                operator: r.operator_name, email: r.operator_email ?? "", market: MARKET_LABEL[toMarket(r.market)], status: r.status, version: r.version,
+                tier: r.tier, stage: r.stage, supply_funding: r.supply_funding, operator_pct: r.operator_pct, royalty_pct: r.royalty_pct, market_pct: r.market_pct,
+                covers: (r.covers ?? []).join("; "), scope_basis: r.scope_basis, scope_until: r.scope_until ?? "", hours_basis: r.hours_basis,
+                signed_by: r.signed_name ?? "", signed_at: r.signed_at ?? "", countersigned_by: r.countersigned_name ?? "", countersigned_at: r.countersigned_at ?? "",
+                created: r.created_at, updated: r.updated_at ?? "",
+              })))}>Export CSV</button>
+              {!mine && (
+                <button type="button" className="btn-sec" onClick={() => createDraft()} disabled={busy || creating}>
+                  {busy ? "Creating…" : "+ New agreement"}
+                </button>
+              )}
+            </div>
           </div>
           <div className="h-sub">
             {mine

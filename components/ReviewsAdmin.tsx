@@ -14,6 +14,7 @@ import { apiUrl } from "@/lib/native";
 import Button from "./Button";
 import { wrote } from "@/lib/wrote";
 import { useConfirm } from "./ConfirmSheet";
+import { downloadCsv } from "@/lib/csv";
 
 // STAFF REVIEW DESK — approve member feedback and add reviews pulled from Google / Instagram / the
 // feedback album. "Add" inserts pre-approved. Every row shows a live preview of exactly how it'll read
@@ -101,7 +102,14 @@ export default function ReviewsAdmin() {
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load reviews" emptyTitle="Nothing here yet">
       {() => (
         <div className="adm-sec">
-          <SectionHeader label="Reviews" right={<button className="btn-ter" onClick={() => setAdding((v) => !v)}>{adding ? "Close" : "+ Add"}</button>} />
+          {/* R50: the rows shown (this tab), as a file (the console audit's point 10) — as they read on the display. */}
+          <SectionHeader label="Reviews" right={<div className="flex flex-wrap gap-2 items-center">
+            <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv(`gt3-reviews-${tab}.csv`, shown.map((r) => {
+              const c = cleanReview(r);
+              return { Name: c.who, Rating: c.rating, Review: c.text, Source: r.source, Status: r.approved ? "Live" : "Pending", "On the display": isDisplayable(r) ? "yes" : "no", Added: r.created_at };
+            }))}>Export CSV</button>
+            <button className="btn-ter" onClick={() => setAdding((v) => !v)}>{adding ? "Close" : "+ Add"}</button>
+          </div>} />
           <div className="h-sub">Nothing shows on the truck display until you approve it. Add ones from Google, Instagram, or the feedback album.</div>
 
           {adding && (

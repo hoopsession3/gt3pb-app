@@ -14,6 +14,7 @@ import { LINK_WORDS, safeLink } from "@/lib/safeLink";
 import { wrote } from "@/lib/wrote";
 import Said from "./Said";
 import { failureWords } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
 
 // BROADCAST EDITOR (Settings) — compose an announcement/ad and put it live across the app to everyone.
 // The composer exposes every option: what it says, who sees it, how it looks, an optional call-to-
@@ -42,6 +43,10 @@ export default function BroadcastEditor() {
   }, []);
   const state = useAsyncData(loader, []);
   const rows = state.data ?? [];
+  // R50: the list searched by headline, message, audience or type; the export is the rows shown.
+  const [q, setQ] = useState("");
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = rows.filter((b) => { const hay = `${b.title} ${b.body ?? ""} ${b.audience} ${b.kind} ${b.active ? "live" : "draft"}`.toLowerCase(); return terms.every((t) => hay.includes(t)); });
   const load = state.reload;
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
@@ -167,8 +172,20 @@ export default function BroadcastEditor() {
         </p>
       )}
 
+          {/* R50: search the broadcasts, and the rows shown as a file (the console audit's points 2 and 10). */}
+          <div className="flex flex-wrap gap-2 items-center mb-2">
+            <div className="flex-1 min-w-0">
+              <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search broadcasts" aria-label="Search the broadcasts" enterKeyHint="search" autoComplete="off" />
+            </div>
+            <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv("gt3-broadcasts.csv", shown.map((b) => ({
+              Headline: b.title, Message: b.body ?? "", Status: b.active ? "Live" : "Draft",
+              Audience: AUDIENCES.find(([v]) => v === b.audience)?.[1] ?? b.audience, Type: KINDS.find(([v]) => v === b.kind)?.[1] ?? b.kind,
+              "Show from": b.starts_at ?? "", "Hide after": b.ends_at ?? "", Button: b.cta_label ?? "", Link: b.cta_href ?? "",
+            })))}>Export CSV</button>
+          </div>
+          {terms.length > 0 && shown.length === 0 && <p className="set-lead">No matches.</p>}
           <div className="k-rows">
-            {rows.map((b) => (
+            {shown.map((b) => (
               <InfoRow
                 key={b.id}
                 name={<><span className={`bce-dot bcast-${b.style}`} />{b.title}</>}

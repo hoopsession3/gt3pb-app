@@ -11,6 +11,7 @@ import { logDone } from "@/lib/upkeep";
 import { roleOf, canOf } from "@/lib/roles";
 import { daysBetween, dueWord } from "@/lib/dayWords";
 import { addDays, localToday } from "@/lib/dates";
+import { downloadCsv } from "@/lib/csv";
 import { goPlanTab } from "@/lib/planNav";
 import { prepBucket } from "@/lib/readiness";
 import type { Viewer } from "@/lib/obligations";
@@ -64,6 +65,7 @@ type Data = { items: Item[]; owed: OwedData; doneToday: number; today: string };
 const STALE_LABEL = `More than ${STALE_DAYS / 7} weeks late`;
 // The head's tone, in the kit's count chip: plain, the warning amber, or the done green.
 const TONE = { plain: "", warn: " soon", ok: " ok" } as const;
+const KIND_WORD = { mine: "Yours", owed: "Owed", upkeep: "Equipment upkeep", rule: "Compliance" } as const;
 const sentence = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
 function mineSub(t: MyTaskRow): string {
@@ -274,6 +276,11 @@ export default function TodayList({ allTasks }: { allTasks: ReactNode }) {
                   aria-label={`${owed.bookings} booking ${owed.bookings === 1 ? "request" : "requests"} to answer`}>Bookings · {owed.bookings} ›</button>}
                 {owed.low.length > 0 && <button type="button" className="k-chip sm warn" onClick={() => setSection("garage")} aria-label={`Restock, ${owed.low.length} low`}>Restock · {owed.low.length} ›</button>}
                 <button type="button" className="k-chip sm" onClick={() => setSheet("all")} aria-label={`All tasks, ${s.total}`}>All tasks · {s.total} ›</button>
+                {/* R50: what My Day holds, as a file (the console audit's point 10). */}
+                <button type="button" className="btn-sec btn-sm shrink-0" disabled={!items.length} onClick={() => void downloadCsv("gt3-my-day.csv", items.map((i) => ({
+                  task: i.title, kind: KIND_WORD[i.kind], detail: i.sub, due: i.daysOut != null ? addDays(today, i.daysOut) : "",
+                  when: i.daysOut != null ? dueWord(i.daysOut) : "", critical: i.critical ? "yes" : "no",
+                })))}>Export CSV</button>
               </div>
               {owed.extrasFailed && (
                 <Said as="p" className="pnl-note" assertive>Restock and booking replies couldn&rsquo;t be read just now — the rest is current.</Said>

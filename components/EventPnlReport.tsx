@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { fetchEventPnl, type EventPnlRow } from "@/lib/reports";
 import { useRecord } from "./RecordSheet";
@@ -8,7 +8,8 @@ import { prepHandoffKey, prepHandoffValue } from "@/lib/eventRecord";
 import { useOperatorSection } from "./OperatorNav";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import { moneyRound } from "@/lib/money";
+import { moneyPlain, moneyRound } from "@/lib/money";
+import { downloadCsv } from "@/lib/csv";
 
 // Per-event P&L — actual revenue (Square mirror) minus COGS minus fixed event costs from the
 // event_economics model. Scaffold: fills in as sales flow against live events. MONEY tab.
@@ -43,17 +44,31 @@ export default function EventPnlReport() {
 
   const loader = useCallback((): Promise<EventPnlRow[]> => fetchEventPnl(), []);
   const board = useAsyncData(loader, []);
+  const [q, setQ] = useState("");
 
   return (
     <div className="adm-sec rpt">
       <SectionHeader label="Per-event P&amp;L" annotation="plan vs actual" />
       <AsyncSection state={board} isEmpty={(data) => data.length === 0} emptyTitle="No events yet" errorTitle="Couldn't load the P&L report"
         errorSub="This is not zero — we could not read the events' takings and costs just now.">
-        {(rows) => {
-          const anyActual = rows.some((r) => r.actual_cents > 0);
-          const anyAssumed = rows.some((r) => r.costs_saved === false);
+        {(all) => {
+          const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+          const rows = all.filter((r) => { const hay = (r.event || "").toLowerCase(); return terms.every((t) => hay.includes(t)); });
+          const anyActual = all.some((r) => r.actual_cents > 0);
+          const anyAssumed = all.some((r) => r.costs_saved === false);
           return (
             <div className="rpt-block">
+              {/* R50: search the events, and the rows shown as a file (the console audit's points 2 and 10). */}
+              <div className="flex flex-wrap gap-2 items-center mb-2">
+                <div className="flex-1 min-w-0">
+                  <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search events" aria-label="Search the events" enterKeyHint="search" autoComplete="off" />
+                </div>
+                <button type="button" className="btn-sec btn-sm shrink-0" disabled={!rows.length} onClick={() => void downloadCsv("gt3-event-pnl.csv", rows.map((r) => ({
+                  Event: r.event, Kind: r.kind ?? "", Orders: r.orders, Sales: moneyPlain(r.actual_cents), "Gross %": Math.round((1 - r.cogs_pct) * 100),
+                  Fixed: moneyPlain(r.fixed_cents), "Est. net": moneyPlain(r.margin_cents), "Costs saved": r.costs_saved === false ? "no" : "yes",
+                })))}>Export CSV</button>
+              </div>
+              {terms.length > 0 && rows.length === 0 && <p className="rpt-hint">No matches.</p>}
               {/* Kit InfoRow replaces the ad-hoc .rpt-pnl button: event → name, the tap-through
                   chevron → nameExtra (still sits right next to the name, only shown when the row
                   is actually linkable), orders/gross%/fixed → meta. Revenue + net margin stay a

@@ -11,6 +11,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { wrote } from "@/lib/wrote";
 import { useChanged } from "@/lib/useChanged";
 import { failureWords } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
 
 // RETURN TO PRIMAL · lessons manager (0273) — author the customer nutrition academy the same way the
 // menu is managed: create a draft (born hidden, 0270 publish gate), fill it in, link the menu products
@@ -32,6 +33,7 @@ export default function LessonsManager() {
   const [newMod, setNewMod] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [showStructure, setShowStructure] = useState(false);
+  const [q, setQ] = useState("");
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { pillars: [], modules: [], lessons: [], products: [] };
@@ -48,6 +50,19 @@ export default function LessonsManager() {
   const board = useAsyncData(loader, []);
   const { reload } = board;
   const b = board.data ?? { pillars: [], modules: [], lessons: [], products: [] };
+  // R50: a search over the lessons by title, module and pillar (the console audit's point 2); the export takes what it leaves.
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const placeOf = (l: Lesson) => {
+    const m = b.modules.find((x) => x.id === l.module_id);
+    return { m, p: m ? b.pillars.find((x) => x.id === m.pillar_id) : undefined };
+  };
+  const matches = (l: Lesson) => {
+    const { m, p } = placeOf(l);
+    const hay = `${l.title} ${l.subtitle ?? ""} ${m?.title ?? ""} ${p?.title ?? ""}`.toLowerCase();
+    return terms.every((t) => hay.includes(t));
+  };
+  const shown = b.pillars.flatMap((p) => b.modules.filter((m) => m.pillar_id === p.id)
+    .flatMap((m) => b.lessons.filter((l) => l.module_id === m.id && matches(l))));
 
   const createLesson = async () => {
     if (!supabase) return;
@@ -69,6 +84,14 @@ export default function LessonsManager() {
           <div className="studio-top">
             <SectionHeader label="Return to Primal · lessons" />
             <button type="button" className="btn-sec btn-sm" onClick={() => setShowStructure((s) => !s)}>{showStructure ? "Hide structure" : "Pillars & modules"}</button>
+            {/* R50: the lessons shown, as a file (the console audit's point 10). */}
+            <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv("gt3-lessons.csv", shown.map((l) => {
+              const { m, p } = placeOf(l);
+              return {
+                Pillar: p?.title ?? "", Module: m?.title ?? "", Lesson: l.title, Subtitle: l.subtitle ?? "", Tier: l.tier,
+                "Read time (min)": l.est_minutes ?? "", Published: l.published_at ?? "", Summary: l.summary ?? "", "Key points": l.key_points.join(" · "),
+              };
+            }))}>Export CSV</button>
           </div>
           <div className="h-sub">Write the customer nutrition academy. New lessons are born hidden — fill them in, link the menu stack, then publish. The four pillars are free; every other lesson opens with GT3 Nutrition.</div>
 
@@ -88,16 +111,22 @@ export default function LessonsManager() {
             <button type="button" className="insp-yes" onClick={createLesson} disabled={!newMod || isBlank(newTitle)}>Create</button>
           </div>
 
+          <div className="mt-3 mb-2">
+            <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search lessons"
+                   aria-label="Search the lessons" enterKeyHint="search" autoComplete="off" />
+          </div>
+          {terms.length > 0 && shown.length === 0 && <p className="cp-line dim">No matches.</p>}
+
           {/* lessons grouped by pillar → module */}
           {b.pillars.map((p) => {
             const mods = b.modules.filter((m) => m.pillar_id === p.id);
-            const pillarLessons = b.lessons.filter((l) => mods.some((m) => m.id === l.module_id));
+            const pillarLessons = b.lessons.filter((l) => mods.some((m) => m.id === l.module_id) && matches(l));
             if (pillarLessons.length === 0) return null;
             return (
               <div key={p.id} style={{ marginTop: 16 }}>
                 <SectionHeader label={p.title} />
                 {mods.map((m) => {
-                  const lessons = b.lessons.filter((l) => l.module_id === m.id);
+                  const lessons = b.lessons.filter((l) => l.module_id === m.id && matches(l));
                   if (lessons.length === 0) return null;
                   return (
                     <div key={m.id} style={{ marginBottom: 8 }}>

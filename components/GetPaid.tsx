@@ -6,7 +6,8 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
 import { etDayKey, etToday } from "@/lib/dates";
 import { dueWord, daysBetween } from "@/lib/dayWords";
-import { moneyRound } from "@/lib/money";
+import { moneyPlain, moneyRound } from "@/lib/money";
+import { downloadCsv } from "@/lib/csv";
 import { markInvoicePaid } from "@/lib/collect";
 import AsyncSection from "./AsyncSection";
 import GoLine from "./GoLine";
@@ -55,6 +56,13 @@ export default function GetPaid() {
   const confirm = useConfirm();
   const { toast } = useAppStable();
   const [paying, setPaying] = useState<string | null>(null);
+  // R50: a search over what is owed, disputed and refunded (the console audit's point 2).
+  const [q, setQ] = useState("");
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = (...words: (string | null | undefined)[]) => {
+    const hay = words.filter(Boolean).join(" ").toLowerCase();
+    return terms.every((t) => hay.includes(t));
+  };
 
   const loader = useCallback(async (): Promise<Board> => {
     if (!supabase) return { invoices: [], disputes: [], refunds: [] };
@@ -101,8 +109,26 @@ export default function GetPaid() {
         errorTitle="Couldn't read refunds, chargebacks and invoices"
         errorSub="This is not the same as there being none — we could not read them just now."
       >
-        {({ invoices, disputes, refunds }) => (
+        {(board) => {
+          const invoices = board.invoices.filter((i) => hit("invoice owed", i.business_accounts?.company, i.terms === "net30" ? "net 30" : "net 15"));
+          const disputes = board.disputes.filter((d) => hit("chargeback dispute", stateWords(d.state), d.reason?.replace(/_/g, " ")));
+          const refunds = board.refunds.filter((r) => hit("refund", r.status, r.reason));
+          const shown = invoices.length + disputes.length + refunds.length;
+          return (
           <div className="owed">
+            <div className="flex flex-wrap gap-2 items-center mb-2">
+              <div className="flex-1 min-w-0">
+                <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search"
+                       aria-label="Search the invoices, chargebacks and refunds" enterKeyHint="search" autoComplete="off" />
+              </div>
+              {/* R50: the rows shown, as a file (the console audit's point 10). */}
+              <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown} onClick={() => void downloadCsv("gt3-get-paid.csv", [
+                ...invoices.map((i) => ({ Kind: "Invoice", Who: i.business_accounts?.company || "An office account", Amount: moneyPlain(i.amount_cents), Status: i.terms === "net30" ? "Net 30" : "Net 15", Date: i.due_at ?? "", Reason: "" })),
+                ...disputes.map((d) => ({ Kind: "Chargeback", Who: "", Amount: moneyPlain(d.amount_cents), Status: stateWords(d.state), Date: d.due_at ?? "", Reason: d.reason ?? "" })),
+                ...refunds.map((r) => ({ Kind: "Refund", Who: "", Amount: moneyPlain(r.amount_cents), Status: r.status, Date: r.created_at, Reason: r.reason ?? "" })),
+              ])}>Export CSV</button>
+            </div>
+            {terms.length > 0 && shown === 0 && <p className="cp-line dim">No matches.</p>}
             {invoices.length > 0 && <div className="rdg-row-h">Owed to you · {moneyRound(invoices.reduce((s, i) => s + i.amount_cents, 0))}</div>}
             {invoices.map((inv) => {
               const days = inv.due_at ? daysBetween(today, inv.due_at) : null;
@@ -147,7 +173,8 @@ export default function GetPaid() {
               </div>
             ))}
           </div>
-        )}
+          );
+        }}
       </AsyncSection>
       {/* A refund is made, and a chargeback answered, where the card is: Square. */}
       <a className="adm-golink hit-y-44" style={{ display: "inline-block", marginTop: 10 }} href={SQUARE_SALES} target="_blank" rel="noreferrer">Refund or answer a chargeback — Square <Icon name="externalLink" /></a>

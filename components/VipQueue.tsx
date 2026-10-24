@@ -15,6 +15,7 @@ import PromptSheet from "./PromptSheet";
 import { SectionHeader } from "@/components/kit";
 import { wrote } from "@/lib/wrote";
 import { failureWords, plainFailure } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
 
 // VIP QUEUE — the staff moderation side of VIP verification. A bottle owner's proof photo lands here;
 // staff either Reject with a reason, or Verify and choose which grant it earns — plain Founding, or
@@ -36,6 +37,7 @@ export default function VipQueue() {
   // account audit). The rest of the crew still sees the queue and turns a proof down; the database holds the line.
   const canVerify = canOf(profile).admin;
   const [busy, setBusy] = useState<string | null>(null);
+  const [q, setQ] = useState("");
 
   const loader = useCallback(async (): Promise<VipBoard> => {
     if (!supabase) return { rows: [], signed: {} };
@@ -94,11 +96,29 @@ export default function VipQueue() {
     <>
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load the VIP queue" emptyTitle="Nothing here yet">
       {(data) => {
-        const pending = data.rows.filter((r) => r.status === "pending");
-        const recent = data.rows.filter((r) => r.status !== "pending").slice(0, 8);
+        // R50: search by name or status; the export is the rows shown — never the photo or its storage path.
+        const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+        const hit = (v: Vip) => { const hay = `${v.customers?.name ?? ""} ${v.status} ${v.customers?.tier ?? ""}`.toLowerCase(); return terms.every((t) => hay.includes(t)); };
+        const allPending = data.rows.filter((r) => r.status === "pending");
+        const allRecent = data.rows.filter((r) => r.status !== "pending").slice(0, 8);
+        const pending = allPending.filter(hit);
+        const recent = allRecent.filter(hit);
+        const shown = [...pending, ...recent];
         return (
           <div className="vipq">
-            {pending.length === 0 ? (
+            {/* R50: search the proofs, and the rows shown as a file (the console audit's points 2 and 10). */}
+            <div className="flex flex-wrap gap-2 items-center mb-2">
+              <div className="flex-1 min-w-0">
+                <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search proofs" aria-label="Search the bottle-owner proofs" enterKeyHint="search" autoComplete="off" />
+              </div>
+              <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv("gt3-vip-proofs.csv", shown.map((v) => ({
+                Name: v.customers?.name?.trim() || "A member", Status: v.status, Submitted: v.created_at, "Tier now": v.customers?.tier ?? "guest",
+                Granted: v.status === "verified" ? (v.granted_tier === "founding_vip" ? "Founding VIP" : "Founding") : "", Reward: v.reward ?? "",
+              })))}>Export CSV</button>
+            </div>
+            {terms.length > 0 && allPending.length + allRecent.length > 0 && shown.length === 0 ? (
+              <p className="vipq-sub">No matches.</p>
+            ) : pending.length === 0 ? (
               <EmptyState title="No VIP proofs waiting" />
             ) : pending.map((v) => (
               <div key={v.id} className="vipq-row">

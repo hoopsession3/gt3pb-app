@@ -13,6 +13,7 @@ import { money, moneyPlain } from "@/lib/money";
 import { haptic } from "@/lib/haptics";
 import { publicOrigin } from "@/lib/native";
 import { plainFailure, failureWords } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
 
 // DISCOUNT CODES — the owner mints redeemable codes as data (member_benefits, scope='code'). A code
 // is a rule: kind (percent_off | price_override | free_refill) × target (whole order, the straight-
@@ -135,9 +136,17 @@ export default function CodesPanel() {
   return (
     <div className="codes">
       {/* The <Panel> owns the title now — this is just the lead line + the mint action (cohesion pass). */}
-      <div className="codes-head">
-        <div className="codes-sub">Mint a redeemable code — customers enter it at checkout, priced live. No deploy.</div>
-        <button type="button" className="btn-ter" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "+ New code"}</button>
+      <div className="codes-head flex-wrap">
+        {/* R50: the lead line has the row, the actions the row under it — beside it, on a phone the line was squeezed to a column. */}
+        <div className="codes-sub basis-full">Mint a redeemable code — customers enter it at checkout, priced live. No deploy.</div>
+        <span className="flex flex-wrap gap-2 items-center shrink-0 ml-auto">
+          {/* R50: the codes, as a file (the console audit's point 10). */}
+          <button type="button" className="btn-sec btn-sm shrink-0" disabled={!rows.length} onClick={() => void downloadCsv("gt3-codes.csv", rows.map((r) => ({
+            Code: r.code ?? "", Label: r.label, Discount: valueText(r), "Applies to": targetLabel(r.target, products),
+            Active: r.active ? "yes" : "no", Created: r.created_at,
+          })))}>Export CSV</button>
+          <button type="button" className="btn-ter" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "+ New code"}</button>
+        </span>
       </div>
 
       {open && (

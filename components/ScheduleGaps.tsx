@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useRealtimeTable } from "@/lib/realtime";
@@ -10,6 +10,7 @@ import { useRecord } from "./RecordSheet";
 import { gapFix, stageLabel, severityRank, sortGaps, worstSeverity, SEVERITY_WORD, type GapSeverity } from "@/lib/eventRecord";
 import { isGuestFacing, nameDriftAdvice, stopGapFix, stopStatusLabel } from "@/lib/stopRecord";
 import { relativeDay } from "@/lib/dates";
+import { downloadCsv } from "@/lib/csv";
 
 // ONE LIST FOR THE WHOLE SCHEDULE (0324).
 //
@@ -72,6 +73,7 @@ const VOCAB = {
 
 export default function ScheduleGaps() {
   const { openRecord } = useRecord();
+  const [q, setQ] = useState("");
 
   const loader = useCallback(async (): Promise<Row[]> => {
     if (!supabase) return [];
@@ -116,14 +118,34 @@ export default function ScheduleGaps() {
         const n = groups.length;
         const problems = rows.length;
 
+        // R50: a search over the subjects and what is wrong with them (the console audit's point 2).
+        const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+        const shown = terms.length ? groups.filter((g) => {
+          const v = VOCAB[g.kind];
+          const hay = [g.subject, g.kind, v.state(g.rows[0].state), ...g.rows.flatMap((r) => [r.detail, v.fix(r.gap), r.gap])].join(" ").toLowerCase();
+          return terms.every((t) => hay.includes(t));
+        }) : groups;
+
         return (
           <div className="evg">
             <p className="so-head due">
               {n === 1 ? "1 thing needs sorting." : `${n} things need sorting across your schedule.`}
               {problems > n && <span className="dim"> {problems} problems in all.</span>}
             </p>
+            <div className="flex items-center gap-2">
+              <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search …" aria-label="Search the schedule problems" enterKeyHint="search" autoComplete="off" />
+              {/* R50: the rows shown, as a file (the console audit's point 10). */}
+              <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv("gt3-needs-sorting.csv", shown.flatMap((g) => g.rows.map((r) => {
+                const said = r.kind === "stop" && r.gap === "name_drift" ? nameDriftAdvice(r.subject, r.canonical_name) : null;
+                return {
+                  kind: g.kind, subject: g.subject, date: r.on_date ?? "", state: VOCAB[g.kind].state(r.state), severity: r.severity,
+                  problem: said?.detail ?? r.detail, fix: said?.fix ?? VOCAB[g.kind].fix(r.gap),
+                };
+              })))}>Export CSV</button>
+            </div>
+            {shown.length === 0 && <p className="dim">No matches.</p>}
             <div className="so-rows">
-              {groups.map((g) => {
+              {shown.map((g) => {
                 const v = VOCAB[g.kind];
                 const first = g.rows[0];
                 return (

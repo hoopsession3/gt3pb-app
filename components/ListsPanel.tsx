@@ -8,6 +8,7 @@ import { AsyncSection } from "./AsyncSection";
 import Icon from "@/components/Icon";
 import { type OptionSetKey } from "@/lib/options";
 import { failureWords } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
 
 // THE LISTS, EDITABLE. 0306 moved the closed vocabularies — inventory units, inventory statuses,
 // document kinds, menu timing — out of lib/ constants and into public.option_sets, so every picker
@@ -90,6 +91,12 @@ export default function ListsPanel() {
       errorTitle="Couldn't load the lists"
       isEmpty={(d) => (d as Row[]).length === 0}>
       {() => <>
+      {/* R50: the rows shown, as a file (the console audit's point 10). */}
+      <div className="flex justify-end">
+        <button type="button" className="btn-sec btn-sm shrink-0" disabled={!rows.length} onClick={() => void downloadCsv("gt3-lists.csv", SETS.flatMap((s) => rows.filter((r) => r.set_key === s.key).map((r) => ({
+          list: s.title, value: r.value, label: r.label ?? r.value, order: r.sort, offered: r.active ? "yes" : "retired",
+        }))))}>Export CSV</button>
+      </div>
       <p className="dp-hint" style={{ marginTop: 0 }}>
         The lists every dropdown in the console reads. Change one here and it changes everywhere at
         once — no deploy. Retiring a value removes it from what you can newly pick; anything already

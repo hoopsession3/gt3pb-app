@@ -6,6 +6,7 @@ import { authedFetch } from "@/lib/authedFetch";
 import { FLAVORS } from "@/lib/orderAhead";
 import { bottlesFor, gallonsForBottles, brewStartOverdue, sizingOptions, primarySizing, gallonsFromIngredient, ingredientForGallons, stepDownGal, stepUpGal, vesselFit, smallestBatch, pourable, scaleIngredients, vesselPlan, cookQuantity, SERVE_OZ, BREW_STEP_GAL, batchIsOver, isCoffee } from "@/lib/brewMath";
 import { localToday } from "@/lib/dates";
+import { downloadCsv } from "@/lib/csv";
 import { coffeeGrams, defaultLot, lotLabel, lotUse, type BrewLot, type LotUse, type LotValue } from "@/lib/brewLots";
 import { MARKET_LABEL, isMarket } from "@/lib/markets";
 import CoffeeLotPick from "@/components/CoffeeLotPick";
@@ -350,6 +351,7 @@ export default function BrewPlanner() {
   // record. What is over — served, dumped, discarded — is lib/brewMath's one list.
   const active = batches.filter((b) => !batchIsOver(b.status))
     .sort((a, b) => (a.ready_at || "9999").localeCompare(b.ready_at || "9999"));
+  const shown = view === "log" ? batches : active;
 
   return (
     <AsyncSection state={board} isEmpty={() => false} errorTitle="Couldn't load brew" emptyTitle="Nothing here yet">
@@ -373,6 +375,14 @@ export default function BrewPlanner() {
         {(["schedule", "log"] as const).map((k) => (
           <button key={k} type="button" className={`brew-toggle-b hit-y-44${view === k ? " on" : ""}`} onClick={() => setView(k)}>{k === "schedule" ? "Schedule" : "Production log"}</button>
         ))}
+      </div>
+      {/* R50: the batches shown — the schedule or the log — as a file (the console audit's point 10). */}
+      <div className="flex justify-end mb-2">
+        <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv(view === "log" ? "gt3-brew-log.csv" : "gt3-brew-schedule.csv", shown.map((b) => ({
+          recipe: b.recipe_name || "Batch", gallons: b.batch_gal, status: b.status, brewer: b.brewer ?? "", vessel: b.vessel ?? "", coffee_lot: b.coffee_lot ?? "",
+          market: b.market ?? "", brew_started: b.brew_started_at ?? b.brew_date ?? "", ready_at: b.ready_at ?? "", needed_by: b.needed_by ?? "", drop_date: b.drop_date ?? "",
+          signal_score: b.signal_score ?? "", og: b.og ?? "", taste_notes: b.taste_notes ?? "",
+        })))}>Export CSV</button>
       </div>
 
       {view === "log" ? (

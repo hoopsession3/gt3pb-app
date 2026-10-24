@@ -28,6 +28,7 @@ import { readParam, dropParam } from "@/lib/urlParam";
 import { usePersonFacts, withFacts } from "@/lib/personFacts";
 import Said from "./Said";
 import type { ArgsOf } from "@/lib/dbTypes";
+import { downloadCsv } from "@/lib/csv";
 import { failureWords } from "@/lib/failureWords";
 
 // OFFER LETTERS (0281) — the owner's side of hiring someone.
@@ -84,6 +85,7 @@ export default function OfferLetters() {
   const [draft, setDraft] = useState<OfferTerms | null>(null);
   const [busy, setBusy] = useState(false);
   const [printing, setPrinting] = useState<LetterRow | null>(null);
+  const [q, setQ] = useState("");
 
   const loader = useCallback(async () => {
     if (!supabase) return { rows: [] as Row[], approvals: [] as Approval[], events: [] as Ev[], letters: [] as LetterRow[], members: [] as Member[], membersFailed: false };
@@ -113,6 +115,9 @@ export default function OfferLetters() {
   // One identity per load, so the memos below recompute when the board does and not every render.
   const data = board.data;
   const rows = useMemo(() => data?.rows ?? [], [data]);
+  // R50: the list searched by candidate, title or role — every typed word must appear.
+  const qTerms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = rows.filter((r) => { const hay = `${r.candidate_name} ${r.title} ${roleLabel(r.role)}`.toLowerCase(); return qTerms.every((t) => hay.includes(t)); });
   const approvals = useMemo(() => data?.approvals ?? [], [data]);
   const events = useMemo(() => data?.events ?? [], [data]);
   const letters = data?.letters ?? [];
@@ -253,9 +258,22 @@ export default function OfferLetters() {
         {rows.length === 0 && !draft && <p className="ofr-empty">No offers yet. The first one starts with a name and a title.</p>}
 
         {/* ── the list ── */}
+        {/* R50: search by name or role, and the rows shown as a file — what the row says, no pay (the console audit's points 2 and 10). */}
         {rows.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center mb-2">
+            <div className="flex-1 min-w-0">
+              <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search offers" aria-label="Search the offers by name or role" enterKeyHint="search" autoComplete="off" />
+            </div>
+            <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv("gt3-offer-letters.csv", shown.map((r) => ({
+              Candidate: r.candidate_name, Title: r.title, Role: roleLabel(r.role), Market: MARKET_LABEL[toMarket(r.market)],
+              Status: STATUS_COPY[toOfferStatus(r.status)].label, Updated: r.updated_at,
+            })))}>Export CSV</button>
+          </div>
+        )}
+        {rows.length > 0 && shown.length === 0 && <p className="ofr-empty">No matches.</p>}
+        {shown.length > 0 && (
           <div className="ofr-list">
-            {rows.map((r) => {
+            {shown.map((r) => {
               const st = STATUS_COPY[toOfferStatus(r.status)];
               const t = approvalTally(approvals.filter((a) => a.offer_id === r.id));
               return (

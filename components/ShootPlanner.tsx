@@ -17,6 +17,7 @@ import { wrote } from "@/lib/wrote";
 import { useChanged } from "@/lib/useChanged";
 import Said from "@/components/Said";
 import { failureWords, failureOr } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
 
 // SHOOT PLANNER (0214) — plan any content shoot: date, location, call time, and a shot list you can
 // assign and check off (planned → shot → in edit). The reusable capability behind the Atlanta shoot
@@ -107,6 +108,18 @@ export default function ShootPlanner() {
       <AsyncSection state={board} isEmpty={(data) => data.shoots.length === 0} emptyTitle="No shoots planned yet" emptySub="Add one below to build a shot list + call sheet." errorTitle="Couldn't load the shoot planner">
         {() => (
           <>
+            {/* R50: the rows shown, as a file (the console audit's point 10). */}
+            <div className="flex justify-end">
+              <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shoots.length} onClick={() => void downloadCsv("gt3-shoots.csv", shoots.flatMap((sh) => {
+                const base = { shoot: sh.title, date: sh.shoot_date ?? "", call_time: sh.call_time ?? "", location: sh.location ?? "", status: sh.status };
+                const list = shots.filter((s) => s.shoot_id === sh.id);
+                if (!list.length) return [{ ...base, shot: "", shot_status: "", assignee: "" }];
+                return list.map((s) => {
+                  const who = s.assignee ? crew.find((c) => c.id === s.assignee) : undefined;
+                  return { ...base, shot: s.description, shot_status: s.status === "cut" ? "in edit" : s.status, assignee: who ? crewLabel(who) : "" };
+                });
+              }))}>Export CSV</button>
+            </div>
             {shoots.map((sh) => {
               const list = shots.filter((s) => s.shoot_id === sh.id);
               const shotN = list.filter((s) => s.status !== "planned").length;

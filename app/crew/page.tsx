@@ -3554,6 +3554,8 @@ function ReservesAdmin() {
   const { toast } = useAppStable();
   // Which card is correcting Left by hand (lib/reserveStock.setLeft) — Stock is the usual box.
   const [fixingLeft, setFixingLeft] = useState<string | null>(null);
+  // R50: a search over the drops (the console audit's point 2).
+  const [q, setQ] = useState("");
   const reservesState = useAsyncData<Reserve[]>(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
     // A failed read is not "No reserves yet" — it was, until the error was read.
@@ -3630,9 +3632,30 @@ function ReservesAdmin() {
       >
         {(rows) => {
           const active = rows.filter((r) => r.status !== "archived");
+          const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+          const shown = active.filter((r) => {
+            const hay = `${r.name} ${r.blurb ?? ""} ${r.status}`.toLowerCase();
+            return terms.every((t) => hay.includes(t));
+          });
+          const pickupOf = (r: Reserve) => {
+            const st = (stopsState.data ?? []).find((x) => x.id === r.stop_id);
+            return st ? reserveStopLabel(st) : r.stop_id ? "Its pickup" : "";
+          };
           return (
             <>
-              {active.map((r) => (
+              <div className="flex flex-wrap gap-2 items-center mb-2">
+                <div className="flex-1 min-w-0">
+                  <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search drops"
+                         aria-label="Search the reserve drops" enterKeyHint="search" autoComplete="off" />
+                </div>
+                {/* R50: the drops shown, as a file (the console audit's point 10). */}
+                <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv("gt3-reserves.csv", shown.map((r) => ({
+                  Name: r.name, Blurb: r.blurb ?? "", Price: moneyPlain(r.price_cents), Stock: r.stock_total, Left: r.stock_remaining,
+                  "Per member": r.per_member_limit, "Members only": r.member_only ? "yes" : "no", Status: r.status, Pickup: pickupOf(r), "Drop at": r.drop_at ?? "",
+                })))}>Export CSV</button>
+              </div>
+              {terms.length > 0 && shown.length === 0 && <p className="cp-line dim">No matches.</p>}
+              {shown.map((r) => (
                 <div className="adm-member" key={r.id}>
                   <div className="adm-member-top">
                     <input aria-label="Reserve name" className="auth-input" style={{ fontSize: 16, padding: "9px 11px" }} maxLength={120} defaultValue={r.name} onBlur={(e) => e.target.value !== r.name && update(r.id, { name: e.target.value })} />

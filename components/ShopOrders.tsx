@@ -7,6 +7,8 @@ import AsyncSection from "./AsyncSection";
 import Icon from "./Icon";
 import { useRecord } from "./RecordSheet";
 import { ageLabel, money, queueHeadline, statusLabel, waitingOn } from "@/lib/shopOrder";
+import { downloadCsv } from "@/lib/csv";
+import { moneyPlain } from "@/lib/money";
 
 // THE SHOP · ORDERS (0313) — the queue that /api/shop/checkout has been telling people to use.
 //
@@ -100,14 +102,22 @@ export default function ShopOrders() {
                   <span className="so-kpi"><b>{money(queue?.refunded_cents ?? 0)}</b><i>refunded</i></span>}
               </div>
 
-              <div className="k-chips mb-2.5">
-                {FILTERS.map((f) => (
-                  <button type="button" key={f.key} aria-pressed={filter === f.key}
-                          className={`k-chip${filter === f.key ? " on" : ""}`}
-                          onClick={() => setFilter(f.key)}>
-                    {f.label}
-                  </button>
-                ))}
+              <div className="flex flex-wrap gap-2 items-center mb-2.5">
+                <div className="k-chips">
+                  {FILTERS.map((f) => (
+                    <button type="button" key={f.key} aria-pressed={filter === f.key}
+                            className={`k-chip${filter === f.key ? " on" : ""}`}
+                            onClick={() => setFilter(f.key)}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                {/* R50: the orders shown under this filter, as a file (the console audit's point 10). */}
+                <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length}
+                        onClick={() => void downloadCsv("gt3-shop-orders.csv", shown.map((r) => ({
+                          Placed: r.created_at, Customer: r.who, Items: r.items ?? "", Units: r.unit_count ?? 0,
+                          Total: moneyPlain(r.total_cents), Status: statusLabel(r.status), Tracking: r.tracking_number ?? "",
+                        })))}>Export CSV</button>
               </div>
 
               {shown.length === 0 ? (

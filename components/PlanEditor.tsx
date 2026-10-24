@@ -7,7 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { SectionHeader, InfoRow } from "@/components/kit";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
-import { money } from "@/lib/money";
+import { money, moneyPlain } from "@/lib/money";
+import { downloadCsv } from "@/lib/csv";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { usePrompt } from "@/components/PromptSheet";
 import { haptic } from "@/lib/haptics";
@@ -53,6 +54,10 @@ export default function PlanEditor() {
                 title only because the button stays OUTSIDE .k-sec as a sibling — nesting it inside
                 SectionHeader's `right` would hide the button along with the title. */}
             <button type="button" className="btn-sec btn-sm" onClick={add}>+ New plan</button>
+            {/* R50: the plans, as a file (the console audit's point 10). */}
+            <button type="button" className="btn-sec btn-sm shrink-0" disabled={!plans.length} onClick={() => void downloadCsv("gt3-plans.csv", plans.map((p) => ({
+              Plan: p.label, Key: p.key, Price: moneyPlain(p.price_cents), "Billing period (days)": p.period_days, Active: p.active ? "yes" : "no",
+            })))}>Export CSV</button>
           </div>
           <div className="h-sub">The tiers members can subscribe to — name, price, billing period, on/off.</div>
           {plans.map((p) => <PlanRow key={p.key} p={p} onSaved={reload} toast={toast} />)}

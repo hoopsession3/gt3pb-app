@@ -5,7 +5,8 @@ import { SectionHeader } from "@/components/kit";
 import { fetchSnapshot, type Snapshot } from "@/lib/reports";
 import { supabase } from "@/lib/supabase";
 import { nextDrop , dropDateKey} from "@/lib/orderAhead";
-import { moneyRound } from "@/lib/money";
+import { moneyPlain, moneyRound } from "@/lib/money";
+import { downloadCsv } from "@/lib/csv";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 
@@ -23,6 +24,7 @@ export default function SnapshotReport() {
   const snapState = useAsyncData<Snapshot>(fetchSnapshot, []);
   // Order-ahead reservation revenue — its own stream (drop_orders), so it isn't invisible to the
   // money view the way it was before. Read client-side (staff RLS), no report RPC change needed.
+  const [q, setQ] = useState("");
   const [resv, setResv] = useState<{ drop: number; dropN: number; m30: number; m30N: number } | null>(null);
 
   useEffect(() => {
@@ -59,8 +61,25 @@ export default function SnapshotReport() {
           const catMax = Math.max(1, ...(inv.by_category ?? []).map((c) => c.value_cents));
           const planMax = Math.max(1, ...(subs.by_plan ?? []).map((p) => p.n));
           const repeatRate = loy.buyers > 0 ? Math.round((loy.repeat_customers / loy.buyers) * 100) : 0;
+          // R50: the listed rows (categories, plans) searched by name, and the same rows as a file.
+          const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+          const hit = (s: string) => { const hay = s.toLowerCase(); return terms.every((t) => hay.includes(t)); };
+          const cats = (inv.by_category ?? []).slice(0, 6).filter((c) => hit(c.cat || ""));
+          const plans = (subs.by_plan ?? []).filter((p) => hit(planLabel(p.plan)));
+          const listed = (inv.by_category?.length ?? 0) + (subs.by_plan?.length ?? 0);
           return (
             <>
+              {/* R50: search the rows, and the rows shown as a file (the console audit's points 2 and 10). */}
+              <div className="flex flex-wrap gap-2 items-center mb-2">
+                <div className="flex-1 min-w-0">
+                  <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search plans" aria-label="Search the plans and categories" enterKeyHint="search" autoComplete="off" />
+                </div>
+                <button type="button" className="btn-sec btn-sm shrink-0" disabled={!(cats.length + plans.length)} onClick={() => void downloadCsv("gt3-subscriptions.csv", [
+                  ...plans.map((p) => ({ Section: "Plan", Name: planLabel(p.plan), Subscribers: p.n, Value: "" })),
+                  ...cats.map((c) => ({ Section: "Inventory category", Name: c.cat, Subscribers: "", Value: moneyPlain(c.value_cents) })),
+                ])}>Export CSV</button>
+              </div>
+              {terms.length > 0 && listed > 0 && cats.length + plans.length === 0 && <p className="rpt-hint">No matches.</p>}
               {resv && (resv.m30N > 0) && (
                 <div className="rpt-block">
                   <div className="rpt-bh">Reservations · order-ahead</div>
@@ -78,7 +97,7 @@ export default function SnapshotReport() {
                   <div className="rpt-kpi"><span className="rpt-k">On-hand value</span><b>{moneyRound(inv.value_cents)}</b></div>
                   <div className="rpt-kpi"><span className="rpt-k">Items tracked</span><b>{inv.item_count.toLocaleString()}</b><span className="rpt-sub">{inv.low_stock} below reorder</span></div>
                 </div>
-                {(inv.by_category ?? []).slice(0, 6).map((c, i) => (
+                {cats.map((c, i) => (
                   <div key={i} className="rpt-bar">
                     <div className="rpt-bar-l"><span>{c.cat}</span><b>{moneyRound(c.value_cents)}</b></div>
                     <div className="rpt-track"><div className="rpt-fill" style={{ width: `${Math.max(3, (c.value_cents / catMax) * 100)}%` }} /></div>
@@ -92,7 +111,7 @@ export default function SnapshotReport() {
                   <div className="rpt-kpi"><span className="rpt-k">MRR</span><b>{moneyRound(subs.mrr_cents)}</b><span className="rpt-sub">{subs.active} active of {subs.total}</span></div>
                   {subs.past_due > 0 && <div className="rpt-kpi"><span className="rpt-k">Past due</span><b>{subs.past_due.toLocaleString()}</b><span className="rpt-sub">{subs.paused} paused</span></div>}
                 </div>
-                {(subs.by_plan ?? []).map((p, i) => (
+                {plans.map((p, i) => (
                   <div key={i} className="rpt-bar">
                     <div className="rpt-bar-l"><span>{planLabel(p.plan)}</span><b>{p.n.toLocaleString()}</b></div>
                     <div className="rpt-track"><div className="rpt-fill alt" style={{ width: `${Math.max(3, (p.n / planMax) * 100)}%` }} /></div>

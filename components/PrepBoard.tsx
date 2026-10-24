@@ -17,6 +17,7 @@ import { useCrew, crewLabel } from "./useCrew";
 import { rovingKeys, rovingTab } from "./roving";
 import { wrote } from "@/lib/wrote";
 import { useAppStable } from "./AppProvider";
+import { downloadCsv } from "@/lib/csv";
 
 // PREP BOARD — the aggregate readiness triage surface. Every open prep task, ROLLED UP into
 // collapsible groups by the INITIATIVE it's assigned to (0201/0237) — falling back to its event/stop
@@ -159,6 +160,16 @@ export default function PrepBoard() {
                 {f[0].toUpperCase() + f.slice(1)} <b>{counts[f]}</b>
               </button>
             ))}
+          </div>
+          {/* R50: the rows shown, as a file (the console audit's point 10). */}
+          <div className="flex justify-end">
+            <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv("gt3-prep.csv", groups.flatMap((g) => g.tasks.map((t) => {
+              const who = t.assignee ? crew.find((c) => c.id === t.assignee) : undefined;
+              return {
+                task: t.label, group: g.label, section: t.section ?? "", critical: t.critical ? "yes" : "no", done: "no",
+                assignee: who ? crewLabel(who) : "", due: t.due_at ?? "", overdue: isOver(t) ? "yes" : "no",
+              };
+            })))}>Export CSV</button>
           </div>
           {leftOpen > 0 && <p className="pbd-leftopen">{leftOpen} of these belong to events or stops that have already passed — at the end, each with its Wrap up.</p>}
           {shown.length === 0 ? (

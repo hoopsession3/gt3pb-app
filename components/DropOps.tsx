@@ -24,6 +24,8 @@ import ReserveClaims from "./crew/ReserveClaims";
 import Said from "./Said";
 import { keyed } from "@/lib/dbTypes";
 import { plainFailure, failureWords } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
+import { moneyPlain } from "@/lib/money";
 
 // DROP OPS — the order-ahead brew sheet + pickup checklist for Saturday's drop. Lives in the admin
 // "Now" section right under the kitchen pass (and pops out of reservation alerts), so walk-up orders
@@ -349,6 +351,16 @@ export default function DropOps({ brief = false, onOpen, canPlan = false, onDue,
                 <span>{allDone ? <><Icon name="check" /> All picked up · bottles in</> : <><b>{pickedCount}/{rows.length}</b> picked up{returns.length > 0 ? <> · <b>{bottlesInCount}/{returns.length}</b> bottles in</> : null}</>}</span>
                 <span>{brief ? "checklist in Service ▸" : showList ? "▾" : "▸"}</span>
               </button>
+              {/* R50: the rows shown, as a file (the console audit's point 10). */}
+              {!brief && (
+                <div className="flex justify-end">
+                  <button type="button" className="btn-sec btn-sm shrink-0" disabled={!queue.length} onClick={() => void downloadCsv(`gt3-drop-${dropISO}.csv`, queue.map((o) => ({
+                    name: o.name, phone: o.phone ?? "", drop: o.drop_date, pack: o.size, glass: o.glass === "return" ? "glass back" : "new glass",
+                    mix: mixSummary(o.mix), total: moneyPlain(o.total_cents), paid: isSettled(o) ? (paidHow(o) ?? "paid") : "due",
+                    stage: PACK_STAGES[stageIndex(o.stage)].label, picked_up: o.picked_up ? "yes" : "no", bottles_returned: o.glass === "return" ? (o.bottles_returned ? "yes" : "no") : "",
+                  })))}>Export CSV</button>
+                </div>
+              )}
               {!brief && showList && queue.map((o) => (
                 <div className={`dops-order${o.picked_up ? " done" : ""}`} key={`cur-${o.id}`}>
                   {/* Identity line as a kit InfoRow: lead = pack qty, body = name + glass chip + mix +

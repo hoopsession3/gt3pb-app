@@ -15,6 +15,7 @@ import { useAuth } from "./AuthProvider";
 import { MARKETS, MARKET_LABEL, FOUNDING_MARKET, marketsPresent, toMarket, type Market } from "@/lib/markets";
 import { homeMarket } from "@/lib/homeMarket";
 import { useAsyncData } from "@/lib/useAsyncData";
+import { downloadCsv } from "@/lib/csv";
 import { rankSuppliers, readVendorBook, type VendorRow } from "@/lib/suppliers";
 import { resolveSupplier, type VendorMatch } from "@/lib/vendorLink";
 import VendorResolve from "./VendorResolve";
@@ -300,6 +301,12 @@ export default function InventoryLibrary() {
           <div className="gl-toolbar">
             <button className="btn-ter mt-2" onClick={startNew}>+ Add item</button>
             <button className="btn-ter mt-2" onClick={() => setAi(true)}><Icon name="sparkles" /> AI draft</button>
+            {/* R50: the items shown, as a file (the console audit's point 10). */}
+            <button type="button" className="btn-sec btn-sm shrink-0 mt-2" disabled={!items.length} onClick={() => void downloadCsv("gt3-inventory.csv", items.map((it) => ({
+              item: it.name, on_hand: onHandOf(it) ?? "", unit: it.unit ?? "", status: it.status ?? "", category: it.category ?? "",
+              supplier: supplierName(it) ?? "", reorder_point: it.reorderPoint ?? "", low: isLow(it) ? "yes" : "no", event_critical: it.critical ? "yes" : "no",
+              market: MARKET_LABEL[toMarket(it.market)], reorder_link: it.reorderLink ?? "",
+            })))}>Export CSV</button>
           </div>
           {ai && <InventoryAI onClose={() => setAi(false)} onAdded={load} />}
           {editing === "new" && form}

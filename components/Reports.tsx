@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { SectionHeader } from "@/components/kit";
 import { fetchSalesReport, salesWindowStart, type SalesReport } from "@/lib/reports";
-import { moneyRound } from "@/lib/money";
+import { moneyPlain, moneyRound } from "@/lib/money";
+import { downloadCsv } from "@/lib/csv";
 import { supabase } from "@/lib/supabase";
 import { Segmented } from "@/components/controls";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -96,6 +97,16 @@ export default function Reports() {
                   <button type="button" className="btn-ter" onClick={sales.reload}>Try again</button>
                 </p>
               )}
+              {/* R50: the rows shown, as a file (the console audit's point 10). */}
+              <div className="flex justify-end mb-2">
+                <button type="button" className="btn-sec btn-sm shrink-0" disabled={!(channels.length || rep.by_event?.length || rep.by_product?.length || rep.by_day?.length)}
+                  onClick={() => void downloadCsv(`gt3-sales-${rep.days}d.csv`, [
+                    ...channels.map((c) => ({ Section: "Channel", Name: c.label, Revenue: moneyPlain(c.cents), Count: c.orders ?? "" })),
+                    ...(rep.by_event ?? []).map((e) => ({ Section: "Event", Name: e.event, Revenue: moneyPlain(e.cents), Count: "" })),
+                    ...(rep.by_product ?? []).map((p) => ({ Section: "Product units", Name: label(p.key), Revenue: "", Count: p.n })),
+                    ...(rep.by_day ?? []).map((d) => ({ Section: "Day", Name: d.day, Revenue: moneyPlain(d.cents), Count: "" })),
+                  ])}>Export CSV</button>
+              </div>
               {/* revenue is the hero; the rest is one quiet line (zero-tiles never render) */}
               <div className="rpt-hero"><b>{moneyRound(rev)}</b><span>revenue · {rep.days}d</span></div>
               {/* "estimate · 3 of 9 products costed" or "assumed 30%" says what kind of estimate; a report from before

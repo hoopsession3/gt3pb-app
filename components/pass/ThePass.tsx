@@ -19,15 +19,15 @@ import { authedFetch } from "@/lib/authedFetch";
 import { clockTime } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
 import { unlockAudio, useSoundLocked } from "@/lib/chime";
-import { money } from "@/lib/money";
-import { setOrderStatus, movedTo, movedLine } from "@/lib/orderStatus";
+import { money, moneyPlain } from "@/lib/money";
+import { setOrderStatus, movedTo, movedLine, ticketNo } from "@/lib/orderStatus";
 import { notifyVoid } from "@/lib/voidNotice";
 import { setPassMuted } from "@/lib/passSound";
 import { canOf } from "@/lib/roles";
 import { supabase } from "@/lib/supabase";
 import {
   NEXT, PREV, STAGES, TRAY_SHOWN, lateOf, nextBoardChange, passLanes, laneOf, canRecall, laneName, isHere, somewhereLive,
-  moreLine, elsewhereLine, bounced, TAP_SETTLE_MS, type Lanes, type Scope, type Settle,
+  moreLine, elsewhereLine, bounced, TAP_SETTLE_MS, itemsLine, type Lanes, type Scope, type Settle,
 } from "@/lib/passBoard";
 import type { Order } from "@/lib/db";
 import { DoneTicket, Ticket, type TicketActs } from "./Ticket";
@@ -37,6 +37,7 @@ import { useFollowFocus } from "./focus";
 import Said from "@/components/Said";
 import { ModalAnnouncer } from "@/components/Announcer";
 import { plainFailure, failureWords } from "@/lib/failureWords";
+import { downloadCsv } from "@/lib/csv";
 
 // THE PASS (2026-10-11, the KDS program, wave 2). The crew console's service screen, in a module of its own: it was the
 // Kitchen function and the service-mode block inside app/crew/page.tsx, 6,500 lines that held everything else too. The
@@ -338,6 +339,14 @@ function PassBoard() {
         {/* The feed down while reads still land: a quiet word beside the count, not a banner — the reconcile keeps the board. */}
         {!live && !down && <Said as="span" className="k-count soon">Reconnecting…</Said>}
         {active.length > 0 && <span className="k-count">{active.length} active</span>}
+        {/* R50: the tickets on screen, as a file (the console audit's point 10). */}
+        <button type="button" className="btn-sec shrink-0" disabled={boardAt === 0 || (active.length === 0 && done.length === 0)} onClick={() => void downloadCsv("gt3-pass.csv", ([["New", lanes.new], ["Scheduled", lanes.scheduled], ["Preparing", lanes.preparing], ["Ready", lanes.ready], ["Just completed", done]] as [string, Order[]][])
+          .flatMap(([lane, list]) => list.map((o) => ({
+
+            ticket: ticketNo(o.id), customer: o.customer ?? "Guest", lane, items: itemsLine(o.items, nameOf),
+            total: moneyPlain(o.total_cents), tip: o.tip_cents ? moneyPlain(o.tip_cents) : "", paid: paidHow(o) ?? "due",
+            placed: o.created_at, ready_from: o.ready_from ?? "",
+          }))))}>Export CSV</button>
         {soundLocked && !muted
           ? <button type="button" className="k-chip sm text-gold2" onClick={unlockAudio}><Icon name="bell" /> Tap for sound</button>
           : <button type="button" className={`k-chip sm${muted ? " on" : ""}`} onClick={toggleMute} aria-pressed={muted}>{muted ? "🔇 Muted" : <><Icon name="bell" /> Sound</>}</button>}

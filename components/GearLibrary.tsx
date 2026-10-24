@@ -8,6 +8,7 @@ import EmptyState from "./EmptyState";
 import Icon from "@/components/Icon";
 import { MARKETS, MARKET_LABEL, toMarket, type Market } from "@/lib/markets";
 import { localToday } from "@/lib/dates";
+import { downloadCsv } from "@/lib/csv";
 import {
   STATUS_LABEL, DISPOSITIONS, DISPOSITION_LABEL, CRITICALITY, CRITICALITY_LABEL,
   nextStates, toStatus, toCriticality, validateRetire, isDeployed, isOwned,
@@ -81,6 +82,7 @@ export default function GearLibrary() {
   const unavailable = scoped.filter((a) => { const s = toStatus(a.status); return isOwned(s) && !isDeployed(s); }).length;
   const retiredCount = scoped.filter((a) => toStatus(a.status) === "retired").length;
   const items = scoped.filter((a) => showRetired || toStatus(a.status) !== "retired");
+  const shown = items.filter((a) => BRAND_ORDER.includes(a.brand ?? "Shared"));   // what the brand groups draw
 
   const startNew = () => { setErr(null); setDraft({ ...emptyDraft, market: marketFilter === "all" ? "greenville" : marketFilter }); setEditing("new"); setOpen(true); };
   const startEdit = (a: AssetItem) => { setErr(null); setDraft(toDraft(a)); setEditing(a.id); };
@@ -226,6 +228,14 @@ export default function GearLibrary() {
         <div className="gl-body">
           <div className="gl-toolbar">
             <button className="btn-ter mt-2" onClick={startNew}>+ Add gear</button>
+            {/* R50: the gear shown (its market and retired filters), as a file (the console audit's point 10). */}
+            <button type="button" className="btn-sec btn-sm shrink-0 mt-2" disabled={!shown.length} onClick={() => void downloadCsv("gt3-gear.csv", shown.map((it) => ({
+              name: it.name, make_model: it.makeModel, brand: it.brand ?? "Shared", category: it.category.join("; "), qty: it.qty ?? "",
+              status: STATUS_LABEL[toStatus(it.status)], market: MARKET_LABEL[toMarket(it.market)], criticality: CRITICALITY_LABEL[toCriticality(it.criticality)],
+              asset_tag: it.assetTag ?? "", serial_no: it.serialNo ?? "", length_in: it.lenIn ?? "", width_in: it.widthIn ?? "", height_in: it.heightIn ?? "", weight_lb: it.weightLb ?? "",
+              use_case: it.useCase, retired_on: it.retiredOn ?? "",
+              disposition: it.disposition ? DISPOSITION_LABEL[it.disposition as keyof typeof DISPOSITION_LABEL] ?? it.disposition : "",
+            })))}>Export CSV</button>
             <div className="gl-filters">
               <button type="button" className={`k-chip sm${marketFilter === "all" ? " on" : ""}`} aria-pressed={marketFilter === "all"} onClick={() => setMarketFilter("all")}>All markets</button>
               {MARKETS.map((m) => (

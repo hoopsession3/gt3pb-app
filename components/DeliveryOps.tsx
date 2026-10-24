@@ -11,7 +11,8 @@ import Sheet, { CloseButton } from "./Sheet";
 import { InfoRow } from "@/components/kit";
 import FoldCard from "@/components/crew/FoldCard";
 import Icon from "@/components/Icon";
-import { money } from "@/lib/money";
+import { money, moneyPlain } from "@/lib/money";
+import { downloadCsv } from "@/lib/csv";
 import { usePrompt } from "@/components/PromptSheet";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { useAuth } from "./AuthProvider";
@@ -80,6 +81,7 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
   const [listOpen, setListOpen] = useState<boolean | null>(null);
   const [assign, setAssign] = useState(false);
   const [packout, setPackout] = useState(false);
+  const [q, setQ] = useState("");   // R50: search the run's porches (the console audit's point 2)
 
   // Read, then set — the newest read's answer only (R17, lib/useLatestRead).
   const read = useLatestRead();
@@ -276,6 +278,11 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
   const paidCents = rows.filter((o) => o.payment_status === "paid").reduce((a, o) => a + o.total_cents, 0);
   const unpaid = rows.length - rows.filter((o) => o.payment_status === "paid").length;
   const toOut = outPlan(rows);
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = rows.filter((o) => {
+    const hay = [o.name, o.phone ?? "", o.address_street, o.address_city, o.address_zip].join(" ").toLowerCase();
+    return terms.every((t) => hay.includes(t));
+  });
 
   return (
     // ONE ROW UNTIL ITS DAY (2026-10-10, the Live Ops fold): the run's day, how many porches, and the
@@ -310,8 +317,20 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
         <span>{showList ? "▾" : "▸"}</span>
       </button>
       {showList && (
+        <>
+        {/* R50: search the porches, and the rows shown as a file (the console audit's points 2 and 10). */}
+        <div className="flex items-center gap-2 mb-2">
+          <input type="search" className="w-full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search porches" aria-label="Search the run's porches" enterKeyHint="search" autoComplete="off" />
+          <button type="button" className="btn-sec btn-sm shrink-0" disabled={!shown.length} onClick={() => void downloadCsv("gt3-delivery.csv", shown.map((o) => ({
+            customer: o.name, phone: o.phone ?? "", street: o.address_street, city: o.address_city, zip: o.address_zip,
+            delivery_date: o.delivery_date, bottles: o.pack_size, refills: o.refill_count,
+            status: notHome(o) ? "Not home" : STATUS_LABEL[o.status] ?? o.status, payment: o.payment_status, total: moneyPlain(o.total_cents),
+            access: o.access_instructions ?? "",
+          })))}>Export CSV</button>
+        </div>
+        {shown.length === 0 && <p className="h-sub">No matches.</p>}
         <div className="k-rows">
-          {rows.map((o) => {
+          {shown.map((o) => {
             // States in words (2026-10-11): not home is said, not "Issue"; a porch past its window says late.
             const late = porchLate(o, now);
             const word = `${notHome(o) ? "Not home" : STATUS_LABEL[o.status]}${late ? " · late" : ""}`;
@@ -364,6 +383,7 @@ export default function DeliveryOps({ onDue, onRows }: { onDue?: (day: string | 
             );
           })}
         </div>
+        </>
       )}
     </FoldCard>
   );
