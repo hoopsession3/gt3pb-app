@@ -774,6 +774,8 @@ export const PROD_ROUTE = {
 // rides every page). /present stays at 285: its "See it all" view (the roadmap, the plans, the store) loads only when opened.
 // 2026-10-25 (R54, the money, traceable): /present's stylesheet 92 → 93 KB — vision.css carries the money's drill rules
 // (the clickable figures, the formula, the path, the line totals) and /present imports vision.css whole.
+// 2026-10-25 (R54b, one meaning of payback): /offer 275 → 276 and /crew 445 → 446 KB crossed the rounding line — the deal's
+// explainer and the event projection now call lib/finance (payback, break-even, ROI said once) instead of their own loops.
 export const WEIGHT = {
   "/truck":                    { js: 274, css: 90, chunks: 18 },
   "/events":                   { js: 274, css: 90, chunks: 18 },
@@ -790,7 +792,7 @@ export const WEIGHT = {
   "/playbook":                 { js: 272, css: 90, chunks: 18 },
   "/driver":                   { js: 271, css: 90, chunks: 18 },
   "/agreement":                { js: 266, css: 90, chunks: 17 },
-  "/offer":                    { js: 275, css: 90, chunks: 18 },
+  "/offer":                    { js: 276, css: 90, chunks: 18 },
   "/built/gt3-built-k7m9x4q2": { js: 262, css: 90, chunks: 17 },
   "/display":                  { js: 263, css: 90, chunks: 17 },
   "/vision":                   { js: 266, css: 90, chunks: 17 },
@@ -801,7 +803,7 @@ export const WEIGHT = {
   "/terms":                    { js: 260, css: 90, chunks: 16 },
   "/":                         { js: 270, css: 90, chunks: 18 },
   "/order":                    { js: 269, css: 90, chunks: 18 },
-  "/crew":                     { js: 445, css: 90, chunks: 21 },
+  "/crew":                     { js: 446, css: 90, chunks: 21 },
 };
 
 // 2026-10-09 (the button round: redesign 7): every route's stylesheet -1 628 bytes and its script +188 to +245 (gzip).

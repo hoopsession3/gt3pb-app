@@ -1,4 +1,5 @@
 import type { EventRow } from "./db";
+import { breakEvenUnits as breakEvenUnits_, roi } from "./finance";
 
 // Event ROI engine. Pure functions — no I/O — so the UI can recompute a live
 // projection on every keystroke and the math stays testable. "Layered" model:
@@ -100,7 +101,7 @@ export function projectEvent(e: EventRow, econ: EventEcon, catalog: ProductEcon[
     ? keys.reduce((s, k) => { const c = byKey.get(k); return s + ((c?.price_cents ?? 0) - unitCostOf(c, econ.cogs_pct)); }, 0) / n
     : 0;
   const fixedPlusLabor = laborCents + fixedCents;
-  const breakEvenUnits = contribPerUnit > 0 ? fixedPlusLabor / contribPerUnit : null;
+  const breakEvenUnits = breakEvenUnits_(fixedPlusLabor, contribPerUnit);   // in units — one event, not months (lib/finance)
   const breakEvenGuests = breakEvenUnits != null ? breakEvenUnits / Math.max(econ.items_per_guest, 0.01) : null;
 
   return {
@@ -108,7 +109,7 @@ export function projectEvent(e: EventRow, econ: EventEcon, catalog: ProductEcon[
     grossMarginPct: revenueCents > 0 ? grossCents / revenueCents : 0,
     laborCents, fixedCents, totalCostCents,
     netCents, netMarginPct: revenueCents > 0 ? netCents / revenueCents : 0,
-    roiPct: totalCostCents > 0 ? netCents / totalCostCents : 0,
+    roiPct: roi(revenueCents, totalCostCents) ?? 0,   // on the event's whole cost (lib/finance names the basis)
     projectedGuests: guests, projectedUnits: totalUnits,
     breakEvenGuests, breakEvenUnits, lines, enabledLines: n,
   };

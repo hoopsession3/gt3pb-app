@@ -16,6 +16,7 @@ import {
   type DealTerms, type Stage, type Tier, TIER, TIERS, nextTier,
   computeSplit, project, MARKET_REINVEST_PCT,
 } from "./operatorDeal";
+import { steadyPaybackMonths } from "./finance";
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const cents = (n: number) => Math.max(0, Math.round(Number(n) || 0));
@@ -147,12 +148,9 @@ export interface Payback {
   months: number | null;
 }
 
+/** Payback in months at the modelled revenue — GT3's one meaning of payback (lib/finance), at a steady monthly rate. */
 export function paybackMonths(contributionCents: number, monthlyCents: number): number | null {
-  const c = cents(contributionCents);
-  if (c <= 0) return null;
-  const m = Math.round(Number(monthlyCents) || 0);
-  if (m <= 0) return Infinity;
-  return Math.ceil(c / m);
+  return steadyPaybackMonths(cents(contributionCents), monthlyCents);
 }
 
 export interface InvestmentPicture {

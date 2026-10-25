@@ -10,6 +10,8 @@
 // and "feeds", the what-if's "this moved because", and the tests all read it — there is no second copy to drift.
 //
 // Nothing here is a benchmark: an input not set is named as missing and nothing is computed from it.
+import { breakEvenMonth, paybackMonth, roi } from "./finance";
+
 export const MONTHS = 36;
 
 /** A traffic channel (its model is lib/visionTraffic, R55): what it reaches a month, the share who order a first time,
@@ -189,8 +191,9 @@ export function project(i: Inputs, structure: Structure = { kind: "none" }): Mod
     months.push({ m, orders: r2(orders), revenue: r2(revenue), cogs: r2(cogs), grossProfit: r2(revenue - cogs), fees: r2(fees), labor: r2(labor), rent: r2(rent),
       opex: i.otherOpexCents, marketing: i.marketingCents, operatingExpenses: r2(operatingExpenses), operating: r2(operating), toInvestor: r2(toInvestor), net: r2(net), cumulative: r2(cum) });
   }
-  const sustained = (f: (x: Month) => number) => { let at: number | null = null; for (let k = months.length - 1; k >= 0 && f(months[k]) >= 0; k--) at = months[k].m; return at; };
-  const recovered = (f: (x: Month) => number) => { let r = -startupSpend; for (const mo of months) { r += f(mo); if (r >= 0) return mo.m; } return null; };
+  // Break-even, payback and ROI mean one thing across GT3 (lib/finance — the deal and the event say them the same way).
+  const sustained = (f: (x: Month) => number) => breakEvenMonth(months.map(f));
+  const recovered = (f: (x: Month) => number) => paybackMonth(months.map(f), startupSpend);
   const years = [1, 2, 3].map((y) => {
     const ms = months.filter((x) => Math.ceil(x.m / 12) === y);
     const s = (f: (x: Month) => number) => sum(ms.map(f));
@@ -203,8 +206,8 @@ export function project(i: Inputs, structure: Structure = { kind: "none" }): Mod
     ...empty, ok: true, missing: [], months, years, reserveNeeded, requiredFunding: startupSpend + reserveNeeded,
     breakEvenMonth: sustained((x) => x.operating), breakEvenAfterMonth: sustained((x) => x.net),
     paybackMonth: recovered((x) => x.operating), paybackAfterMonth: recovered((x) => x.net),
-    roiBusiness: startupSpend > 0 ? (totOp - startupSpend) / startupSpend : null,
-    roiAfter: startupSpend > 0 ? (totNet - startupSpend) / startupSpend : null,
+    roiBusiness: roi(totOp, startupSpend),
+    roiAfter: roi(totNet, startupSpend),
     grossMarginPct: rev > 0 ? ((rev - sum(months.map((x) => x.cogs))) / rev) * 100 : null,
   };
 }
@@ -393,10 +396,10 @@ export function trace(i: Inputs, s: Structure, m: Model = project(i, s), observe
       ok ? (m.breakEvenMonth ? `month ${m.breakEvenMonth}: ${dollars(m.months[m.breakEvenMonth - 1].operating)}${m.breakEvenMonth > 1 ? ` (month ${m.breakEvenMonth - 1}: ${dollars(m.months[m.breakEvenMonth - 2].operating)})` : ""}` : "month 36 is still negative") : need, "Months 1–36"),
     breakEvenAfter: T("breakEvenAfter", "Break-even (after the investor)", m.breakEvenAfterMonth, "month", ok ? mon(m.breakEvenAfterMonth) : "—",
       "The same, after the investor's payments.", "first month m with net cash ≥ 0 for every month m…36", ok ? mon(m.breakEvenAfterMonth) : need, "Months 1–36"),
-    payback: T("payback", "Payback (before the investor)", m.paybackMonth, "month", ok ? mon(m.paybackMonth) : "—",
+    payback: T("payback", "Payback (before the investor)", m.paybackMonth, "month", ok ? (m.startupSpend > 0 ? mon(m.paybackMonth) : "Nothing to earn back") : "—",
       "The month operating cash has earned back the startup spending.", "first month where Σ operating cash ≥ startup spending",
       ok ? (m.paybackMonth ? `by month ${m.paybackMonth}: ${dollars(sum(m.months.slice(0, m.paybackMonth).map((x) => x.operating)))} ≥ ${dollars(m.startupSpend)}` : `36 months earn ${dollars(op)} of ${dollars(m.startupSpend)}`) : need, "Months 1–36"),
-    paybackAfter: T("paybackAfter", "Payback (after the investor)", m.paybackAfterMonth, "month", ok ? mon(m.paybackAfterMonth) : "—",
+    paybackAfter: T("paybackAfter", "Payback (after the investor)", m.paybackAfterMonth, "month", ok ? (m.startupSpend > 0 ? mon(m.paybackAfterMonth) : "Nothing to earn back") : "—",
       "The month net cash has earned back the startup spending.", "first month where Σ net cash ≥ startup spending", ok ? mon(m.paybackAfterMonth) : need, "Months 1–36"),
     roiBusiness: T("roiBusiness", "Business ROI, 36 months", m.roiBusiness == null ? null : m.roiBusiness * 100, "pct", m.roiBusiness == null ? "—" : pct(m.roiBusiness * 100, 0),
       "Business-level, before financing and before tax: 36 months' operating cash against the startup spending. Not the investor's return, and no value counted for the business after month 36.",
