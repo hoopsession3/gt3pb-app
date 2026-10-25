@@ -6,7 +6,7 @@ import SignIn from "@/components/SignIn";
 import AccountPill from "@/components/AccountPill";
 import { Masthead } from "@/components/kit";
 import { staffAccess } from "@/lib/access";
-import { canOf } from "@/lib/roles";
+import { canOf, roleOf } from "@/lib/roles";
 
 // THE VISION (R52) — the roadmap, the store designer and the presenter (components/vision), for the crew: everyone on
 // it reads the plan; owners and admins change it. Loaded only once the screen knows it's the crew's, so a guest
@@ -27,7 +27,7 @@ export default function VisionPage() {
       ) : access !== "allow" ? (
         <div className="driver-empty">This is the crew&apos;s plan — ask an owner for a link to it.</div>
       ) : (
-        <VisionApp canEdit={canOf(profile).admin} />
+        <VisionApp canEdit={canOf(profile).admin} isOwner={roleOf(profile) === "owner"} />
       )}
     </section>
   );

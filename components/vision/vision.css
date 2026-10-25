@@ -143,8 +143,47 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-cmp{border-collapse:collapse;width:max-content;min-width:100%;font-family:var(--sans);font-size:13px;color:var(--cream-m)}
 .vz-cmp th,.vz-cmp td{padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);max-width:260px}
 .vz-cmp thead th{color:var(--cream);font-weight:700;white-space:nowrap}
-.vz-cmp tbody th{position:sticky;left:0;background:var(--bg);color:var(--cream-d);font-weight:600;white-space:nowrap}
+.vz-cmp tbody th{position:sticky;left:0;background:var(--char3);color:var(--cream-d);font-weight:600;white-space:nowrap}
 .vz-cmp tr.differs td{color:var(--cream)}
 .vp-steps{display:grid;gap:14px}
 .vp-chip-s{margin-top:4px;font-weight:500;font-size:13px;line-height:1.4;color:rgba(245,241,232,.66)}
 .vp-chip-s b{color:#c8a661;font-weight:700;font-size:13px;letter-spacing:0;text-transform:none;margin-right:4px}
+
+/* The money (R54): the scenario hues (dataviz-validated on the dark ground — all six checks), the figures, the numbers. */
+.sc-cons{--sc:#3987e5} .sc-base{--sc:#d95926} .sc-up{--sc:#199e70}
+.vz-legend i.sc-cons,.vz-legend i.sc-base,.vz-legend i.sc-up,.vz-sw{background:var(--sc)}
+.vz-sw{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.vz-fig{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+.vz-fig-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;font-family:var(--sans)}
+.vz-fig-h b{font-size:15px;color:var(--cream)} .vz-fig-h span{font-size:12px;color:var(--cream-d)}
+.vz-fig-read{margin:0;font-family:var(--sans);font-size:12px;color:var(--cream-m);font-variant-numeric:tabular-nums;min-height:16px}
+.vz-chart{display:block;width:100%;height:auto;touch-action:pan-y}
+.vz-chart .gl{stroke:var(--line);stroke-width:1}
+.vz-chart .zero{stroke:var(--cream-d);stroke-width:1.5}
+.vz-chart .tick{font-family:var(--sans);font-size:12px;fill:var(--cream-d);font-variant-numeric:tabular-nums}
+.vz-chart .end{font-family:var(--sans);font-size:12px;font-weight:700;fill:var(--cream-m)}
+.vz-chart .line{stroke:var(--sc);stroke-width:2;stroke-linejoin:round;opacity:.55}
+.vz-chart .line.on{opacity:1;stroke-width:2.5}
+.vz-chart .cross line{stroke:var(--cream-m);stroke-width:1}
+.vz-chart .cross circle{fill:var(--sc);stroke:var(--card);stroke-width:2}
+.vz-chart rect.help{fill:#3987e5} .vz-chart rect.hurt{fill:#d0473d}
+.vz-kpi{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-left:2px solid var(--line2);font-family:var(--sans);min-width:0}
+.vz-kpi span{font-size:12px;color:var(--cream-d)} .vz-kpi b{font-size:20px;font-weight:800;color:var(--cream);font-variant-numeric:tabular-nums}
+.vz-num td{text-align:right;font-variant-numeric:tabular-nums} .vz-num thead th{text-align:right}
+.vz-obs{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-bottom:1px solid var(--line);font-family:var(--sans);font-size:13px;color:var(--cream-m)}
+.vz-obs b{color:var(--cream)}
+/* The money, traceable (R54, after the audit): every figure a door; what moved against the baseline marked; the drill. */
+.vz-kpi-btn{text-align:left;background:none;border-top:0;border-right:0;border-bottom:0;cursor:pointer;color:inherit;font:inherit}
+.vz-kpi-btn:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+.vz-kpi em{font-style:normal;font-family:var(--sans);font-size:11px;color:var(--cream-d)}
+.vz-kpi.moved{border-left-color:var(--gold2)} .vz-kpi.moved em{color:var(--gold2)}
+.vz-base-line{justify-content:space-between}
+.vz-drill-v{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline}
+.vz-drill-v b{font-family:var(--sans);font-size:28px;font-weight:800;color:var(--cream);font-variant-numeric:tabular-nums}
+.vz-formula{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;padding:10px 12px;border-left:2px solid var(--gold2);font-family:var(--sans);font-size:12px;color:var(--cream-d)}
+.vz-formula code{font-family:var(--mono);font-size:13px;color:var(--cream);white-space:normal;word-break:break-word;margin-bottom:6px}
+.vz-path{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;counter-reset:st}
+.vz-path li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line);font-family:var(--sans);font-size:13px;color:var(--cream-m)}
+.vz-path li b{color:var(--cream);font-variant-numeric:tabular-nums;text-align:right}
+.vz-line-total{margin:0;font-family:var(--mono);font-size:13px;color:var(--cream)}
+

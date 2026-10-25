@@ -5,6 +5,7 @@
 //   npm run smoke:console                 # builds into .next-console, then checks; screenshots in .smoke-console/
 //   CONSOLE_ONLY=catalog,money npm run smoke:console
 //   CONSOLE_NO_BUILD=1 npm run smoke:console   # reuse .next-console
+//   CONSOLE_PROBE='document.title' …            # print what an expression says on each visited screen
 //
 // What it stands on: a stand-in Supabase (scripts/fixtures/fakebase.mjs — the whole schema in PGlite, every read as
 // the signed-in owner under RLS) seeded with a made-up week (scripts/fixtures/consoleWorld.mjs), and this app built
@@ -67,7 +68,10 @@ const VISITS = [
   { key: "vision-tour-flow", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-tour canvas" }, then: ["▶ Run the flow"], drawn: ".vp-tour .vz-flow-say", long: false },
   { key: "vision-plans", path: "/vision", ready: ".vz-board", clicks: ["Plans"], drawn: ".vz-ladder .vz-card", long: true },
   { key: "vision-compare", path: "/vision", ready: ".vz-board", clicks: ["Plans", "Side by side"], drawn: ".vz-cmp td", long: true },
-  { key: "vision-plan-sheet", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1"], drawn: ".vz-formats", long: false },
+  { key: "vision-plan-case", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1"], drawn: ".vz-h", long: true },
+  { key: "vision-plan-sheet", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Edit the plan"], drawn: ".vz-formats", long: false },
+  { key: "vision-money", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money"], drawn: ".vz-chart .line", long: true },
+  { key: "vision-money-drill", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money", "Startup spending:"], drawn: ".vz-formula code", long: false },
 ];
 const DB_PORT = 54329, PORT = 3219;
 const DB_URL = `http://127.0.0.1:${DB_PORT}`, BASE = `http://127.0.0.1:${PORT}`;
@@ -351,6 +355,8 @@ try {
       for (let t = Date.now(); Date.now() - t < 8000;) { await sleep(300); if (Date.now() - (fb.calls.at(-1)?.at ?? 0) > 900 && Date.now() - t > 1200) break; }
       await page.waitForTimeout(600);
       const tag = `${d.key} · ${v.key}`;
+      // CONSOLE_PROBE="<js expression>": what the screen says to it, printed — to look inside a picture's puzzle.
+      if (process.env.CONSOLE_PROBE) console.log(`  probe ${tag}:`, JSON.stringify(await page.evaluate((src) => { try { return (0, eval)(src); } catch (e) { return String(e); } }, process.env.CONSOLE_PROBE)).slice(0, 2000));
       if (process.env.CONSOLE_VERBOSE) console.log(`  · ${tag}`);
       const drawn = await page.evaluate((sel) => !!document.querySelector(sel), v.drawn).catch(() => false);
       ok(`${tag} · drawn`, drawn, (await page.evaluate(() => document.body.innerText.slice(0, 160)).catch(() => "")).replace(/\s+/g, " "));

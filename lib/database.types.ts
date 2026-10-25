@@ -10966,6 +10966,63 @@ export type Database = {
           },
         ]
       }
+      vision_plan_money: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          plan_id: string
+          scenarios: Json
+          structure: Json
+          baseline: Json | null
+          baseline_at: string | null
+          baseline_by: string | null
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          plan_id: string
+          scenarios?: Json
+          structure?: Json
+          baseline?: Json | null
+          baseline_at?: string | null
+          baseline_by?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          plan_id?: string
+          scenarios?: Json
+          structure?: Json
+          baseline?: Json | null
+          baseline_at?: string | null
+          baseline_by?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_plan_money_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: true
+            referencedRelation: "vision_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_plan_money_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vision_plan_needs: {
         Row: {
           id: string

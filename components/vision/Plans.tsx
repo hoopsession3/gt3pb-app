@@ -7,6 +7,7 @@ import { useAppStable } from "@/components/AppProvider";
 import { useConfirm } from "@/components/ConfirmSheet";
 import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import { Segmented } from "@/components/controls";
+import MoneyPanel from "./MoneyPanel";
 import { haptic } from "@/lib/haptics";
 import { localToday } from "@/lib/dates";
 import { askTotals, shortMoney, type Ask, type Layout, type Program } from "@/lib/vision";
@@ -24,8 +25,8 @@ type View = "phases" | "compare";
 /** A status's tag, written whole (so the class names are words Tailwind and the CSS audit can read). */
 const TAG = { "": "k-tag", ok: "k-tag ok", gold: "k-tag gold", warn: "k-tag warn", crit: "k-tag crit", blue: "k-tag blue" } as const;
 
-export default function Plans({ programs, plans, needs, deps, asks, layouts, ready, canEdit, onSaved, onOpenStore }: {
-  programs: Program[]; plans: Plan[]; needs: Need[]; deps: Dep[]; asks: Ask[]; layouts: Layout[]; ready: boolean; canEdit: boolean;
+export default function Plans({ programs, plans, needs, deps, asks, layouts, ready, canEdit, isOwner = false, onSaved, onOpenStore }: {
+  programs: Program[]; plans: Plan[]; needs: Need[]; deps: Dep[]; asks: Ask[]; layouts: Layout[]; ready: boolean; canEdit: boolean; isOwner?: boolean;
   onSaved: () => void; onOpenStore: (layoutId: string) => void;
 }) {
   const [view, setView] = useState<View>("phases");
@@ -33,6 +34,9 @@ export default function Plans({ programs, plans, needs, deps, asks, layouts, rea
   const withPlans = programs.filter((p) => plans.some((x) => x.program_id === p.id));
   const others = programs.filter((p) => !plans.some((x) => x.program_id === p.id));
   const [newFor, setNewFor] = useState("");
+  // A plan's case (R54): the plan, then its money — and, as the phases land, its traffic, its evidence and the investor case.
+  const [caseId, setCaseId] = useState<string | null>(null);
+  const caseOf = plans.find((x) => x.id === caseId) ?? null;
 
   if (!ready) {
     return (
@@ -40,6 +44,20 @@ export default function Plans({ programs, plans, needs, deps, asks, layouts, rea
         <b className="font-sans text-body">Plans arrive with the next database update</b>
         <p className="vz-sub">The ways in — a bar inside a gym, a partner café&apos;s menu, a storefront — each with its phase, its gate and what it needs, need migration 0448. The roadmap and the store work as before.</p>
       </div>
+    );
+  }
+
+  if (caseOf) {
+    return (
+      <>
+        <PlanCase plan={caseOf} plans={plans} needs={needs} deps={deps} asks={asks} layouts={layouts} canEdit={canEdit} isOwner={isOwner}
+          onBack={() => setCaseId(null)} onEdit={() => setOpen(caseOf)} onOpenStore={onOpenStore} />
+        {open && (
+          <PlanSheet key={"id" in open ? open.id : "new"} plan={"id" in open ? open : null} draft={"id" in open ? null : open}
+            programs={programs} plans={plans} needs={needs} deps={deps} asks={asks} layouts={layouts} canEdit={canEdit}
+            onClose={() => setOpen(null)} onSaved={() => { setOpen(null); onSaved(); }} onOpenStore={onOpenStore} />
+        )}
+      </>
     );
   }
 
@@ -60,7 +78,7 @@ export default function Plans({ programs, plans, needs, deps, asks, layouts, rea
                 {phases(mine).map(({ phase, plans: ps }) => (
                   <div key={phase} className="vz-step">
                     <p className="vz-step-h">Phase {phase}</p>
-                    {ps.map((p) => <PlanCard key={p.id} plan={p} needs={needs.filter((n) => n.plan_id === p.id)} waits={waitingOn(p, plans, deps)} asks={asks.filter((a) => a.plan_id === p.id)} layouts={layouts} onOpen={() => setOpen(p)} />)}
+                    {ps.map((p) => <PlanCard key={p.id} plan={p} needs={needs.filter((n) => n.plan_id === p.id)} waits={waitingOn(p, plans, deps)} asks={asks.filter((a) => a.plan_id === p.id)} layouts={layouts} onOpen={() => { haptic("light"); setCaseId(p.id); }} />)}
                     {canEdit && <button type="button" className="btn-ter self-start" onClick={() => setOpen({ program_id: prog.id, phase })}>+ Another way in, phase {phase}</button>}
                   </div>
                 ))}
@@ -72,7 +90,7 @@ export default function Plans({ programs, plans, needs, deps, asks, layouts, rea
                 )}
               </div>
             ) : (
-              <Compare plans={mine} all={plans} needs={needs} deps={deps} asks={asks} layouts={layouts} onOpen={setOpen} />
+              <Compare plans={mine} all={plans} needs={needs} deps={deps} asks={asks} layouts={layouts} onOpen={(p) => setCaseId(p.id)} />
             )}
           </section>
         );
@@ -326,5 +344,50 @@ function PlanAsks({ asks, editHint = false }: { asks: Ask[]; editHint?: boolean 
       {asks.map((a, i) => <p key={a.id ?? i} className="vz-card-s">{a.label} — {a.amount_cents ? shortMoney(a.amount_cents) : "amount to be set"}</p>)}
       {editHint && <p className="vz-card-s">{asks.length ? "" : "None yet. "}Asks are set in the program&apos;s sheet on the roadmap — choose this plan under &ldquo;For&rdquo;.</p>}
     </>
+  );
+}
+
+/** A plan's case (R54): the steps from the vision to the investment — the plan itself, then its money. Traffic (phase C),
+ *  evidence and scores (D) and the investor case (E) join these steps as they land. */
+type Step = "plan" | "money";
+function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner, onBack, onEdit, onOpenStore }: {
+  plan: Plan; plans: Plan[]; needs: Need[]; deps: Dep[]; asks: Ask[]; layouts: Layout[]; canEdit: boolean; isOwner: boolean;
+  onBack: () => void; onEdit: () => void; onOpenStore: (layoutId: string) => void;
+}) {
+  const [step, setStep] = useState<Step>("plan");
+  const room = layouts.find((l) => l.id === p.layout_id) ?? null;
+  const mine = needs.filter((n) => n.plan_id === p.id);
+  const waits = waitingOn(p, plans, deps);
+  return (
+    <div className="vz">
+      <div className="vz-top">
+        <button type="button" className="btn-ter" onClick={onBack}>‹ All plans</button>
+        {canEdit && <button type="button" className="btn-sec btn-sm" onClick={onEdit}>Edit the plan</button>}
+      </div>
+      <div className="flex flex-col gap-1">
+        <p className="vz-step-h">Phase {p.phase} · {FORMAT[p.format].name}</p>
+        <h2 className="vz-h">{FORMAT[p.format].mark} {p.name}</h2>
+        <div className="vz-meta"><span className={TAG[PLAN_STATUS[p.status].tone]}>{PLAN_STATUS[p.status].word}</span><span>{sqftWords(p, room)} · {DEAL_WORD[p.deal]}{p.place ? ` · ${p.place}` : ""}</span></div>
+      </div>
+      <Segmented label="The case" kind="choice" value={step} onChange={setStep} options={[{ key: "plan", label: "The plan" }, { key: "money", label: "Money" }]} />
+      {step === "plan" ? (
+        <div className="grid gap-4 grid-cols-1 min-[1100px]:grid-cols-2 min-[1100px]:items-start">
+          <div className="flex flex-col gap-2 min-w-0">
+            {p.summary && <p className="vz-sub">{p.summary}</p>}
+            {p.why && <><b className="font-sans">Why this way in</b><p className="vz-sub">{p.why}</p></>}
+            {p.gate && <><b className="font-sans">Goes when</b><p className="vz-sub">{p.gate}</p></>}
+            {waits.length > 0 && <p className="vz-wait">Waits on {waits.map((w) => w.name).join(", ")}</p>}
+            {room && <button type="button" className="btn-sec btn-sm self-start" onClick={() => onOpenStore(room.id)}>See its room →</button>}
+          </div>
+          <div className="flex flex-col gap-2 min-w-0">
+            <b className="font-sans">What it needs{mine.length ? ` · ${needsProgress(mine).done} of ${mine.length} done` : ""}</b>
+            {mine.length ? mine.map((n, i) => <p key={n.id ?? i} className="vz-card-s">{n.done_on ? "✓" : "○"} {n.label} · {NEED_WORD[n.kind]}{n.owner ? ` · ${n.owner}` : ""}{n.due_on && !n.done_on ? ` · due ${n.due_on}` : ""}</p>) : <p className="vz-card-s">No needs listed yet.</p>}
+            <PlanAsks asks={asks.filter((x) => x.plan_id === p.id)} />
+          </div>
+        </div>
+      ) : (
+        <MoneyPanel plan={p} asks={asks} canEdit={canEdit} isOwner={isOwner} />
+      )}
+    </div>
   );
 }

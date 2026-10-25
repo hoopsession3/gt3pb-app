@@ -73,5 +73,17 @@ export async function seedConsoleWorld(db) {
   for (const [cat, desc, cents, days] of [["supplies", "Cups, lids and sleeves — 1,000 count", 18450, 2], ["supplies", "Generator fuel", 6400, 5], ["ingredients", "Organic cold brew concentrate (Cleanest Cuppa) — 5 gal", 21000, 9]]) {
     await run(`expense ${desc}`, `insert into public.expenses (tenant_id, category, description, amount_cents, spent_on, created_by) values ($1, $2, $3, $4, current_date - $5::int, $6)`, [T1, cat, desc, cents, days, OWNER.id]);
   }
+  // R54: a plan's money, so the phone check draws the model, the charts and the investor's side. Fixture numbers for
+  // the screens' shape — a test world's, never shown as GT3's.
+  const money = { base: { uses: [
+      { id: "f1", label: "Bar and cooler", category: "equipment", qty: 1, unitCents: 1800000, source: "Fixture vendor", on: "2026-10-01", confidence: "quoted", notes: null },
+      { id: "f2", label: "Tap tower", category: "equipment", qty: 2, unitCents: 150000, source: null, on: null, confidence: "estimated", notes: null },
+      { id: "f3", label: "Build-out", category: "buildout", qty: 1, unitCents: 900000, source: null, on: null, confidence: "guess", notes: "Before the landlord's allowance" },
+      { id: "f4", label: "Signage", category: "launch", qty: 1, unitCents: null, source: null, on: null, confidence: null, notes: null },
+      { id: "f5", label: "Working-capital reserve", category: "reserve", qty: 1, unitCents: 1000000, source: null, on: null, confidence: null, notes: null }],
+    ownerCashCents: 500000,
+    ordersPerDay: 90, avgOrderCents: 850, daysOpenPerMonth: 26, hoursOpenPerDay: 10, rampMonths: 6, rampStartPct: 50, growthPctPerYear: 5, cogsPct: 30, cardFeePct: 3,
+    staffHoursPerDay: 12, wageCents: 1600, laborBurdenPct: 12, rentCents: 0, rentPctOfSales: 10, otherOpexCents: 60000, marketingCents: 40000 } };
+  await run("plan money", `insert into public.vision_plan_money (plan_id, scenarios, structure) select id, $1::jsonb, '{"kind":"rev_share","amountCents":4000000,"sharePct":6,"capMultiple":1.5}'::jsonb from public.vision_plans where format = 'gym_bar' limit 1`, [JSON.stringify(money)]);
   return notes;
 }
