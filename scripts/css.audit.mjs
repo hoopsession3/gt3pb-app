@@ -408,7 +408,8 @@ export const UNNAMED_EXEMPT = {
   cards: ["dl-card", "ev-prep", "oa-day", "ac-mod", "studio-thumb", "subpitch-pack", "ac-prod", "ac-opt", "ac-ackcard",
     "guide-create", "prep-card", "lib-cell", "studio-card", "calw-ev", "arch-tile", "cc-chip", "dp-tab", "mini-m", "brew-recipe",
     "intake-drop", "oa-usual", "oa-tile", "mp-flex", "shop-card",
-    "nu-map-node"],   // a point on GT3 Nutrition's course map (R44): it is the place on the map, chosen like a detent   // svc-enter, the Pass's hero button, went 2026-10-12: the Pass is a row
+    "nu-map-node",   // a point on GT3 Nutrition's course map (R44): it is the place on the map, chosen like a detent
+    "vz-card"],      // a program on the vision's roadmap (R52): the card is the program — a tap opens it, as a calendar's entry does   // svc-enter, the Pass's hero button, went 2026-10-12: the Pass is a row
   // a box that ticks, a score's cells, a drop's stages, a photo's own toolbar, the Display sheet's four A's (each drawn at
   // the size it picks — and the shell, which carries the sheet, carries no control's code)
   checks: ["rdy-check", "pbd-check", "goal-init-ck", "brew-score-b", "dops-stage", "ms-b", "rdg-size"],

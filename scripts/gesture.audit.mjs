@@ -43,6 +43,7 @@ export const OWN_OVERLAYS = {
   "components/AuthProvider.tsx#Set a new password": "the same step when its screen could not be fetched — Reload or Cancel; there is nothing to swipe back to",
   "components/ConnectHub.tsx#Connect with GT3": "a small panel the rail opens beside itself — a tap outside or the tab closes it",
   "components/DisplayToggle.tsx#Display & text": "a small panel the rail opens beside itself — a tap outside or the tab closes it",
+  "components/vision/Present.tsx#The plan, presented": "the plan, presented full screen across a table (R52) — a sideways swipe is the next slide and a tap moves on, so a swipe down must not close it mid-pitch; Done or Escape leaves",
 };
 
 // ── 2. tab rows that are not pages, and why ───────────────────────────────────────────────────

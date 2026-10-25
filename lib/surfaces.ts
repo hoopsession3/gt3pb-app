@@ -21,13 +21,13 @@
 export type Surface = "console" | "share" | "work" | "customer";
 
 export const WORK_ROUTES = [
-  "/academy", "/architecture", "/driver", "/scan", "/playbook", "/agreement", "/offer", "/display",
+  "/academy", "/architecture", "/driver", "/scan", "/playbook", "/agreement", "/offer", "/display", "/vision",
 ] as const;
 
 export function surfaceOf(pathname: string | null | undefined): Surface {
   const p = pathname || "/";
   if (p.startsWith("/crew")) return "console";
-  if (p.startsWith("/built")) return "share";
+  if (p.startsWith("/built") || p === "/present" || p.startsWith("/present/")) return "share";   // R52: a private link to the plan
   if (WORK_ROUTES.some((r) => p === r || p.startsWith(`${r}/`))) return "work";
   return "customer";
 }

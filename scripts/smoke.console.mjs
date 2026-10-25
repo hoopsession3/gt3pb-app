@@ -40,6 +40,16 @@ export const DEVICES = [
 ];
 export const SECTIONS = ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "catalog", "customers", "team", "settings"];
 
+// The crew's screens outside the console (R52): where each opens, what says it's drawn, what to tap first.
+const VISITS = [
+  { key: "vision-roadmap", path: "/vision", ready: ".vz-board", drawn: ".vz-board .vz-card", long: true },
+  { key: "vision-store", path: "/vision", ready: ".vz-board", clicks: ["The store"], drawn: ".vz-plan .it", long: true },
+  { key: "vision-flow", path: "/vision", ready: ".vz-board", clicks: ["The store", "▶ Run the flow"], drawn: ".vz-plan .guest", long: true },
+  { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
+  { key: "vision-present", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], drawn: ".vp-slide", long: false },
+  { key: "vision-tour", path: "/vision", ready: ".vz-board", clicks: ["▶ Present", ...Array(8).fill("Next")], drawn: ".vp-tour canvas", long: false },
+  { key: "vision-tour-flow", path: "/vision", ready: ".vz-board", clicks: ["▶ Present", ...Array(8).fill("Next"), "▶ Run the flow"], drawn: ".vp-tour .vz-flow-say", long: false },
+];
 const DB_PORT = 54329, PORT = 3219;
 const DB_URL = `http://127.0.0.1:${DB_PORT}`, BASE = `http://127.0.0.1:${PORT}`;
 const ANON = "fixture-anon-not-a-key";
@@ -298,6 +308,35 @@ try {
       ok(`${tag} · no error on the page, panels open`, errors.length === 0, errors.slice(0, 3));
       const mm = m2 && !m2.error ? m2 : m;
       report.push({ device: d.key, section: s, opened, minTap: mm.minTap, minText: mm.minText, sizes: mm.sizes, sizeEg: mm.sizeEg, apiBad });
+      await page.close();
+    }
+    // THE VISION (R52) — the crew's own screens outside the console: the roadmap, the store designer (plan and 3D), the
+    // links, and the presenter. Same assertions; "drawn" is the screen's own frame.
+    for (const v of VISITS) {
+      if (only && !only.includes(v.key)) continue;
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(`pageerror: ${e.message.slice(0, 200)}`));
+      page.on("console", (m) => { if (m.type() === "error" && !IGNORE.some((re) => re.test(m.text()))) errors.push(m.text().slice(0, 200)); });
+      const mark = fb.failures.length;
+      await page.goto(`${BASE}${v.path}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+      await page.waitForSelector(v.ready, { timeout: 15000 }).catch(() => {});
+      for (const c of v.clicks ?? []) { await page.getByRole("radio", { name: c, exact: false }).or(page.getByRole("button", { name: c, exact: false })).first().click({ timeout: 5000 }).catch(() => {}); await page.waitForTimeout(500); }
+      for (let t = Date.now(); Date.now() - t < 8000;) { await sleep(300); if (Date.now() - (fb.calls.at(-1)?.at ?? 0) > 900 && Date.now() - t > 1200) break; }
+      await page.waitForTimeout(600);
+      const tag = `${d.key} · ${v.key}`;
+      if (process.env.CONSOLE_VERBOSE) console.log(`  · ${tag}`);
+      const drawn = await page.evaluate((sel) => !!document.querySelector(sel), v.drawn).catch(() => false);
+      ok(`${tag} · drawn`, drawn, (await page.evaluate(() => document.body.innerText.slice(0, 160)).catch(() => "")).replace(/\s+/g, " "));
+      const m = await page.evaluate(MEASURE).catch((e) => ({ error: e.message }));
+      await page.screenshot({ path: `${OUT}/${d.key}/${v.key}-screen.png` }).catch(() => {});
+      if (v.long) await longShot(page, `${OUT}/${d.key}/${v.key}.png`).catch(() => {});
+      const dbBad = fb.failures.slice(mark).map((f) => `${f.status} ${f.method} ${f.path.replace("/rest/v1/", "")} — ${f.message}`);
+      ok(`${tag} · every read and write the screen made, answered`, dbBad.length === 0, [...new Set(dbBad)].slice(0, 4));
+      ok(`${tag} · no error on the page`, errors.length === 0, errors.slice(0, 3));
+      ok(`${tag} · nothing sideways`, m.sideways <= 0 && m.pastN === 0, { sideways: m.sideways, past: m.past });
+      ok(`${tag} · no word cut off by its box`, m.clippedN === 0, m.clipped);
+      ok(`${tag} · every tap target at least 24 by 24 (WCAG 2.5.8)`, (m.small ?? []).length === 0, (m.small ?? []).slice(0, 8));
       await page.close();
     }
     await ctx.close();

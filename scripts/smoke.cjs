@@ -1546,12 +1546,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const S = require("../.smoke/surfaces.js");
   const kinds = Object.fromEntries(["/", "/menu", "/truck", "/shop", "/events", "/reserve", "/primal/sleep", "/c/AB12", "/privacy",
     "/academy", "/architecture", "/driver", "/scan", "/playbook", "/agreement", "/offer", "/display",
-    "/crew", "/crew?s=money", "/built/gt3-built-k7m9x4q2", "/academyx"].map((p) => [p, S.surfaceOf(p)]));
+    "/crew", "/crew?s=money", "/built/gt3-built-k7m9x4q2", "/academyx", "/vision", "/present", "/presentx"].map((p) => [p, S.surfaceOf(p)]));
   ok("surfaces: ordering pages are customer", ["/", "/menu", "/truck", "/shop", "/events", "/reserve", "/primal/sleep", "/c/AB12", "/privacy"].every((p) => kinds[p] === "customer"), kinds);
   ok("surfaces: training, tools, documents and the TV loop are work",
     ["/academy", "/architecture", "/driver", "/scan", "/playbook", "/agreement", "/offer", "/display"].every((p) => kinds[p] === "work"), kinds);
   ok("surfaces: the console and a share page keep their own kinds", kinds["/crew"] === "console" && kinds["/crew?s=money"] === "console" && kinds["/built/gt3-built-k7m9x4q2"] === "share");
   ok("surfaces: a prefix is not a match — /academyx is not the Academy", kinds["/academyx"] === "customer");
+  ok("surfaces (R52): the vision is work; a link to the plan is a share (no cart across it); /presentx is neither",
+    kinds["/vision"] === "work" && kinds["/present"] === "share" && kinds["/presentx"] === "customer", { vision: kinds["/vision"], present: kinds["/present"], presentx: kinds["/presentx"] });
   ok("surfaces: commerce chrome is for customer pages only", S.showsCommerce("customer") && !["work", "console", "share"].some((k) => S.showsCommerce(k)));
   const fs = require("node:fs"), path = require("node:path");
   const shell = fs.readFileSync(path.join(__dirname, "..", "components/AppShell.tsx"), "utf8");

@@ -81,6 +81,9 @@ export default function CommandPalette() {
     const actions: Item[] = [
       ...(APP_BUILD ? [] : [{ id: "act:scan", label: "Scan a member card", hint: "Action", run: () => router.push("/scan") }]),
       { id: "act:cust", label: "Customer view", hint: "Action", run: () => router.push("/") },
+      // R52: the plan — the roadmap, the store in 3D, Present — found by the words people ask it with.
+      { id: "act:vision", label: "The vision — roadmap & the store", hint: "Action", run: () => router.push("/vision"),
+        match: (q: string) => q.toLowerCase().split(/\s+/).filter(Boolean).every((t) => "vision roadmap plan plans what's next whats next store brick mortar 3d design investors present pitch".includes(t)) },
     ];
     const allowed = new Set<OpSection>(sectionsForRole(role));
     const panels: Item[] = PANEL_INDEX.filter((e) => allowed.has(e.section)).map((e) => ({

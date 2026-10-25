@@ -5984,6 +5984,8 @@ export default function AdminPage() {
           {/* THE LIVE EVENT, HERE (2026-10-11, the KDS audit): its sales, pace and plan — or today's event, not live
               yet, with its "Make it live" — the width of the screen, first. It led Live Ops, which is the pass and
               the runs now; the people who read it are the people who read this screen. */}
+          {/* THE VISION (R52): "What are our plans? What's next?" — the roadmap, the store in 3D, and Present, one tap away. */}
+          <Link href="/vision" className="btn-sec w-full mb-3">◆ The vision — roadmap, the store, Present ›</Link>
           <EventHUD />
           {/* ON THE DESK (2026-10-09, redesign 5): the portfolio on the left; the team's week and the rows on the right
               (2026-10-12: the war room is a line and a row now, and sits with the rest of the rows). */}

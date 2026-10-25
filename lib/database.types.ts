@@ -9959,6 +9959,125 @@ export type Database = {
           },
         ]
       }
+      store_items: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          layout_id: string
+          kind: string
+          label: string | null
+          x_in: number
+          y_in: number
+          rot: number
+          w_in: number
+          d_in: number
+          h_in: number
+          why: string | null
+          pillars: string[]
+          sort: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          layout_id: string
+          kind: string
+          label?: string | null
+          x_in?: number
+          y_in?: number
+          rot?: number
+          w_in: number
+          d_in: number
+          h_in: number
+          why?: string | null
+          pillars?: string[]
+          sort?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          layout_id?: string
+          kind?: string
+          label?: string | null
+          x_in?: number
+          y_in?: number
+          rot?: number
+          w_in?: number
+          d_in?: number
+          h_in?: number
+          why?: string | null
+          pillars?: string[]
+          sort?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_items_layout_id_fkey"
+            columns: ["layout_id"]
+            isOneToOne: false
+            referencedRelation: "store_layouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_layouts: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          name: string
+          width_in: number
+          depth_in: number
+          ceiling_in: number
+          notes: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          name: string
+          width_in?: number
+          depth_in?: number
+          ceiling_in?: number
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          name?: string
+          width_in?: number
+          depth_in?: number
+          ceiling_in?: number
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_layouts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       strategy_decisions: {
         Row: {
           id: string
@@ -10733,6 +10852,179 @@ export type Database = {
           },
           {
             foreignKeyName: "vip_verifications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vision_asks: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          program_id: string
+          label: string
+          amount_cents: number
+          state: string
+          note: string | null
+          sort: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          program_id: string
+          label: string
+          amount_cents?: number
+          state?: string
+          note?: string | null
+          sort?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          program_id?: string
+          label?: string
+          amount_cents?: number
+          state?: string
+          note?: string | null
+          sort?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_asks_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "vision_programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_asks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vision_programs: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          lane: string
+          title: string
+          summary: string | null
+          why: string | null
+          pillars: string[]
+          horizon: string
+          status: string
+          start_on: string | null
+          target_on: string | null
+          emoji: string | null
+          layout_id: string | null
+          sort: number
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          lane?: string
+          title: string
+          summary?: string | null
+          why?: string | null
+          pillars?: string[]
+          horizon?: string
+          status?: string
+          start_on?: string | null
+          target_on?: string | null
+          emoji?: string | null
+          layout_id?: string | null
+          sort?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          lane?: string
+          title?: string
+          summary?: string | null
+          why?: string | null
+          pillars?: string[]
+          horizon?: string
+          status?: string
+          start_on?: string | null
+          target_on?: string | null
+          emoji?: string | null
+          layout_id?: string | null
+          sort?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_programs_layout_id_fkey"
+            columns: ["layout_id"]
+            isOneToOne: false
+            referencedRelation: "store_layouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_programs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vision_shares: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          token: string
+          label: string
+          show_asks: boolean
+          created_by: string | null
+          created_at: string
+          revoked_at: string | null
+          last_opened_at: string | null
+          opens: number
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          token?: string
+          label?: string
+          show_asks?: boolean
+          created_by?: string | null
+          created_at?: string
+          revoked_at?: string | null
+          last_opened_at?: string | null
+          opens?: number
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          token?: string
+          label?: string
+          show_asks?: boolean
+          created_by?: string | null
+          created_at?: string
+          revoked_at?: string | null
+          last_opened_at?: string | null
+          opens?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_shares_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -12365,6 +12657,8 @@ export type Database = {
         { Args: { p_code: string | null; p_cents: number | null; p_key?: string | null }; Returns: number }
       vendor_dupe_candidates:
         { Args: { p_threshold?: number | null }; Returns: { a: string; a_name: string; b: string; b_name: string; sim: number }[] }
+      vision_shared:
+        { Args: { p_token: string | null }; Returns: Json }
       void_expense:
         { Args: { p_id: string | null; p_reason: string | null }; Returns: Database["public"]["Tables"]["expenses"]["Row"] }
       void_jug_entry:

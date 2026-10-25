@@ -99,6 +99,8 @@ const ROUTES = [
   // first-compile in `next start` — reachability-only here; curl + prod deploy verify the kit.
   { path: "/built/gt3-built-k7m9x4q2", must: [], soft: true },
   { path: "/display", must: [], soft: true },       // signage kiosk — bespoke by design, reachability only
+  { path: "/vision", must: [], soft: true },        // R52: the roadmap and the store — crew-only (guest → wall)
+  { path: "/present", must: [], soft: true },       // R52: a private link to the plan — its token in the fragment
   // Four public routes this harness had never visited (found 2026-10-02 while measuring every
   // route at phone width): the merch shop, the Primal index, and the two legal pages.
   { path: "/shop", must: ["k-mast"] },
