@@ -422,12 +422,15 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
       // it survives the window before the paste.
       for (const [c, files] of m) {
         const where = [...files];
-        if (arriving.get(`${rel}.${c}`) !== born) { missingCol.push(`${rel}.${c}  ← ${where.join(", ")} (not in ${String(born).padStart(4, "0")}'s create table)`); continue; }
+        // Its own create table — or a later pending migration's `add column` on it (R53: 0448 adds vision_shares.expires_at
+        // to the table 0447 makes, both waiting); the file must then say how it survives that later one's window.
+        const at = arriving.get(`${rel}.${c}`);
+        if (at === undefined || at < born) { missingCol.push(`${rel}.${c}  ← ${where.join(", ")} (not in ${String(born).padStart(4, "0")}'s create table)`); continue; }
         const silent = where.filter((f) => {
-          try { return !declaresArrival(readFileSync(join(ROOT, f), "utf8"), born); } catch { return true; }
+          try { return !declaresArrival(readFileSync(join(ROOT, f), "utf8"), at); } catch { return true; }
         });
-        if (silent.length) undeclared.push(`${rel}.${c}  arrives with ${String(born).padStart(4, "0")}  ← ${silent.join(", ")}`);
-        else declared.push(`${rel}.${c}  arrives with ${String(born).padStart(4, "0")}  ← ${where.join(", ")}`);
+        if (silent.length) undeclared.push(`${rel}.${c}  arrives with ${String(at).padStart(4, "0")}  ← ${silent.join(", ")}`);
+        else declared.push(`${rel}.${c}  arrives with ${String(at).padStart(4, "0")}  ← ${where.join(", ")}`);
       }
       continue;
     }

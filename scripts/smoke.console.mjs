@@ -37,7 +37,22 @@ export const DEVICES = [
   { key: "iphone-17", w: 402, h: 874, dpr: 3 },
   { key: "iphone-se", w: 375, h: 667, dpr: 2 },
   { key: "iphone-17-pro-max", w: 440, h: 956, dpr: 3 },
+  // R53 (Ryan: "be amazing on iPad Pro, iPad… and desktop"): the vision on the iPads, both ways up and in Split View
+  // (half of a 13-inch on its side; two thirds), and on a desktop. Their pages are the vision's (VISITS) — the console's
+  // sections on an iPad are smoke:native's (its two iPad Airs).
+  { key: "ipad-11", w: 820, h: 1180, dpr: 2, kind: "ipad", visitsOnly: true },
+  { key: "ipad-11-side", w: 1180, h: 820, dpr: 2, kind: "ipad", visitsOnly: true },
+  { key: "ipad-13", w: 1032, h: 1376, dpr: 2, kind: "ipad", visitsOnly: true },
+  { key: "ipad-13-side", w: 1376, h: 1032, dpr: 2, kind: "ipad", visitsOnly: true },
+  { key: "ipad-split-half", w: 678, h: 1032, dpr: 2, kind: "ipad", visitsOnly: true },
+  { key: "ipad-split-two-thirds", w: 917, h: 1032, dpr: 2, kind: "ipad", visitsOnly: true },
+  { key: "desktop", w: 1440, h: 900, dpr: 2, kind: "desktop", visitsOnly: true },
 ];
+const UA = {
+  phone: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+  ipad: "Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+  desktop: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+};
 export const SECTIONS = ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "catalog", "customers", "team", "settings"];
 
 // The crew's screens outside the console (R52): where each opens, what says it's drawn, what to tap first.
@@ -47,8 +62,12 @@ const VISITS = [
   { key: "vision-flow", path: "/vision", ready: ".vz-board", clicks: ["The store", "▶ Run the flow"], drawn: ".vz-plan .guest", long: true },
   { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
   { key: "vision-present", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], drawn: ".vp-slide", long: false },
-  { key: "vision-tour", path: "/vision", ready: ".vz-board", clicks: ["▶ Present", ...Array(8).fill("Next")], drawn: ".vp-tour canvas", long: false },
-  { key: "vision-tour-flow", path: "/vision", ready: ".vz-board", clicks: ["▶ Present", ...Array(8).fill("Next"), "▶ Run the flow"], drawn: ".vp-tour .vz-flow-say", long: false },
+  { key: "vision-ways", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-steps" }, drawn: ".vp-steps .vp-chip", long: false },
+  { key: "vision-tour", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-tour canvas" }, drawn: ".vp-tour canvas", long: false },
+  { key: "vision-tour-flow", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-tour canvas" }, then: ["▶ Run the flow"], drawn: ".vp-tour .vz-flow-say", long: false },
+  { key: "vision-plans", path: "/vision", ready: ".vz-board", clicks: ["Plans"], drawn: ".vz-ladder .vz-card", long: true },
+  { key: "vision-compare", path: "/vision", ready: ".vz-board", clicks: ["Plans", "Side by side"], drawn: ".vz-cmp td", long: true },
+  { key: "vision-plan-sheet", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1"], drawn: ".vz-formats", long: false },
 ];
 const DB_PORT = 54329, PORT = 3219;
 const DB_URL = `http://127.0.0.1:${DB_PORT}`, BASE = `http://127.0.0.1:${PORT}`;
@@ -111,7 +130,8 @@ const MEASURE = () => {
   // A box that scrolls or clips sideways on purpose (a chip row, a table) holds what's past the edge.
   const heldBy = (el) => { for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) { const ox = getComputedStyle(p).overflowX; if (ox === "auto" || ox === "scroll" || ox === "hidden" || ox === "clip") return p; } return null; };
   const inSheetOrHidden = (el) => !!el.closest("[aria-hidden='true'], [inert], dialog:not([open])");
-  const srOnly = (el) => el.closest(".sr-only, .visually-hidden") || el.getBoundingClientRect().width <= 1;
+  // The skip link waits off-screen until a keyboard focuses it (WCAG 2.4.1) — out of sight on purpose, not cut off.
+  const srOnly = (el) => el.closest(".sr-only, .visually-hidden") || (el.matches(".skip-link") && document.activeElement !== el) || el.getBoundingClientRect().width <= 1;
   const all = [...document.querySelectorAll("body *")].filter((el) => !inSheetOrHidden(el) && vis(el) && !srOnly(el));
   const past = [], clipped = [], taps = [], texts = [];
   for (const el of all) {
@@ -246,11 +266,13 @@ try {
   const only = process.env.CONSOLE_ONLY ? process.env.CONSOLE_ONLY.split(",") : null;
   for (const d of DEVICES.filter((x) => !process.env.CONSOLE_DEVICES || process.env.CONSOLE_DEVICES.split(",").includes(x.key))) {
     mkdirSync(`${OUT}/${d.key}`, { recursive: true });
-    const ctx = await browser.newContext({ viewport: { width: d.w, height: d.h }, deviceScaleFactor: d.dpr, isMobile: true, hasTouch: true, bypassCSP: true,
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1" });
+    const desk = d.kind === "desktop";
+    const ctx = await browser.newContext({ viewport: { width: d.w, height: d.h }, deviceScaleFactor: d.dpr, isMobile: !desk, hasTouch: !desk, bypassCSP: true,
+      userAgent: UA[d.kind ?? "phone"] });
     await ctx.addInitScript(([k, v]) => { try { localStorage.setItem(k, v); localStorage.setItem("gt3-guide-seen", "1"); sessionStorage.setItem("gt3-splash-shown", "1"); } catch { /* */ } }, ["sb-127-auth-token", JSON.stringify(session())]);
     for (const s of SECTIONS) {
       if (only && !only.includes(s)) continue;
+      if (d.visitsOnly) continue;
       const page = await ctx.newPage();
       const errors = [];
       page.on("pageerror", (e) => errors.push(`pageerror: ${e.message.slice(0, 200)}`));
@@ -321,7 +343,11 @@ try {
       const mark = fb.failures.length;
       await page.goto(`${BASE}${v.path}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
       await page.waitForSelector(v.ready, { timeout: 15000 }).catch(() => {});
-      for (const c of v.clicks ?? []) { await page.getByRole("radio", { name: c, exact: false }).or(page.getByRole("button", { name: c, exact: false })).first().click({ timeout: 5000 }).catch(() => {}); await page.waitForTimeout(500); }
+      const tap = async (c) => { await page.getByRole("radio", { name: c, exact: false }).or(page.getByRole("button", { name: c, exact: false })).first().click({ timeout: 5000 }).catch(() => {}); await page.waitForTimeout(500); };
+      for (const c of v.clicks ?? []) await tap(c);
+      // A slide found by stepping to it (the presenter's slides shift as the plan grows): Next until it's there.
+      if (v.until) for (let k = 0; k < 20 && !(await page.$(v.until.sel)); k++) await tap(v.until.click);
+      for (const c of v.then ?? []) await tap(c);
       for (let t = Date.now(); Date.now() - t < 8000;) { await sleep(300); if (Date.now() - (fb.calls.at(-1)?.at ?? 0) > 900 && Date.now() - t > 1200) break; }
       await page.waitForTimeout(600);
       const tag = `${d.key} · ${v.key}`;

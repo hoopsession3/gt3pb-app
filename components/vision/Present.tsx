@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { HORIZONS, HORIZON_WORD, PILLARS, PILLAR_WORD, ASK_WORD, askTotals, board, kindOf, shortMoney, whenWords, type Layout, type Pillar } from "@/lib/vision";
 import type { Vision } from "@/lib/visionRead";
 import { haptic } from "@/lib/haptics";
 import Store3D from "./Store3D";
 import { CapitalBar } from "./Roadmap";
+import { DEAL_WORD, FORMAT, phases } from "@/lib/visionPlans";
 import FlowBar, { figuresOf } from "./FlowBar";
 import { useFlow, type Speed } from "./useFlow";
 
@@ -14,7 +16,7 @@ import { useFlow, type Speed } from "./useFlow";
 // capital may be needed. Tap the right side (or →) for the next, the left (or ←) for the one before; swipe works too.
 // The same screen opens from a private link (app/present) for someone who isn't in the room.
 type Slide =
-  | { kind: "cover" } | { kind: "board" } | { kind: "program"; id: string } | { kind: "store"; id: string } | { kind: "capital" } | { kind: "end" };
+  | { kind: "cover" } | { kind: "board" } | { kind: "program"; id: string } | { kind: "ways"; id: string } | { kind: "store"; id: string } | { kind: "capital" } | { kind: "end" };
 const PILLAR_LINE: Record<Pillar, string> = {
   stillness: "Room to slow down.", light: "Daylight, and nothing to hide.", fuel: "Clean fuel — cold extracted, nothing toxic.", movement: "A reason to move, every day.",
 };
@@ -28,6 +30,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
     for (const h of HORIZONS) for (const p of cols[h]) {
       if (h === "now" && !p.why) continue;
       out.push({ kind: "program", id: p.id });
+      if (vision.plans.some((x) => x.program_id === p.id)) out.push({ kind: "ways", id: p.id });
       const room = vision.layouts.find((l) => l.id === p.layout_id);
       if (room && room.items.length && !shownRooms.has(room.id)) { out.push({ kind: "store", id: room.id }); shownRooms.add(room.id); }
     }
@@ -54,7 +57,11 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
   const s = slides[at];
   const total = askTotals(vision.asks);
 
-  return (
+  // Full screen means the window's: drawn at the top of the document, so no frame, stage or transformed parent around the
+  // page (the desk's canvas, the phone frame on a desktop) can hold it in (R53 — on a desktop it was clipped to the frame).
+  const mounted = useSyncExternalStore(noop, () => true, () => false);
+  if (!mounted) return null;
+  return createPortal(
     <div className="vp" role="dialog" aria-modal="true" aria-label="The plan, presented">
       <div className="vp-bar">
         {onExit ? <button type="button" className="btn-sec btn-sm" onClick={onExit}>{exitLabel}</button> : <span />}
@@ -118,6 +125,31 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
               </>
             );
           })()}
+          {s.kind === "ways" && (() => {
+            const p = vision.programs.find((x) => x.id === s.id)!;
+            const steps = phases(vision.plans.filter((x) => x.program_id === p.id));
+            return (
+              <>
+                <p className="vp-eyebrow">{p.title} · the ways in</p>
+                <h2 className="vp-title">Step by step.</h2>
+                <p className="vp-lede">Each phase proves the next — smaller first, the full room once the demand is shown.</p>
+                <div className="vp-steps grid-cols-1 min-[700px]:grid-cols-none min-[700px]:grid-flow-col min-[700px]:auto-cols-fr">
+                  {steps.map(({ phase, plans: ps }) => (
+                    <div key={phase} className="vp-col">
+                      <b>Phase {phase}</b>
+                      {ps.map((pl) => (
+                        <div key={pl.id} className="vp-chip">
+                          <div>{FORMAT[pl.format].mark} {pl.name}</div>
+                          <div className="vp-chip-s">{[FORMAT[pl.format].name !== pl.name ? FORMAT[pl.format].name : null, pl.sqft ? `${pl.sqft.toLocaleString("en-US")} sq ft` : null, pl.deal !== "tbd" ? DEAL_WORD[pl.deal] : null].filter(Boolean).join(" · ") || "Size and deal to be set"}</div>
+                          {pl.gate && <div className="vp-chip-s"><b>Goes when</b> {pl.gate}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
           {s.kind === "store" && (() => {
             const l = vision.layouts.find((x) => x.id === s.id)!;
             return <TourSlide layout={l} focus={focus} setFocus={setFocus} />;
@@ -143,9 +175,11 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
         </div>
       </div>
       <p className="vp-tap">Tap or swipe · ← → on a keyboard</p>
-    </div>
+    </div>,
+    document.body,
   );
 }
+const noop = () => () => {};
 
 // The store, on its slide: the reason for each thing in it, one at a time — and, a tap away, the room with guests moving
 // through it, the way it would run on a busy morning.

@@ -29,7 +29,7 @@ export type Program = {
   horizon: Horizon; status: Status; start_on: string | null; target_on: string | null; emoji: string | null;
   layout_id: string | null; sort: number;
 };
-export type Ask = { id?: string; program_id: string; label: string; amount_cents: number; state: AskState; note: string | null; sort: number };
+export type Ask = { id?: string; program_id: string; plan_id?: string | null; label: string; amount_cents: number; state: AskState; note: string | null; sort: number };
 export type Item = {
   id: string; kind: string; label: string | null; x_in: number; y_in: number; rot: 0 | 90 | 180 | 270;
   w_in: number; d_in: number; h_in: number; why: string | null; pillars: Pillar[]; sort: number;

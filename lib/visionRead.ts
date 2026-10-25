@@ -3,8 +3,15 @@
 // the store and the presenter draw them the same way.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { allowedKind, type Ask, type Item, type Layout, type Pillar, type Program } from "./vision";
+import { DEALS, FORMATS, NEED_KINDS, PLAN_STATUSES, type Dep, type Need, type Plan } from "./visionPlans";
+import { isMissingColumn, isMissingRelation, isMissingTable } from "./schemaSkew";
 
-export type Vision = { programs: Program[]; asks: Ask[]; layouts: Layout[]; label?: string; showAsks: boolean };
+/** `plansReady`: 0448 is in (R53). Until it is, the plans read is absent, not failed — the roadmap and the room still
+ *  show, and the Plans tab says what's waiting. `expiresAt`: a link's end, when it has one. */
+export type Vision = {
+  programs: Program[]; asks: Ask[]; layouts: Layout[]; plans: Plan[]; needs: Need[]; deps: Dep[];
+  label?: string; showAsks: boolean; plansReady: boolean; expiresAt?: string | null;
+};
 
 type Row = Record<string, unknown>;
 const pillarsOf = (v: unknown): Pillar[] => (Array.isArray(v) ? v.filter((p): p is Pillar => ["stillness", "light", "fuel", "movement"].includes(p as string)) : []);
@@ -18,7 +25,7 @@ export const toProgram = (r: Row): Program => ({
   layout_id: (r.layout_id as string) ?? null, sort: n(r.sort),
 });
 export const toAsk = (r: Row): Ask => ({
-  id: r.id ? String(r.id) : undefined, program_id: String(r.program_id), label: String(r.label ?? ""), amount_cents: n(r.amount_cents),
+  id: r.id ? String(r.id) : undefined, program_id: String(r.program_id), plan_id: r.plan_id ? String(r.plan_id) : null, label: String(r.label ?? ""), amount_cents: n(r.amount_cents),
   state: (["open", "committed", "funded"].includes(r.state as string) ? r.state : "open") as Ask["state"], note: (r.note as string) ?? null, sort: n(r.sort),
 });
 export const toItem = (r: Row): Item => ({
@@ -31,6 +38,20 @@ export const toLayout = (r: Row, items: Item[]): Layout => ({
   notes: (r.notes as string) ?? null, items: items.filter((i) => allowedKind(i.kind)),
 });
 
+const oneOf = <T extends string>(list: readonly T[], v: unknown, d: T): T => (list.includes(v as T) ? (v as T) : d);
+export const toPlan = (r: Row): Plan => ({
+  id: String(r.id), program_id: String(r.program_id), name: String(r.name ?? ""), format: oneOf(FORMATS, r.format, "other"),
+  phase: Math.min(9, Math.max(1, n(r.phase, 1))), status: oneOf(PLAN_STATUSES, r.status, "exploring"), sqft: r.sqft == null ? null : n(r.sqft),
+  deal: oneOf(DEALS, r.deal, "tbd"), place: (r.place as string) ?? null, summary: (r.summary as string) ?? null, why: (r.why as string) ?? null,
+  gate: (r.gate as string) ?? null, layout_id: (r.layout_id as string) ?? null, shareable: r.shareable !== false, sort: n(r.sort),
+});
+export const toNeed = (r: Row, planId?: string): Need => ({
+  id: r.id ? String(r.id) : undefined, plan_id: planId ?? String(r.plan_id), label: String(r.label ?? ""), kind: oneOf(NEED_KINDS, r.kind, "other"),
+  owner: (r.owner as string) ?? null, due_on: (r.due_on as string) ?? null, done_on: (r.done_on as string) ?? null, note: (r.note as string) ?? null, sort: n(r.sort),
+});
+/** Absent because 0448 isn't in yet — not a failure (lib/schemaSkew). */
+const notYet = (e: { code?: string | null; message?: string | null } | null) => !!e && (isMissingTable(e) || isMissingRelation(e) || isMissingColumn(e));
+
 /** The console's read: everything, as staff see it. A refused read is an error, never an empty plan. */
 export async function readVision(sb: SupabaseClient): Promise<Vision> {
   const [p, a, l, i] = await Promise.all([
@@ -41,12 +62,23 @@ export async function readVision(sb: SupabaseClient): Promise<Vision> {
   ]);
   const err = p.error ?? a.error ?? l.error ?? i.error;
   if (err) throw new Error(err.message);
+  // arrives-with: 0448  — until 0448 is applied the plans are absent: plansReady is false and the Plans tab says so; the rest reads as before
+  const [pl, nd, dp] = await Promise.all([
+    sb.from("vision_plans").select("*").order("phase").order("sort").order("created_at"),
+    sb.from("vision_plan_needs").select("*").order("sort").order("created_at"),
+    sb.from("vision_plan_deps").select("plan_id, needs_plan_id"),
+  ]);
+  const planErr = pl.error ?? nd.error ?? dp.error;
+  if (planErr && !notYet(planErr)) throw new Error(planErr.message);
   const items = ((i.data ?? []) as Row[]).map((r) => ({ ...toItem(r), layout_id: String(r.layout_id) }));
   return {
     programs: ((p.data ?? []) as Row[]).map(toProgram),
     asks: ((a.data ?? []) as Row[]).map(toAsk),
     layouts: ((l.data ?? []) as Row[]).map((r) => toLayout(r, items.filter((it) => it.layout_id === String(r.id)))),
-    showAsks: true,
+    plans: planErr ? [] : ((pl.data ?? []) as Row[]).map(toPlan),
+    needs: planErr ? [] : ((nd.data ?? []) as Row[]).map((r) => toNeed(r)),
+    deps: planErr ? [] : ((dp.data ?? []) as Row[]).map((r) => ({ plan_id: String(r.plan_id), needs_plan_id: String(r.needs_plan_id) })),
+    showAsks: true, plansReady: !planErr,
   };
 }
 
@@ -54,9 +86,15 @@ export async function readVision(sb: SupabaseClient): Promise<Vision> {
 export async function readShared(sb: SupabaseClient, token: string): Promise<Vision> {
   const { data, error } = await sb.rpc("vision_shared", { p_token: token });
   if (error) throw new Error(/live/i.test(error.message) ? "This link isn't live — ask whoever sent it for a new one." : error.message);
-  const j = (data ?? {}) as { label?: string; show_asks?: boolean; programs?: Row[]; asks?: Row[]; layouts?: (Row & { items?: Row[] })[] };
+  const j = (data ?? {}) as { label?: string; show_asks?: boolean; expires_at?: string | null; programs?: Row[]; asks?: Row[];
+    plans?: (Row & { needs?: Row[]; waits_on?: string[] })[]; layouts?: (Row & { items?: Row[] })[] };
+  // A link reads only the plans marked to show (0448); before 0448 the door had none, and says nothing of them.
+  const plans = (j.plans ?? []).map((r) => ({ ...toPlan(r), shareable: true }));
   return {
-    label: j.label, showAsks: j.show_asks !== false,
+    label: j.label, showAsks: j.show_asks !== false, expiresAt: j.expires_at ?? null, plansReady: true,
+    plans,
+    needs: (j.plans ?? []).flatMap((r) => (r.needs ?? []).map((x) => toNeed(x, String(r.id)))),
+    deps: (j.plans ?? []).flatMap((r) => (r.waits_on ?? []).map((w) => ({ plan_id: String(r.id), needs_plan_id: String(w) }))),
     programs: (j.programs ?? []).map(toProgram),
     asks: (j.asks ?? []).map(toAsk),
     layouts: (j.layouts ?? []).map((l) => toLayout(l, (l.items ?? []).map(toItem))),

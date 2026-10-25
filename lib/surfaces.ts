@@ -46,10 +46,11 @@ export const showsCommerce = (s: Surface): boolean => s === "customer";
 // three to the same words.
 export const DESK_QUERY = "(min-width: 1024px) and (orientation: landscape)";
 
-/** Does this page leave the frame for the desk on a wide screen? The console, and /office. */
+/** Does this page leave the frame for the desk on a wide screen? The console, /office — and the vision (R53, Ryan:
+ *  "be amazing on iPad Pro… and desktop"): the store designer and the plans are worked on from a big screen too. */
 export function deskRoute(pathname: string | null | undefined): boolean {
   const p = pathname || "/";
-  return surfaceOf(p) === "console" || p === "/office" || p.startsWith("/office/");
+  return surfaceOf(p) === "console" || p === "/office" || p.startsWith("/office/") || p === "/vision" || p.startsWith("/vision/");
 }
 
 /** Is the desk drawn right now — a desk page on a wide screen in landscape? On the client only. */

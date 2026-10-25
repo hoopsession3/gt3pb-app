@@ -11,12 +11,14 @@ import {
   ASK_STATES, ASK_WORD, HORIZONS, HORIZON_SUB, HORIZON_WORD, PILLARS, PILLAR_WORD, STATUSES, STATUS_WORD,
   askTotals, board, shortMoney, whenWords, type Ask, type Horizon, type Layout, type Pillar, type Program,
 } from "@/lib/vision";
+import type { Plan } from "@/lib/visionPlans";
 
 // THE ROADMAP (R52) — what's running now, what's next, what's later: the industry's Now · Next · Later board, every
 // program with why it exists and which of the four pillars it serves, and where capital may be needed — what it buys, how
 // much, and whether it's open, committed or funded. One tap opens a program; an owner edits it there.
-export default function Roadmap({ programs, asks, layouts, canEdit, showAsks, onSaved, onOpenStore }: {
-  programs: Program[]; asks: Ask[]; layouts: Layout[]; canEdit: boolean; showAsks: boolean; onSaved: () => void; onOpenStore?: (layoutId: string) => void;
+export default function Roadmap({ programs, asks, layouts, plans = [], canEdit, showAsks, onSaved, onOpenStore, onOpenPlans }: {
+  programs: Program[]; asks: Ask[]; layouts: Layout[]; plans?: Plan[]; canEdit: boolean; showAsks: boolean; onSaved: () => void;
+  onOpenStore?: (layoutId: string) => void; onOpenPlans?: () => void;
 }) {
   const [open, setOpen] = useState<Program | "new" | null>(null);
   const cols = useMemo(() => board(programs), [programs]);
@@ -43,6 +45,10 @@ export default function Roadmap({ programs, asks, layouts, canEdit, showAsks, on
                     {when && <span>· {when}</span>}
                     {p.pillars.length > 0 && <span className="vz-dots" aria-label={p.pillars.map((x) => PILLAR_WORD[x]).join(", ")}>{p.pillars.map((x) => <i key={x} className={`pz-${x}`} />)}</span>}
                   </span>
+                  {plans.some((x) => x.program_id === p.id) && (() => {
+                    const ps = plans.filter((x) => x.program_id === p.id), ph = new Set(ps.map((x) => x.phase)).size;
+                    return <span className="vz-card-s">{ps.length} {ps.length === 1 ? "way in" : "ways in"}{ph > 1 ? ` · ${ph} phases` : ""}</span>;
+                  })()}
                   {showAsks && (t.total > 0 || t.unset > 0) && (
                     <span className="vz-meta"><span className="k-tag gold">{t.total > 0 ? `Seeking ${shortMoney(t.open)}${t.committed + t.funded > 0 ? ` · ${shortMoney(t.committed + t.funded)} in` : ""}` : "Partners wanted"}</span></span>
                   )}
@@ -56,6 +62,7 @@ export default function Roadmap({ programs, asks, layouts, canEdit, showAsks, on
       </div>
       {open && (
         <ProgramSheet key={open === "new" ? "new" : open.id} program={open === "new" ? null : open} asks={open === "new" ? [] : byProgram(open.id)} layouts={layouts}
+          plans={open === "new" ? [] : plans.filter((x) => x.program_id === open.id)} onOpenPlans={onOpenPlans}
           canEdit={canEdit} showAsks={showAsks} lanes={[...new Set(programs.map((p) => p.lane))]}
           onClose={() => setOpen(null)} onSaved={() => { setOpen(null); onSaved(); }} onOpenStore={onOpenStore} />
       )}
@@ -92,10 +99,10 @@ export function CapitalBar({ t, dark = false }: { t: ReturnType<typeof askTotals
 }
 
 // ── one program: read it, or (an owner) change it ──
-type AskDraft = { id?: string; label: string; dollars: string; state: Ask["state"]; note: string };
-function ProgramSheet({ program, asks, layouts, canEdit, showAsks, lanes, onClose, onSaved, onOpenStore }: {
-  program: Program | null; asks: Ask[]; layouts: Layout[]; canEdit: boolean; showAsks: boolean; lanes: string[];
-  onClose: () => void; onSaved: () => void; onOpenStore?: (layoutId: string) => void;
+type AskDraft = { id?: string; label: string; dollars: string; state: Ask["state"]; note: string; plan: string };
+function ProgramSheet({ program, asks, layouts, plans, canEdit, showAsks, lanes, onClose, onSaved, onOpenStore, onOpenPlans }: {
+  program: Program | null; asks: Ask[]; layouts: Layout[]; plans: Plan[]; canEdit: boolean; showAsks: boolean; lanes: string[];
+  onClose: () => void; onSaved: () => void; onOpenStore?: (layoutId: string) => void; onOpenPlans?: () => void;
 }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
@@ -111,7 +118,7 @@ function ProgramSheet({ program, asks, layouts, canEdit, showAsks, lanes, onClos
   const [start, setStart] = useState(p?.start_on?.slice(0, 7) ?? "");
   const [target, setTarget] = useState(p?.target_on?.slice(0, 7) ?? "");
   const [layoutId, setLayoutId] = useState(p?.layout_id ?? "");
-  const [rows, setRows] = useState<AskDraft[]>(asks.map((a) => ({ id: a.id, label: a.label, dollars: a.amount_cents ? String(a.amount_cents / 100) : "", state: a.state, note: a.note ?? "" })));
+  const [rows, setRows] = useState<AskDraft[]>(asks.map((a) => ({ id: a.id, label: a.label, dollars: a.amount_cents ? String(a.amount_cents / 100) : "", state: a.state, note: a.note ?? "", plan: a.plan_id ?? "" })));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const snapshot = JSON.stringify([title, emoji, lane, summary, why, pillars, horizon, status, start, target, layoutId, rows]);
@@ -150,7 +157,7 @@ function ProgramSheet({ program, asks, layouts, canEdit, showAsks, lanes, onClos
       const gone = asks.filter((a) => a.id && !keep.some((r) => r.id === a.id)).map((a) => a.id!) ;
       if (gone.length) { const { error } = await supabase.from("vision_asks").delete().in("id", gone); if (error) throw error; }
       for (const [k, r] of keep.entries()) {
-        const v = { program_id: id, label: r.label.trim(), amount_cents: Math.round(Number(r.dollars.replace(/[$,]/g, "") || 0) * 100), state: r.state, note: r.note.trim() || null, sort: k + 1 };
+        const v = { program_id: id, ...(plans.length || r.plan ? { plan_id: r.plan || null } : {}), label: r.label.trim(), amount_cents: Math.round(Number(r.dollars.replace(/[$,]/g, "") || 0) * 100), state: r.state, note: r.note.trim() || null, sort: k + 1 };
         const { error } = r.id ? await supabase.from("vision_asks").update(v).eq("id", r.id) : await supabase.from("vision_asks").insert(v);
         if (error) throw error;
       }
@@ -177,9 +184,10 @@ function ProgramSheet({ program, asks, layouts, canEdit, showAsks, lanes, onClos
           <div className="vz-meta"><span className={p.status === "live" ? "k-tag ok" : "k-tag"}>{STATUS_WORD[p.status]}</span><span>{HORIZON_WORD[p.horizon]} · {p.lane}</span>{whenWords(p.start_on, p.target_on) && <span>· {whenWords(p.start_on, p.target_on)}</span>}</div>
           {p.summary && <p className="vz-sub">{p.summary}</p>}
           {p.why && <><b className="font-sans">Why</b><p className="vz-sub">{p.why}</p></>}
-          {p.pillars.length > 0 && <div className="vz-pillars">{p.pillars.map((x) => <span key={x} className="vz-pill"><i className={`inline-block w-2 h-2 rounded-full pz-${x}`} />{PILLAR_WORD[x]}</span>)}</div>}
+          {p.pillars.length > 0 && <div className="vz-pillars">{p.pillars.map((x) => <span key={x} className="k-tag"><i className={`inline-block w-2 h-2 rounded-full pz-${x}`} />{PILLAR_WORD[x]}</span>)}</div>}
           {showAsks && asks.length > 0 && <><CapitalBar t={t} />{asks.map((a, i) => <p key={i} className="vz-card-s"><b>{a.label}</b> — {a.amount_cents ? shortMoney(a.amount_cents) : "amount to be set"} · {ASK_WORD[a.state]}{a.note ? ` · ${a.note}` : ""}</p>)}</>}
           {layout && onOpenStore && <button type="button" className="btn-sec btn-sm" onClick={() => onOpenStore(layout.id)}>See {layout.name} →</button>}
+          {plans.length > 0 && onOpenPlans && <button type="button" className="btn-sec btn-sm" onClick={onOpenPlans}>Its {plans.length} {plans.length === 1 ? "way in" : "ways in"} →</button>}
         </div>
       ) : (
         <div className="vz">
@@ -206,6 +214,7 @@ function ProgramSheet({ program, asks, layouts, canEdit, showAsks, lanes, onClos
             <label className="prod-f"><span>Its room (the store designer)</span>
               <select value={layoutId} onChange={(e) => setLayoutId(e.target.value)}><option value="">No room</option>{layouts.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
           )}
+          {plans.length > 0 && onOpenPlans && <button type="button" className="btn-sec btn-sm self-start" onClick={onOpenPlans}>Its {plans.length} {plans.length === 1 ? "way in" : "ways in"} — phases, gates, needs →</button>}
           <b className="font-sans mt-2">Where capital may be needed</b>
           <p className="vz-card-s">What it buys, how much, and where it stands. Leave the amount empty until it&apos;s priced — the card says &ldquo;Partners wanted&rdquo;.</p>
           <div className="vz-asks">
@@ -215,10 +224,16 @@ function ProgramSheet({ program, asks, layouts, canEdit, showAsks, lanes, onClos
                 <label className="prod-f"><span>Amount ($)</span><input inputMode="decimal" value={r.dollars} onChange={(e) => setRows((v) => v.map((x, j) => (j === i ? { ...x, dollars: e.target.value } : x)))} placeholder="180000" /></label>
                 <label className="prod-f"><span>Stands</span><select value={r.state} onChange={(e) => setRows((v) => v.map((x, j) => (j === i ? { ...x, state: e.target.value as Ask["state"] } : x)))}>{ASK_STATES.map((s) => <option key={s} value={s}>{ASK_WORD[s]}</option>)}</select></label>
                 <label className="prod-f"><span>Note</span><input value={r.note} maxLength={400} onChange={(e) => setRows((v) => v.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))} /></label>
+                {plans.length > 0 && (
+                  <label className="prod-f col-span-2"><span>For</span>
+                    <select value={r.plan} onChange={(e) => setRows((v) => v.map((x, j) => (j === i ? { ...x, plan: e.target.value } : x)))}>
+                      <option value="">The whole program</option>{plans.map((pl) => <option key={pl.id} value={pl.id}>Phase {pl.phase} · {pl.name}</option>)}
+                    </select></label>
+                )}
                 <div className="vz-ask-x"><button type="button" className="btn-ter" onClick={() => setRows((v) => v.filter((_, j) => j !== i))}>Remove</button></div>
               </div>
             ))}
-            <button type="button" className="btn-sec btn-sm" onClick={() => setRows((v) => [...v, { label: "", dollars: "", state: "open", note: "" }])}>+ What it needs</button>
+            <button type="button" className="btn-sec btn-sm" onClick={() => setRows((v) => [...v, { label: "", dollars: "", state: "open", note: "", plan: "" }])}>+ What it needs</button>
           </div>
           {err && <p className="load-failed" role="alert">{err}</p>}
           <div className="prod-actions mt-3">

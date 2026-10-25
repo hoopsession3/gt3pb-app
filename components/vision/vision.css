@@ -45,9 +45,9 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-ask-x{grid-column:1/-1;display:flex;justify-content:flex-end}
 
 /* ── the store designer ── */
-.vz-store{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
-@media (min-width:980px){.vz-store.both{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}}
-.vz-plan{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none}
+.vz-store{display:grid;gap:12px}
+
+.vz-plan{display:block;touch-action:none;user-select:none;-webkit-user-select:none}
 .vz-plan .room{fill:#f6f0e3;stroke:#2a2820;stroke-width:6}
 .vz-plan .grid1{stroke:rgba(42,40,32,.07);stroke-width:1}
 .vz-plan .grid4{stroke:rgba(42,40,32,.16);stroke-width:1.5}
@@ -68,6 +68,7 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-stats{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--sans);font-size:13px;color:var(--cream-m)}
 .vz-stats b{color:var(--cream);font-variant-numeric:tabular-nums}
 .vz-palette{display:flex;flex-direction:column;gap:8px}
+.vz-palette .k-chip{white-space:normal;text-align:left}
 .vz-palette h3{margin:4px 0 0;font-family:var(--sans);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d)}
 .vz-insp .prod-f{margin-top:0}
 .vz-dims{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -123,3 +124,27 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-legend .ph-pickup{background:#c8a661} .vz-legend .ph-seated{background:#457a32} .vz-legend .ph-grab{background:#7a5aa5}
 .vz-legend .ph-out{background:#6b6b6b} .vz-legend .ph-heat{background:rgba(184,36,32,.35)}
 .vz-flow-say:empty,.vz-flow .vz-issue:empty{display:none}
+
+/* The ways in (R53): a program's plans in phases — the steps side by side on a wide screen, one under the other on a
+   phone — and the same questions asked of each, side by side. */
+.vz-prog{display:flex;flex-direction:column;gap:10px}
+.vz-ladder{display:grid;gap:12px;padding-bottom:4px;scroll-snap-type:x proximity}
+.vz-step{display:flex;flex-direction:column;gap:10px;min-width:0;scroll-snap-align:start}
+.vz-step-h{margin:0;font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
+.vz-prog-bar{display:flex;flex-direction:column;gap:4px;font-family:var(--sans);font-size:12px;color:var(--cream-d)}
+.vz-prog-bar svg{display:block;width:100%;height:6px;border-radius:var(--r-pill);overflow:hidden}
+.vz-prog-bar svg .on{fill:var(--ok-fill,#457a32)}
+.vz-wait{font-family:var(--sans);font-size:12px;font-weight:600;color:var(--warn)}
+.vz-gate{font-family:var(--sans);font-size:12px;line-height:1.4;color:var(--cream-m);border-top:1px solid var(--line);padding-top:6px}
+.vz-gate b{color:var(--cream);margin-right:4px}
+.vz-formats{display:flex;flex-wrap:wrap;gap:6px}
+.vz-share-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.vz-cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.vz-cmp{border-collapse:collapse;width:max-content;min-width:100%;font-family:var(--sans);font-size:13px;color:var(--cream-m)}
+.vz-cmp th,.vz-cmp td{padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);max-width:260px}
+.vz-cmp thead th{color:var(--cream);font-weight:700;white-space:nowrap}
+.vz-cmp tbody th{position:sticky;left:0;background:var(--bg);color:var(--cream-d);font-weight:600;white-space:nowrap}
+.vz-cmp tr.differs td{color:var(--cream)}
+.vp-steps{display:grid;gap:14px}
+.vp-chip-s{margin-top:4px;font-weight:500;font-size:13px;line-height:1.4;color:rgba(245,241,232,.66)}
+.vp-chip-s b{color:#c8a661;font-weight:700;font-size:13px;letter-spacing:0;text-transform:none;margin-right:4px}

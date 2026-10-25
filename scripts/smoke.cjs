@@ -11319,8 +11319,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     surf.includes(`export const DESK_QUERY = "${Q}";`) && tw.includes(`@custom-variant desk {\n  @media ${Q} {\n    &:is([data-desk], [data-desk] *) {`)
     && ["desk-shell", "desk-sidebar", "desk-cols", "desk-col", "desk-settings"].every((u) => new RegExp(`@utility ${u} \\{[\\s\\S]*?@media ${Q.replace(/[()]/g, "\\$&")} \\{`).test(tw))
     && !/@media[^{]*1024px(?![^{]*orientation: landscape)[^{]*\{[^}]*data-desk/.test(tw));
-  ok("desk: the console and /office, and no other page — the shell says data-desk from lib/surfaces, and the markup is the same at every width",
-    /export function deskRoute\(pathname: string \| null \| undefined\): boolean \{\s*const p = pathname \|\| "\/";\s*return surfaceOf\(p\) === "console" \|\| p === "\/office" \|\| p\.startsWith\("\/office\/"\);/.test(surf)
+  ok("desk: the console, /office and the vision (R53 — the store designer is worked on from a big screen), and no other page — the shell says data-desk from lib/surfaces, and the markup is the same at every width",
+    /export function deskRoute\(pathname: string \| null \| undefined\): boolean \{\s*const p = pathname \|\| "\/";\s*return surfaceOf\(p\) === "console" \|\| p === "\/office" \|\| p\.startsWith\("\/office\/"\) \|\| p === "\/vision" \|\| p\.startsWith\("\/vision\/"\);/.test(surf)
     && /const desk = deskRoute\(pathname\);/.test(shell) && /<div className=\{"app desk-shell" \+ \(inAdmin && theme === "day" \? " crew-day" : ""\) \+ \(disp \? ` \$\{disp\}` : ""\)\} data-surface=\{surface\} data-desk=\{desk \? "" : undefined\}>/.test(shell));
   ok("desk: the window, not a frame — the canvas runs to 1,240 wide, and the tab bar stands at the window's left edge as a sidebar of rows, the lit one washed",
     /&\[data-desk\] \{\s*--desk-side: 236px;[\s\S]*?max-width: none;\s*height: 100vh;\s*height: 100dvh;\s*border-radius: 0;\s*box-shadow: none;\s*padding-left: var\(--desk-side\);/.test(tw)

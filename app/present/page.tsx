@@ -7,8 +7,13 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { supabase } from "@/lib/supabase";
 import { readShared, type Vision } from "@/lib/visionRead";
 import Present from "@/components/vision/Present";
-import Roadmap from "@/components/vision/Roadmap";
-import StoreDesigner from "@/components/vision/StoreDesigner";
+import dynamic from "next/dynamic";
+
+// "See it all" — the roadmap, the ways in and the store to explore — loads only when it's opened: the story comes first,
+// and a link someone opens on a phone downloads the story alone (R53: the explore view was riding the first download).
+const Roadmap = dynamic(() => import("@/components/vision/Roadmap"), { ssr: false });
+const Plans = dynamic(() => import("@/components/vision/Plans"), { ssr: false });
+const StoreDesigner = dynamic(() => import("@/components/vision/StoreDesigner"), { ssr: false });
 
 // A PRIVATE LINK TO THE PLAN (R52, 0447 vision_shared). The token is after the # — never sent to a server, never in a
 // log or a referrer — and read here, on the phone. It opens on the story (components/vision/Present); "See it all"
@@ -37,8 +42,9 @@ export default function PresentPage() {
             <h1 className="vz-h">The plan</h1>
             <button type="button" className="btn-pri" onClick={() => setMode("story")}>▶ The story</button>
           </div>
-          <Roadmap programs={vision.programs} asks={vision.asks} layouts={vision.layouts} canEdit={false} showAsks={vision.showAsks} onSaved={() => {}} />
-          {vision.layouts.length > 0 && <StoreDesigner layouts={vision.layouts} canEdit={false} onSaved={() => {}} />}
+          <Roadmap programs={vision.programs} asks={vision.asks} layouts={vision.layouts} plans={vision.plans} canEdit={false} showAsks={vision.showAsks} onSaved={() => {}} />
+          {vision.plans.length > 0 && <Plans programs={vision.programs} plans={vision.plans} needs={vision.needs} deps={vision.deps} asks={vision.asks} layouts={vision.layouts} ready canEdit={false} onSaved={() => {}} onOpenStore={() => {}} />}
+          {vision.layouts.length > 0 && <StoreDesigner layouts={vision.layouts} plans={vision.plans} canEdit={false} onSaved={() => {}} />}
         </div>
       )}
     </section>

@@ -13,6 +13,7 @@ import {
 } from "@/lib/vision";
 import { saveLayout } from "@/lib/visionRead";
 import Store3D from "./Store3D";
+import { FORMAT, type Plan } from "@/lib/visionPlans";
 import FlowBar, { figuresOf } from "./FlowBar";
 import { useFlow, type FlowFrame, type Speed } from "./useFlow";
 import { PHASE_COLOR } from "@/lib/visionFlow";
@@ -28,10 +29,10 @@ const GROUPS = ["Bar", "Front", "Seating", "Back", "Room"] as const;
 const PAD = 36;
 const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(16)}-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`);
 
-export default function StoreDesigner({ layouts, canEdit, onSaved }: { layouts: Layout[]; canEdit: boolean; onSaved: () => void }) {
+export default function StoreDesigner({ layouts, plans = [], initialId = null, canEdit, onSaved }: { layouts: Layout[]; plans?: Plan[]; initialId?: string | null; canEdit: boolean; onSaved: () => void }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
-  const [layoutId, setLayoutId] = useState(layouts[0]?.id ?? "");
+  const [layoutId, setLayoutId] = useState(initialId && layouts.some((l) => l.id === initialId) ? initialId : layouts[0]?.id ?? "");
   const original = layouts.find((l) => l.id === layoutId) ?? layouts[0];
   const [draft, setDraft] = useState<Layout | null>(original ?? null);
   const [past, setPast] = useState<Layout[]>([]);
@@ -146,7 +147,7 @@ export default function StoreDesigner({ layouts, canEdit, onSaved }: { layouts: 
         <div className="vz-row grow min-w-0">
           {layouts.length > 1 && (
             <select aria-label="Which room" value={draft.id} onChange={(e) => setLayoutId(e.target.value)} className="grow min-w-0 basis-[180px]">
-              {layouts.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              {layouts.map((l) => { const pl = plans.find((x) => x.layout_id === l.id); return <option key={l.id} value={l.id}>{l.name}{pl ? ` — phase ${pl.phase}` : ""}</option>; })}
             </select>
           )}
           <Segmented label="View" kind="choice" size="sm" value={view} onChange={setView} options={[{ key: "plan", label: "Plan" }, { key: "3d", label: "3D" }, { key: "both", label: "Both" }]} />
@@ -170,80 +171,100 @@ export default function StoreDesigner({ layouts, canEdit, onSaved }: { layouts: 
         </p>
       )}
 
-      <div className={view === "plan" ? "vz-store plan" : view === "3d" ? "vz-store 3d" : "vz-store both"}>
-        {view !== "3d" && (
-          <div className="vz-pane mpanel mb-0 relative min-w-0 overflow-auto">
-            <PlanView layout={draft} zoom={zoom} selected={sel} bad={bad} canEdit={canEdit} onSelect={setSel} flow={flow}
-              onMove={(id, at, done) => patchItem(id, at, done)} onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }} />
-            <div className="vz-tools">
-              <button type="button" className="k-icon-btn lg glass" onClick={() => setZoom((z) => Math.min(4, +(z * 1.4).toFixed(2)))} aria-label="Closer">+</button>
-              <button type="button" className="k-icon-btn lg glass" onClick={() => setZoom((z) => Math.max(1, +(z / 1.4).toFixed(2)))} aria-label="Farther">−</button>
-            </div>
-          </div>
-        )}
-        {view !== "plan" && (
-          <div className="vz-pane mpanel mb-0 relative min-w-0">
-            <Store3D layout={draft} selected={sel} onPick={setSel} figures={figures} heat={flow?.heat} label={`${draft.name}, in 3D — drag to turn, pinch to come closer`} />
-            <p className="vz-hint">Drag to turn · pinch or scroll to zoom · double-tap: corner view</p>
-          </div>
-        )}
-      </div>
-
-      {/* FLOW, under the room it runs in: the plan stays on screen while it runs. */}
-      <FlowBar on={flowOn} onToggle={() => setFlowOn((o) => !o)} perHour={perHour} onPerHour={setPerHour} speed={speed} onSpeed={setSpeed} frame={flow} />
-
-      {/* THE SCHEDULE — every thing in the room, numbered as the plan numbers it (a plan set's equipment schedule): its
-          name, its size, its pillars. A tap picks it on the plan and in 3D. */}
-      <details className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
-        <summary className="font-sans font-bold text-subhead cursor-pointer py-2">Schedule · {draft.items.length} things</summary>
-        <div className="k-rows mt-2">
-          {draft.items.map((it, n) => (
-            <InfoRow key={it.id} lead={String(n + 1)} name={it.label || kindOf(it.kind).name}
-              meta={`${ftIn(it.w_in)} × ${ftIn(it.d_in)} × ${ftIn(it.h_in)}${it.pillars.length ? ` · ${it.pillars.map((p) => PILLAR_WORD[p]).join(", ")}` : ""}`}
-              onClick={() => setSel(it.id)} />
-          ))}
-        </div>
-      </details>
-
-      {/* Heard as it changes (mounted before its words — spoken.audit); the list itself is below. */}
-      <p className="sr-only" aria-live="polite">{found.length ? `${found.length} ${found.length === 1 ? "thing" : "things"} a plan reviewer would circle.` : ""}</p>
-      {found.length > 0 && (
-        <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label="What a plan reviewer would circle">
-          {found.slice(0, 8).map((f, i) => (
-            <p key={i} className={f.level === "error" ? "vz-issue error" : "vz-issue warn"}><button type="button" className="btn-ter" onClick={() => setSel(f.ids[0])}>{f.level === "error" ? "Fix" : "Look"}</button> {f.words}</p>
-          ))}
-          {found.length > 8 && <p className="vz-issue warn">…and {found.length - 8} more.</p>}
-        </div>
-      )}
-
-      {item && (
-        <Inspector key={item.id} item={item} canEdit={canEdit} room={draft}
-          onPatch={(p) => patchItem(item.id, p)} onTurn={() => turn(item.id)} onCopy={() => copy(item.id)}
-          onRemove={async () => { if (await confirm({ title: `Take out ${item.label || kindOf(item.kind).name}?`, body: "Undo brings it back, until you save.", confirmLabel: "Take it out", danger: true })) remove(item.id); }}
-          onClose={() => setSel(null)} />
-      )}
-
-      {canEdit && (
-        <>
-          <div className="vz-palette" aria-label="Add to the room">
-            {GROUPS.map((g) => (
-              <div key={g}>
-                <h3>{g === "Bar" ? "The bar — cold, clean, no espresso" : g}</h3>
-                <div className="vz-row">
-                  {CATALOG.filter((c) => c.group === g).map((c) => (
-                    <button key={c.kind} type="button" className="k-chip" onClick={() => add(c.kind)}>+ {c.name}</button>
-                  ))}
+      {plans.filter((x) => x.layout_id === draft.id).map((pl) => (
+        <p key={pl.id} className="vz-card-s">The room for <b>{FORMAT[pl.format].mark} {pl.name}</b> · phase {pl.phase}{pl.sqft && Math.abs(pl.sqft - Math.round((draft.width_in * draft.depth_in) / 144)) > pl.sqft * 0.1 ? ` — the plan says ${pl.sqft.toLocaleString("en-US")} sq ft; this room is ${Math.round((draft.width_in * draft.depth_in) / 144).toLocaleString("en-US")}` : ""}</p>
+      ))}
+      {/* THE DRAWING BOARD (R53 — "be amazing on iPad Pro… and desktop"). A phone: one column — the room, then what's
+          picked, then what to add. An iPad upright or in Split View: the room across the top, the inspector and the
+          palette side by side below it. A wide screen (an iPad on its side, a desktop): a drafting table — what to add
+          at the left, the room in the middle, what's picked at the right, both rails staying put while the room scrolls.
+          The room's own pane is a container: the plan and the 3D stand side by side when it is wide enough for both. */}
+      <div className="vz-cad grid gap-3 grid-cols-1 min-[760px]:grid-cols-2 min-[1100px]:grid-cols-[230px_minmax(0,1fr)_320px] min-[1100px]:items-start">
+        <div className="vz-cad-main @container flex flex-col gap-3 min-w-0 min-[760px]:col-span-2 min-[1100px]:col-span-1 min-[1100px]:col-start-2 min-[1100px]:row-start-1">
+          <div className={view === "plan" ? "vz-store plan grid-cols-1" : view === "3d" ? "vz-store 3d grid-cols-1" : "vz-store both grid-cols-1 @min-[720px]:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"}>
+            {view !== "3d" && (
+              <div className="vz-pane mpanel mb-0 relative min-w-0 overflow-auto min-[760px]:h-[min(68vh,700px)]">
+                <PlanView layout={draft} zoom={zoom} selected={sel} bad={bad} canEdit={canEdit} onSelect={setSel} flow={flow}
+                  onMove={(id, at, done) => patchItem(id, at, done)} onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }} />
+                <div className="vz-tools">
+                  <button type="button" className="k-icon-btn lg glass" onClick={() => setZoom((z) => Math.min(4, +(z * 1.4).toFixed(2)))} aria-label="Closer">+</button>
+                  <button type="button" className="k-icon-btn lg glass" onClick={() => setZoom((z) => Math.max(1, +(z / 1.4).toFixed(2)))} aria-label="Farther">−</button>
                 </div>
               </div>
-            ))}
+            )}
+            {view !== "plan" && (
+              <div className="vz-pane mpanel mb-0 relative min-w-0">
+                <Store3D layout={draft} selected={sel} onPick={setSel} figures={figures} heat={flow?.heat} label={`${draft.name}, in 3D — drag to turn, pinch to come closer`} />
+                <p className="vz-hint">Drag to turn · pinch or scroll to zoom · double-tap: corner view</p>
+              </div>
+            )}
           </div>
-          <RoomFields key={`${draft.id}-${draft.name}-${draft.width_in}-${draft.depth_in}-${draft.ceiling_in}`} layout={draft} onChange={(p) => commit({ ...draft, ...p })} />
-          <div className="vz-row">
-            <button type="button" className="btn-sec btn-sm" onClick={() => void newRoom()}>+ Another room</button>
-            {dirty && <button type="button" className="btn-ter" onClick={() => { setDraft(original ?? null); setPast([]); setFuture([]); }}>Discard changes</button>}
-          </div>
-        </>
-      )}
+
+
+          {/* FLOW, under the room it runs in: the plan stays on screen while it runs. */}
+          <FlowBar on={flowOn} onToggle={() => setFlowOn((o) => !o)} perHour={perHour} onPerHour={setPerHour} speed={speed} onSpeed={setSpeed} frame={flow} />
+
+        </div>
+        <aside className="vz-cad-right flex flex-col gap-3 min-w-0 min-[1100px]:col-start-3 min-[1100px]:row-start-1 min-[1100px]:sticky min-[1100px]:top-3 min-[1100px]:max-h-[calc(100dvh-24px)] min-[1100px]:overflow-y-auto" aria-label="What's picked, and the room">
+          {item && (
+            <Inspector key={item.id} item={item} canEdit={canEdit} room={draft}
+              onPatch={(p) => patchItem(item.id, p)} onTurn={() => turn(item.id)} onCopy={() => copy(item.id)}
+              onRemove={async () => { if (await confirm({ title: `Take out ${item.label || kindOf(item.kind).name}?`, body: "Undo brings it back, until you save.", confirmLabel: "Take it out", danger: true })) remove(item.id); }}
+              onClose={() => setSel(null)} />
+          )}
+
+          {!item && canEdit && <p className="vz-card-s hidden min-[1100px]:block">Pick a thing on the plan or in 3D — its size, which way it faces and why it&apos;s there open here.</p>}
+          {/* Heard as it changes (mounted before its words — spoken.audit); the list itself is below. */}
+          <p className="sr-only" aria-live="polite">{found.length ? `${found.length} ${found.length === 1 ? "thing" : "things"} a plan reviewer would circle.` : ""}</p>
+          {found.length > 0 && (
+            <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label="What a plan reviewer would circle">
+              {found.slice(0, 8).map((f, i) => (
+                <p key={i} className={f.level === "error" ? "vz-issue error" : "vz-issue warn"}><button type="button" className="btn-ter" onClick={() => setSel(f.ids[0])}>{f.level === "error" ? "Fix" : "Look"}</button> {f.words}</p>
+              ))}
+              {found.length > 8 && <p className="vz-issue warn">…and {found.length - 8} more.</p>}
+            </div>
+          )}
+
+          {/* THE SCHEDULE — every thing in the room, numbered as the plan numbers it (a plan set's equipment schedule): its
+              name, its size, its pillars. A tap picks it on the plan and in 3D. */}
+          <details className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
+            <summary className="font-sans font-bold text-subhead cursor-pointer py-2">Schedule · {draft.items.length} things</summary>
+            <div className="k-rows mt-2">
+              {draft.items.map((it, n) => (
+                <InfoRow key={it.id} lead={String(n + 1)} name={it.label || kindOf(it.kind).name}
+                  meta={`${ftIn(it.w_in)} × ${ftIn(it.d_in)} × ${ftIn(it.h_in)}${it.pillars.length ? ` · ${it.pillars.map((p) => PILLAR_WORD[p]).join(", ")}` : ""}`}
+                  onClick={() => setSel(it.id)} />
+              ))}
+            </div>
+          </details>
+
+          {canEdit && (
+            <>
+              <RoomFields key={`${draft.id}-${draft.name}-${draft.width_in}-${draft.depth_in}-${draft.ceiling_in}`} layout={draft} onChange={(p) => commit({ ...draft, ...p })} />
+              <div className="vz-row">
+                <button type="button" className="btn-sec btn-sm" onClick={() => void newRoom()}>+ Another room</button>
+                {dirty && <button type="button" className="btn-ter" onClick={() => { setDraft(original ?? null); setPast([]); setFuture([]); }}>Discard changes</button>}
+              </div>
+            </>
+          )}
+        </aside>
+        {canEdit && (
+          <aside className="vz-cad-left min-w-0 min-[1100px]:col-start-1 min-[1100px]:row-start-1 min-[1100px]:sticky min-[1100px]:top-3 min-[1100px]:max-h-[calc(100dvh-24px)] min-[1100px]:overflow-y-auto" aria-label="Add to the room">
+            <div className="vz-palette" aria-label="Add to the room">
+              {GROUPS.map((g) => (
+                <div key={g}>
+                  <h3>{g === "Bar" ? "The bar — cold, clean, no espresso" : g}</h3>
+                  <div className="vz-row">
+                    {CATALOG.filter((c) => c.group === g).map((c) => (
+                      <button key={c.kind} type="button" className="k-chip" onClick={() => add(c.kind)}>+ {c.name}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
@@ -270,7 +291,7 @@ function PlanView({ layout, zoom, selected, bad, canEdit, onSelect, onMove, onBe
   const db = di ? footprint(di) : null;
 
   return (
-    <svg ref={svg} className="vz-plan" viewBox={`${-PAD} ${-PAD} ${W + PAD * 2} ${D + PAD * 2}`} width={`${zoom * 100}%`} role="img"
+    <svg ref={svg} className="vz-plan" viewBox={`${-PAD} ${-PAD} ${W + PAD * 2} ${D + PAD * 2}`} width={`${zoom * 100}%`} height={`${zoom * 100}%`} role="img"
       aria-label={`${layout.name}: a ${ftIn(W)} by ${ftIn(D)} room, ${layout.items.length} things — tap one to see why it's there`}
       onPointerDown={(e) => { if (e.target === e.currentTarget) onSelect(null); }}
       onPointerMove={(e) => {

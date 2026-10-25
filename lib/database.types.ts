@@ -10870,6 +10870,7 @@ export type Database = {
           note: string | null
           sort: number
           created_at: string
+          plan_id: string | null
         }
         Insert: {
           id?: string
@@ -10881,6 +10882,7 @@ export type Database = {
           note?: string | null
           sort?: number
           created_at?: string
+          plan_id?: string | null
         }
         Update: {
           id?: string
@@ -10892,8 +10894,16 @@ export type Database = {
           note?: string | null
           sort?: number
           created_at?: string
+          plan_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "vision_asks_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "vision_plans"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vision_asks_program_id_fkey"
             columns: ["program_id"]
@@ -10903,6 +10913,200 @@ export type Database = {
           },
           {
             foreignKeyName: "vision_asks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vision_plan_deps: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          plan_id: string
+          needs_plan_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          plan_id: string
+          needs_plan_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          plan_id?: string
+          needs_plan_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_plan_deps_needs_plan_id_fkey"
+            columns: ["needs_plan_id"]
+            isOneToOne: false
+            referencedRelation: "vision_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_plan_deps_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "vision_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_plan_deps_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vision_plan_needs: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          plan_id: string
+          label: string
+          kind: string
+          owner: string | null
+          due_on: string | null
+          done_on: string | null
+          note: string | null
+          sort: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          plan_id: string
+          label: string
+          kind?: string
+          owner?: string | null
+          due_on?: string | null
+          done_on?: string | null
+          note?: string | null
+          sort?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          plan_id?: string
+          label?: string
+          kind?: string
+          owner?: string | null
+          due_on?: string | null
+          done_on?: string | null
+          note?: string | null
+          sort?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_plan_needs_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "vision_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_plan_needs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vision_plans: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          program_id: string
+          name: string
+          format: string
+          phase: number
+          status: string
+          sqft: number | null
+          deal: string
+          place: string | null
+          summary: string | null
+          why: string | null
+          gate: string | null
+          layout_id: string | null
+          shareable: boolean
+          sort: number
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          program_id: string
+          name: string
+          format?: string
+          phase?: number
+          status?: string
+          sqft?: number | null
+          deal?: string
+          place?: string | null
+          summary?: string | null
+          why?: string | null
+          gate?: string | null
+          layout_id?: string | null
+          shareable?: boolean
+          sort?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          program_id?: string
+          name?: string
+          format?: string
+          phase?: number
+          status?: string
+          sqft?: number | null
+          deal?: string
+          place?: string | null
+          summary?: string | null
+          why?: string | null
+          gate?: string | null
+          layout_id?: string | null
+          shareable?: boolean
+          sort?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_plans_layout_id_fkey"
+            columns: ["layout_id"]
+            isOneToOne: false
+            referencedRelation: "store_layouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_plans_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "vision_programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_plans_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -10997,6 +11201,7 @@ export type Database = {
           revoked_at: string | null
           last_opened_at: string | null
           opens: number
+          expires_at: string | null
         }
         Insert: {
           id?: string
@@ -11009,6 +11214,7 @@ export type Database = {
           revoked_at?: string | null
           last_opened_at?: string | null
           opens?: number
+          expires_at?: string | null
         }
         Update: {
           id?: string
@@ -11021,6 +11227,7 @@ export type Database = {
           revoked_at?: string | null
           last_opened_at?: string | null
           opens?: number
+          expires_at?: string | null
         }
         Relationships: [
           {

@@ -769,6 +769,9 @@ export const PROD_ROUTE = {
 // (app/vision loads VisionApp with ssr off); /present carries Present and the read-only explore. /delivery 285 → 286 and
 // /craft 263 → 264 KB crossed the rounding line (lib/surfaces, lib/routeTitles and the palette's vision door ride every
 // page); /primal's stylesheet 93 → 94 KB the same way.
+// 2026-10-25 (R53, every way in): /vision's stylesheet 89 → 90 KB (the plans' ladder, the side by side and the drafting
+// table's few rules — the rest is utilities); /primal 268 → 269 KB crossed the rounding line (lib/surfaces' desk route
+// rides every page). /present stays at 285: its "See it all" view (the roadmap, the plans, the store) loads only when opened.
 export const WEIGHT = {
   "/truck":                    { js: 274, css: 90, chunks: 18 },
   "/events":                   { js: 274, css: 90, chunks: 18 },
@@ -788,10 +791,10 @@ export const WEIGHT = {
   "/offer":                    { js: 275, css: 90, chunks: 18 },
   "/built/gt3-built-k7m9x4q2": { js: 262, css: 90, chunks: 17 },
   "/display":                  { js: 263, css: 90, chunks: 17 },
-  "/vision":                   { js: 266, css: 89, chunks: 17 },
+  "/vision":                   { js: 266, css: 90, chunks: 17 },
   "/present":                  { js: 285, css: 92, chunks: 18 },
   "/shop":                     { js: 294, css: 90, chunks: 20 },
-  "/primal":                   { js: 268, css: 94, chunks: 18 },
+  "/primal":                   { js: 269, css: 94, chunks: 18 },
   "/privacy":                  { js: 260, css: 90, chunks: 16 },
   "/terms":                    { js: 260, css: 90, chunks: 16 },
   "/":                         { js: 270, css: 90, chunks: 18 },
