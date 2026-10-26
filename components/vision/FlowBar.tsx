@@ -2,7 +2,7 @@
 
 import { Segmented } from "@/components/controls";
 import { haptic } from "@/lib/haptics";
-import { PHASE_COLOR, flowWords, type Phase } from "@/lib/visionFlow";
+import { DEFAULTS, PHASE_COLOR, flowWords, type Phase } from "@/lib/visionFlow";
 import type { Figure } from "@/lib/vision3d";
 import { SPEEDS, type FlowFrame, type Speed } from "./useFlow";
 
@@ -54,6 +54,7 @@ export default function FlowBar({ on, onToggle, perHour, onPerHour, speed, onSpe
       )}
       {/* Mounted before its words, so a reader hears them arrive (spoken.audit). */}
       <p className={frame?.problem ? "vz-issue error" : "vz-flow-say"} aria-live="polite">{on && words ? words : ""}</p>
+      <p className="vz-card-s">{assumptionsWords()}</p>
       {on && !frame?.problem && (
         <div className="vz-legend" aria-hidden="true">
           {STEPS.map(([p, w]) => <span key={p}><i className={`ph-${p}`} />{w}</span>)}
@@ -62,4 +63,11 @@ export default function FlowBar({ on, onToggle, perHour, onPerHour, speed, onSpe
       )}
     </div>
   );
+}
+
+/** What Flow assumes, said from the settings it runs on (R58 — the traceability audit's gap 10: only the order time
+ *  was labelled). A simulation of the room, not a measurement; each timing becomes a measured one only when it's timed. */
+export function assumptionsWords(st = DEFAULTS): string {
+  const min = (sec: number) => Math.round(sec / 60);
+  return `Simulated, on assumed timings — not yet measured: ${st.serveSec} seconds to order, about ${st.pickupSec} to pick up, stays of ${min(st.staySec[0])}–${min(st.staySec[1])} minutes, ${Math.round(st.stayShare * 100)}% stay, ${Math.round(st.grabShare * 100)}% take a bottle to go when there is a cooler. Guests arrive at random around the rate you set.`;
 }

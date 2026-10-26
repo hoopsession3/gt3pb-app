@@ -8,6 +8,8 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import { Segmented } from "@/components/controls";
 import MoneyPanel from "./MoneyPanel";
+import CaseWords from "./CaseWords";
+import Advisor from "./Advisor";
 import { haptic } from "@/lib/haptics";
 import { localToday } from "@/lib/dates";
 import { askTotals, shortMoney, type Ask, type Layout, type Program } from "@/lib/vision";
@@ -51,7 +53,7 @@ export default function Plans({ programs, plans, needs, deps, asks, layouts, rea
     return (
       <>
         <PlanCase plan={caseOf} plans={plans} needs={needs} deps={deps} asks={asks} layouts={layouts} canEdit={canEdit} isOwner={isOwner}
-          onBack={() => setCaseId(null)} onEdit={() => setOpen(caseOf)} onOpenStore={onOpenStore} />
+          onBack={() => setCaseId(null)} onEdit={() => setOpen(caseOf)} onOpenStore={onOpenStore} onSaved={onSaved} />
         {open && (
           <PlanSheet key={"id" in open ? open.id : "new"} plan={"id" in open ? open : null} draft={"id" in open ? null : open}
             programs={programs} plans={plans} needs={needs} deps={deps} asks={asks} layouts={layouts} canEdit={canEdit}
@@ -67,6 +69,7 @@ export default function Plans({ programs, plans, needs, deps, asks, layouts, rea
         <p className="vz-sub">Every way in, as its own plan — in the phases they&apos;d happen, each with the gate that says when it goes.</p>
         <Segmented label="Show" kind="choice" value={view} onChange={setView} options={[{ key: "phases", label: "Phases" }, { key: "compare", label: "Side by side" }]} />
       </div>
+      {canEdit && <Advisor plans={plans} needs={needs} deps={deps} layouts={layouts} onOpen={setCaseId} />}
       {withPlans.length === 0 && <p className="vz-sub">No plans yet{canEdit ? " — start one below." : "."}</p>}
       {withPlans.map((prog) => {
         const mine = plans.filter((x) => x.program_id === prog.id);
@@ -204,7 +207,6 @@ function PlanSheet({ plan, draft, programs, plans, needs, deps, asks, layouts, c
       let id = p?.id;
       if (id) { const { error } = await supabase.from("vision_plans").update(row).eq("id", id); if (error) throw error; }
       else {
-        // arrives-with: 0448  — the Plans tab opens only when plansReady (0448 is in); a refusal before then is said plainly (failureWords)
         const { data, error } = await supabase.from("vision_plans").insert({ ...row, sort: 99 }).select("id").single();
         if (error) throw error;
         id = String((data as { id: string }).id);
@@ -349,10 +351,10 @@ function PlanAsks({ asks, editHint = false }: { asks: Ask[]; editHint?: boolean 
 
 /** A plan's case (R54): the steps from the vision to the investment — the plan itself, then its money. Traffic (phase C),
  *  evidence and scores (D) and the investor case (E) join these steps as they land. */
-type Step = "plan" | "money";
-function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner, onBack, onEdit, onOpenStore }: {
+type Step = "plan" | "traffic" | "room" | "money";
+function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner, onBack, onEdit, onOpenStore, onSaved }: {
   plan: Plan; plans: Plan[]; needs: Need[]; deps: Dep[]; asks: Ask[]; layouts: Layout[]; canEdit: boolean; isOwner: boolean;
-  onBack: () => void; onEdit: () => void; onOpenStore: (layoutId: string) => void;
+  onBack: () => void; onEdit: () => void; onOpenStore: (layoutId: string) => void; onSaved: () => void;
 }) {
   const [step, setStep] = useState<Step>("plan");
   const room = layouts.find((l) => l.id === p.layout_id) ?? null;
@@ -369,7 +371,7 @@ function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner
         <h2 className="vz-h">{FORMAT[p.format].mark} {p.name}</h2>
         <div className="vz-meta"><span className={TAG[PLAN_STATUS[p.status].tone]}>{PLAN_STATUS[p.status].word}</span><span>{sqftWords(p, room)} · {DEAL_WORD[p.deal]}{p.place ? ` · ${p.place}` : ""}</span></div>
       </div>
-      <Segmented label="The case" kind="choice" value={step} onChange={setStep} options={[{ key: "plan", label: "The plan" }, { key: "money", label: "Money" }]} />
+      <Segmented label="The case" kind="choice" value={step} onChange={setStep} options={[{ key: "plan", label: "The plan" }, { key: "traffic", label: "Traffic" }, { key: "room", label: "The room" }, { key: "money", label: "Money" }]} />
       {step === "plan" ? (
         <div className="grid gap-4 grid-cols-1 min-[1100px]:grid-cols-2 min-[1100px]:items-start">
           <div className="flex flex-col gap-2 min-w-0">
@@ -378,6 +380,7 @@ function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner
             {p.gate && <><b className="font-sans">Goes when</b><p className="vz-sub">{p.gate}</p></>}
             {waits.length > 0 && <p className="vz-wait">Waits on {waits.map((w) => w.name).join(", ")}</p>}
             {room && <button type="button" className="btn-sec btn-sm self-start" onClick={() => onOpenStore(room.id)}>See its room →</button>}
+            <CaseWords plan={p} canEdit={canEdit} onSaved={onSaved} />
           </div>
           <div className="flex flex-col gap-2 min-w-0">
             <b className="font-sans">What it needs{mine.length ? ` · ${needsProgress(mine).done} of ${mine.length} done` : ""}</b>
@@ -386,7 +389,8 @@ function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner
           </div>
         </div>
       ) : (
-        <MoneyPanel plan={p} asks={asks} canEdit={canEdit} isOwner={isOwner} />
+        <MoneyPanel plan={p} asks={asks} canEdit={canEdit} isOwner={isOwner} view={step} room={room} onOpenRoom={room ? () => onOpenStore(room.id) : undefined}
+          progress={{ needs: { done: needsProgress(mine).done, all: mine.length }, waitingOn: waits.map((w) => w.name) }} />
       )}
     </div>
   );

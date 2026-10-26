@@ -55,6 +55,12 @@ export const NEED_WORD: Record<NeedKind, string> = {
 export type Plan = {
   id: string; program_id: string; name: string; format: Format; phase: number; status: PlanStatus; sqft: number | null; deal: Deal;
   place: string | null; summary: string | null; why: string | null; gate: string | null; layout_id: string | null; shareable: boolean; sort: number;
+  /** R58, 0452: when it opened, and which order channel records its sales — for actual against the plan. */
+  opened_on?: string | null; actual_channel?: string | null;
+  /** R60, 0453: how often its research is checked again (0 = never), and when it last ran. */
+  research_every_days?: number; research_last_at?: string | null;
+  /** R61, 0454: who it's for, the market it serves, how it stands apart — in Ryan's words. */
+  customer?: string | null; market?: string | null; positioning?: string | null;
 };
 export type Need = { id?: string; plan_id: string; label: string; kind: NeedKind; owner: string | null; due_on: string | null; done_on: string | null; note: string | null; sort: number };
 export type Dep = { plan_id: string; needs_plan_id: string };

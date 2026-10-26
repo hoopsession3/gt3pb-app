@@ -10,13 +10,17 @@ import { CapitalBar } from "./Roadmap";
 import { DEAL_WORD, FORMAT, phases } from "@/lib/visionPlans";
 import FlowBar, { figuresOf } from "./FlowBar";
 import { useFlow, type Speed } from "./useFlow";
+import dynamic from "next/dynamic";
+
+// A plan's case (R57) draws the money's engine and its chart — loaded only when a case slide is reached.
+const CaseSlide = dynamic(() => import("./CaseSlide"), { ssr: false, loading: () => <p className="vp-lede">Working out the case…</p> });
 
 // THE PRESENTER (R52) — "pull the app up and show someone". The plan as a story, full screen, in its own dark room:
 // the four pillars, the board, each program and why, the store in 3D with the reason for each thing in it, and where
 // capital may be needed. Tap the right side (or →) for the next, the left (or ←) for the one before; swipe works too.
 // The same screen opens from a private link (app/present) for someone who isn't in the room.
 type Slide =
-  | { kind: "cover" } | { kind: "board" } | { kind: "program"; id: string } | { kind: "ways"; id: string } | { kind: "store"; id: string } | { kind: "capital" } | { kind: "end" };
+  | { kind: "cover" } | { kind: "board" } | { kind: "program"; id: string } | { kind: "ways"; id: string } | { kind: "case"; id: string } | { kind: "store"; id: string } | { kind: "capital" } | { kind: "end" };
 const PILLAR_LINE: Record<Pillar, string> = {
   stillness: "Room to slow down.", light: "Daylight, and nothing to hide.", fuel: "Clean fuel — cold extracted, nothing toxic.", movement: "A reason to move, every day.",
 };
@@ -31,6 +35,8 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
       if (h === "now" && !p.why) continue;
       out.push({ kind: "program", id: p.id });
       if (vision.plans.some((x) => x.program_id === p.id)) out.push({ kind: "ways", id: p.id });
+      // Each plan with an approved case (its baseline — on a link, only where an owner chose to show it), in phase order.
+      for (const pl of vision.plans.filter((x) => x.program_id === p.id).sort((a, b) => a.phase - b.phase || a.sort - b.sort)) if (vision.cases?.[pl.id]) out.push({ kind: "case", id: pl.id });
       const room = vision.layouts.find((l) => l.id === p.layout_id);
       if (room && room.items.length && !shownRooms.has(room.id)) { out.push({ kind: "store", id: room.id }); shownRooms.add(room.id); }
     }
@@ -149,6 +155,10 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
                 </div>
               </>
             );
+          })()}
+          {s.kind === "case" && (() => {
+            const pl = vision.plans.find((x) => x.id === s.id)!;
+            return <CaseSlide plan={pl} c={vision.cases![s.id]} room={vision.layouts.find((l) => l.id === pl.layout_id) ?? null} />;
           })()}
           {s.kind === "store" && (() => {
             const l = vision.layouts.find((x) => x.id === s.id)!;

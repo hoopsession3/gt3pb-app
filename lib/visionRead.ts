@@ -5,12 +5,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { allowedKind, type Ask, type Item, type Layout, type Pillar, type Program } from "./vision";
 import { DEALS, FORMATS, NEED_KINDS, PLAN_STATUSES, type Dep, type Need, type Plan } from "./visionPlans";
 import { isMissingColumn, isMissingRelation, isMissingTable } from "./schemaSkew";
+import { toCase, type PlanCase } from "./visionCaseData";
 
 /** `plansReady`: 0448 is in (R53). Until it is, the plans read is absent, not failed — the roadmap and the room still
  *  show, and the Plans tab says what's waiting. `expiresAt`: a link's end, when it has one. */
 export type Vision = {
   programs: Program[]; asks: Ask[]; layouts: Layout[]; plans: Plan[]; needs: Need[]; deps: Dep[];
   label?: string; showAsks: boolean; plansReady: boolean; expiresAt?: string | null;
+  /** The investor case per plan (R57): its approved baseline and accepted research — on a link only where an owner chose. */
+  cases?: Record<string, PlanCase>;
 };
 
 type Row = Record<string, unknown>;
@@ -44,6 +47,9 @@ export const toPlan = (r: Row): Plan => ({
   phase: Math.min(9, Math.max(1, n(r.phase, 1))), status: oneOf(PLAN_STATUSES, r.status, "exploring"), sqft: r.sqft == null ? null : n(r.sqft),
   deal: oneOf(DEALS, r.deal, "tbd"), place: (r.place as string) ?? null, summary: (r.summary as string) ?? null, why: (r.why as string) ?? null,
   gate: (r.gate as string) ?? null, layout_id: (r.layout_id as string) ?? null, shareable: r.shareable !== false, sort: n(r.sort),
+  opened_on: (r.opened_on as string) ?? null, actual_channel: (r.actual_channel as string) ?? null,
+  research_every_days: n(r.research_every_days), research_last_at: (r.research_last_at as string) ?? null,
+  customer: (r.customer as string) ?? null, market: (r.market as string) ?? null, positioning: (r.positioning as string) ?? null,
 });
 export const toNeed = (r: Row, planId?: string): Need => ({
   id: r.id ? String(r.id) : undefined, plan_id: planId ?? String(r.plan_id), label: String(r.label ?? ""), kind: oneOf(NEED_KINDS, r.kind, "other"),
@@ -62,23 +68,22 @@ export async function readVision(sb: SupabaseClient): Promise<Vision> {
   ]);
   const err = p.error ?? a.error ?? l.error ?? i.error;
   if (err) throw new Error(err.message);
-  // arrives-with: 0448  — until 0448 is applied the plans are absent: plansReady is false and the Plans tab says so; the rest reads as before
   const [pl, nd, dp] = await Promise.all([
     sb.from("vision_plans").select("*").order("phase").order("sort").order("created_at"),
     sb.from("vision_plan_needs").select("*").order("sort").order("created_at"),
     sb.from("vision_plan_deps").select("plan_id, needs_plan_id"),
   ]);
   const planErr = pl.error ?? nd.error ?? dp.error;
-  if (planErr && !notYet(planErr)) throw new Error(planErr.message);
+  if (planErr) throw new Error(planErr.message);   // 0448 is applied (2026-10-25): the plans are always there
   const items = ((i.data ?? []) as Row[]).map((r) => ({ ...toItem(r), layout_id: String(r.layout_id) }));
   return {
     programs: ((p.data ?? []) as Row[]).map(toProgram),
     asks: ((a.data ?? []) as Row[]).map(toAsk),
     layouts: ((l.data ?? []) as Row[]).map((r) => toLayout(r, items.filter((it) => it.layout_id === String(r.id)))),
-    plans: planErr ? [] : ((pl.data ?? []) as Row[]).map(toPlan),
-    needs: planErr ? [] : ((nd.data ?? []) as Row[]).map((r) => toNeed(r)),
-    deps: planErr ? [] : ((dp.data ?? []) as Row[]).map((r) => ({ plan_id: String(r.plan_id), needs_plan_id: String(r.needs_plan_id) })),
-    showAsks: true, plansReady: !planErr,
+    plans: ((pl.data ?? []) as Row[]).map(toPlan),
+    needs: ((nd.data ?? []) as Row[]).map((r) => toNeed(r)),
+    deps: ((dp.data ?? []) as Row[]).map((r) => ({ plan_id: String(r.plan_id), needs_plan_id: String(r.needs_plan_id) })),
+    showAsks: true, plansReady: true,
   };
 }
 
@@ -87,7 +92,10 @@ export async function readShared(sb: SupabaseClient, token: string): Promise<Vis
   const { data, error } = await sb.rpc("vision_shared", { p_token: token });
   if (error) throw new Error(/live/i.test(error.message) ? "This link isn't live — ask whoever sent it for a new one." : error.message);
   const j = (data ?? {}) as { label?: string; show_asks?: boolean; expires_at?: string | null; programs?: Row[]; asks?: Row[];
-    plans?: (Row & { needs?: Row[]; waits_on?: string[] })[]; layouts?: (Row & { items?: Row[] })[] };
+    plans?: (Row & { needs?: Row[]; waits_on?: string[]; money?: Row | null; research?: Row[] | null; risks?: Row[] | null })[]; layouts?: (Row & { items?: Row[] })[] };
+  // 0451: a plan's case, where the link was given it — before 0451 no plan carries one, and the link shows none.
+  const cases: Record<string, PlanCase> = {};
+  for (const r of j.plans ?? []) { const c = toCase(r.money as Parameters<typeof toCase>[0], r.research ?? [], r.risks ?? []); if (c) cases[String(r.id)] = c; }
   // A link reads only the plans marked to show (0448); before 0448 the door had none, and says nothing of them.
   const plans = (j.plans ?? []).map((r) => ({ ...toPlan(r), shareable: true }));
   return {
@@ -98,6 +106,7 @@ export async function readShared(sb: SupabaseClient, token: string): Promise<Vis
     programs: (j.programs ?? []).map(toProgram),
     asks: (j.asks ?? []).map(toAsk),
     layouts: (j.layouts ?? []).map((l) => toLayout(l, (l.items ?? []).map(toItem))),
+    cases,
   };
 }
 
@@ -121,4 +130,26 @@ export async function saveLayout(sb: SupabaseClient, layout: Layout, before: rea
     if (error) return error.message;
   }
   return null;
+}
+
+/** The investor cases the owners and admins can present in the room (R57): every plan with an approved baseline, and
+ *  its accepted research. Before 0449/0450 there are none — the presenter shows the plan as before. */
+export async function readCases(sb: SupabaseClient): Promise<Record<string, PlanCase>> {
+  // arrives-with: 0449
+  const m = await sb.from("vision_plan_money").select("plan_id, baseline, baseline_at").not("baseline", "is", null);
+  if (m.error) { if (notYet(m.error)) return {}; throw new Error(m.error.message); }
+  // arrives-with: 0450
+  const r = await sb.from("vision_research").select("plan_id, topic, claim, figure, source_url, source_title, published, bearing, retrieved_at").eq("status", "accepted");
+  if (r.error && !notYet(r.error)) throw new Error(r.error.message);
+  const found = ((r.error ? [] : r.data) ?? []) as Row[];
+  // arrives-with: 0454
+  const k = await sb.from("vision_plan_risks").select("*");
+  const risks = ((k.error ? [] : k.data) ?? []) as Row[];
+  const out: Record<string, PlanCase> = {};
+  for (const row of (m.data ?? []) as Row[]) {
+    const id = String(row.plan_id);
+    const c = toCase({ baseline: row.baseline as { scenarios?: Record<string, unknown> }, approved_at: (row.baseline_at as string) ?? null }, found.filter((f) => String(f.plan_id) === id), risks.filter((x) => String(x.plan_id) === id));
+    if (c) out[id] = c;
+  }
+  return out;
 }

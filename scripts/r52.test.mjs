@@ -132,7 +132,7 @@ const F = loadTs("lib/visionFlow.ts");
   ok("heat squares: 0 to 1, the hottest 1", (() => { const h = F.heatSquares(sim); return h.length > 0 && h.every((x) => x.v > 0 && x.v <= 1) && h.some((x) => x.v === 1); })());
   ok("the counter's pace: about 80 an hour at 45 seconds each", s.counterPerHour === 80, s.counterPerHour);
   ok("the room keeps up at 60 an hour, and says so", /keeps up|line reached/.test(F.flowWords(s, 60)), F.flowWords(s, 60));
-  ok("…and at 150 an hour it says the counter can't, and what would carry it", /More guests than one counter can serve.*second register/.test(F.flowWords(s, 150)), F.flowWords(s, 150));
+  ok("…and at 150 an hour it says the counter can't, and what would carry it", /More guests than the counter can serve.*Another register or a walk-up window/.test(F.flowWords(s, 150))   /* R55: every register serves one line */, F.flowWords(s, 150));
 
   // The same seed, the same morning: a simulation is reproducible (a test, a screenshot, a tour all agree).
   const a = F.makeSim(ROOM, F.DEFAULTS, 3), b2 = F.makeSim(ROOM, F.DEFAULTS, 3);

@@ -82,8 +82,12 @@ export async function seedConsoleWorld(db) {
       { id: "f4", label: "Signage", category: "launch", qty: 1, unitCents: null, source: null, on: null, confidence: null, notes: null },
       { id: "f5", label: "Working-capital reserve", category: "reserve", qty: 1, unitCents: 1000000, source: null, on: null, confidence: null, notes: null }],
     ownerCashCents: 500000,
+    channels: [{ kind: "partners", label: "The gym's members", reach: 1200, convertPct: 4, costCents: 0, startMonth: 1 }, { kind: "social", label: "", reach: 3000, convertPct: 1, costCents: 40000, startMonth: 2 }],
+    repeatPerMonth: 1.5, keptPct: 60, peakFactor: 1.8, slowFactor: 0.4,
     ordersPerDay: 90, avgOrderCents: 850, daysOpenPerMonth: 26, hoursOpenPerDay: 10, rampMonths: 6, rampStartPct: 50, growthPctPerYear: 5, cogsPct: 30, cardFeePct: 3,
     staffHoursPerDay: 12, wageCents: 1600, laborBurdenPct: 12, rentCents: 0, rentPctOfSales: 10, otherOpexCents: 60000, marketingCents: 40000 } };
-  await run("plan money", `insert into public.vision_plan_money (plan_id, scenarios, structure) select id, $1::jsonb, '{"kind":"rev_share","amountCents":4000000,"sharePct":6,"capMultiple":1.5}'::jsonb from public.vision_plans where format = 'gym_bar' limit 1`, [JSON.stringify(money)]);
+  // R55: the gym bar draws in the store's room, so The room shows its counter against the plan's hours.
+  await run("plan room", `update public.vision_plans set layout_id = (select id from public.store_layouts order by created_at limit 1) where format = 'gym_bar' and layout_id is null`);
+  await run("plan money", `insert into public.vision_plan_money (plan_id, scenarios, structure, baseline) select id, $1::jsonb, '{"kind":"rev_share","amountCents":4000000,"sharePct":6,"capMultiple":1.5}'::jsonb, jsonb_build_object('scenarios', $1::jsonb, 'structure', '{"kind":"rev_share","amountCents":4000000,"sharePct":6,"capMultiple":1.5}'::jsonb) from public.vision_plans where format = 'gym_bar' limit 1`, [JSON.stringify(money)]);
   return notes;
 }

@@ -105,7 +105,6 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   };
   const newRoom = async () => {
     if (!supabase) return;
-    // arrives-with: 0447  — until 0447 is applied the table is absent: the error reaches the person in plain words (failureWords), never as an empty plan
     const { data, error } = await supabase.from("store_layouts").insert({ name: "New room", width_in: 360, depth_in: 480 }).select("id").single();
     if (error) { toast(failureWords(error, "Couldn't make a room"), "error"); return; }
     setLayoutId(String((data as { id: string }).id));

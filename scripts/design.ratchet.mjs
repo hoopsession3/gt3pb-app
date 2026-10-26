@@ -776,11 +776,13 @@ export const PROD_ROUTE = {
 // (the clickable figures, the formula, the path, the line totals) and /present imports vision.css whole.
 // 2026-10-25 (R54b, one meaning of payback): /offer 275 → 276 and /crew 445 → 446 KB crossed the rounding line — the deal's
 // explainer and the event projection now call lib/finance (payback, break-even, ROI said once) instead of their own loops.
+// 2026-10-26 (R55, the investor-ready vision C–F): /reserve 288 → 289 KB crossed the rounding line — lib/finance now also
+// holds the one money formatter and the plans' horizon (shared by the vision and the deal), and a page that reads it carries both.
 export const WEIGHT = {
   "/truck":                    { js: 274, css: 90, chunks: 18 },
   "/events":                   { js: 274, css: 90, chunks: 18 },
   "/menu":                     { js: 265, css: 90, chunks: 17 },
-  "/reserve":                  { js: 288, css: 90, chunks: 19 },
+  "/reserve":                  { js: 289, css: 90, chunks: 19 },
   "/delivery":                 { js: 286, css: 90, chunks: 19 },
   "/3mpire":                   { js: 279, css: 90, chunks: 18 },
   "/craft":                    { js: 264, css: 90, chunks: 17 },

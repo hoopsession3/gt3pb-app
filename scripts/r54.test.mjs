@@ -193,7 +193,7 @@ const plain = M.toInputs({ uses: [{ id: "bar", label: "Bar", category: "equipmen
   const panel = read("components/vision/MoneyPanel.tsx"), page = read("app/vision/page.tsx");
   ok("each KPI is a button that opens its figure", /className=\{was != null \? "vz-kpi vz-kpi-btn moved" : "vz-kpi vz-kpi-btn"\}/.test(panel) && /onClick=\{\(\) => onOpen\(t\.key\)\}/.test(panel));
   ok("the drill shows the formula, the numbers, the path, the lines, made of, feeds, and what moved", ["How it&apos;s worked out", "With this plan&apos;s numbers", "vz-path", "The lines", "Made of", "Feeds", "Since {refWord}"].every((w) => panel.includes(w)));
-  ok("approve, restore and remaking the scenarios each ask first", (panel.match(/await confirm\(/g) ?? []).length === 3);
+  ok("approve, restore and remaking the scenarios each ask first (and, since R62, setting the roadmap's ask)", (panel.match(/await confirm\(/g) ?? []).length === 4 && /title: "Make these the approved baseline\?"/.test(panel) && /title: "Go back to the approved baseline\?"/.test(panel) && /title: "Replace Conservative and Upside\?"/.test(panel));
   ok("only an owner sees 'Make this the baseline' — and 0449 refuses anyone else", /\{isOwner && <button[^>]*>Make this the baseline/.test(panel.replace(/\n/g, " ")) || /isOwner && <button type="button" className="btn-sec btn-sm" onClick=\{\(\) => void approve\(\)\}/.test(panel));
   ok("…the page says who's an owner", /isOwner=\{roleOf\(profile\) === "owner"\}/.test(page));
   ok("the total of a line is shown, never typed", /= \$\{dollars\(tot\)\}/.test(panel) && !/label="Amount"/.test(panel));

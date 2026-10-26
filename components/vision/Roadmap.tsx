@@ -148,7 +148,6 @@ function ProgramSheet({ program, asks, layouts, plans, canEdit, showAsks, lanes,
       let id = p?.id;
       if (id) { const { error } = await supabase.from("vision_programs").update(row).eq("id", id); if (error) throw error; }
       else {
-        // arrives-with: 0447  — until 0447 is applied the table is absent: the error reaches the person in plain words (failureWords), never as an empty plan
         const { data, error } = await supabase.from("vision_programs").insert({ ...row, sort: 99 }).select("id").single();
         if (error) throw error;
         id = String((data as { id: string }).id);

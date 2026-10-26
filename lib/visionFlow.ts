@@ -120,7 +120,9 @@ export type Sim = {
   g: Grid; t: number; guests: Guest[]; next: number; nextId: number; seed: number;
   door: Pt | null; counter: Pt | null; pickup: Pt | null; cooler: Pt | null;
   seats: { id: string; at: Pt; cap: number; used: number }[];
-  queue: number[]; serving: number | null; serveEnd: number;
+  /** One line, any number of registers (R55): every order counter or walk-up window in the room is one, each serving the
+   *  next guest in the one line when it is free. */
+  queue: number[]; registers: { at: Pt; guest: number | null; end: number }[];
   heat: Float32Array; heatCols: number; heatRows: number;
   done: { visit: number }[]; served: number; maxQueue: number; problem: string | null; settings: Settings;
   /** The line's walk, counter → door, worked out once: where each guest in line stands. */
@@ -134,6 +136,7 @@ export function makeSim(layout: Pick<Layout, "width_in" | "depth_in" | "items">,
   const g = grid(layout);
   const first = (kinds: string[]) => layout.items.find((i) => kinds.includes(i.kind)) ?? null;
   const door = first(["door"]), counter = first(["order_counter", "walk_up"]);
+  const counters = layout.items.filter((i) => i.kind === "order_counter" || i.kind === "walk_up");
   const pick = first(["tap_tower", "pickup_shelf"]) ?? counter, cooler = first(["bottle_cooler"]);
   const free = (p: Pt | null) => (p ? nearestFree(g, p) : null);
   const heatCols = Math.ceil(layout.width_in / HEAT), heatRows = Math.ceil(layout.depth_in / HEAT);
@@ -141,7 +144,7 @@ export function makeSim(layout: Pick<Layout, "width_in" | "depth_in" | "items">,
     g, t: 0, guests: [], next: 0, nextId: 1, seed,
     door: door ? free(doorIn(layout, door)) : null, counter: free(counter ? standAt(counter, 20) : null), pickup: free(pick ? standAt(pick, 20) : null), cooler: free(cooler ? standAt(cooler, 18) : null),
     seats: layout.items.filter((i) => (kindOf(i.kind).seats ?? 0) > 0).map((i) => ({ id: i.id, at: free(standAt(i, 6)), cap: kindOf(i.kind).seats ?? 1, used: 0 })).filter((x): x is { id: string; at: Pt; cap: number; used: number } => !!x.at),
-    queue: [], serving: null, serveEnd: 0,
+    queue: [], registers: counters.map((c) => free(standAt(c, 20))).filter((p): p is Pt => !!p).map((at) => ({ at, guest: null, end: 0 })),
     heat: new Float32Array(heatCols * heatRows), heatCols, heatRows,
     done: [], served: 0, maxQueue: 0, problem: null, settings: { ...settings }, line: [],
   };
@@ -181,17 +184,23 @@ export function step(s: Sim, dt: number): void {
     s.next += -Math.log(1 - rand(s)) * (3600 / Math.max(1, st.perHour));
   }
   s.maxQueue = Math.max(s.maxQueue, s.queue.length);
-  // The counter: one guest at a time, in the order they came.
-  if (s.serving == null && s.queue.length) {
-    const head = s.guests.find((x) => x.id === s.queue[0]);
-    if (head && head.route.length === 0) { s.serving = head.id; s.serveEnd = s.t + st.serveSec * (0.6 + rand(s) * 0.8); head.phase = "order"; }
+  // The registers: each free one takes the guest at the front of the one line, in the order they came.
+  let moved = false;
+  for (const r of s.registers) {
+    if (r.guest != null && s.t >= r.end) {
+      const g = s.guests.find((x) => x.id === r.guest);
+      r.guest = null;
+      if (g) { g.phase = "pickup"; g.until = s.t + st.pickupSec * (0.5 + rand(s)); go(s, g, g.grabAndGo ? s.door : s.pickup); if (g.grabAndGo) g.phase = "out"; }
+    }
+    if (r.guest == null && s.queue.length) {
+      const head = s.guests.find((x) => x.id === s.queue[0]);
+      if (head && head.route.length === 0) {
+        s.queue.shift(); moved = true;
+        r.guest = head.id; r.end = s.t + st.serveSec * (0.6 + rand(s) * 0.8); head.phase = "order"; go(s, head, r.at);
+      }
+    }
   }
-  if (s.serving != null && s.t >= s.serveEnd) {
-    const g = s.guests.find((x) => x.id === s.serving);
-    s.queue.shift(); s.serving = null;
-    if (g) { g.phase = "pickup"; g.until = s.t + st.pickupSec * (0.5 + rand(s)); go(s, g, g.grabAndGo ? s.door : s.pickup); if (g.grabAndGo) g.phase = "out"; }
-    s.queue.forEach((id, n) => { const q = s.guests.find((x) => x.id === id); if (q) go(s, q, queueSpot(s, n)); });
-  }
+  if (moved) s.queue.forEach((id, n) => { const q = s.guests.find((x) => x.id === id); if (q) go(s, q, queueSpot(s, n)); });
   for (const g of s.guests) {
     // Walk the route.
     let budget = WALK * dt;
@@ -236,7 +245,7 @@ export function flowStats(s: Sim, items: readonly Item[]): FlowStats {
     inside: s.guests.length, inLine: s.queue.length, maxLine: s.maxQueue,
     seated: s.guests.filter((g) => g.phase === "seated").length, seats: s.seats.reduce((n, x) => n + x.cap, 0),
     servedPerHour: Math.round(s.served / hours),
-    counterPerHour: Math.round(3600 / Math.max(1, s.settings.serveSec)),
+    counterPerHour: Math.round((3600 / Math.max(1, s.settings.serveSec)) * Math.max(1, s.registers.length)),
     avgVisitMin: s.done.length ? Math.round((s.done.reduce((n, d) => n + d.visit, 0) / s.done.length / 60) * 10) / 10 : 0,
     hot,
   };
@@ -245,7 +254,7 @@ export function flowStats(s: Sim, items: readonly Item[]): FlowStats {
 /** What the numbers say, in a sentence: the counter's limit first (it sets the pace of the whole room), then the line,
  *  then the seats — or that the room is keeping up. */
 export function flowWords(st: FlowStats, perHour: number): string {
-  if (perHour > st.counterPerHour) return `More guests than one counter can serve — it takes about ${st.counterPerHour} an hour, so the line keeps growing. A second register or a walk-up window would carry it.`;
+  if (perHour > st.counterPerHour) return `More guests than the counter can serve — about ${st.counterPerHour} an hour, so the line keeps growing. Another register or a walk-up window would carry it.`;
   if (st.maxLine >= 6) return `The line reached ${st.maxLine} at its longest${st.hot ? `, and it's busiest by the ${st.hot.near}` : ""}.`;
   if (st.seats && st.seated >= st.seats) return "Every seat is taken — guests who'd stay are leaving with it to go.";
   return `The room keeps up${st.hot ? ` — busiest by the ${st.hot.near}` : ""}.`;

@@ -64,6 +64,7 @@ const VISITS = [
   { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
   { key: "vision-present", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], drawn: ".vp-slide", long: false },
   { key: "vision-ways", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-steps" }, drawn: ".vp-steps .vp-chip", long: false },
+  { key: "vision-case", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vz-kpis" }, drawn: ".vp-slide .vz-kpis .vz-kpi", long: false },
   { key: "vision-tour", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-tour canvas" }, drawn: ".vp-tour canvas", long: false },
   { key: "vision-tour-flow", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-tour canvas" }, then: ["▶ Run the flow"], drawn: ".vp-tour .vz-flow-say", long: false },
   { key: "vision-plans", path: "/vision", ready: ".vz-board", clicks: ["Plans"], drawn: ".vz-ladder .vz-card", long: true },
@@ -71,6 +72,8 @@ const VISITS = [
   { key: "vision-plan-case", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1"], drawn: ".vz-h", long: true },
   { key: "vision-plan-sheet", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Edit the plan"], drawn: ".vz-formats", long: false },
   { key: "vision-money", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money"], drawn: ".vz-chart .line", long: true },
+  { key: "vision-traffic", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Traffic"], drawn: ".vz-funnel li", long: true },
+  { key: "vision-room", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "The room"], drawn: ".vz-kpis .vz-kpi", long: true },
   { key: "vision-money-drill", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money", "Startup spending:"], drawn: ".vz-formula code", long: false },
 ];
 const DB_PORT = 54329, PORT = 3219;

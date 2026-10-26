@@ -17,508 +17,13 @@
 -- the others back with it. Each section below is wrapped in its own begin … commit: its locks end with it, and if one
 -- stops (a busy table's lock wait ran out), the ones above it stay applied and nothing below it runs — paste the file
 -- again a moment later; a migration already applied changes nothing the second time.
--- pending-from: 0449
+-- pending-from: 0454
 -- generated-at: 2026-10-25
--- pending-count: 3
+-- pending-count: 6
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- held: 0376_nobody_on_the_pass_during_service_is_an_alert.sql — NOT in this file; applied by hand once the condition in its header is met
 -- held: 0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql — NOT in this file; applied by hand once the condition in its header is met
 -- held: 0442_the_course_is_bought_and_the_pillars_are_given.sql — NOT in this file; applied by hand once the condition in its header is met
--- ============================================================
--- 0447_the_plan_people_can_see.sql
--- ============================================================
-begin;   -- 0447, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
--- ── 0447 — THE PLAN PEOPLE CAN SEE ──────────────────────────────────────────────────────────────────────────────────
--- 2026-10-25. R52 (Ryan, 2026-10-25: "People are always asking, 'What are our plans? What's next?'… allow me a place to
--- interactively build my roadmap of the business plan, where I can just pull the app up and show someone… design a
--- brick-and-mortar… place items, explain why it's there… where investors may be needed in each plan/program… almost
--- like a light version of AutoCAD"; and: espresso is not part of the brand — nothing that introduces toxicity to the
--- body; everything abides by the four primal pillars: stillness, light, fuel, movement). Paste into Supabase → SQL
--- Editor → Run. A second run changes nothing.
---
--- WHAT.
---   1. vision_programs — the roadmap: a program (the truck, drops, delivery, office, GT3 Nutrition, the first store…),
---      its lane, its horizon (now · next · later — the roadmap's industry standard), its status, optional dates, why it
---      exists and which of the four pillars it serves, and the store layout it opens (if it is a place).
---   2. vision_asks — where capital may be needed: each program's ask as what it buys (build-out, equipment, runway…),
---      an amount, and whether it is open, committed or funded.
---   3. store_layouts and store_items — the store designer: a room in inches (width, depth, ceiling) and every thing in
---      it — where it sits, which way it faces, how big it is, what it is called, why it is there and its pillars.
---   4. vision_shares — a private, read-only link for someone outside (an investor, a partner): a long random token, who
---      it is for, how often it was opened, and turned off with one tap. vision_shared(token) is the only door: anyone
---      holding a live token reads the roadmap, the asks and the layouts — never who wrote them, never another table.
---   Staff read; owners and admins write (is_admin, two-step — 0433). Every change is in Settings › Activity log (0260).
---   A first draft, so the screen opens on something to edit: the programs the app already runs, a first store in "next",
---   its asks with no amounts yet (the owner's numbers, never invented here), and a starter room on the four pillars —
---   cold extraction, no espresso.
---
--- set lock_timeout (database F16): five tables made, one function, triggers and policies on new tables only.
--- existing rows: none changed.
--- changelog: none — the crew's own screen, and links the owner sends.
-
-set lock_timeout = '5s';
-
--- ── 1 · the roadmap ─────────────────────────────────────────────────────────────────────────────────────────────────
-create table if not exists public.store_layouts (
-  id          uuid primary key default gen_random_uuid(),
-  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  name        text not null check (length(btrim(name)) between 1 and 80),
-  width_in    int  not null default 360 check (width_in between 96 and 2400),    -- 8 ft to 200 ft
-  depth_in    int  not null default 480 check (depth_in between 96 and 2400),
-  ceiling_in  int  not null default 132 check (ceiling_in between 84 and 480),
-  notes       text check (length(notes) <= 2000),
-  created_by  uuid,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-
-create table if not exists public.vision_programs (
-  id          uuid primary key default gen_random_uuid(),
-  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  lane        text not null default 'Business' check (length(btrim(lane)) between 1 and 40),
-  title       text not null check (length(btrim(title)) between 1 and 80),
-  summary     text check (length(summary) <= 400),
-  why         text check (length(why) <= 2000),
-  pillars     text[] not null default '{}' check (pillars <@ array['stillness','light','fuel','movement']::text[]),
-  horizon     text not null default 'next' check (horizon in ('now','next','later')),
-  status      text not null default 'planned' check (status in ('idea','planned','building','live','paused')),
-  start_on    date,
-  target_on   date,
-  emoji       text check (length(emoji) <= 8),
-  layout_id   uuid references public.store_layouts(id) on delete set null,
-  sort        int not null default 0,
-  created_by  uuid,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  constraint vision_dates_in_order check (start_on is null or target_on is null or start_on <= target_on)
-);
-create index if not exists vision_programs_board on public.vision_programs (horizon, sort);
--- A room taken out sets its programs' link to null: the index finds them without a scan (db.r30's rule).
-create index if not exists vision_programs_layout on public.vision_programs (layout_id) where layout_id is not null;
-
-create table if not exists public.vision_asks (
-  id           uuid primary key default gen_random_uuid(),
-  tenant_id    uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  program_id   uuid not null references public.vision_programs(id) on delete cascade,
-  label        text not null check (length(btrim(label)) between 1 and 80),   -- what it buys
-  amount_cents bigint not null default 0 check (amount_cents between 0 and 100000000000),
-  state        text not null default 'open' check (state in ('open','committed','funded')),
-  note         text check (length(note) <= 400),
-  sort         int not null default 0,
-  created_at   timestamptz not null default now()
-);
-create index if not exists vision_asks_program on public.vision_asks (program_id, sort);
-
-create table if not exists public.store_items (
-  id          uuid primary key default gen_random_uuid(),
-  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  layout_id   uuid not null references public.store_layouts(id) on delete cascade,
-  kind        text not null check (length(kind) between 1 and 40),                -- lib/vision CATALOG
-  label       text check (length(label) <= 80),
-  x_in        numeric not null default 0,                                         -- the item's centre, from the room's top-left
-  y_in        numeric not null default 0,
-  rot         int  not null default 0 check (rot in (0, 90, 180, 270)),
-  w_in        numeric not null check (w_in > 0 and w_in <= 2400),
-  d_in        numeric not null check (d_in > 0 and d_in <= 2400),
-  h_in        numeric not null check (h_in >= 0 and h_in <= 480),
-  why         text check (length(why) <= 1000),
-  pillars     text[] not null default '{}' check (pillars <@ array['stillness','light','fuel','movement']::text[]),
-  sort        int not null default 0,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-create index if not exists store_items_layout on public.store_items (layout_id, sort);
-
-create table if not exists public.vision_shares (
-  id             uuid primary key default gen_random_uuid(),
-  tenant_id      uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  -- 64 hex characters from two random UUIDs (244 random bits): unguessable, and no extension needed to make it.
-  token          text not null unique default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '') check (length(token) >= 32),
-  label          text not null default 'A link' check (length(btrim(label)) between 1 and 80),   -- who it is for
-  show_asks      boolean not null default true,                                                   -- the money, or the vision alone
-  created_by     uuid,
-  created_at     timestamptz not null default now(),
-  revoked_at     timestamptz,
-  last_opened_at timestamptz,
-  opens          int not null default 0
-);
-
--- tenant, RLS, grants, history — every table the same way
-do $$
-declare t text;
-begin
-  foreach t in array array['store_layouts', 'vision_programs', 'vision_asks', 'store_items', 'vision_shares'] loop
-    execute format('drop trigger if exists stamp_tenant_tg on public.%I', t);
-    execute format('create trigger stamp_tenant_tg before insert on public.%I for each row execute function public.stamp_tenant()', t);
-    execute format('alter table public.%I enable row level security', t);
-    execute format('drop policy if exists "vision staff read" on public.%I', t);
-    execute format('create policy "vision staff read" on public.%I for select using ((select public.is_staff()))', t);
-    execute format('drop policy if exists "vision admin write" on public.%I', t);
-    execute format('create policy "vision admin write" on public.%I for all using ((select public.is_admin())) with check ((select public.is_admin()))', t);
-    execute format('drop policy if exists "tenant isolation" on public.%I', t);
-    execute format('create policy "tenant isolation" on public.%I as restrictive for all using (tenant_id = (select public.effective_tenant())) with check (tenant_id = (select public.effective_tenant()))', t);
-    execute format('revoke all on public.%I from public, anon, authenticated', t);
-    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
-    execute format('drop trigger if exists %I on public.%I', 'admin_audit_' || t, t);
-    execute format('create trigger %I after insert or update or delete on public.%I for each row execute function public.log_admin_audit()', 'admin_audit_' || t, t);
-  end loop;
-end $$;
-
--- Said once more, a table at a time, as drift.check reads it (the loop above did it already; this is a no-op).
-alter table public.store_layouts enable row level security;
-alter table public.vision_programs enable row level security;
-alter table public.vision_asks enable row level security;
-alter table public.store_items enable row level security;
-alter table public.vision_shares enable row level security;
-
--- A link is an owner's to hand out: the crew read the plan, not the links to it.
-drop policy if exists "vision staff read" on public.vision_shares;
-drop policy if exists "vision shares admin read" on public.vision_shares;
-create policy "vision shares admin read" on public.vision_shares for select using ((select public.is_admin()));
-
--- ── 2 · the one door for a link ─────────────────────────────────────────────────────────────────────────────────────
--- Everything a live link shows, and nothing else: no ids of who wrote it, no other table. A token that isn't live
--- answers PT404 (not found), the same for a wrong token as for a turned-off one.
-create or replace function public.vision_shared(p_token text)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare s public.vision_shares;
-begin
-  if p_token is null or length(p_token) < 32 then
-    raise exception 'This link isn''t live.' using errcode = 'PT404';
-  end if;
-  select * into s from public.vision_shares where token = p_token and revoked_at is null;
-  if not found then
-    raise exception 'This link isn''t live.' using errcode = 'PT404';
-  end if;
-  update public.vision_shares set opens = opens + 1, last_opened_at = now() where id = s.id;
-  return jsonb_build_object(
-    'label', s.label,
-    'show_asks', s.show_asks,
-    'programs', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', p.id, 'lane', p.lane, 'title', p.title, 'summary', p.summary, 'why', p.why, 'pillars', p.pillars,
-        'horizon', p.horizon, 'status', p.status, 'start_on', p.start_on, 'target_on', p.target_on, 'emoji', p.emoji,
-        'layout_id', p.layout_id, 'sort', p.sort) order by p.horizon, p.sort, p.created_at)
-      from public.vision_programs p where p.tenant_id = s.tenant_id), '[]'::jsonb),
-    'asks', case when s.show_asks then coalesce((select jsonb_agg(jsonb_build_object(
-        'program_id', a.program_id, 'label', a.label, 'amount_cents', a.amount_cents, 'state', a.state, 'note', a.note, 'sort', a.sort)
-        order by a.sort, a.created_at)
-      from public.vision_asks a where a.tenant_id = s.tenant_id), '[]'::jsonb) else '[]'::jsonb end,
-    'layouts', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', l.id, 'name', l.name, 'width_in', l.width_in, 'depth_in', l.depth_in, 'ceiling_in', l.ceiling_in, 'notes', l.notes,
-        'items', coalesce((select jsonb_agg(jsonb_build_object(
-            'id', i.id, 'kind', i.kind, 'label', i.label, 'x_in', i.x_in, 'y_in', i.y_in, 'rot', i.rot,
-            'w_in', i.w_in, 'd_in', i.d_in, 'h_in', i.h_in, 'why', i.why, 'pillars', i.pillars, 'sort', i.sort) order by i.sort, i.created_at)
-          from public.store_items i where i.layout_id = l.id), '[]'::jsonb)) order by l.created_at)
-      from public.store_layouts l where l.tenant_id = s.tenant_id), '[]'::jsonb)
-  );
-end $$;
-revoke all on function public.vision_shared(text) from public, anon, authenticated;
-grant execute on function public.vision_shared(text) to anon, authenticated;
-
--- ── 3 · a first draft (only into an empty board) ────────────────────────────────────────────────────────────────────
-do $$
-declare lay uuid; store uuid;
-begin
-  if exists (select 1 from public.vision_programs) then return; end if;
-
-  insert into public.store_layouts (name, width_in, depth_in, ceiling_in, notes)
-  values ('The first store (draft)', 360, 480, 132,
-          'A 30 × 40 ft starter room. Cold extraction, bottles, broth — no espresso. Move, add or take out anything.')
-  returning id into lay;
-
-  insert into public.store_items (layout_id, kind, label, x_in, y_in, rot, w_in, d_in, h_in, why, pillars, sort) values
-    (lay, 'door',          'Entry',                    180, 477,   0,  42,   6,  84, 'One way in, straight to the order counter — no maze before the first hello.', '{movement}', 1),
-    (lay, 'window_wall',   'Daylight wall',              3, 330,  90, 300,   6,  96, 'The long wall is glass: daylight on every seat. Light is a pillar, not decor.', '{light}', 2),
-    (lay, 'order_counter', 'Order counter',            170, 200,   0, 144,  30,  42, 'Order and pay in one place, facing the door, so the line moves.', '{movement}', 3),
-    (lay, 'tap_tower',     'Cold-brew & nitro taps',   260, 200,   0,  36,  30,  60, 'Cold extracted, poured to order — the cleanest cup, no espresso.', '{fuel}', 4),
-    (lay, 'bottle_cooler', 'Grab-and-go bottles',      340, 330,   0,  30,  30,  80, 'Bottles for the road: a ten-second stop for people on the move.', '{fuel,movement}', 5),
-    (lay, 'broth_station', 'Bone broth station',       345, 240, 270,  48,  30,  42, 'Warm broth, sipped slow — fuel without the crash.', '{fuel}', 6),
-    (lay, 'prep_counter',  'Prep counter',             200,  70,   0,  96,  30,  36, 'Back-of-house prep behind the line, out of the guests'' path.', '{fuel}', 7),
-    (lay, 'brew_vessels',  'Cold-extraction vessels',  345, 130, 270,  60,  30,  72, 'Where every batch steeps cold, on view from the counter.', '{fuel}', 8),
-    (lay, 'three_sink',    'Three-compartment sink',   190,  12,   0,  72,  24,  40, 'Required by code, kept to the back wall.', '{}', 9),
-    (lay, 'hand_sink',     'Hand sink',                100,   9,   0,  18,  18,  40, 'At the start of the line, where hands get washed first.', '{}', 10),
-    (lay, 'reach_in',      'Reach-in fridge',           60,  40,   0,  54,  30,  80, 'Milks and garnish, one step from the taps.', '{fuel}', 11),
-    (lay, 'community',     'Community table',          170, 330,   0,  96,  36,  30, 'One long table: strangers share it, people stay.', '{stillness}', 12),
-    (lay, 'two_top',       'Two-top',                   40, 260,   0,  30,  30,  30, 'For two, in the light.', '{light}', 13),
-    (lay, 'two_top',       'Two-top',                   40, 330,   0,  30,  30,  30, 'For two, in the light.', '{light}', 14),
-    (lay, 'lounge',        'Stillness corner',          60, 435,   0,  72,  60,  32, 'Soft seats, no screens, low sound — a place to sit still for ten minutes.', '{stillness}', 15),
-    (lay, 'plants',        'Living wall',               60, 474,   0,  72,  12,  84, 'Green and growing by the quiet corner.', '{stillness,light}', 16),
-    (lay, 'merch_wall',    'Merch & primal library',   353, 420, 270,  84,  14,  84, 'The shirts, and the GT3 Nutrition maps people can take home.', '{movement}', 17),
-    (lay, 'pickup_shelf',  'Pickup shelf',             270, 473,   0,  48,  14,  60, 'Drops and pre-orders, picked up without waiting in line.', '{movement}', 18),
-    (lay, 'restroom',      'Restroom (accessible)',    330,  30,   0,  60,  60,  96, 'Accessible, by code — and the kind of clean people notice.', '{}', 19);
-
-  insert into public.vision_programs (lane, title, summary, why, pillars, horizon, status, emoji, sort) values
-    ('Truck & events', 'The truck at events', 'Cold-extracted coffee and broth at markets, gyms and races.', 'Meet people where they already move.', '{movement,fuel}', 'now', 'live', '🚚', 1),
-    ('Drops & delivery', 'Saturday drops & pickups', 'Packs reserved ahead, picked up at the drop.', 'A weekly rhythm people can plan their fuel around.', '{fuel}', 'now', 'live', '📦', 2),
-    ('Drops & delivery', 'Home delivery', 'Bottles to the porch, empties back on the next run.', 'Clean fuel without a trip.', '{fuel}', 'now', 'live', '🏠', 3),
-    ('Office', 'Office cold brew', 'Gallons delivered to offices on a standing schedule.', 'A better default at work than the break-room pot.', '{fuel}', 'now', 'live', '🏢', 4),
-    ('Learning', 'GT3 Nutrition', 'The Return to Primal course — the four pillars free, the rest one purchase.', 'Teach why, not just sell what.', '{stillness,light,fuel,movement}', 'now', 'live', '📚', 5),
-    ('Places', 'The first store', 'A GT3 Performance Bar with a door, a counter and seats.', 'A place to be every day, built on the four pillars — light, stillness, clean fuel, a reason to move.', '{stillness,light,fuel,movement}', 'next', 'planned', '🏛️', 1),
-    ('Markets', 'New markets', 'The next cities, opened when each is ready.', 'Grow where the readiness checks say yes, not before.', '{movement}', 'later', 'idea', '🗺️', 1);
-
-  select id into store from public.vision_programs where title = 'The first store' order by created_at desc limit 1;
-  update public.vision_programs set layout_id = lay where id = store;
-  insert into public.vision_asks (program_id, label, amount_cents, state, note, sort) values
-    (store, 'Build-out', 0, 'open', 'Set the amount.', 1),
-    (store, 'Equipment', 0, 'open', 'Set the amount.', 2),
-    (store, 'Opening runway', 0, 'open', 'Set the amount.', 3);
-end $$;
-
--- verify (numbers only):
---   select (select count(*) from public.vision_programs) programs, (select count(*) from public.store_items) items;   -- 7, 19 (first run)
---   select has_function_privilege('anon', 'public.vision_shared(text)', 'execute');                                    -- true
-select public.record_migration('0447_the_plan_people_can_see');
-reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
-commit;  -- 0447
-
--- ============================================================
--- 0448_a_plan_for_every_way_in.sql
--- ============================================================
-begin;   -- 0448, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
--- ── 0448 — A PLAN FOR EVERY WAY IN ─────────────────────────────────────────────────────────────────────────────────
--- 2026-10-25. R53, phase A of the investor-ready vision (Ryan, 2026-10-25: "allow for the brick and mortar to have
--- phases. Maybe it's not a full brick and mortar, maybe it's a bar that's rented out from a gym… different square
--- footages, different opportunities, lease versus buy, versus space, versus partnering with a coffee shop that already
--- has the standards… our recipe on a menu… multiple plans built out and saved… each plan its own database record with
--- its own requirements"). Paste into Supabase → SQL Editor → Run. A second run changes nothing. Needs 0447.
---
--- WHAT.
---   1. vision_plans — a program's ways in, each its own record: its format (a bar inside a gym, a kiosk, our recipe on a
---      partner café's menu, a pop-up, a leased or a bought storefront, a shared space), its phase (1, 2, 3…), its status
---      (exploring → validating → ready → go → live; paused; no-go), its square feet, its deal (lease, buy, sublease,
---      revenue share, license fee, partnership), where, why, the gate that says when it goes ("go when…"), its own room
---      in the store designer, and whether it may be shown on a link (a draft stays private: shareable is off).
---   2. vision_plan_needs — what a plan needs before it can go: financing, a site, a permit, equipment, a hire, proof of
---      demand, a partner, the build — each with who owns it, when it's due and when it was done. They are the plan's
---      requirements and its milestones at once.
---   3. vision_plan_deps — a plan that waits on another (the storefront waits on the gym bar's proof). A loop is refused
---      (PT409): a plan can't wait on itself, however far round.
---   4. vision_asks.plan_id — an ask may belong to a plan (what the gym bar's equipment costs is the gym bar's ask).
---   5. vision_shares.expires_at — a link can end on a date; vision_shared reads only live, unexpired links, and shows only
---      the plans marked shareable (and only their asks, needs and waits — never who owns a need or its notes).
---   Staff read; owners and admins write — as 0447. Every change is in Settings › Activity log.
---   A first draft, only where no plan exists yet: "The first store" gets three ways in, in phases — a bar inside a gym,
---   our recipe on a partner café's menu, then the storefront (its room is the 0447 draft) — each with the needs Ryan
---   named (financing, the site, permits, equipment, hiring, proven demand). No numbers: the gates say what to set.
---
--- set lock_timeout (database F16): three tables made, two columns added (nullable, no default — no rewrite), one
--- function replaced (same signature), triggers and policies on new tables only.
--- existing rows: none changed (the draft only inserts, only into an empty plan table).
--- rollback: drop function vision_plan_no_loop() cascade; drop table vision_plan_deps, vision_plan_needs, vision_plans
---   cascade; alter table vision_asks drop column plan_id; alter table vision_shares drop column expires_at; re-run 0447's
---   vision_shared.
--- changelog: none — the crew's own screen, and links the owner sends.
-
-set lock_timeout = '5s';
-
--- ── 1 · a plan ──────────────────────────────────────────────────────────────────────────────────────────────────────
-create table if not exists public.vision_plans (
-  id          uuid primary key default gen_random_uuid(),
-  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  program_id  uuid not null references public.vision_programs(id) on delete cascade,
-  name        text not null check (length(btrim(name)) between 1 and 120),
-  format      text not null default 'storefront_lease' check (format in
-                ('gym_bar','kiosk','partner_menu','pop_up','storefront_lease','storefront_buy','shared_space','other')),
-  phase       smallint not null default 1 check (phase between 1 and 9),
-  status      text not null default 'exploring' check (status in ('exploring','validating','ready','go','live','paused','no_go')),
-  sqft        int check (sqft is null or sqft between 10 and 100000),
-  deal        text not null default 'tbd' check (deal in ('tbd','lease','buy','sublease','rev_share','license_fee','partnership','none')),
-  place       text check (length(place) <= 200),
-  summary     text check (length(summary) <= 600),
-  why         text check (length(why) <= 2000),
-  gate        text check (length(gate) <= 600),
-  layout_id   uuid references public.store_layouts(id) on delete set null,
-  shareable   boolean not null default false,
-  sort        int not null default 0,
-  created_by  uuid,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-create index if not exists vision_plans_program on public.vision_plans (program_id, phase, sort);
-create index if not exists vision_plans_layout on public.vision_plans (layout_id) where layout_id is not null;
-
--- ── 2 · what it needs ───────────────────────────────────────────────────────────────────────────────────────────────
-create table if not exists public.vision_plan_needs (
-  id          uuid primary key default gen_random_uuid(),
-  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  plan_id     uuid not null references public.vision_plans(id) on delete cascade,
-  label       text not null check (length(btrim(label)) between 1 and 200),
-  kind        text not null default 'other' check (kind in ('financing','site','permit','equipment','hiring','demand','partner','build','other')),
-  owner       text check (length(owner) <= 80),
-  due_on      date,
-  done_on     date,
-  note        text check (length(note) <= 600),
-  sort        int not null default 0,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-create index if not exists vision_plan_needs_plan on public.vision_plan_needs (plan_id, sort);
-
--- ── 3 · what it waits on ────────────────────────────────────────────────────────────────────────────────────────────
-create table if not exists public.vision_plan_deps (
-  id            uuid primary key default gen_random_uuid(),
-  tenant_id     uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  plan_id       uuid not null references public.vision_plans(id) on delete cascade,
-  needs_plan_id uuid not null references public.vision_plans(id) on delete cascade,
-  created_at    timestamptz not null default now(),
-  constraint vision_plan_deps_not_itself check (plan_id <> needs_plan_id),
-  constraint vision_plan_deps_once unique (plan_id, needs_plan_id)
-);
-create index if not exists vision_plan_deps_needs on public.vision_plan_deps (needs_plan_id);
-
--- A wait that would close a loop (A waits on B, B on C, C on A) is refused: nothing could ever go first.
-create or replace function public.vision_plan_no_loop()
-returns trigger language plpgsql set search_path = public as $$
-begin
-  if exists (
-    with recursive up(id) as (
-      select d.needs_plan_id from public.vision_plan_deps d where d.plan_id = new.needs_plan_id
-      union
-      select d.needs_plan_id from public.vision_plan_deps d join up on d.plan_id = up.id
-    )
-    select 1 from up where id = new.plan_id
-  ) or new.needs_plan_id = new.plan_id then
-    raise exception 'That would make a loop — a plan can''t wait on something that waits on it.' using errcode = 'PT409';
-  end if;
-  return new;
-end $$;
-drop trigger if exists vision_plan_no_loop_tg on public.vision_plan_deps;
-create trigger vision_plan_no_loop_tg before insert or update on public.vision_plan_deps for each row execute function public.vision_plan_no_loop();
-
--- ── 4 · an ask may be a plan's; 5 · a link may end ──────────────────────────────────────────────────────────────────
-alter table public.vision_asks add column if not exists plan_id uuid references public.vision_plans(id) on delete set null;
-create index if not exists vision_asks_plan on public.vision_asks (plan_id) where plan_id is not null;
-alter table public.vision_shares add column if not exists expires_at timestamptz;
-
--- tenant, RLS, grants, history — as 0447
-do $$
-declare t text;
-begin
-  foreach t in array array['vision_plans', 'vision_plan_needs', 'vision_plan_deps'] loop
-    execute format('drop trigger if exists stamp_tenant_tg on public.%I', t);
-    execute format('create trigger stamp_tenant_tg before insert on public.%I for each row execute function public.stamp_tenant()', t);
-    execute format('alter table public.%I enable row level security', t);
-    execute format('drop policy if exists "vision staff read" on public.%I', t);
-    execute format('create policy "vision staff read" on public.%I for select using ((select public.is_staff()))', t);
-    execute format('drop policy if exists "vision admin write" on public.%I', t);
-    execute format('create policy "vision admin write" on public.%I for all using ((select public.is_admin())) with check ((select public.is_admin()))', t);
-    execute format('drop policy if exists "tenant isolation" on public.%I', t);
-    execute format('create policy "tenant isolation" on public.%I as restrictive for all using (tenant_id = (select public.effective_tenant())) with check (tenant_id = (select public.effective_tenant()))', t);
-    execute format('revoke all on public.%I from public, anon, authenticated', t);
-    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
-    execute format('drop trigger if exists %I on public.%I', 'admin_audit_' || t, t);
-    execute format('create trigger %I after insert or update or delete on public.%I for each row execute function public.log_admin_audit()', 'admin_audit_' || t, t);
-  end loop;
-end $$;
--- Said once more, a table at a time, as drift.check reads it (the loop did it already; this is a no-op).
-alter table public.vision_plans enable row level security;
-alter table public.vision_plan_needs enable row level security;
-alter table public.vision_plan_deps enable row level security;
-revoke all on function public.vision_plan_no_loop() from public, anon, authenticated;
-
--- ── the one door for a link, again: live and unexpired, and only what was marked to show ────────────────────────────
-create or replace function public.vision_shared(p_token text)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare s public.vision_shares;
-begin
-  if p_token is null or length(p_token) < 32 then
-    raise exception 'This link isn''t live.' using errcode = 'PT404';
-  end if;
-  select * into s from public.vision_shares
-   where token = p_token and revoked_at is null and (expires_at is null or expires_at > now());
-  if not found then
-    raise exception 'This link isn''t live.' using errcode = 'PT404';
-  end if;
-  update public.vision_shares set opens = opens + 1, last_opened_at = now() where id = s.id;
-  return jsonb_build_object(
-    'label', s.label,
-    'show_asks', s.show_asks,
-    'expires_at', s.expires_at,
-    'programs', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', p.id, 'lane', p.lane, 'title', p.title, 'summary', p.summary, 'why', p.why, 'pillars', p.pillars,
-        'horizon', p.horizon, 'status', p.status, 'start_on', p.start_on, 'target_on', p.target_on, 'emoji', p.emoji,
-        'layout_id', p.layout_id, 'sort', p.sort) order by p.horizon, p.sort, p.created_at)
-      from public.vision_programs p where p.tenant_id = s.tenant_id), '[]'::jsonb),
-    'asks', case when s.show_asks then coalesce((select jsonb_agg(jsonb_build_object(
-        'program_id', a.program_id, 'plan_id', a.plan_id, 'label', a.label, 'amount_cents', a.amount_cents, 'state', a.state,
-        'note', a.note, 'sort', a.sort) order by a.sort, a.created_at)
-      from public.vision_asks a
-      where a.tenant_id = s.tenant_id
-        and (a.plan_id is null or exists (select 1 from public.vision_plans x where x.id = a.plan_id and x.shareable))), '[]'::jsonb)
-      else '[]'::jsonb end,
-    'plans', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', v.id, 'program_id', v.program_id, 'name', v.name, 'format', v.format, 'phase', v.phase, 'status', v.status,
-        'sqft', v.sqft, 'deal', v.deal, 'place', v.place, 'summary', v.summary, 'why', v.why, 'gate', v.gate,
-        'layout_id', v.layout_id, 'sort', v.sort,
-        'needs', coalesce((select jsonb_agg(jsonb_build_object('label', n.label, 'kind', n.kind, 'due_on', n.due_on, 'done_on', n.done_on, 'sort', n.sort)
-            order by n.sort, n.created_at) from public.vision_plan_needs n where n.plan_id = v.id), '[]'::jsonb),
-        'waits_on', coalesce((select jsonb_agg(d.needs_plan_id) from public.vision_plan_deps d
-            join public.vision_plans w on w.id = d.needs_plan_id and w.shareable where d.plan_id = v.id), '[]'::jsonb))
-        order by v.phase, v.sort, v.created_at)
-      from public.vision_plans v where v.tenant_id = s.tenant_id and v.shareable), '[]'::jsonb),
-    'layouts', coalesce((select jsonb_agg(jsonb_build_object(
-        'id', l.id, 'name', l.name, 'width_in', l.width_in, 'depth_in', l.depth_in, 'ceiling_in', l.ceiling_in, 'notes', l.notes,
-        'items', coalesce((select jsonb_agg(jsonb_build_object(
-            'id', i.id, 'kind', i.kind, 'label', i.label, 'x_in', i.x_in, 'y_in', i.y_in, 'rot', i.rot,
-            'w_in', i.w_in, 'd_in', i.d_in, 'h_in', i.h_in, 'why', i.why, 'pillars', i.pillars, 'sort', i.sort) order by i.sort, i.created_at)
-          from public.store_items i where i.layout_id = l.id), '[]'::jsonb)) order by l.created_at)
-      from public.store_layouts l where l.tenant_id = s.tenant_id), '[]'::jsonb)
-  );
-end $$;
-revoke all on function public.vision_shared(text) from public, anon, authenticated;
-grant execute on function public.vision_shared(text) to anon, authenticated;
-
--- ── a first draft: the first store, in three ways in (only into an empty plan table) ─────────────────────────────────
-do $$
-declare store uuid; lay uuid; gym uuid; cafe uuid; shop uuid;
-begin
-  if exists (select 1 from public.vision_plans) then return; end if;
-  select id, layout_id into store, lay from public.vision_programs where title = 'The first store' order by created_at limit 1;
-  if store is null then return; end if;
-
-  insert into public.vision_plans (program_id, name, format, phase, status, deal, summary, why, gate, sort)
-  values (store, 'A bar inside a gym', 'gym_bar', 1, 'exploring', 'tbd',
-          'A small GT3 bar in a gym''s lobby — the members are already moving; we bring the fuel.',
-          'The smallest way in: little to build, a crowd that shows up every day, and proof of daily demand before anyone signs a lease.',
-          'Go to the next phase when cups a day and repeat guests hold for eight weeks — set the numbers.', 1)
-  returning id into gym;
-  insert into public.vision_plans (program_id, name, format, phase, status, deal, summary, why, gate, sort)
-  values (store, 'Our recipe on a partner café''s menu', 'partner_menu', 2, 'exploring', 'tbd',
-          'GT3 cold extraction on the menu of a café that already meets the standard — our name and our recipe, their room.',
-          'More places people can find us without building a room of our own; a partner who shares the standard carries it.',
-          'Go when a partner meets the standard and the terms are signed — set what "meets" means.', 2)
-  returning id into cafe;
-  insert into public.vision_plans (program_id, name, format, phase, status, sqft, deal, summary, why, gate, layout_id, sort)
-  values (store, 'The first store', 'storefront_lease', 3, 'exploring', 1200, 'lease',
-          'Our own room: the 30 × 40 ft draft in the store designer — daylight, a stillness corner, the bar, bottles to go.',
-          'The full experience of the four pillars in one place, once the first phases have proven the demand.',
-          'Go when the first phases have proven the demand and the financing is in place.', lay, 3)
-  returning id into shop;
-
-  insert into public.vision_plan_needs (plan_id, label, kind, sort) values
-    (gym,  'Choose the gym',                        'site',      1),
-    (gym,  'Agree the terms with the gym',          'partner',   2),
-    (gym,  'Health permit for the space',           'permit',    3),
-    (gym,  'Equipment list for a small bar',        'equipment', 4),
-    (gym,  'Count the door at its busiest hours',   'demand',    5),
-    (cafe, 'Find cafés that meet the standard',     'partner',   1),
-    (cafe, 'The recipe and training card',          'build',     2),
-    (cafe, 'Agree the terms',                       'partner',   3),
-    (shop, 'Financing',                             'financing', 1),
-    (shop, 'Site selection',                        'site',      2),
-    (shop, 'Permits',                               'permit',    3),
-    (shop, 'Equipment procurement',                 'equipment', 4),
-    (shop, 'Hiring',                                'hiring',    5),
-    (shop, 'Demand proven by the first phases',     'demand',    6);
-  insert into public.vision_plan_deps (plan_id, needs_plan_id) values (shop, gym);
-end $$;
-
--- verify (numbers only):
---   select (select count(*) from public.vision_plans) plans, (select count(*) from public.vision_plan_needs) needs;   -- 3, 14 (first run)
-select public.record_migration('0448_a_plan_for_every_way_in');
-reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
-commit;  -- 0448
-
 -- ============================================================
 -- 0449_the_money_plan_by_plan.sql
 -- ============================================================
@@ -599,3 +104,386 @@ create trigger admin_audit_vision_plan_money after insert or update or delete on
 select public.record_migration('0449_the_money_plan_by_plan');
 reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
 commit;  -- 0449
+
+-- ============================================================
+-- 0450_what_the_market_says.sql
+-- ============================================================
+begin;   -- 0450, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
+-- ── 0450 — WHAT THE MARKET SAYS ───────────────────────────────────────────────────────────────────────────────────
+-- 2026-10-25. R56, phase D of the investor-ready vision (Ryan, 2026-10-25: "AI do a market research and give a score of
+-- success… continuous AI market research with citations, never invented… explainable scores, not probabilities").
+-- Paste into Supabase → SQL Editor → Run. A second run changes nothing. Needs 0449.
+--
+-- WHAT.
+--   vision_research — what a plan's market research found, one finding a row: its topic (demand, competition, costs,
+--   the location, the rules, trends), the claim in a sentence, the figure if it has one, and where it came from — the
+--   source's address (https only) and title, when the source dates itself, and when GT3 read it. A finding arrives
+--   "proposed": the research route keeps only findings whose address the web search actually returned (an address the
+--   model wrote that no search returned is dropped, never stored). An owner or admin accepts or rejects each one; only
+--   accepted findings count in a plan's score, and every one keeps its link. Accepting says which way it bears on the
+--   plan — for it, against it, or neither — a person's reading of the source, never the model's.
+--   Owners and admins read and write — the research sits beside the plan's money. No link reads it (vision_shared is
+--   unchanged). Every change is in Settings › Activity log.
+--
+-- set lock_timeout (database F16): one table made, its triggers and policies.
+-- existing rows: none changed.
+-- rollback: drop table vision_research cascade.
+-- changelog: none — the owners' own screen.
+
+set lock_timeout = '5s';
+
+create table if not exists public.vision_research (
+  id           uuid primary key default gen_random_uuid(),
+  tenant_id    uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
+  plan_id      uuid not null references public.vision_plans(id) on delete cascade,
+  run_id       uuid,
+  topic        text not null check (topic in ('demand','competition','costs','location','rules','trends')),
+  claim        text not null check (length(claim) between 1 and 600),
+  figure       text check (figure is null or length(figure) <= 120),
+  source_url   text not null check (source_url ~ '^https://' and length(source_url) <= 1000),
+  source_title text check (source_title is null or length(source_title) <= 300),
+  published    text check (published is null or length(published) <= 60),
+  retrieved_at timestamptz not null default now(),
+  status       text not null default 'proposed' check (status in ('proposed','accepted','rejected')),
+  bearing      text check (bearing is null or bearing in ('for','against','neutral')),
+  reviewed_by  uuid,
+  reviewed_at  timestamptz,
+  created_at   timestamptz not null default now()
+);
+create index if not exists vision_research_plan on public.vision_research (plan_id, retrieved_at desc);
+
+drop trigger if exists stamp_tenant_tg on public.vision_research;
+create trigger stamp_tenant_tg before insert on public.vision_research for each row execute function public.stamp_tenant();
+alter table public.vision_research enable row level security;
+drop policy if exists "vision research admin" on public.vision_research;
+create policy "vision research admin" on public.vision_research for all using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "tenant isolation" on public.vision_research;
+create policy "tenant isolation" on public.vision_research as restrictive for all
+  using (tenant_id = (select public.effective_tenant())) with check (tenant_id = (select public.effective_tenant()));
+revoke all on public.vision_research from public, anon, authenticated;
+grant select, insert, update, delete on public.vision_research to authenticated;
+drop trigger if exists admin_audit_vision_research on public.vision_research;
+create trigger admin_audit_vision_research after insert or update or delete on public.vision_research for each row execute function public.log_admin_audit();
+
+-- verify (numbers only):
+--   select count(*) from public.vision_research;   -- 0 (first run)
+select public.record_migration('0450_what_the_market_says');
+reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
+commit;  -- 0450
+
+-- ============================================================
+-- 0451_the_investor_case.sql
+-- ============================================================
+begin;   -- 0451, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
+-- ── 0451 — THE INVESTOR CASE ──────────────────────────────────────────────────────────────────────────────────────
+-- 2026-10-25. R57, phase E of the investor-ready vision (Ryan, 2026-10-25: "investor presentation with expiring share
+-- links… everything an investor wants to see"). Paste into Supabase → SQL Editor → Run. A second run changes nothing.
+-- Needs 0450.
+--
+-- WHAT.
+--   vision_shares.money_plans / research_plans — per link, per plan, what it may show beyond the plan itself: the plan's
+--   money (its approved baseline only — never the working what-ifs) and its research (accepted findings only, each with
+--   its source). Nothing by default: an existing link shows exactly what it showed before. Only an owner may choose
+--   (a trigger refuses anyone else, PT403) — the same owners who approve a baseline. The presenter computes the case from
+--   the baseline with the one engine (lib/visionMoney), so the link and the app can't disagree.
+--   vision_shared — as 0448, plus each plan's "money" and "research" where the link was given them.
+--
+-- set lock_timeout (database F16): two columns added (constant default — no rewrite), one trigger, one function
+-- replaced (same signature).
+-- existing rows: none changed (the new columns are empty for every link).
+-- rollback: drop trigger vision_share_case_guard_tg on vision_shares; drop function vision_share_case_guard(); alter
+--   table vision_shares drop column money_plans, drop column research_plans; re-run 0448's vision_shared.
+-- changelog: none — links the owner sends.
+
+set lock_timeout = '5s';
+
+alter table public.vision_shares add column if not exists money_plans uuid[] not null default '{}';
+alter table public.vision_shares add column if not exists research_plans uuid[] not null default '{}';
+
+create or replace function public.vision_share_case_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (tg_op = 'INSERT' and (cardinality(new.money_plans) > 0 or cardinality(new.research_plans) > 0))
+     or (tg_op = 'UPDATE' and (new.money_plans is distinct from old.money_plans or new.research_plans is distinct from old.research_plans)) then
+    if auth.uid() is not null and not public.is_owner() then
+      raise exception 'Only an owner can choose what a link shows of the money.' using errcode = 'PT403';
+    end if;
+  end if;
+  return new;
+end $$;
+revoke all on function public.vision_share_case_guard() from public, anon, authenticated;
+drop trigger if exists vision_share_case_guard_tg on public.vision_shares;
+create trigger vision_share_case_guard_tg before insert or update on public.vision_shares for each row execute function public.vision_share_case_guard();
+
+create or replace function public.vision_shared(p_token text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare s public.vision_shares;
+begin
+  if p_token is null or length(p_token) < 32 then
+    raise exception 'This link isn''t live.' using errcode = 'PT404';
+  end if;
+  select * into s from public.vision_shares
+   where token = p_token and revoked_at is null and (expires_at is null or expires_at > now());
+  if not found then
+    raise exception 'This link isn''t live.' using errcode = 'PT404';
+  end if;
+  update public.vision_shares set opens = opens + 1, last_opened_at = now() where id = s.id;
+  return jsonb_build_object(
+    'label', s.label,
+    'show_asks', s.show_asks,
+    'expires_at', s.expires_at,
+    'programs', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', p.id, 'lane', p.lane, 'title', p.title, 'summary', p.summary, 'why', p.why, 'pillars', p.pillars,
+        'horizon', p.horizon, 'status', p.status, 'start_on', p.start_on, 'target_on', p.target_on, 'emoji', p.emoji,
+        'layout_id', p.layout_id, 'sort', p.sort) order by p.horizon, p.sort, p.created_at)
+      from public.vision_programs p where p.tenant_id = s.tenant_id), '[]'::jsonb),
+    'asks', case when s.show_asks then coalesce((select jsonb_agg(jsonb_build_object(
+        'program_id', a.program_id, 'plan_id', a.plan_id, 'label', a.label, 'amount_cents', a.amount_cents, 'state', a.state,
+        'note', a.note, 'sort', a.sort) order by a.sort, a.created_at)
+      from public.vision_asks a
+      where a.tenant_id = s.tenant_id
+        and (a.plan_id is null or exists (select 1 from public.vision_plans x where x.id = a.plan_id and x.shareable))), '[]'::jsonb)
+      else '[]'::jsonb end,
+    'plans', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', v.id, 'program_id', v.program_id, 'name', v.name, 'format', v.format, 'phase', v.phase, 'status', v.status,
+        'sqft', v.sqft, 'deal', v.deal, 'place', v.place, 'summary', v.summary, 'why', v.why, 'gate', v.gate,
+        'layout_id', v.layout_id, 'sort', v.sort,
+        'needs', coalesce((select jsonb_agg(jsonb_build_object('label', n.label, 'kind', n.kind, 'due_on', n.due_on, 'done_on', n.done_on, 'sort', n.sort)
+            order by n.sort, n.created_at) from public.vision_plan_needs n where n.plan_id = v.id), '[]'::jsonb),
+        'waits_on', coalesce((select jsonb_agg(d.needs_plan_id) from public.vision_plan_deps d
+            join public.vision_plans w on w.id = d.needs_plan_id and w.shareable where d.plan_id = v.id), '[]'::jsonb),
+        -- 0451: the plan's money, only its owner-approved baseline, only where an owner chose this link to show it.
+        'money', case when v.id = any(s.money_plans) then (select jsonb_build_object('baseline', m.baseline, 'approved_at', m.baseline_at)
+            from public.vision_plan_money m where m.plan_id = v.id and m.baseline is not null) end,
+        -- 0451: its research — accepted findings only, each with its source — where an owner chose this link to show it.
+        'research', case when v.id = any(s.research_plans) then coalesce((select jsonb_agg(jsonb_build_object(
+            'topic', r.topic, 'claim', r.claim, 'figure', r.figure, 'source_url', r.source_url, 'source_title', r.source_title,
+            'published', r.published, 'bearing', r.bearing, 'retrieved_at', r.retrieved_at) order by r.topic, r.retrieved_at desc)
+          from public.vision_research r where r.plan_id = v.id and r.status = 'accepted'), '[]'::jsonb) end)
+        order by v.phase, v.sort, v.created_at)
+      from public.vision_plans v where v.tenant_id = s.tenant_id and v.shareable), '[]'::jsonb),
+    'layouts', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', l.id, 'name', l.name, 'width_in', l.width_in, 'depth_in', l.depth_in, 'ceiling_in', l.ceiling_in, 'notes', l.notes,
+        'items', coalesce((select jsonb_agg(jsonb_build_object(
+            'id', i.id, 'kind', i.kind, 'label', i.label, 'x_in', i.x_in, 'y_in', i.y_in, 'rot', i.rot,
+            'w_in', i.w_in, 'd_in', i.d_in, 'h_in', i.h_in, 'why', i.why, 'pillars', i.pillars, 'sort', i.sort) order by i.sort, i.created_at)
+          from public.store_items i where i.layout_id = l.id), '[]'::jsonb)) order by l.created_at)
+      from public.store_layouts l where l.tenant_id = s.tenant_id), '[]'::jsonb)
+  );
+end $$;
+revoke all on function public.vision_shared(text) from public, anon, authenticated;
+grant execute on function public.vision_shared(text) to anon, authenticated;
+
+-- verify (numbers only):
+--   select count(*) from public.vision_shares where cardinality(money_plans) > 0;   -- 0 (first run)
+select public.record_migration('0451_the_investor_case');
+reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
+commit;  -- 0451
+
+-- ============================================================
+-- 0452_actual_against_the_plan.sql
+-- ============================================================
+begin;   -- 0452, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
+-- ── 0452 — ACTUAL AGAINST THE PLAN ────────────────────────────────────────────────────────────────────────────────────
+-- 2026-10-25. R58 (the financial traceability audit's gap 8: "no actual-vs-projected for a live plan"). Paste into
+-- Supabase → SQL Editor → Run. A second run changes nothing. Needs 0448.
+--
+-- WHAT.
+--   vision_plans.opened_on — the day a plan opened (its month 1 starts here).
+--   vision_plans.actual_channel — which of GT3's order channels records its sales (the truck's cups, pickups, delivery,
+--   office, the shop), so its real months can be read from the order ledger beside the months the plan projected.
+--   Both empty until an owner or admin sets them; nothing is guessed. Written under the plans' existing policies
+--   (owners and admins), in the history as every plan change is. No link reads them (vision_shared is unchanged).
+--
+-- set lock_timeout (database F16): two columns added (nullable, no default — no rewrite).
+-- existing rows: none changed.
+-- rollback: alter table vision_plans drop column opened_on, drop column actual_channel.
+-- changelog: none — the owners' own screen.
+
+set lock_timeout = '5s';
+
+alter table public.vision_plans add column if not exists opened_on date;
+alter table public.vision_plans add column if not exists actual_channel text;
+alter table public.vision_plans drop constraint if exists vision_plans_actual_channel;
+alter table public.vision_plans add constraint vision_plans_actual_channel check (actual_channel is null or actual_channel in ('cup','pickup','delivery','office','shop'));
+
+-- verify (numbers only):
+--   select count(*) from public.vision_plans where opened_on is not null;   -- 0 (first run)
+select public.record_migration('0452_actual_against_the_plan');
+reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
+commit;  -- 0452
+
+-- ============================================================
+-- 0453_research_on_a_schedule.sql
+-- ============================================================
+begin;   -- 0453, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
+-- ── 0453 — RESEARCH ON A SCHEDULE ─────────────────────────────────────────────────────────────────────────────────────
+-- 2026-10-25. R60 (Ryan, 2026-10-25: "research should refresh on demand and through configurable scheduled checks, with
+-- change detection and alerts when material findings affect an initiative"). Paste into Supabase → SQL Editor → Run. A
+-- second run changes nothing. Needs 0450.
+--
+-- WHAT.
+--   vision_plans.research_every_days — how often a plan's market research is checked again: never (0), or every 30, 60
+--   or 90 days. research_last_at — when it last ran; research_by — who set the schedule (the one told when a check finds
+--   something new). A check runs when it's due and an owner or admin has the vision open — GT3 has no background job that
+--   may spend on AI without someone there; a run finds only what's new (a source and claim already stored is not stored
+--   again) and, when something is, raises one quiet alert to whoever set the schedule.
+--   Written under the plans' existing policies (owners and admins), in the history as every plan change is.
+--
+-- set lock_timeout (database F16): three columns added (a constant default — no rewrite).
+-- existing rows: none changed (every plan starts at "never").
+-- rollback: alter table vision_plans drop column research_every_days, drop column research_last_at, drop column research_by.
+-- changelog: none — the owners' own screen.
+
+set lock_timeout = '5s';
+
+alter table public.vision_plans add column if not exists research_every_days smallint not null default 0;
+alter table public.vision_plans add column if not exists research_last_at timestamptz;
+alter table public.vision_plans add column if not exists research_by uuid;
+alter table public.vision_plans drop constraint if exists vision_plans_research_every;
+alter table public.vision_plans add constraint vision_plans_research_every check (research_every_days in (0, 30, 60, 90));
+
+-- verify (numbers only):
+--   select count(*) from public.vision_plans where research_every_days > 0;   -- 0 (first run)
+select public.record_migration('0453_research_on_a_schedule');
+reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
+commit;  -- 0453
+
+-- ============================================================
+-- 0454_the_plans_case_in_words.sql
+-- ============================================================
+begin;   -- 0454, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
+-- ── 0454 — THE PLAN'S CASE, IN WORDS ──────────────────────────────────────────────────────────────────────────────────
+-- 2026-10-25. R61 (Ryan, 2026-10-25: "each roadmap initiative should have an expandable, investor-ready business case:
+-- strategic objective and customer problem… target customer, addressable market, and competitive positioning… risks,
+-- assumptions, mitigation strategies, and supporting evidence"). Paste into Supabase → SQL Editor → Run. A second run
+-- changes nothing. Needs 0451.
+--
+-- WHAT.
+--   vision_plans.customer / market / positioning — who it's for and the problem it solves for them, the market it serves
+--   (in words; a number belongs with its source in the research), and how it stands apart. Ryan's words; nothing seeded.
+--   vision_plan_risks — a plan's risks and its assumptions, one a row: what could go wrong (or what we're assuming), how
+--   likely and how much it would hurt (low, medium, high), what we'd do about it, the evidence or how we'd test it, and
+--   where it stands (open; a risk handled; an assumption validated or proved wrong). The crew read them with the plan;
+--   owners and admins write them; every change in the history.
+--   vision_shared — as 0451, plus each plan's customer, market and positioning; and its risks, with its case, only where
+--   an owner chose the link to show the case.
+--
+-- set lock_timeout (database F16): three columns added (nullable, no default — no rewrite), one table made, one function
+-- replaced (same signature).
+-- existing rows: none changed.
+-- rollback: drop table vision_plan_risks cascade; alter table vision_plans drop column customer, drop column market,
+--   drop column positioning; re-run 0451's vision_shared.
+-- changelog: none — the owners' own screen, and links the owner sends.
+
+set lock_timeout = '5s';
+
+alter table public.vision_plans add column if not exists customer text;
+alter table public.vision_plans add column if not exists market text;
+alter table public.vision_plans add column if not exists positioning text;
+alter table public.vision_plans drop constraint if exists vision_plans_case_words;
+alter table public.vision_plans add constraint vision_plans_case_words check (
+  (customer is null or length(customer) <= 600) and (market is null or length(market) <= 1000) and (positioning is null or length(positioning) <= 600));
+
+create table if not exists public.vision_plan_risks (
+  id          uuid primary key default gen_random_uuid(),
+  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
+  plan_id     uuid not null references public.vision_plans(id) on delete cascade,
+  kind        text not null default 'risk' check (kind in ('risk','assumption')),
+  words       text not null check (length(btrim(words)) between 1 and 400),
+  likelihood  text check (likelihood is null or likelihood in ('low','medium','high')),
+  impact      text check (impact is null or impact in ('low','medium','high')),
+  mitigation  text check (mitigation is null or length(mitigation) <= 600),
+  evidence    text check (evidence is null or length(evidence) <= 600),
+  status      text not null default 'open' check (status in ('open','handled','validated','wrong')),
+  sort        int not null default 0,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists vision_plan_risks_plan on public.vision_plan_risks (plan_id, sort);
+drop trigger if exists stamp_tenant_tg on public.vision_plan_risks;
+create trigger stamp_tenant_tg before insert on public.vision_plan_risks for each row execute function public.stamp_tenant();
+alter table public.vision_plan_risks enable row level security;
+drop policy if exists "vision staff read" on public.vision_plan_risks;
+create policy "vision staff read" on public.vision_plan_risks for select using ((select public.is_staff()));
+drop policy if exists "vision admin write" on public.vision_plan_risks;
+create policy "vision admin write" on public.vision_plan_risks for all using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "tenant isolation" on public.vision_plan_risks;
+create policy "tenant isolation" on public.vision_plan_risks as restrictive for all
+  using (tenant_id = (select public.effective_tenant())) with check (tenant_id = (select public.effective_tenant()));
+revoke all on public.vision_plan_risks from public, anon, authenticated;
+grant select, insert, update, delete on public.vision_plan_risks to authenticated;
+drop trigger if exists admin_audit_vision_plan_risks on public.vision_plan_risks;
+create trigger admin_audit_vision_plan_risks after insert or update or delete on public.vision_plan_risks for each row execute function public.log_admin_audit();
+
+create or replace function public.vision_shared(p_token text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare s public.vision_shares;
+begin
+  if p_token is null or length(p_token) < 32 then
+    raise exception 'This link isn''t live.' using errcode = 'PT404';
+  end if;
+  select * into s from public.vision_shares
+   where token = p_token and revoked_at is null and (expires_at is null or expires_at > now());
+  if not found then
+    raise exception 'This link isn''t live.' using errcode = 'PT404';
+  end if;
+  update public.vision_shares set opens = opens + 1, last_opened_at = now() where id = s.id;
+  return jsonb_build_object(
+    'label', s.label,
+    'show_asks', s.show_asks,
+    'expires_at', s.expires_at,
+    'programs', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', p.id, 'lane', p.lane, 'title', p.title, 'summary', p.summary, 'why', p.why, 'pillars', p.pillars,
+        'horizon', p.horizon, 'status', p.status, 'start_on', p.start_on, 'target_on', p.target_on, 'emoji', p.emoji,
+        'layout_id', p.layout_id, 'sort', p.sort) order by p.horizon, p.sort, p.created_at)
+      from public.vision_programs p where p.tenant_id = s.tenant_id), '[]'::jsonb),
+    'asks', case when s.show_asks then coalesce((select jsonb_agg(jsonb_build_object(
+        'program_id', a.program_id, 'plan_id', a.plan_id, 'label', a.label, 'amount_cents', a.amount_cents, 'state', a.state,
+        'note', a.note, 'sort', a.sort) order by a.sort, a.created_at)
+      from public.vision_asks a
+      where a.tenant_id = s.tenant_id
+        and (a.plan_id is null or exists (select 1 from public.vision_plans x where x.id = a.plan_id and x.shareable))), '[]'::jsonb)
+      else '[]'::jsonb end,
+    'plans', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', v.id, 'program_id', v.program_id, 'name', v.name, 'format', v.format, 'phase', v.phase, 'status', v.status,
+        'sqft', v.sqft, 'deal', v.deal, 'place', v.place, 'summary', v.summary, 'why', v.why, 'gate', v.gate,
+        'layout_id', v.layout_id, 'sort', v.sort,
+        -- 0454: who it's for, the market, how it stands apart — part of the plan, shown wherever the plan is.
+        'customer', v.customer, 'market', v.market, 'positioning', v.positioning,
+        'needs', coalesce((select jsonb_agg(jsonb_build_object('label', n.label, 'kind', n.kind, 'due_on', n.due_on, 'done_on', n.done_on, 'sort', n.sort)
+            order by n.sort, n.created_at) from public.vision_plan_needs n where n.plan_id = v.id), '[]'::jsonb),
+        'waits_on', coalesce((select jsonb_agg(d.needs_plan_id) from public.vision_plan_deps d
+            join public.vision_plans w on w.id = d.needs_plan_id and w.shareable where d.plan_id = v.id), '[]'::jsonb),
+        -- 0451: the plan's money, only its owner-approved baseline, only where an owner chose this link to show it.
+        'money', case when v.id = any(s.money_plans) then (select jsonb_build_object('baseline', m.baseline, 'approved_at', m.baseline_at)
+            from public.vision_plan_money m where m.plan_id = v.id and m.baseline is not null) end,
+        -- 0451: its research — accepted findings only, each with its source — where an owner chose this link to show it.
+        'research', case when v.id = any(s.research_plans) then coalesce((select jsonb_agg(jsonb_build_object(
+            'topic', r.topic, 'claim', r.claim, 'figure', r.figure, 'source_url', r.source_url, 'source_title', r.source_title,
+            'published', r.published, 'bearing', r.bearing, 'retrieved_at', r.retrieved_at) order by r.topic, r.retrieved_at desc)
+          from public.vision_research r where r.plan_id = v.id and r.status = 'accepted'), '[]'::jsonb) end,
+        -- 0454: its risks and assumptions — with the case, where an owner chose this link to show it.
+        'risks', case when v.id = any(s.money_plans) then coalesce((select jsonb_agg(jsonb_build_object(
+            'kind', k.kind, 'words', k.words, 'likelihood', k.likelihood, 'impact', k.impact, 'mitigation', k.mitigation,
+            'evidence', k.evidence, 'status', k.status) order by k.sort, k.created_at)
+          from public.vision_plan_risks k where k.plan_id = v.id), '[]'::jsonb) end)
+        order by v.phase, v.sort, v.created_at)
+      from public.vision_plans v where v.tenant_id = s.tenant_id and v.shareable), '[]'::jsonb),
+    'layouts', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', l.id, 'name', l.name, 'width_in', l.width_in, 'depth_in', l.depth_in, 'ceiling_in', l.ceiling_in, 'notes', l.notes,
+        'items', coalesce((select jsonb_agg(jsonb_build_object(
+            'id', i.id, 'kind', i.kind, 'label', i.label, 'x_in', i.x_in, 'y_in', i.y_in, 'rot', i.rot,
+            'w_in', i.w_in, 'd_in', i.d_in, 'h_in', i.h_in, 'why', i.why, 'pillars', i.pillars, 'sort', i.sort) order by i.sort, i.created_at)
+          from public.store_items i where i.layout_id = l.id), '[]'::jsonb)) order by l.created_at)
+      from public.store_layouts l where l.tenant_id = s.tenant_id), '[]'::jsonb)
+  );
+end $$;
+revoke all on function public.vision_shared(text) from public, anon, authenticated;
+grant execute on function public.vision_shared(text) to anon, authenticated;
+
+-- verify (numbers only):
+--   select count(*) from public.vision_plan_risks;   -- 0 (first run)
+select public.record_migration('0454_the_plans_case_in_words');
+reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
+commit;  -- 0454

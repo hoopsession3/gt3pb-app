@@ -16,11 +16,19 @@ import type { Plan } from "@/lib/visionPlans";
 import {
   CATEGORIES, CATEGORY_WORD, CONFIDENCES, CONFIDENCE_WORD, INPUT_KEYS, INPUT_WORD, SCENARIOS, SCENARIO_WORD, STRUCTURE_WORD,
   changedInputs, compare, derive, downstream, dollars, flags, investor, lineTotal, observed, project, sensitivity, toInputs, trace, upstreamInputs,
-  type Category, type Change, type Confidence, type Flag, type Inputs, type Kind, type MetricKey, type Model, type NodeKey, type Observed,
+  type Category, type Change, type Context, type Confidence, type Flag, type Inputs, type Kind, type MetricKey, type Model, type NodeKey, type Observed,
   type Scenario, type Structure, type Trace, type UseLine,
 } from "@/lib/visionMoney";
 import { CashChart, SC_SWATCH, Tornado } from "./MoneyCharts";
 import Num from "./Num";
+import { RoomView, TrafficView } from "./TrafficRoom";
+import type { Layout } from "@/lib/vision";
+import { ASSUMED_SERVE_SEC, capacity } from "@/lib/visionRoom";
+import { score } from "@/lib/visionScore";
+import type { Research } from "@/lib/visionResearch";
+import { ResearchPanel, ScoreCard } from "./Research";
+import ActualPanel from "./Actual";
+import MixEditor from "./Mix";
 import Said from "@/components/Said";
 
 // A PLAN'S MONEY (R54, 0449 vision_plan_money), traceable (the 2026-10-25 audit — Ryan: "I want to click any financial
@@ -42,7 +50,12 @@ const KIND_TAG: Record<Kind, string> = { assumed: "k-tag", observed: "k-tag ok",
 const isInput = (k: NodeKey): k is (typeof INPUT_KEYS)[number] => (INPUT_KEYS as readonly string[]).includes(k);
 let lineSeq = 0;
 
-export default function MoneyPanel({ plan, asks, canEdit, isOwner = false }: { plan: Plan; asks: Ask[]; canEdit: boolean; isOwner?: boolean }) {
+export type MoneyView = "traffic" | "room" | "money";
+export default function MoneyPanel({ plan, asks, canEdit, isOwner = false, view = "money", room = null, onOpenRoom, progress }: {
+  plan: Plan; asks: Ask[]; canEdit: boolean; isOwner?: boolean; view?: MoneyView; room?: Layout | null; onOpenRoom?: () => void;
+  /** What the assessment needs beyond the money (R59): the plan's needs done, and the unfinished plans it waits on. */
+  progress?: { needs: { done: number; all: number }; waitingOn: string[] };
+}) {
   const load = useCallback(async (): Promise<Saved | "not-yet"> => {
     if (!supabase) throw new Error("Supabase client not configured");
     // arrives-with: 0449  — until 0449 is applied the table is absent: the panel says the money arrives with it, nothing fails
@@ -56,13 +69,13 @@ export default function MoneyPanel({ plan, asks, canEdit, isOwner = false }: { p
   if (!canEdit) return <p className="vz-sub">A plan&apos;s money — its costs, rent, wages and terms — is the owners&apos;. Ask an owner to walk you through it.</p>;
   if (state.status === "loading" || !state.data) return state.status === "error" ? <p className="load-failed">{failureWords(state.error as Error, "Couldn't read the money")}</p> : <p className="vz-sub">Reading the money…</p>;
   if (state.data === "not-yet") return <p className="vz-sub">The money arrives with the next database update (0449). The plan, its phases and its room work as before.</p>;
-  return <Money key={plan.id} plan={plan} asks={asks} saved={state.data} isOwner={isOwner} />;
+  return <Money key={plan.id} plan={plan} asks={asks} saved={state.data} isOwner={isOwner} view={view} room={room} onOpenRoom={onOpenRoom} progress={progress} />;
 }
 
 const KPIS: MetricKey[] = ["startupSpend", "reservePlanned", "requiredFunding", "fundingGap", "breakEven", "payback", "grossMargin", "roiBusiness", "roiAfter"];
 const NEEDS_MODEL = new Set<MetricKey>(["requiredFunding", "fundingGap", "breakEven", "payback", "grossMargin", "roiBusiness", "roiAfter"]);
 
-function Money({ plan, asks, saved, isOwner }: { plan: Plan; asks: Ask[]; saved: Saved; isOwner: boolean }) {
+function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }: { plan: Plan; asks: Ask[]; saved: Saved; isOwner: boolean; view: MoneyView; room: Layout | null; onOpenRoom?: () => void; progress?: { needs: { done: number; all: number }; waitingOn: string[] } }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
   const [scen, setScen] = useState<Record<Scenario, Inputs>>(saved.scenarios);
@@ -79,20 +92,39 @@ function Money({ plan, asks, saved, isOwner }: { plan: Plan; asks: Ask[]; saved:
   useUnsaved(dirty);
   const i = scen[on];
   const set = (patch: Partial<Inputs>) => setScen((s) => ({ ...s, [on]: { ...s[on], ...patch } }));
-  const models = useMemo(() => ({ conservative: project(scen.conservative, structure), base: project(scen.base, structure), upside: project(scen.upside, structure) }), [scen, structure]);
+  // The room's counter, read live from the plan's room as drawn, at each scenario's own seconds an order.
+  const ctxOf = useCallback((x: Inputs): Context => ({ counterPerHour: room ? capacity(room, x.serveSec ?? ASSUMED_SERVE_SEC).counterPerHour : null }), [room]);
+  const models = useMemo(() => ({ conservative: project(scen.conservative, structure, ctxOf(scen.conservative)), base: project(scen.base, structure, ctxOf(scen.base)), upside: project(scen.upside, structure, ctxOf(scen.upside)) }), [scen, structure, ctxOf]);
   const m = models[on];
-  const asked = askTotals(asks.filter((a) => a.plan_id === plan.id)).total;
+  const [synced, setSynced] = useState<number | null>(null);   // the ask as just set here, until the roadmap is read again
+  const asked = synced ?? askTotals(asks.filter((a) => a.plan_id === plan.id)).total;
   const inv = m.ok ? investor(m, structure) : null;
-  const swings = useMemo(() => sensitivity(i, 20), [i]);
+  const swings = useMemo(() => sensitivity(i, 20, ctxOf(i)), [i, ctxOf]);
   const found = flags(i, m, structure, asked || null, on === "base" ? models : undefined);
   const traces = useMemo(() => trace(i, structure, m), [i, structure, m]);
+  // The plan's research (0450): what the market says; only accepted findings count in the score.
+  const loadResearch = useCallback(async (): Promise<Research[] | "not-yet"> => {
+    if (!supabase) return [];
+    // arrives-with: 0450
+    const { data, error } = await supabase.from("vision_research").select("id, plan_id, topic, claim, figure, source_url, source_title, published, status, bearing, retrieved_at").eq("plan_id", plan.id).order("retrieved_at", { ascending: false }).limit(200);
+    if (error && (isMissingTable(error) || isMissingRelation(error))) return "not-yet";
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Research[];
+  }, [plan.id]);
+  const rs = useAsyncData(loadResearch, [plan.id]);
+  const research = useMemo(() => (Array.isArray(rs.data) ? rs.data : []), [rs.data]);
+  const scores = useMemo(() => {
+    const ctx = { needs: progress?.needs, waitingOn: progress?.waitingOn, conservative: models.conservative };
+    return { conservative: score(scen.conservative, models.conservative, research, { ...ctx, conservative: null }), base: score(scen.base, models.base, research, ctx), upside: score(scen.upside, models.upside, research, { ...ctx, conservative: null }) };
+  }, [scen, models, research, progress]);
   // The what-if is against the approved baseline — or, before there is one, against the numbers as this was opened.
   const ref = baseline?.snap ?? opened;
   const refWord = baseline ? "the approved baseline" : "when you opened this";
-  const refTraces = useMemo(() => trace(ref.scenarios[on], ref.structure), [ref, on]);
-  const because = useMemo(() => changedInputs(ref.scenarios[on], i, ref.structure, structure), [ref, on, i, structure]);
+  const refTraces = useMemo(() => trace(ref.scenarios[on], ref.structure, project(ref.scenarios[on], ref.structure, ctxOf(ref.scenarios[on]))), [ref, on, ctxOf]);
+  const because = useMemo(() => changedInputs(ref.scenarios[on], i, ref.structure, structure, ctxOf(ref.scenarios[on]), ctxOf(i)), [ref, on, i, structure, ctxOf]);
   const changes = useMemo(() => compare(refTraces, traces, because), [refTraces, traces, because]);
   const moved = new Map(changes.map((c) => [c.key, c]));
+  const baselineBase = useMemo(() => (baseline ? project(baseline.snap.scenarios.base, baseline.snap.structure, ctxOf(baseline.snap.scenarios.base)) : null), [baseline, ctxOf]);
   const offBaseline = !!baseline && JSON.stringify([scen, structure]) !== JSON.stringify([baseline.snap.scenarios, baseline.snap.structure]);
 
   const write = async (row: Record<string, unknown>, words: string, fail: string): Promise<boolean> => {
@@ -115,6 +147,22 @@ function Money({ plan, asks, saved, isOwner }: { plan: Plan; asks: Ask[]; saved:
     const b = baseline.snap;
     if (await write({ scenarios: b.scenarios, structure: b.structure }, "Back to the baseline.", "Couldn't go back to the baseline")) { setScen(b.scenarios); setStructure(b.structure); setFirst(JSON.stringify([b.scenarios, b.structure])); }
   };
+  // One capital picture (R62 — the audit's gap 4): the roadmap's ask for this plan made the money's funding required, so
+  // the roadmap, Present and the plan say one number. Asks first; one ask is set to it, none gets one, several are left to
+  // Ryan (which one is which is his to say).
+  const mine = asks.filter((a) => a.plan_id === plan.id);
+  const syncAsk = async () => {
+    if (!supabase || busy || !m.ok) return;
+    if (mine.length > 1) { toast("This plan has several asks — set them on the roadmap so they add to the funding required.", "error"); return; }
+    if (!(await confirm({ title: `Make the roadmap's ask ${dollars(m.requiredFunding)}?`, body: `The funding the ${SCENARIO_WORD[on]} numbers require: ${dollars(m.startupSpend)} to open and ${dollars(m.reserveNeeded)} for the early months. The roadmap and Present will show it.`, confirmLabel: "Make it the ask" }))) return;
+    setBusy(true);
+    const w = mine.length === 1 && mine[0].id
+      ? await supabase.from("vision_asks").update({ amount_cents: m.requiredFunding }).eq("id", mine[0].id)
+      : await supabase.from("vision_asks").insert({ program_id: plan.program_id, plan_id: plan.id, label: `${plan.name} — funding required`, amount_cents: m.requiredFunding, state: "open", note: `From the plan's money (${SCENARIO_WORD[on]})`, sort: 50 });
+    setBusy(false);
+    if (w.error) { toast(failureWords(w.error, "Couldn't set the ask"), "error"); return; }
+    setSynced(m.requiredFunding); haptic("success"); toast("The roadmap's ask is the plan's funding required now.");
+  };
   const makeBoth = async (c: Inputs, u: Inputs) => {
     if (!(await confirm({ title: "Replace Conservative and Upside?", body: "Both are remade from Base by your percentages — what's typed in them now is replaced. Nothing is saved until you press Save.", confirmLabel: "Make both from Base" }))) return;
     setScen((s) => ({ ...s, conservative: c, upside: u }));
@@ -135,19 +183,28 @@ function Money({ plan, asks, saved, isOwner }: { plan: Plan; asks: Ask[]; saved:
         {changes.length > 0 && <button type="button" className="btn-ter" aria-expanded={showChanges} onClick={() => setShowChanges((v) => !v)}>{showChanges ? "Hide what changed" : "Show what changed"}</button>}
       </div>
       {showChanges && changes.length > 0 && <Changes changes={changes} refWord={refWord} onOpen={setDrill} />}
-      <div className="vz-money grid gap-4 grid-cols-1 min-[1100px]:grid-cols-[minmax(0,400px)_minmax(0,1fr)] min-[1100px]:items-start">
+      {view === "traffic" && <TrafficView i={i} set={set} model={m} onOpen={setDrill} />}
+      {view === "room" && <RoomView i={i} set={set} room={room} model={m} onOpenRoom={onOpenRoom} onOpen={setDrill} />}
+      {view === "money" && <div className="vz-money grid gap-4 grid-cols-1 min-[1100px]:grid-cols-[minmax(0,400px)_minmax(0,1fr)] min-[1100px]:items-start">
         <div className="flex flex-col gap-3 min-w-0">
           <Lines i={i} set={set} on={on} m={m} onOpen={setDrill} />
           <Inputs_ i={i} set={set} fromSales={fromSales} />
+          <MixEditor i={i} set={set} />
           {on === "base" && <Derive base={scen.base} onMake={(c, u) => void makeBoth(c, u)} />}
           <StructureForm s={structure} set={setStructure} raised={asked} i={i} setI={set} />
           <Evidence onUse={(cents) => { set({ avgOrderCents: cents }); setFromSales(cents); }} />
+          <ResearchPanel planId={plan.id} items={research} ready={rs.data !== "not-yet"} onChanged={rs.reload} every={plan.research_every_days ?? 0} lastAt={plan.research_last_at ?? null} />
+          <ActualPanel plan={plan} model={baselineBase ?? models.base} against={baseline ? "the approved baseline's Base" : "the working Base (no baseline approved yet)"} />
         </div>
         <div className="flex flex-col gap-3 min-w-0">
+          <ScoreCard s={scores[on]} onOpen={setDrill} />
           <div className="vz-kpis grid gap-2 grid-cols-2 min-[700px]:grid-cols-3">
             {KPIS.filter((k) => m.ok || !NEEDS_MODEL.has(k)).map((k) => <Kpi key={k} t={traces[k]} was={moved.get(k)?.before ?? null} onOpen={setDrill} />)}
           </div>
           {!m.ok && <p className="vz-sub">Set {m.missing.join(", ")} to see {SCENARIO_WORD[on]}&apos;s money over 36 months.</p>}
+          {m.ok && m.requiredFunding > 0 && Math.abs(asked - m.requiredFunding) > 100 && mine.length <= 1 && !(synced !== null && mine.length === 0) && (
+            <button type="button" className="btn-sec btn-sm self-start" onClick={() => void syncAsk()} disabled={busy}>{mine.length ? `Make the roadmap's ask ${dollars(m.requiredFunding)} (it says ${dollars(asked)})` : `Put ${dollars(m.requiredFunding)} on the roadmap as this plan's ask`}</button>
+          )}
           {m.ok && found.length > 0 && <div className="flex flex-col gap-1" role="list" aria-label="Where the numbers disagree">{found.map((f, k) => (
             <div key={k} role="listitem" className={f.level === "stop" ? "vz-issue error flex flex-wrap items-baseline justify-between gap-2" : "vz-issue warn flex flex-wrap items-baseline justify-between gap-2"}>
               <span>{f.words}</span>{f.about && <button type="button" className="btn-ter vz-why" onClick={() => setDrill(f.about)}>Why</button>}
@@ -158,12 +215,12 @@ function Money({ plan, asks, saved, isOwner }: { plan: Plan; asks: Ask[]; saved:
               <Years m={m} onOpen={setDrill} />
               {inv && <Investor v={inv} t={traces} onOpen={setDrill} />}
               <Tornado swings={swings} pct={20} />
-              <Compare models={models} structure={structure} />
+              <Compare models={models} structure={structure} scores={scores} />
             </>
           )}
           <p className="vz-card-s">Projections from the numbers you set — not a forecast of what will happen, and not financial advice. Have an accountant check them before they go to an investor.</p>
         </div>
-      </div>
+      </div>}
       {drill && <Drill t={traces[drill]} all={traces} i={i} m={m} flagsAbout={found.filter((f) => f.about === drill)} change={moved.get(drill) ?? null} refWord={refWord} onOpen={setDrill} onClose={() => setDrill(null)} />}
     </div>
   );
@@ -390,7 +447,7 @@ function Investor({ v, t, onOpen }: { v: ReturnType<typeof investor>; t: Record<
   );
 }
 
-function Compare({ models, structure }: { models: Record<Scenario, Model>; structure: Structure }) {
+function Compare({ models, structure, scores }: { models: Record<Scenario, Model>; structure: Structure; scores: Record<Scenario, ReturnType<typeof score>> }) {
   const rows: [string, (m: Model) => string][] = [
     ["Year 3 sales", (m) => (m.ok ? dollars(m.years[2].revenue) : "—")],
     ["Funding required", (m) => (m.ok ? dollars(m.requiredFunding) : "—")],
@@ -401,9 +458,11 @@ function Compare({ models, structure }: { models: Record<Scenario, Model>; struc
   ];
   return (
     <div className="vz-cmp-wrap" role="region" aria-label="The scenarios side by side" tabIndex={0}>
+      {/* The score is the plan's, per scenario — the same rubric on each scenario's numbers. */}
       <table className="vz-cmp vz-num">
         <thead><tr><th scope="col"><span className="sr-only">Measure</span></th>{SCENARIOS.map((s) => <th key={s} scope="col"><i className={SC_SWATCH[s]} />{SCENARIO_WORD[s]}</th>)}</tr></thead>
-        <tbody>{rows.map(([l, f]) => <tr key={l}><th scope="row">{l}</th>{SCENARIOS.map((s) => <td key={s}>{f(models[s])}</td>)}</tr>)}</tbody>
+        <tbody>{rows.map(([l, f]) => <tr key={l}><th scope="row">{l}</th>{SCENARIOS.map((s) => <td key={s}>{f(models[s])}</td>)}</tr>)}
+          <tr><th scope="row">The score</th>{SCENARIOS.map((s) => <td key={s}>{scores[s].total == null ? "—" : `${scores[s].total} / 100`}</td>)}</tr></tbody>
       </table>
     </div>
   );

@@ -187,3 +187,17 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-path li b{color:var(--cream);font-variant-numeric:tabular-nums;text-align:right}
 .vz-line-total{margin:0;font-family:var(--mono);font-size:13px;color:var(--cream)}
 
+/* Traffic and the room (R55): the funnel, reach to sales, left to right (it wraps on a phone); who brings the orders. */
+.vz-funnel{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:2px}
+.vz-funnel li{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-left:2px solid var(--line2);font-family:var(--sans);min-width:0}
+.vz-funnel li:last-child{border-left-color:#3987e5}
+.vz-funnel span{font-size:12px;color:var(--cream-d)} .vz-funnel b{font-size:20px;font-weight:800;color:var(--cream);font-variant-numeric:tabular-nums}
+.vz-funnel em{font-style:normal;font-size:12px;color:var(--cream-d)}
+.vz-bars{display:flex;flex-direction:column;gap:6px}
+.vz-bar{display:grid;grid-template-columns:minmax(0,9rem) minmax(0,1fr) auto;gap:10px;align-items:center;font-family:var(--sans);font-size:13px;color:var(--cream-m)}
+.vz-bar svg{width:100%;height:10px} .vz-bar .bg{fill:var(--line)} .vz-bar .fill{fill:#3987e5}
+.vz-bar b{color:var(--cream);font-variant-numeric:tabular-nums}
+/* The advisor (R61): one line a thing to do — the tag, the action, the reason in the plan's own numbers. */
+.vz-advice{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;align-items:baseline;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:8px 0;font-family:var(--sans);font-size:13px;color:var(--cream-m);cursor:pointer}
+.vz-advice b{color:var(--cream)} .vz-advice em{grid-column:2;font-style:normal;font-size:12px;color:var(--cream-d)}
+.vz-advice:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}

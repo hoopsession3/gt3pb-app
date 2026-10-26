@@ -46,3 +46,13 @@ export function breakEvenUnits(fixedCents: number, contributionPerUnitCents: num
 export function roi(returned: number, basis: number): number | null {
   return basis > 0 ? (returned - basis) / basis : null;
 }
+
+/** The plans' horizon: 36 months, one place (lib/visionMoney, lib/visionTraffic). */
+export const MONTHS = 36;
+
+/** "$12,400", "−$3,100", "$1.2M" — money said once, the same way everywhere. */
+export function dollars(cents: number): string {
+  const d = Math.round(cents / 100), a = Math.abs(d), sign = d < 0 ? "−" : "";
+  if (a >= 1_000_000) return `${sign}$${(a / 1_000_000).toFixed(a % 1_000_000 === 0 ? 0 : 1)}M`;
+  return `${sign}$${a.toLocaleString("en-US")}`;
+}

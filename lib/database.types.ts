@@ -11083,6 +11083,69 @@ export type Database = {
           },
         ]
       }
+      vision_plan_risks: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          plan_id: string
+          kind: string
+          words: string
+          likelihood: string | null
+          impact: string | null
+          mitigation: string | null
+          evidence: string | null
+          status: string
+          sort: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          plan_id: string
+          kind?: string
+          words: string
+          likelihood?: string | null
+          impact?: string | null
+          mitigation?: string | null
+          evidence?: string | null
+          status?: string
+          sort?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          plan_id?: string
+          kind?: string
+          words?: string
+          likelihood?: string | null
+          impact?: string | null
+          mitigation?: string | null
+          evidence?: string | null
+          status?: string
+          sort?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_plan_risks_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "vision_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_plan_risks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vision_plans: {
         Row: {
           id: string
@@ -11104,6 +11167,14 @@ export type Database = {
           created_by: string | null
           created_at: string
           updated_at: string
+          opened_on: string | null
+          actual_channel: string | null
+          research_every_days: number
+          research_last_at: string | null
+          research_by: string | null
+          customer: string | null
+          market: string | null
+          positioning: string | null
         }
         Insert: {
           id?: string
@@ -11125,6 +11196,14 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           updated_at?: string
+          opened_on?: string | null
+          actual_channel?: string | null
+          research_every_days?: number
+          research_last_at?: string | null
+          research_by?: string | null
+          customer?: string | null
+          market?: string | null
+          positioning?: string | null
         }
         Update: {
           id?: string
@@ -11146,6 +11225,14 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           updated_at?: string
+          opened_on?: string | null
+          actual_channel?: string | null
+          research_every_days?: number
+          research_last_at?: string | null
+          research_by?: string | null
+          customer?: string | null
+          market?: string | null
+          positioning?: string | null
         }
         Relationships: [
           {
@@ -11246,6 +11333,78 @@ export type Database = {
           },
         ]
       }
+      vision_research: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          plan_id: string
+          run_id: string | null
+          topic: string
+          claim: string
+          figure: string | null
+          source_url: string
+          source_title: string | null
+          published: string | null
+          retrieved_at: string
+          status: string
+          bearing: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          plan_id: string
+          run_id?: string | null
+          topic: string
+          claim: string
+          figure?: string | null
+          source_url: string
+          source_title?: string | null
+          published?: string | null
+          retrieved_at?: string
+          status?: string
+          bearing?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          plan_id?: string
+          run_id?: string | null
+          topic?: string
+          claim?: string
+          figure?: string | null
+          source_url?: string
+          source_title?: string | null
+          published?: string | null
+          retrieved_at?: string
+          status?: string
+          bearing?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_research_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "vision_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vision_research_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vision_shares: {
         Row: {
           id: string
@@ -11259,6 +11418,8 @@ export type Database = {
           last_opened_at: string | null
           opens: number
           expires_at: string | null
+          money_plans: string[]
+          research_plans: string[]
         }
         Insert: {
           id?: string
@@ -11272,6 +11433,8 @@ export type Database = {
           last_opened_at?: string | null
           opens?: number
           expires_at?: string | null
+          money_plans?: string[]
+          research_plans?: string[]
         }
         Update: {
           id?: string
@@ -11285,6 +11448,8 @@ export type Database = {
           last_opened_at?: string | null
           opens?: number
           expires_at?: string | null
+          money_plans?: string[]
+          research_plans?: string[]
         }
         Relationships: [
           {

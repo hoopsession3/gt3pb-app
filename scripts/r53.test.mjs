@@ -66,14 +66,15 @@ const plan = (id, phase, extra = {}) => ({ id, program_id: "s", name: id, format
 // ── 2 · lib/visionRead ──────────────────────────────────────────────────────────────────────────────────────────────
 {
   const src = read("lib/visionRead.ts");
-  ok("before 0448 the plans are absent, not an error: plansReady false, the rest reads", /plansReady: !planErr/.test(src) && /notYet\(planErr\)/.test(src) && /arrives-with: 0448/.test(src));
+  // 0448 is applied (2026-10-25): the fallback is retired (R58) — the plans are always read, and a failure is said.
+  ok("0448 is in: the plans are always read, and a failed read is an error, not an empty plan", /plansReady: true/.test(src) && /if \(planErr\) throw new Error/.test(src));
   ok("a link's plans come with their needs and waits, and say when it ends", /waits_on/.test(src) && /expiresAt: j\.expires_at/.test(src));
 }
 
 // ── 3 · Shares ──────────────────────────────────────────────────────────────────────────────────────────────────────
 {
   const src = read("components/vision/Shares.tsx");
-  ok("a new link can end (7, 30, 90 days) — and before 0448 the choice hides rather than fails", /days: 30/.test(src) && /isMissingColumn\(first\.error\)/.test(src) && /setCanEnd\(false\)/.test(src));
+  ok("a new link can end (7, 30, 90 days) — 0448 is in, so every link can", /days: 30/.test(src) && /const canEnd = true/.test(src));
   ok("a link's state: off, ended, live — and when it ends", /word: "Ended"/.test(src) && /ends in \$\{days\} days/.test(src));
 }
 
@@ -90,7 +91,7 @@ const plan = (id, phase, extra = {}) => ({ id, program_id: "s", name: id, format
   ok("…the plan and the 3D side by side when the room's pane is wide enough (a container query)", /@container/.test(des) && /@min-\[720px\]:grid-cols/.test(des));
   ok("the device check: iPads both ways up, in Split View, and a desktop", ["ipad-11", "ipad-11-side", "ipad-13", "ipad-13-side", "ipad-split-half", "ipad-split-two-thirds", "desktop"].every((k) => smoke.includes(`key: "${k}"`)));
   ok("the column gate reads a later pending migration's added column on a pending table (0448's expires_at on 0447's links)",
-    /at === undefined \|\| at < born/.test(read("scripts/columns.audit.mjs")) && /arrives-with: 0448/.test(read("components/vision/Shares.tsx")));
+    /at === undefined \|\| at < born/.test(read("scripts/columns.audit.mjs")));
   ok("a status's tag class is written whole", /const TAG = \{ "": "k-tag", ok: "k-tag ok"/.test(read("components/vision/Plans.tsx")));
   ok("…and it visits the plans, the side by side, a plan's sheet and the ways-in slide", ["vision-plans", "vision-compare", "vision-plan-sheet", "vision-ways"].every((k) => smoke.includes(`key: "${k}"`)));
 }
