@@ -2,7 +2,7 @@
 
 import "./studio.css";
 import { failureWords } from "@/lib/failureWords";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { useAppStable } from "@/components/AppProvider";
@@ -67,6 +67,19 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // The canvas's height: the space actually left under it (S1.1 — the gate's question 1). Measured from where the stage
   // sits in its scrolling page to that page's bottom, again when anything resizes; never shorter than a usable canvas.
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
+  // THE SPLIT (S1.1b): side by side on an iPad or a desktop, the line between the plan and the 3D is dragged (or moved
+  // with the arrow keys) — a quarter to three quarters for the plan — and kept for the session. A phone stacks them.
+  const [split, setSplit] = useState(() => { try { const v = Number(sessionStorage.getItem("gt3.studio.split")); return v >= 0.25 && v <= 0.75 ? v : 0.55; } catch { return 0.55; } });
+  const storeEl = useRef<HTMLDivElement | null>(null);
+  const splitDrag = useRef<{ x0: number; w: number; s0: number } | null>(null);
+  useLayoutEffect(() => { storeEl.current?.style.setProperty("--sa", `${split}fr`); storeEl.current?.style.setProperty("--sb", `${1 - split}fr`); });
+  const setSplitKept = useCallback((v: number) => {
+    const n = Math.round(Math.min(0.75, Math.max(0.25, v)) * 100) / 100;
+    setSplit(n);
+    try { sessionStorage.setItem("gt3.studio.split", String(n)); } catch { /* storage refused */ }
+  }, []);
+  // Which pane the hands are in: marked, so it's clear which one the keys and the wheel are talking to.
+  const [activePane, setActivePane] = useState<"plan" | "3d">("plan");
   useEffect(() => {
     if (!stage) return;
     if (full) { stage.style.removeProperty("--stage-h"); return; }
@@ -307,9 +320,9 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           </aside>
         )}
         <div ref={setStage} className={docked ? "vz-stage docked" : "vz-stage"}>
-          <div className={view === "both" ? "vz-store both" : "vz-store"}>
+          <div ref={storeEl} className={view === "both" ? "vz-store both" : "vz-store"}>
             {view !== "3d" && (
-              <div className="vz-pane mpanel mb-0 relative min-w-0 overflow-hidden">
+              <div className={`vz-pane mpanel mb-0 relative min-w-0 overflow-hidden${view === "both" && activePane === "plan" ? " active" : ""}`} onPointerDownCapture={() => setActivePane("plan")}>
                 <PlanView layout={draft} selected={sel} bad={bad} canEdit={canEdit} onSelect={pick} flow={flow}
                   onMove={(id, at, done) => patchItem(id, at, done)} onResize={(id, p) => patchItem(id, p, false)}
                   onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }}
@@ -318,8 +331,17 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
                   onDetails={details} />
               </div>
             )}
+            {view === "both" && size !== "phone" && (
+              <div className="vz-divider" role="separator" aria-orientation="vertical" aria-label="Plan and 3D — drag, or use the arrow keys, to share the space"
+                aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(split * 100)} tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "ArrowLeft") { e.preventDefault(); setSplitKept(split - 0.05); } else if (e.key === "ArrowRight") { e.preventDefault(); setSplitKept(split + 0.05); } else if (e.key === "Home") { e.preventDefault(); setSplitKept(0.55); } }}
+                onDoubleClick={() => setSplitKept(0.55)}
+                onPointerDown={(e) => { const r = storeEl.current?.getBoundingClientRect(); if (!r) return; e.currentTarget.setPointerCapture?.(e.pointerId); splitDrag.current = { x0: e.clientX, w: r.width, s0: split }; }}
+                onPointerMove={(e) => { const d = splitDrag.current; if (d) setSplitKept(d.s0 + (e.clientX - d.x0) / d.w); }}
+                onPointerUp={() => { splitDrag.current = null; }} onPointerCancel={() => { splitDrag.current = null; }} />
+            )}
             {view !== "plan" && (
-              <div className="vz-pane mpanel mb-0 relative min-w-0">
+              <div className={`vz-pane mpanel mb-0 relative min-w-0${view === "both" && activePane === "3d" ? " active" : ""}`} onPointerDownCapture={() => setActivePane("3d")}>
                 <Store3D layout={draft} selected={sel} onPick={pick} figures={figures} heat={flow?.heat} label={`${draft.name}, in 3D — drag to turn, pinch to come closer`} />
                 <p className="vz-hint">Drag to turn · pinch or scroll to zoom · double-tap: corner view</p>
               </div>

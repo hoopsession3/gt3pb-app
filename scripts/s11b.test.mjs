@@ -63,5 +63,10 @@ ok("…and no longer numbered", !/lead=\{String\(n \+ 1\)\}/.test(studio));
 const css = read("components/vision/studio.css");
 ok("the red dimension style is gone; gaps are a quiet brown, the picked label dark with gold", !/\.dim\{stroke:#b82420/.test(css) && /\.gap\{stroke:#5a4a2c/.test(css) && /\.seltag \.lead\{stroke:#c8902f/.test(css));
 
+const des = studio;
+ok("the split is dragged, or moved with the arrow keys, a quarter to three quarters, and kept for the session", /role="separator"/.test(des) && /ArrowLeft/.test(des) && /Math\.min\(0\.75, Math\.max\(0\.25, v\)\)/.test(des) && /gt3\.studio\.split/.test(des));
+ok("…set as a CSS variable, not an inline style", /style\.setProperty\("--sa"/.test(des) && /var\(--sa,1\.15fr\)/.test(css));
+ok("the pane the hands are in is marked", /activePane === "plan" \? " active"/.test(des) && /\.vz-pane\.active\{box-shadow/.test(css));
+ok("a phone stacks them — no divider", /view === "both" && size !== "phone" && \(\s*<div className="vz-divider"/.test(des));
 console.log(`S1.1b — THE STUDIO, SECOND PASS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

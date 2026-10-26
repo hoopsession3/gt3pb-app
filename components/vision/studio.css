@@ -30,7 +30,12 @@
 .vz-studio.phone .vz-stage{height:var(--stage-h,clamp(360px,calc(100dvh - 250px),900px))}
 .vz-store{display:grid;gap:12px;height:100%;grid-template-columns:minmax(0,1fr)}
 .vz-store.both{grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
-.vz-studio:not(.phone) .vz-store.both{grid-template-rows:none;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+.vz-studio:not(.phone) .vz-store.both{grid-template-rows:none;gap:0;grid-template-columns:minmax(0,var(--sa,1.15fr)) 14px minmax(0,var(--sb,1fr))}
+.vz-divider{cursor:col-resize;touch-action:none;display:flex;justify-content:center;outline:none}
+.vz-divider::after{content:"";width:4px;height:44px;align-self:center;background:rgba(246,240,227,.22)}
+.vz-divider:focus-visible::after{background:#c8902f}
+@media (hover:hover){.vz-divider:hover::after{background:#c8902f}}
+.vz-store.both .vz-pane.active{box-shadow:inset 0 0 0 1.5px rgba(200,144,47,.55)}
 .vz-store .vz-pane{height:100%;min-height:0}
 .vz-stage .vz-3d{height:100%}
 .vz-side,.vz-lib{display:flex;flex-direction:column;gap:12px;min-width:0;position:sticky;top:12px;max-height:calc(100dvh - 24px);overflow-y:auto}

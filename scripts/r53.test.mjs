@@ -89,7 +89,7 @@ const plan = (id, phase, extra = {}) => ({ id, program_id: "s", name: id, format
   ok("the vision is on the desk from 1,024 wide in landscape", /p === "\/vision" \|\| p\.startsWith\("\/vision\/"\)/.test(surf));
   // S1 (the studio) lays the drafting table out by the studio's own width, not the screen's: scripts/s1.test.mjs.
   ok("the drafting table: library, room, inspector — three columns wide, two on an iPad upright (S1: by the studio's width)", /useStudioSize\(\)/.test(des) && /\.vz-studio\.wide\.lib \.vz-work\{grid-template-columns:240px minmax\(0,1fr\) 320px\}/.test(read("components/vision/studio.css")) && /\.vz-studio\.mid \.vz-work\{grid-template-columns:minmax\(0,1fr\) 300px\}/.test(read("components/vision/studio.css")));
-  ok("…the plan and the 3D side by side when the studio is wide enough", /\.vz-studio:not\(\.phone\) \.vz-store\.both\{grid-template-rows:none;grid-template-columns:minmax\(0,1\.15fr\) minmax\(0,1fr\)\}/.test(read("components/vision/studio.css")));
+  ok("…the plan and the 3D side by side when the studio is wide enough", /\.vz-studio:not\(\.phone\) \.vz-store\.both\{grid-template-rows:none;gap:0;grid-template-columns:minmax\(0,var\(--sa,1\.15fr\)\) 14px minmax\(0,var\(--sb,1fr\)\)\}/.test(read("components/vision/studio.css")));
   ok("the device check: iPads both ways up, in Split View, and a desktop", ["ipad-11", "ipad-11-side", "ipad-13", "ipad-13-side", "ipad-split-half", "ipad-split-two-thirds", "desktop"].every((k) => smoke.includes(`key: "${k}"`)));
   ok("the column gate reads a later pending migration's added column on a pending table (0448's expires_at on 0447's links)",
     /at === undefined \|\| at < born/.test(read("scripts/columns.audit.mjs")));
