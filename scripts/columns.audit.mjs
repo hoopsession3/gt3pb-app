@@ -59,6 +59,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { walk } from "./falseempty.audit.mjs"; // one file-walker, not four
+import { heldMigrations } from "./migrations.pending.mjs"; // the held list the paste file is written from
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SNAPSHOT = join(ROOT, "supabase/schema.columns.json");
@@ -144,6 +145,18 @@ export function pendingMigrations(src = null, file = PENDING_FILE) {
     out.set(starts[k][1], body.join("\n"));
   }
   return out.size === Number(want[1]) ? out : null;
+}
+
+/**
+ * The pending migrations plus those held back on purpose (supabase/held.json): a held migration is out of the paste file
+ * but not applied (2026-10-26: 0456 held until 0457), so what it adds is still arriving — excused only where the call
+ * site says so, as for any pending one. `pending` null stays null: cannot tell is not "nothing arriving".
+ */
+export function withHeld(pending, held = heldMigrations()) {
+  if (!pending) return pending;
+  const out = new Map(pending);
+  for (const h of held) out.set(h.seq, readFileSync(join(ROOT, "supabase/migrations", h.file), "utf8"));
+  return out;
 }
 
 /**
@@ -234,14 +247,16 @@ export function arrivingRelations(pending = pendingMigrations()) {
  * migrations production had applied, each guarding a fallback no database would take again — dead branches the tests
  * pinned in place. Every `// arrives-with: NNNN` whose migration is not pending is named here, to be retired with the
  * fallback it guards. `pending` null (the paste file unreadable) checks nothing.
+ * A migration held back on purpose (supabase/held.json) is left out of the paste file but is not applied either
+ * (2026-10-26: 0456 held until 0457) — it is still arriving, so a marker naming it stands.
  */
-export function staleMarkers(files, pending = pendingMigrations()) {
+export function staleMarkers(files, pending = pendingMigrations(), held = new Set(heldMigrations().map((h) => h.seq))) {
   if (!pending) return [];
   const out = [];
   for (const [rel, src] of files) {
     for (const m of src.matchAll(/\/\/\s*arrives-with:\s*0*(\d{3,4})\b/g)) {
       const num = Number(m[1]);
-      if (!pending.has(num)) out.push(`${rel}  arrives-with: ${String(num).padStart(4, "0")}`);
+      if (!pending.has(num) && !held.has(num)) out.push(`${rel}  arrives-with: ${String(num).padStart(4, "0")}`);
     }
   }
   return out;
@@ -404,7 +419,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   }
 
   const schema = JSON.parse(readFileSync(SNAPSHOT, "utf8"));
-  const pend = pendingMigrations();
+  const pend = withHeld(pendingMigrations());
   const arriving = arrivingColumns(pend);
   const arrivingRels = arrivingRelations(pend);
   const missingRel = [], missingCol = [], declared = [], undeclared = [];

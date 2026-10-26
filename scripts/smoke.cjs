@@ -15820,10 +15820,12 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
       && !appCode.some((f) => /claims: null/.test(rd(f))));
   // F10 — every fallback kept for a migration that was not yet pasted is gone, and the audit retires the next one
   // A marker is for a migration still in the paste file (written, not applied) — R15's 0422 has one; none is for one applied.
-  const pendingNow = new Set([...rd("supabase/APPLY_ALL_PENDING.sql").matchAll(/^--\s*={10,}\s*\n--\s*(\d{4})_\S*\.sql\s*$/gm)].map((m) => m[1]));
+  // A migration held back on purpose (supabase/held.json) is out of the paste file but not applied — still arriving.
+  const pendingNow = new Set([...[...rd("supabase/APPLY_ALL_PENDING.sql").matchAll(/^--\s*={10,}\s*\n--\s*(\d{4})_\S*\.sql\s*$/gm)].map((m) => m[1]),
+    ...JSON.parse(rd("supabase/held.json")).held.map((h) => String(h.file).slice(0, 4))]);
   const staleMarks = appCode.flatMap((f) => [...rd(f).matchAll(/arrives-with: (0\d{3})/g)].filter((m) => !pendingNow.has(m[1])).map((m) => `${f}: ${m[1]}`));
   ok("R14 skew: no screen, route or helper keeps a path for a migration that is applied — and the columns audit says so when one is left",
-    staleMarks.length === 0 && /export function staleMarkers\(files, pending = pendingMigrations\(\)\)/.test(rd("scripts/columns.audit.mjs")), staleMarks);
+    staleMarks.length === 0 && /export function staleMarkers\(files, pending = pendingMigrations\(\), held = new Set\(heldMigrations\(\)\.map\(\(h\) => h\.seq\)\)\)/.test(rd("scripts/columns.audit.mjs")), staleMarks);
   // F5 — the retired Square switch is read nowhere
   ok("R14 square: NEXT_PUBLIC_SQUARE_ENV is read nowhere — the app ID's own prefix picks sandbox or production, the menu and the health check included",
     !appCode.some((f) => /process\.env\.NEXT_PUBLIC_SQUARE_ENV|env\[["']NEXT_PUBLIC_SQUARE_ENV["']\]/.test(rd(f))) && !/NEXT_PUBLIC_SQUARE_ENV/.test(rd(".github/workflows/ios.yml")));

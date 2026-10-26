@@ -15,6 +15,11 @@
       "file": "0442_the_course_is_bought_and_the_pillars_are_given.sql",
       "until": "GT3 Nutrition is for sale in the Shop and a purchase grants program_access (the round after R45) — applied before, nobody but the crew could open a lesson and nobody could buy the way in; then pasted by itself with its own yes",
       "since": "2026-10-20"
+    },
+    {
+      "file": "0456_the_primal_standard_engine.sql",
+      "until": "P1.1 (0457) is ready; then 0456 and 0457 are pasted together with their own yes. The P1 screens say \"arrives with 0456\" until the tables exist",
+      "since": "2026-10-26"
     }
   ]
 }

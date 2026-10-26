@@ -12,7 +12,7 @@ import { unheardIn, collect as collectUnheard, UNHEARD_BASELINE } from "./spoken
 import { refusalHeadings, refusesWithoutPolicy, collapsesVerdicts } from "./gate.audit.mjs";
 import { handRollsCrew, bypassesTaskSpine, CREW_EXEMPT, namesRoleVocabulary, rolesNamedIn, rendersRawCrewOption, peelsErrorMessageByHand } from "./dupe.audit.mjs";
 import { envFindings, readsIn } from "./env.audit.mjs";
-import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, arrivingRelations, declaresArrival, staleMarkers } from "./columns.audit.mjs";
+import { selectsIn, topLevelParts, columnsOf, ageLine, pendingMigrations, arrivingColumns, arrivingRelations, declaresArrival, staleMarkers, withHeld } from "./columns.audit.mjs";
 import { definitionsToSchema, refuseReason, projectRef } from "./schema.snapshot.mjs";
 import { classify as classifyRoute, unwrapped, boundOf, agentDoor, roleCheckOf, chainEnd, relationsOf, AGENT_DOOR_DEBT } from "./api.audit.mjs";
 import { reassemble } from "./security.snapshot.mjs";
@@ -507,6 +507,12 @@ ok("arriving: silence is not a declaration",
   ok("stale markers: one naming a pending migration is not", !staleMarkers(files, pending).some((m) => m.includes("0422")));
   ok("stale markers: with every migration applied (an empty paste file), every marker is stale", staleMarkers(files, new Map()).length === 2);
   ok("stale markers: an unreadable paste file checks nothing", staleMarkers(files, null).length === 0);
+  const held = withHeld(new Map(), [{ seq: 456, file: "0456_the_primal_standard_engine.sql" }]);
+  ok("held: what a migration held back on purpose creates is still arriving — its tables are excused where declared, as a pending one's",
+    held.has(456) && arrivingRelations(held).get("std_item_materials") === 456, [...arrivingRelations(held)].slice(0, 3));
+  ok("held: an unreadable paste file stays unreadable with a held list (cannot tell is not \"nothing arriving\")", withHeld(null, []) === null);
+  ok("stale markers: one naming a migration held back on purpose (supabase/held.json) is not — it is still arriving",
+    JSON.stringify(staleMarkers(files, new Map(), new Set([341]))) === JSON.stringify(["lib/b.ts  arrives-with: 0422"]), staleMarkers(files, new Map(), new Set([341])));
 }
 
 // R14 (F14): every setting the app reads is declared, and every declaration is read.
