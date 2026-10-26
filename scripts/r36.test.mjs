@@ -37,7 +37,10 @@ const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n
     && ["two_step_ok", "two_step_state", "require_two_step"].every((f) => v.definerExec.some((d) => String(d).startsWith(f)))
     && /definerExec 124 → 127 — two_step_ok, two_step_state and require_two_step \(0433/.test(read("scripts/security.audit.mjs")),
     v.definerExec.filter((d) => /two_step|require_two/.test(String(d))));
-  ok("…and nothing new is callable signed out (anon 15)", CEILING.anonExec === 15 && v.anonExec.length === 15, v.anonExec.length);
+  // The snapshot R36 judged counts 15 signed out. The ceiling is that, or the one raise named in security.audit.mjs ahead of
+  // the next pull (2026-10-26: 15 → 16, vision_shared, 0447) — the owner's yes, so the re-pulled snapshot meets it.
+  ok("…and nothing new is callable signed out (anon 15)", v.anonExec.length === 15 && (CEILING.anonExec === 15
+    || (CEILING.anonExec === 16 && /anonExec 15 → 16 — vision_shared \(0447/.test(read("scripts/security.audit.mjs")))), { measured: v.anonExec.length, ceiling: CEILING.anonExec });
   const fns = new Map((snap.f || []).map((f) => [`${f[0]}(${f[1]})`, f]));
   ok("the server's own doors 0430 and 0434 made are the server's alone in production (ops_alive, rate_limit_peek)",
     [...fns.entries()].filter(([k]) => /^(ops_alive|rate_limit_peek)\(/.test(k)).every(([, f]) => f[2] === false && f[3] === false && f[4] === true)

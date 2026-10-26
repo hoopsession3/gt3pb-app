@@ -121,12 +121,16 @@ export const CEILING = {
   // authenticated by name. staff_collect_payment's four-argument door (0432) replaced its three, one for one. ops_alive
   // (0430), rate_limit_peek (0434) and funnel_step_counted (0437) are the server's or a trigger's and granted to no API
   // role. Nothing new is callable signed out (anon 15).
-  publicRead: 3,       // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
+  // 2026-10-26, ahead of the snapshot past ledger 0447: anonExec 15 → 16 — vision_shared (0447: what a vision link opens —
+  // the roadmap, the asks, the layouts, and from 0451 only the money and research an owner chose for that link — by a long
+  // random token, never who wrote it; granted to anon and authenticated by name; 0448, 0451 and 0454 redefine it, one
+  // function). Raised by the owner's yes before the re-pull, so the snapshot at or past 0447 meets it.
+  publicRead: 3,      // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
   definerExec: 127,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.
-  anonExec: 15,
+  anonExec: 16,
   definerView: 1,      // owner-run views the API roles may read: market_live
 };
 
