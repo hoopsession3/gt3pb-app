@@ -56,14 +56,30 @@ const UA = {
 };
 export const SECTIONS = ["day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "catalog", "customers", "team", "settings"];
 
+// S1.1 — THE STUDIO'S GATE, measured on the screen itself: the whole room drawn inside its pane (nothing clipped) and
+// large (its longer side at least 70% of the pane's), and the canvas whole on the first screen — no scrolling to reach
+// the drawing (a phone may scroll to the room's lists below it, not to the canvas). Returns what's wrong, or null.
+const STUDIO_FITS = () => {
+  const box = document.querySelector(".vz-planbox"), room = document.querySelector(".vz-plan .room"), stage = document.querySelector(".vz-stage");
+  if (!box || !room || !stage) return "no plan on screen";
+  const b = box.getBoundingClientRect(), r = room.getBoundingClientRect(), s = stage.getBoundingClientRect();
+  const out = [];
+  if (r.left < b.left - 1 || r.top < b.top - 1 || r.right > b.right + 1 || r.bottom > b.bottom + 1) out.push(`the room spills out of its pane (${Math.round(r.left - b.left)},${Math.round(r.top - b.top)} → ${Math.round(b.right - r.right)},${Math.round(b.bottom - r.bottom)})`);
+  const use = Math.max(r.width / b.width, r.height / b.height);
+  if (use < 0.7) out.push(`the room uses ${Math.round(use * 100)}% of its pane`);
+  if (s.bottom > window.innerHeight + 1) out.push(`the canvas runs ${Math.round(s.bottom - window.innerHeight)}px past the screen`);
+  if (s.height < 300) out.push(`the canvas is only ${Math.round(s.height)}px tall`);
+  return out.length ? out.join("; ") : null;
+};
+
 // The crew's screens outside the console (R52): where each opens, what says it's drawn, what to tap first.
 const VISITS = [
   { key: "vision-roadmap", path: "/vision", ready: ".vz-board", drawn: ".vz-board .vz-card", long: true },
-  { key: "vision-store", path: "/vision", ready: ".vz-board", clicks: ["The store"], drawn: ".vz-plan .it", long: true },
+  { key: "vision-store", path: "/vision", ready: ".vz-board", clicks: ["The store"], drawn: ".vz-plan .it", long: true, check: STUDIO_FITS },
   { key: "vision-flow", path: "/vision", ready: ".vz-board", clicks: ["The store", "Run the flow"], drawn: ".vz-plan .guest", long: true },
   // S1, the studio: the canvas full screen, and the library (a sheet on a phone and an iPad upright, beside the canvas wide).
-  { key: "vision-store-full", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], drawn: ".vz-studio.full .vz-plan .it", long: false },
-  { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "+ Add"], drawn: ".vz-library .vz-lib-row", long: false },
+  { key: "vision-store-full", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], drawn: ".vz-studio.full .vz-plan .it", long: false, check: STUDIO_FITS },
+  { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "Add a fixture"], drawn: ".vz-library .vz-lib-row", long: false },
   { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
   { key: "vision-present", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], drawn: ".vp-slide", long: false },
   { key: "vision-ways", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-steps" }, drawn: ".vp-steps .vp-chip", long: false },
@@ -277,8 +293,9 @@ try {
   for (const d of DEVICES.filter((x) => !process.env.CONSOLE_DEVICES || process.env.CONSOLE_DEVICES.split(",").includes(x.key))) {
     mkdirSync(`${OUT}/${d.key}`, { recursive: true });
     const desk = d.kind === "desktop";
+    // CONSOLE_VIDEO=<dir>: every page recorded (a release gate's interaction recordings).
     const ctx = await browser.newContext({ viewport: { width: d.w, height: d.h }, deviceScaleFactor: d.dpr, isMobile: !desk, hasTouch: !desk, bypassCSP: true,
-      userAgent: UA[d.kind ?? "phone"] });
+      userAgent: UA[d.kind ?? "phone"], ...(process.env.CONSOLE_VIDEO ? { recordVideo: { dir: `${process.env.CONSOLE_VIDEO}/${d.key}`, size: { width: Math.min(d.w, 1440), height: Math.min(d.h, 1032) } } } : {}) });
     await ctx.addInitScript(([k, v]) => { try { localStorage.setItem(k, v); localStorage.setItem("gt3-guide-seen", "1"); sessionStorage.setItem("gt3-splash-shown", "1"); } catch { /* */ } }, ["sb-127-auth-token", JSON.stringify(session())]);
     for (const s of SECTIONS) {
       if (only && !only.includes(s)) continue;
@@ -366,9 +383,13 @@ try {
       if (process.env.CONSOLE_VERBOSE) console.log(`  · ${tag}`);
       const drawn = await page.evaluate((sel) => !!document.querySelector(sel), v.drawn).catch(() => false);
       ok(`${tag} · drawn`, drawn, (await page.evaluate(() => document.body.innerText.slice(0, 160)).catch(() => "")).replace(/\s+/g, " "));
+      if (v.check) { const said = await page.evaluate(v.check).catch((e) => e.message); ok(`${tag} · the studio fits its screen (S1.1)`, !said, said); }
       const m = await page.evaluate(MEASURE).catch((e) => ({ error: e.message }));
       await page.screenshot({ path: `${OUT}/${d.key}/${v.key}-screen.png` }).catch(() => {});
       if (v.long) await longShot(page, `${OUT}/${d.key}/${v.key}.png`).catch(() => {});
+      // CONSOLE_AFTER=<module>: a walk-through run on the visit's page once it's drawn (a release gate's acceptance run);
+      // its default export gets the page, the device and the visit, and reports through ok().
+      if (process.env.CONSOLE_AFTER) await (await import(process.env.CONSOLE_AFTER)).default({ page, device: d, visit: v, ok, out: `${OUT}/${d.key}` }).catch((e) => ok(`${tag} · the walk-through ran`, false, e.message));
       const dbBad = fb.failures.slice(mark).map((f) => `${f.status} ${f.method} ${f.path.replace("/rest/v1/", "")} — ${f.message}`);
       ok(`${tag} · every read and write the screen made, answered`, dbBad.length === 0, [...new Set(dbBad)].slice(0, 4));
       ok(`${tag} · no error on the page`, errors.length === 0, errors.slice(0, 3));

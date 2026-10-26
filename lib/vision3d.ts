@@ -117,6 +117,25 @@ export function homeCamera(room: { width_in: number; depth_in: number }, yaw = 0
   return { yaw, pitch: 0.62, dist: (diag / 2 / Math.tan(fov / 2)) * (1.15 / fit), target: [room.width_in / 2, 0, room.depth_in / 2], fov };
 }
 
+/** The corner view that fits (S1.1 — measured: in a tall Split View pane the aspect guess cut the room's far corner off):
+ *  the closest distance at which every corner of the room, floor to the top of the walls drawn, lands inside the canvas
+ *  with a margin. Found by halving between "everything inside" and "something outside"; pure, so it is tested. */
+export function fitCamera(room: { width_in: number; depth_in: number; ceiling_in?: number }, yaw: number, w: number, h: number, margin = 0.06): Camera {
+  const base = homeCamera(room, yaw, w > 0 && h > 0 ? w / h : 1.6);
+  if (!(w > 0 && h > 0)) return base;
+  const top = Math.min(room.ceiling_in ?? 108, 108);
+  const corners: V3[] = [];
+  for (const x of [0, room.width_in]) for (const z of [0, room.depth_in]) for (const y of [0, top]) corners.push([x, y, z]);
+  const fits = (dist: number) => {
+    const pr = projector({ ...base, dist }, w, h);
+    return corners.every((c) => { const p = pr(c); return !!p && p[0] >= w * margin && p[0] <= w * (1 - margin) && p[1] >= h * margin && p[1] <= h * (1 - margin); });
+  };
+  let lo = 40, hi = Math.max(base.dist, 200);
+  for (let k = 0; k < 20 && !fits(hi); k++) hi *= 1.5;
+  for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+  return { ...base, dist: hi };
+}
+
 /** Which item a tap at (x, y) lands on: the nearest face that contains the point (faces are sorted far → near). */
 export function pick(faces: readonly Face[], x: number, y: number): string | null {
   for (let i = faces.length - 1; i >= 0; i--) {

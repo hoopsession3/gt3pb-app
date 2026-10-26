@@ -8,7 +8,7 @@ import { roomyAt, sizeOf, type StudioSize } from "@/lib/visionStudio";
 // itself (a ResizeObserver), so a rotated iPad or a dragged Split View divider re-lays it at once.
 // The rule itself is lib/visionStudio.
 /** `ref` goes on the studio's root: a callback, so full screen (the studio drawn again at the app's root) is measured anew. */
-export function useStudioSize(): { ref: (el: HTMLElement | null) => void; size: StudioSize; roomy: boolean } {
+export function useStudioSize(): { ref: (el: HTMLElement | null) => void; size: StudioSize; roomy: boolean; width: number } {
   const [el, ref] = useState<HTMLElement | null>(null);
   const [w, setW] = useState(0);
   useEffect(() => {
@@ -20,5 +20,5 @@ export function useStudioSize(): { ref: (el: HTMLElement | null) => void; size: 
     ro.observe(el);
     return () => ro.disconnect();
   }, [el]);
-  return { ref, size: sizeOf(w), roomy: w >= roomyAt };
+  return { ref, size: sizeOf(w), roomy: w >= roomyAt, width: w };
 }

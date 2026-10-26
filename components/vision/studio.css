@@ -13,7 +13,7 @@
 .vz-tbar-r>*{flex:none;width:auto}
 .vz-studio.phone .vz-tbar-l,.vz-studio.phone .vz-tbar-r{flex:1 1 100%;gap:6px}
 .vz-studio.phone .vz-tbar-l{justify-content:space-between}
-.vz-studio.phone .vz-tbar-r{justify-content:flex-start}
+.vz-studio.phone .vz-tbar-r{justify-content:flex-start;flex-wrap:wrap}
 .vz-tbar-room{flex:1 1 160px;min-width:110px;max-width:340px;width:auto}
 .vz-tbar-l .k-seg-wrap{flex:none;max-width:none}
 .vz-tbar-name{flex:0 1 auto;font-family:var(--sans);font-size:17px;font-weight:800;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
@@ -21,10 +21,13 @@
 .vz-stats-line::-webkit-scrollbar{display:none}
 .vz-work{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);align-items:start}
 .vz-studio.mid .vz-work{grid-template-columns:minmax(0,1fr) 300px}
+.vz-studio.narrow .vz-work{grid-template-columns:minmax(0,1fr)}
 .vz-studio.wide .vz-work{grid-template-columns:minmax(0,1fr) 320px}
 .vz-studio.wide.lib .vz-work{grid-template-columns:240px minmax(0,1fr) 320px}
-.vz-stage{position:relative;min-width:0;height:clamp(380px,calc(100dvh - 230px),1100px)}
-.vz-studio.phone .vz-stage{height:clamp(360px,calc(100dvh - 250px),900px)}
+/* The canvas's height is the space actually left under it in its scrolling page (StoreDesigner measures it into
+   --stage-h); the clamp is only the first frame's guess. */
+.vz-stage{position:relative;min-width:0;height:var(--stage-h,clamp(380px,calc(100dvh - 230px),1100px))}
+.vz-studio.phone .vz-stage{height:var(--stage-h,clamp(360px,calc(100dvh - 250px),900px))}
 .vz-store{display:grid;gap:12px;height:100%;grid-template-columns:minmax(0,1fr)}
 .vz-store.both{grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
 .vz-studio:not(.phone) .vz-store.both{grid-template-rows:none;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
@@ -50,19 +53,63 @@
 .vz-lib-row small{font-family:var(--mono);font-size:12px;color:var(--cream-d)}
 .vz-lib-row em{font-style:normal;font-family:var(--sans);font-size:20px;font-weight:700;color:var(--gold)}
 /* what floats over the canvas */
-.vz-float-flow{position:absolute;left:10px;bottom:10px;z-index:3;width:min(400px,calc(100% - 20px));max-height:calc(100% - 20px);overflow-y:auto;padding:12px;background:color-mix(in srgb,var(--card) 90%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.vz-float-flow{animation:vzHalo .18s ease-out both;position:absolute;left:10px;bottom:10px;z-index:3;width:min(400px,calc(100% - 20px));max-height:calc(100% - 20px);overflow-y:auto;padding:12px;background:color-mix(in srgb,var(--card) 90%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 .vz-flow-what summary{cursor:pointer;font-family:var(--sans);font-size:12px;color:var(--cream-d);min-height:28px;display:flex;align-items:center}
-.vz-dock{position:absolute;left:8px;right:8px;bottom:8px;z-index:4;display:flex;flex-direction:column;gap:6px;padding:4px 12px 12px;max-height:calc(100% - 16px);overflow-y:auto;box-shadow:0 18px 40px -18px rgba(0,0,0,.6)}
-.vz-dock.open{max-height:70%}
+.vz-stage.docked{display:flex;flex-direction:column;gap:8px}
+.vz-stage.docked .vz-store{flex:1 1 0;min-height:0;height:auto}
+.vz-studio.full:not(.narrow) .vz-stage.docked{flex-direction:row}
+/* the dock sits beside the drawing, never over it (S1.1 — "contextual panels do not obscure essential design content") */
+.vz-dock{animation:vzDockUp .22s cubic-bezier(.2,.9,.2,1) both;position:relative;flex:none;display:flex;flex-direction:column;gap:6px;padding:10px 12px;max-height:40%;overflow-y:auto}
+.vz-studio.full:not(.narrow) .vz-dock{width:340px;max-height:100%}
 .vz-dock .vz-insp{border:0;padding:0;background:transparent;box-shadow:none}
-.vz-dock-grab{display:flex;justify-content:center;align-items:center;width:100%;min-height:24px;border:0;background:transparent;cursor:pointer;padding:0}
-.vz-dock-grab i{width:40px;height:5px;border-radius:var(--r-xs);background:var(--line2)}
-.vz-dock-peek{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
-.vz-dock-peek .vz-card-s{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vz-studio.narrow .vz-dock{min-height:68px;justify-content:center}
+.vz-dock-peek{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;justify-content:space-between}
+.vz-dock-peek>div{flex:1 1 auto}
 .vz-pill-issue{position:absolute;left:10px;bottom:10px;z-index:3;color:var(--warn)}
 .vz-pill-issue.error{color:var(--red-h,#dd5651)}
 /* full screen: the whole display, safe areas kept */
 .vz-studio.full{position:fixed;inset:0;z-index:70;padding:calc(env(safe-area-inset-top,0px) + 10px) calc(env(safe-area-inset-right,0px) + 12px) calc(env(safe-area-inset-bottom,0px) + 10px) calc(env(safe-area-inset-left,0px) + 12px);background:var(--char3);overflow:hidden}
-.vz-studio.full .vz-work{flex:1;min-height:0;align-items:stretch}
+.vz-studio.full .vz-work,.vz-studio.full.wide .vz-work,.vz-studio.full.mid .vz-work{flex:1;min-height:0;align-items:stretch;grid-template-columns:minmax(0,1fr)}
 .vz-studio.full .vz-stage{height:auto;min-height:0}
 .vz-studio.full .vz-side,.vz-studio.full .vz-lib{position:static;max-height:none;height:100%}
+
+/* ── the plan (S1.1: a real camera) ──
+   The drawing fills its pane; lines and words keep their size on screen at any zoom (non-scaling strokes; sizes set in
+   PlanView from the camera's scale). The walls are drawn in the room's own inches. */
+.vz-planbox{position:absolute;inset:0;overflow:hidden;touch-action:none}
+.vz-plan{display:block;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+.vz-plan:active{cursor:grabbing}
+.vz-plan .room{fill:#f6f0e3;stroke:#2a2820;stroke-width:6}
+.vz-plan .grid1,.vz-plan .grid4,.vz-plan .it rect.body,.vz-plan .front,.vz-plan .dim,.vz-plan .tag,.vz-plan .guest,.vz-plan .halo,.vz-plan .grip .dot{vector-effect:non-scaling-stroke}
+.vz-plan .grid1{stroke:rgba(42,40,32,.07);stroke-width:1}
+.vz-plan .grid4{stroke:rgba(42,40,32,.16);stroke-width:1.5}
+.vz-plan .it{cursor:grab;outline:none}
+.vz-plan .it rect.body{stroke:rgba(0,0,0,.35);stroke-width:1.5}
+@media (hover:hover){.vz-plan .it:hover rect.body{stroke:#c8902f;stroke-width:2}}
+.vz-plan .it:focus-visible rect.body{stroke:#c8902f;stroke-width:3;stroke-dasharray:5 3}
+.vz-plan .it.sel rect.body{stroke:#c8902f;stroke-width:3}
+.vz-plan .halo{fill:rgba(200,144,47,.14);stroke:#c8902f;stroke-width:1.5;stroke-opacity:.6;pointer-events:none;animation:vzHalo .22s ease-out both}
+.vz-plan .it.bad rect.body{stroke:#b82420;stroke-width:3;stroke-dasharray:8 5}
+.vz-plan .it text{font-family:var(--sans);font-weight:700;fill:#1a1610;pointer-events:none}
+.vz-plan .tag{fill:#1a1610;stroke:#f6f0e3;stroke-width:1.5;pointer-events:none}
+.vz-plan .it text.tagt{fill:#f6f0e3;font-family:var(--sans);font-weight:800;pointer-events:none}
+.vz-plan .front{stroke:#1a1610;stroke-width:3;stroke-linecap:round}
+.vz-plan .dim{stroke:#b82420;stroke-width:1.5}
+.vz-plan .dimt{font-family:var(--mono);fill:#b82420;font-weight:600;pointer-events:none}
+.vz-plan .ruler{font-family:var(--mono);fill:rgba(42,40,32,.6)}
+.vz-plan .heat{fill:#b82420;pointer-events:none}
+.vz-plan .guest{stroke:#f6f0e3;stroke-width:2;pointer-events:none}
+.vz-plan .it rect.hit{fill:transparent;stroke:none}
+.vz-plan .grip{cursor:nwse-resize}
+.vz-plan .grip .hit{fill:transparent}
+.vz-plan .grip .dot{fill:#fff;stroke:#c8902f;stroke-width:2}
+.vz-tools{position:absolute;right:10px;top:10px;z-index:2;display:flex;flex-direction:column;gap:6px}
+.vz-hint{position:absolute;left:12px;bottom:10px;margin:0;font-family:var(--sans);font-size:12px;color:rgba(42,40,32,.65);pointer-events:none}
+.vz-empty{position:absolute;left:16px;right:16px;top:45%;margin:0;text-align:center;font-family:var(--sans);font-size:15px;font-weight:600;color:rgba(42,40,32,.7);pointer-events:none}
+/* the picked thing's quick moves, beside it on the drawing */
+.vz-actbar{position:absolute;left:var(--bx,-999px);top:var(--by,-999px);z-index:3;display:flex;gap:6px;transform:translateX(-50%);animation:vzPop .16s ease-out both}
+.vz-stat-warn{color:var(--warn)}
+@keyframes vzHalo{from{opacity:0}to{opacity:1}}
+@keyframes vzPop{from{opacity:0;transform:translateX(-50%) translateY(4px)}to{opacity:1;transform:translateX(-50%)}}
+@keyframes vzDockUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.vz-plan .halo,.vz-actbar,.vz-dock,.vz-float-flow{animation:none}}

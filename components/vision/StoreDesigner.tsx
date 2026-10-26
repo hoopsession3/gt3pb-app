@@ -2,7 +2,7 @@
 
 import "./studio.css";
 import { failureWords } from "@/lib/failureWords";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { useAppStable } from "@/components/AppProvider";
@@ -10,15 +10,16 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { Segmented } from "@/components/controls";
 import { haptic } from "@/lib/haptics";
 import {
-  AISLE_IN, CATALOG, PILLARS, PILLAR_WORD, allowedKind, clampInside, footprint, ftIn, issues, kindOf, parseFtIn, roomStats, snap,
+  AISLE_IN, CATALOG, PILLARS, PILLAR_WORD, allowedKind, clampInside, ftIn, issues, kindOf, parseFtIn, roomStats, snap,
   type Item, type Layout, type Pillar,
 } from "@/lib/vision";
 import { saveLayout } from "@/lib/visionRead";
 import Store3D from "./Store3D";
+import PlanView, { KIND_MIME } from "./PlanView";
+import { SPLIT_AT, defaultView } from "@/lib/visionStudio";
 import { FORMAT, type Plan } from "@/lib/visionPlans";
 import FlowBar, { figuresOf } from "./FlowBar";
-import { useFlow, type FlowFrame, type Speed } from "./useFlow";
-import { PHASE_COLOR } from "@/lib/visionFlow";
+import { useFlow, type Speed } from "./useFlow";
 import { InfoRow } from "@/components/kit";
 import Sheet from "@/components/Sheet";
 import { useStudioSize } from "./useStudioSize";
@@ -30,7 +31,6 @@ import { useStudioSize } from "./useStudioSize";
 // cold extraction, nitro, bottles and broth; no espresso (lib/vision).
 type View = "plan" | "3d" | "both";
 const GROUPS = ["Bar", "Front", "Seating", "Back", "Room"] as const;
-const PAD = 36;
 const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(16)}-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`);
 
 export default function StoreDesigner({ layouts, plans = [], initialId = null, canEdit, onSaved }: { layouts: Layout[]; plans?: Plan[]; initialId?: string | null; canEdit: boolean; onSaved: () => void }) {
@@ -42,27 +42,67 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [past, setPast] = useState<Layout[]>([]);
   const [future, setFuture] = useState<Layout[]>([]);
   const [sel, setSel] = useState<string | null>(null);
-  const [view, setView] = useState<View>("both");
-  const [zoom, setZoom] = useState(1);
+  // The view: chosen, or the studio's default for its size (the plan alone on a phone; side by side wider).
+  const [viewChoice, setView] = useState<View | null>(null);
   const [busy, setBusy] = useState(false);
   // Flow: guests moving through the room as it's drawn (lib/visionFlow).
   const [flowOn, setFlowOn] = useState(false);
   const [perHour, setPerHour] = useState(60);
   const [speed, setSpeed] = useState<Speed>(30);
   // The studio (S1): its width, the library folded or open, the add sheet, the phone's dock, full screen.
-  const { ref: box, size, roomy } = useStudioSize();
+  const { ref: box, size, roomy, width } = useStudioSize();
+  const [full, setFull] = useState(false);
+  const view: View = viewChoice ?? defaultView(width);
+  // Narrow: under SPLIT_AT (a phone, an iPad upright, Split View) the drawing takes the whole width — what's picked is a
+  // line under it and opens as a sheet, the room's lists sit below. Docked: narrow, or full screen anywhere (full screen
+  // wide puts the inspector in a column beside the drawing). Measured on the phone check: an iPad upright gave a 300px
+  // side column 40% of its width and drew the plan 480 wide.
+  const narrow = width > 0 && width < SPLIT_AT;
+  // A phone opens the studio full screen, as an iPhone opens a document (S1.1 — measured: on an iPhone SE the page's own
+  // title, tabs and numbers left the drawing 250px tall). Done returns to the vision; once left, it stays left.
+  const [autoFull, setAutoFull] = useState(false);
+  if (width > 0 && size === "phone" && !autoFull) { setAutoFull(true); setFull(true); }
+  const docked = narrow || full;
+  // The canvas's height: the space actually left under it (S1.1 — the gate's question 1). Measured from where the stage
+  // sits in its scrolling page to that page's bottom, again when anything resizes; never shorter than a usable canvas.
+  const [stage, setStage] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!stage) return;
+    if (full) { stage.style.removeProperty("--stage-h"); return; }
+    let sc: HTMLElement | null = stage.parentElement;
+    while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+    const measure = () => {
+      const r = stage.getBoundingClientRect();
+      const top = sc ? r.top - sc.getBoundingClientRect().top + sc.scrollTop : r.top + window.scrollY;
+      const room = sc ? sc.clientHeight - parseFloat(getComputedStyle(sc).paddingBottom || "0") : window.innerHeight;
+      const h = Math.round(Math.min(1400, Math.max(size === "phone" ? 320 : 440, room - top - 14)));
+      stage.style.setProperty("--stage-h", `${h}px`);
+    };
+    measure();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(document.documentElement);
+    if (sc) ro?.observe(sc);
+    window.addEventListener("resize", measure);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [stage, full, size]);
   // The library beside the canvas: open from the start when the studio is roomy, folded otherwise — until a tap says.
   const [libChoice, setLibChoice] = useState<boolean | null>(null);
   const libOpen = libChoice ?? roomy;
   const [addOpen, setAddOpen] = useState(false);
   const [dock, setDock] = useState(false);
-  const [full, setFull] = useState(false);
   const host = useSyncExternalStore(noSubscribe, findHost, noHost);
 
   // A different room, or a fresh read after a save: start from what is saved (React's "adjusting state when a prop
   // changes" — during render, guarded, not an effect).
   const [base, setBase] = useState(original);
-  if (base !== original) { setBase(original); setDraft(original ?? null); setPast([]); setFuture([]); setSel(null); }
+  // The same room read again after its own save keeps its undo history and what's picked (S1.1 — the gate: "save changes
+  // and preserve undo/redo history"); another room, or a fresh read from elsewhere, starts clean.
+  const [savedId, setSavedId] = useState<string | null>(null);
+  if (base !== original) {
+    const same = !!original && savedId === original.id;
+    setBase(original); setDraft(original ?? null); setSavedId(null);
+    if (!same) { setPast([]); setFuture([]); setSel(null); }
+  }
 
   const dirty = !!draft && !!original && JSON.stringify(draft) !== JSON.stringify(original);
   const found = useMemo(() => (draft ? issues(draft) : []), [draft]);
@@ -87,6 +127,13 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
 
   /** Pick a thing (or nothing): the phone's dock opens on its peek, never straight onto the whole inspector. */
   const pick = (id: string | null) => { setSel(id); setDock(false); };
+  /** Details for a thing (its bar's ⓘ): the dock pulled up on a phone; wider, the inspector beside the canvas, its first
+   *  field ready to type in. */
+  const details = (id: string) => {
+    setSel(id);
+    if (docked) { setDock(true); return; }
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(".vz-side .vz-insp input, .vz-side .vz-insp textarea")?.focus({ preventScroll: true }));
+  };
   /** A new thing, in the middle of the room — or where it was dropped on the plan. */
   const add = (kind: string, at?: { x: number; y: number }) => {
     if (!draft || !allowedKind(kind)) return;
@@ -117,6 +164,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
     setBusy(false);
     if (err) { toast(failureWords(err, "Couldn't save the room"), "error"); haptic("error"); return; }
     haptic("success"); toast("Saved — the room, and everything in it.");
+    setSavedId(draft.id);
     onSaved();
   };
   const newRoom = async () => {
@@ -207,7 +255,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // away) and the inspector at the right; on a phone the inspector docks over the canvas's foot and the library opens as a
   // sheet. Flow floats over the canvas it runs in. Full screen takes the whole display for drawing or showing.
   const studio = (
-    <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${libOpen && canEdit && size === "wide" ? " lib" : ""}`}>
+    <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${narrow ? " narrow" : ""}${libOpen && canEdit && size === "wide" && !full ? " lib" : ""}`}>
       <div className="vz-tbar" role="toolbar" aria-label="The store designer">
         <div className="vz-tbar-l">
           {canEdit && size === "wide" && (
@@ -218,22 +266,23 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
               {layouts.map((l) => { const pl = plans.find((x) => x.layout_id === l.id); return <option key={l.id} value={l.id}>{l.name}{pl ? ` — phase ${pl.phase}` : ""}</option>; })}
             </select>
           ) : <b className="vz-tbar-name">{draft.name}</b>}
-          <Segmented label="View" kind="choice" value={view} onChange={setView} options={[{ key: "plan", label: "Plan" }, { key: "3d", label: "3D" }, { key: "both", label: "Both" }]} />
+          <Segmented label="View" kind="choice" value={view} onChange={setView} options={[{ key: "plan", label: "Plan" }, { key: "3d", label: "3D" }, { key: "both", label: "Split" }]} />
         </div>
         <div className="vz-tbar-r">
-          {canEdit && !(size === "wide" && libOpen) && <button type="button" className="btn-pri btn-sm" onClick={() => setAddOpen(true)}>+ Add</button>}
-          {!flowOn && <button type="button" className="btn-sec btn-sm" aria-label="Run the flow" onClick={() => { haptic("selection"); setFlowOn(true); }}>{size === "phone" ? "▶ Flow" : "▶ Run the flow"}</button>}
+          {canEdit && !(size === "wide" && libOpen && !full) && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>{narrow ? "+" : "+ Add"}</button>}
+          {!flowOn && <button type="button" className="btn-sec btn-sm" aria-label="Run the flow" title="Run the flow" onClick={() => { haptic("selection"); setFlowOn(true); }}>{size === "phone" ? "▶ Flow" : "▶ Run the flow"}</button>}
           {canEdit && (
             <>
-              <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo">↶</button>
-              <button type="button" className="btn-sec btn-sm" onClick={redo} disabled={!future.length} aria-label="Redo">↷</button>
-              <button type="button" className={dirty ? "btn-pri btn-sm" : "btn-sec btn-sm"} onClick={() => void save()} disabled={!dirty || busy}>{busy ? "Saving…" : dirty ? "Save" : "Saved"}</button>
+              <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (⌘Z)">↶</button>
+              <button type="button" className="btn-sec btn-sm" onClick={redo} disabled={!future.length} aria-label="Redo" title="Redo (⇧⌘Z)">↷</button>
+              <button type="button" className={dirty ? "btn-pri btn-sm" : "btn-sec btn-sm"} onClick={() => void save()} disabled={!dirty || busy} aria-label={busy ? "Saving" : dirty ? "Save" : "Saved"}>{busy ? "Saving…" : dirty ? "Save" : size === "phone" ? "✓" : "Saved"}</button>
             </>
           )}
-          <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Leave full screen" : "Full screen"} onClick={() => setFull((f) => !f)}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>
+          <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Done — back to the vision" : "Full screen"} title={full ? "Done (Esc)" : "Full screen"} onClick={() => { setDock(false); setFull((f) => !f); }}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>
         </div>
       </div>
 
+      {/* One line under the bar: the room's numbers and the plans it's drawn for (a size that disagrees with a plan's says so). */}
       {stats && (
         <p className="vz-stats vz-stats-line">
           <span><b>{stats.sqft.toLocaleString()}</b> sq ft</span>
@@ -241,29 +290,29 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           <span><b>{stats.seats}</b> seats</span>
           <span><b>{stats.items}</b> things</span>
           {PILLARS.map((p) => <span key={p}><i className={`inline-block w-2 h-2 rounded-full mr-1 pz-${p}`} />{PILLAR_WORD[p]} <b>{stats.pillars[p]}</b></span>)}
+          {plans.filter((x) => x.layout_id === draft.id).map((pl) => {
+            const off = pl.sqft != null && Math.abs(pl.sqft - stats.sqft) > pl.sqft * 0.1;
+            return <span key={pl.id} className={off ? "vz-stat-warn" : undefined}>For {FORMAT[pl.format].mark} <b>{pl.name}</b> · phase {pl.phase}{off ? ` — the plan says ${pl.sqft!.toLocaleString("en-US")} sq ft` : ""}</span>;
+          })}
         </p>
       )}
-      {!full && plans.filter((x) => x.layout_id === draft.id).map((pl) => (
-        <p key={pl.id} className="vz-card-s">The room for <b>{FORMAT[pl.format].mark} {pl.name}</b> · phase {pl.phase}{pl.sqft && Math.abs(pl.sqft - Math.round((draft.width_in * draft.depth_in) / 144)) > pl.sqft * 0.1 ? ` — the plan says ${pl.sqft.toLocaleString("en-US")} sq ft; this room is ${Math.round((draft.width_in * draft.depth_in) / 144).toLocaleString("en-US")}` : ""}</p>
-      ))}
 
       <div className="vz-work">
-        {canEdit && size === "wide" && libOpen && (
+        {canEdit && size === "wide" && libOpen && !full && (
           <aside className="vz-lib mpanel mb-0" aria-label="Add to the room">
             <Library onAdd={(k) => add(k)} drag />
           </aside>
         )}
-        <div className="vz-stage">
+        <div ref={setStage} className={docked ? "vz-stage docked" : "vz-stage"}>
           <div className={view === "both" ? "vz-store both" : "vz-store"}>
             {view !== "3d" && (
-              <div className="vz-pane mpanel mb-0 relative min-w-0 overflow-auto">
-                <PlanView layout={draft} zoom={zoom} selected={sel} bad={bad} canEdit={canEdit} onSelect={pick} flow={flow}
-                  onMove={(id, at, done) => patchItem(id, at, done)} onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }}
-                  onDropKind={canEdit ? (k, at) => add(k, at) : undefined} />
-                <div className="vz-tools">
-                  <button type="button" className="k-icon-btn lg glass" onClick={() => setZoom((z) => Math.min(4, +(z * 1.4).toFixed(2)))} aria-label="Closer">+</button>
-                  <button type="button" className="k-icon-btn lg glass" onClick={() => setZoom((z) => Math.max(1, +(z / 1.4).toFixed(2)))} aria-label="Farther">−</button>
-                </div>
+              <div className="vz-pane mpanel mb-0 relative min-w-0 overflow-hidden">
+                <PlanView layout={draft} selected={sel} bad={bad} canEdit={canEdit} onSelect={pick} flow={flow}
+                  onMove={(id, at, done) => patchItem(id, at, done)} onResize={(id, p) => patchItem(id, p, false)}
+                  onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }}
+                  onDropKind={canEdit ? (k, at) => add(k, at) : undefined}
+                  onTurn={turn} onCopy={copy} onRemove={(id) => { const it = draft.items.find((i) => i.id === id); if (it) void takeOut(it); }}
+                  onDetails={details} />
               </div>
             )}
             {view !== "plan" && (
@@ -281,33 +330,34 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
             </div>
           )}
 
-          {/* On a phone, what's picked docks over the canvas's foot: its name and the quick moves, pulled up for the rest. */}
-          {size === "phone" && item && (
-            <div className={`vz-dock mpanel mb-0${dock ? " open" : ""}`} aria-label={`${name} — what's picked`}>
-              <button type="button" className="vz-dock-grab" aria-expanded={dock} aria-label={dock ? "Less about it" : "More about it"} onClick={() => setDock((o) => !o)}><i /></button>
-              {dock ? inspector : (
+          {/* DOCKED (a phone; full screen): what's picked sits in a dock that is always there — under the drawing on a phone,
+              beside it full screen — so picking never moves the drawing under your finger. A phone shows a line (its name,
+              size, why) and opens the rest as a sheet over the drawing; full screen shows the inspector in the dock. */}
+          {docked && (
+            <div className="vz-dock mpanel mb-0" aria-label="What's picked">
+              {!item ? (narrow ? <p className="vz-card-s">{canEdit ? "Pick a thing to move, size or turn it." : "Pick a thing to see why it's there."}</p> : roomPanels)
+                : !narrow ? inspector : (
                 <div className="vz-dock-peek">
                   <div className="min-w-0">
                     <b className="font-sans text-body">{name}</b>
-                    <p className="vz-card-s">{ftIn(item.w_in)} × {ftIn(item.d_in)}{item.why ? ` · ${item.why}` : ""}</p>
+                    <p className="vz-card-s">{ftIn(item.w_in)} × {ftIn(item.d_in)}</p>
                   </div>
-                  <div className="vz-row">
-                    {canEdit && <button type="button" className="btn-sec btn-sm" onClick={() => turn(item.id)} aria-label="Turn it">↻</button>}
-                    {canEdit && <button type="button" className="btn-sec btn-sm" onClick={() => copy(item.id)}>Copy</button>}
-                    <button type="button" className="btn-sec btn-sm" onClick={() => setDock(true)}>{canEdit ? "Edit" : "Why"}</button>
-                  </div>
+                  <button type="button" className="btn-sec btn-sm" onClick={() => setDock(true)}>{canEdit ? "Edit" : "Why"}</button>
                 </div>
               )}
             </div>
           )}
-          {full && found.length > 0 && !(size === "phone" && item) && (
+          {narrow && dock && item && (
+            <Sheet open onClose={() => setDock(false)} label={`${name} — its size and why it's there`}>{inspector}</Sheet>
+          )}
+          {full && found.length > 0 && !item && (
             <button type="button" className={found.some((f) => f.level === "error") ? "k-chip vz-pill-issue error" : "k-chip vz-pill-issue"} onClick={() => pick(found[0].ids[0])}>
               {found.length} to look at
             </button>
           )}
         </div>
 
-        {size !== "phone" && (
+        {!docked && (
           <aside className="vz-side" aria-label="What's picked, and the room">
             {inspector}
             {!item && canEdit && <p className="vz-card-s">Pick a thing on the plan or in 3D — its size, which way it faces and why it&apos;s there open here.</p>}
@@ -315,7 +365,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           </aside>
         )}
       </div>
-      {size === "phone" && !full && <div className="vz-below">{roomPanels}</div>}
+      {narrow && !full && <div className="vz-below">{roomPanels}</div>}
 
       {addOpen && (
         <Sheet open onClose={() => setAddOpen(false)} label="Add to the room" header={<b className="font-sans text-subhead">Add to the room</b>}>
@@ -360,105 +410,14 @@ function Library({ onAdd, drag = false }: { onAdd: (kind: string) => void; drag?
     </div>
   );
 }
-const KIND_MIME = "application/x-gt3-kind";
 
-// ── the plan: to scale, snapping, with the distance to each wall while a thing moves ──
-function PlanView({ layout, zoom, selected, bad, canEdit, onSelect, onMove, onBegin, flow, onDropKind }: {
-  layout: Layout; zoom: number; selected: string | null; bad: Set<string>; canEdit: boolean; flow: FlowFrame | null;
-  onSelect: (id: string | null) => void; onMove: (id: string, at: { x_in: number; y_in: number }, record: boolean) => void; onBegin: () => void;
-  /** A fixture dragged in from the library, let go over the room. */
-  onDropKind?: (kind: string, at: { x: number; y: number }) => void;
-}) {
-  const svg = useRef<SVGSVGElement | null>(null);
-  const drag = useRef<{ id: string; dx: number; dy: number; moved: boolean } | null>(null);
-  const [moving, setMoving] = useState<string | null>(null);
-  const W = layout.width_in, D = layout.depth_in;
-  const toRoom = (e: { clientX: number; clientY: number }) => {
-    const s = svg.current; const m = s?.getScreenCTM();
-    if (!s || !m) return { x: 0, y: 0 };
-    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
-    return { x: p.x, y: p.y };
-  };
-  const lines: number[] = [];
-  for (let v = 12; v < Math.max(W, D); v += 12) lines.push(v);
-  const showDims = moving ?? selected;
-  const di = showDims ? layout.items.find((i) => i.id === showDims) : null;
-  const db = di ? footprint(di) : null;
-
-  return (
-    <svg ref={svg} className="vz-plan" viewBox={`${-PAD} ${-PAD} ${W + PAD * 2} ${D + PAD * 2}`} width={`${zoom * 100}%`} height={`${zoom * 100}%`} role="img"
-      aria-label={`${layout.name}: a ${ftIn(W)} by ${ftIn(D)} room, ${layout.items.length} things — tap one to see why it's there`}
-      onPointerDown={(e) => { if (e.target === e.currentTarget) onSelect(null); }}
-      onPointerMove={(e) => {
-        const d = drag.current; if (!d) return;
-        const p = toRoom(e);
-        const it = layout.items.find((i) => i.id === d.id); if (!it) return;
-        const at = clampInside({ ...it, x_in: snap(p.x - d.dx), y_in: snap(p.y - d.dy) }, layout);
-        if (at.x_in !== it.x_in || at.y_in !== it.y_in) { d.moved = true; onMove(d.id, at, false); }
-      }}
-      onPointerUp={() => { if (drag.current?.moved) haptic("selection"); drag.current = null; setMoving(null); }}
-      onPointerCancel={() => { drag.current = null; setMoving(null); }}
-      onDragOver={onDropKind ? (e) => { if (e.dataTransfer.types.includes(KIND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } } : undefined}
-      onDrop={onDropKind ? (e) => { const k = e.dataTransfer.getData(KIND_MIME); if (!k) return; e.preventDefault(); onDropKind(k, toRoom(e)); } : undefined}>
-      <rect className="room" x={0} y={0} width={W} height={D} rx={2} onPointerDown={() => onSelect(null)} />
-      {lines.filter((v) => v < W).map((v) => <line key={`x${v}`} className={v % 48 === 0 ? "grid4" : "grid1"} x1={v} y1={0} x2={v} y2={D} />)}
-      {lines.filter((v) => v < D).map((v) => <line key={`y${v}`} className={v % 48 === 0 ? "grid4" : "grid1"} x1={0} y1={v} x2={W} y2={v} />)}
-      {lines.filter((v) => v % 48 === 0 && v < W).map((v) => <text key={`rx${v}`} className="ruler" x={v} y={-10} textAnchor="middle">{v / 12}′</text>)}
-      {lines.filter((v) => v % 48 === 0 && v < D).map((v) => <text key={`ry${v}`} className="ruler" x={-10} y={v + 4} textAnchor="end">{v / 12}′</text>)}
-      {/* Flow's heat: where guests walked and waited, under everything that stands in the room. */}
-      {flow?.heat.map((h) => <rect key={`h${h.x}-${h.y}`} className="heat" x={h.x} y={h.y} width={h.size} height={h.size} fillOpacity={0.08 + h.v * 0.42} />)}
-      {layout.items.map((it, n) => {
-        const b = footprint(it), k = kindOf(it.kind);
-        const w = b.x1 - b.x0, h = b.y1 - b.y0;
-        const name = it.label || k.name;
-        // The name fits its box or isn't drawn (a picked thing always says its name, over it): a label wider than the thing
-        // it names lies about where the thing ends.
-        const vertical = h > w * 1.4;
-        const along = (vertical ? h : w) - 6, across = (vertical ? w : h) - 4;
-        const fs = Math.min(15, across * 0.8, along / Math.max(3, name.length * 0.58));
-        const showName = fs >= 7 || it.id === selected;
-        const front: [number, number, number, number] = it.rot === 0 ? [b.x0 + w * 0.3, b.y1, b.x1 - w * 0.3, b.y1] : it.rot === 180 ? [b.x0 + w * 0.3, b.y0, b.x1 - w * 0.3, b.y0]
-          : it.rot === 90 ? [b.x0, b.y0 + h * 0.3, b.x0, b.y1 - h * 0.3] : [b.x1, b.y0 + h * 0.3, b.x1, b.y1 - h * 0.3];
-        return (
-          <g key={it.id} className={`it${it.id === selected ? " sel" : ""}${bad.has(it.id) ? " bad" : ""}`}
-            onPointerDown={(e) => {
-              e.stopPropagation(); onSelect(it.id);
-              if (!canEdit) return;
-              (e.currentTarget.ownerSVGElement ?? e.currentTarget).setPointerCapture?.(e.pointerId);
-              const p = toRoom(e); drag.current = { id: it.id, dx: p.x - it.x_in, dy: p.y - it.y_in, moved: false }; setMoving(it.id); onBegin();
-            }}>
-            <rect className="body" x={b.x0} y={b.y0} width={w} height={h} rx={3} fill={k.color} fillOpacity={0.82} />
-            <line className="front" x1={front[0]} y1={front[1]} x2={front[2]} y2={front[3]} />
-            {showName && fs >= 7 && <text x={it.x_in} y={it.y_in} fontSize={fs} textAnchor="middle" dominantBaseline="middle"
-              transform={vertical ? `rotate(-90 ${it.x_in} ${it.y_in})` : undefined}>{name}</text>}
-            {fs < 7 && <><circle cx={it.x_in} cy={it.y_in} r={9} className="tag" /><text x={it.x_in} y={it.y_in + 0.5} fontSize={10} textAnchor="middle" dominantBaseline="middle" className="tagt">{n + 1}</text></>}
-            {it.id === selected && fs < 7 && <text x={it.x_in} y={b.y0 - 8} fontSize={13} textAnchor="middle" className="dimt">{name}</text>}
-          </g>
-        );
-      })}
-      {flow?.guests.map((g) => <circle key={g.id} className="guest" cx={g.x} cy={g.y} r={g.phase === "seated" ? 7 : 8} fill={PHASE_COLOR[g.phase]} />)}
-      {di && db && (
-        <g aria-hidden="true">
-          {[[db.x0, it2(db).cy, 0, it2(db).cy, db.x0], [db.x1, it2(db).cy, W, it2(db).cy, W - db.x1], [it2(db).cx, db.y0, it2(db).cx, 0, db.y0], [it2(db).cx, db.y1, it2(db).cx, D, D - db.y1]]
-            .filter(([, , , , len]) => len > 3)
-            .map(([x1, y1, x2, y2, len], i) => (
-              <g key={i}>
-                <line className="dim" x1={x1} y1={y1} x2={x2} y2={y2} strokeDasharray="6 4" />
-                <text className="dimt" x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 5} textAnchor="middle">{ftIn(len)}</text>
-              </g>
-            ))}
-        </g>
-      )}
-    </svg>
-  );
-}
 const EMPTY_ROOM: Pick<Layout, "width_in" | "depth_in" | "items"> = { width_in: 0, depth_in: 0, items: [] };
+
 // Full screen goes to the app's own root (as the sheets do): inside the scrolling body an iPhone stacks a fixed layer under
 // the tab bar.
 const noSubscribe = () => () => {};
 const findHost = (): HTMLElement | null => (typeof document === "undefined" ? null : document.querySelector<HTMLElement>(".app") ?? document.body);
 const noHost = (): HTMLElement | null => null;
-const it2 = (b: { x0: number; y0: number; x1: number; y1: number }) => ({ cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2 });
 
 // ── a thing's inspector: what it is, its size, which way it faces, and why it's there ──
 function Inspector({ item, canEdit, room, onPatch, onTurn, onCopy, onRemove, onClose }: {

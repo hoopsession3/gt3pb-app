@@ -161,7 +161,7 @@ const F = loadTs("lib/visionFlow.ts");
   ok("a link's token rides in the fragment (#), which a browser never sends to a server", /\/present#\$\{token\}/.test(shares) && /location\.hash/.test(present));
   ok("a link reads through vision_shared alone", /rpc\("vision_shared"/.test(read("lib/visionRead.ts")));
   const designer = read("components/vision/StoreDesigner.tsx"), pres = read("components/vision/Present.tsx");
-  ok("Flow in the designer: the plan's guests and heat, the 3D's figures", /useFlow\(/.test(designer) && /className="guest"/.test(designer) && /className="heat"/.test(designer) && /figures=\{figures\}/.test(designer));
+  ok("Flow in the designer: the plan's guests and heat, the 3D's figures", /useFlow\(/.test(designer) && /className="guest"/.test(read("components/vision/PlanView.tsx")) && /className="heat"/.test(read("components/vision/PlanView.tsx")) && /figures=\{figures\}/.test(designer));
   ok("Flow in Present's store tour", /useFlow\(/.test(pres) && /<FlowBar compact/.test(pres));
   ok("the presenter's stage centres without cutting off a tall slide's top", /\.vp-slide\{[^}]*margin-block:auto/.test(read("components/vision/vision.css")) && !/\.vp-stage\{[^}]*align-items:center/.test(read("components/vision/vision.css")));
   const flowHook = read("components/vision/useFlow.ts");

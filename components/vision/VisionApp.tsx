@@ -40,7 +40,8 @@ export default function VisionApp({ canEdit, isOwner = false }: { canEdit: boole
       <div className="vz-top">
         <div className="flex flex-col gap-1 min-w-0">
           <h1 className="vz-h">The vision</h1>
-          <p className="vz-sub">What&apos;s running, what&apos;s next, the store we&apos;re building — and why. Built on stillness, light, fuel and movement.</p>
+          {/* The store is drawn on a canvas that wants the screen: the line under the title steps aside there (S1.1). */}
+          {tab !== "store" && <p className="vz-sub">What&apos;s running, what&apos;s next, the store we&apos;re building — and why. Built on stillness, light, fuel and movement.</p>}
         </div>
         <button type="button" className="btn-pri" onClick={() => setPresenting(true)} disabled={!state.data}>▶ Present</button>
       </div>

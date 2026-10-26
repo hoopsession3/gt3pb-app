@@ -29,12 +29,12 @@ const read = (p) => readFileSync(join(ROOT, p), "utf8");
 {
   const des = read("components/vision/StoreDesigner.tsx"), css = read("components/vision/studio.css"), vcss = read("components/vision/vision.css"), flow = read("components/vision/FlowBar.tsx");
   ok("one thin bar: the room, the view, add, flow, undo, redo, save, full screen", /role="toolbar"/.test(des) && /\+ Add/.test(des) && /aria-label="Run the flow"/.test(des) && /"⤢ Full screen"/.test(des));
-  ok("the canvas takes the height the screen has left — never a fixed strip", /\.vz-stage\{[^}]*height:clamp\([^)]*100dvh/.test(css) && /\.vz-stage \.vz-3d\{height:100%\}/.test(css));
+  ok("the canvas takes the height the screen has left — never a fixed strip", /\.vz-stage\{[^}]*height:var\(--stage-h,clamp\([^)]*100dvh/.test(css) && /\.vz-stage \.vz-3d\{height:100%\}/.test(css));
   ok("wide: library · canvas · inspector; the library folds away", /\.vz-studio\.wide\.lib \.vz-work\{grid-template-columns:240px minmax\(0,1fr\) 320px\}/.test(css) && /setLibChoice\(!libOpen\)/.test(des));
-  ok("the library: found by name, filtered by part of the store, dragged onto the plan or tapped in", /placeholder="Find a fixture"/.test(des) && /SHELF = \["All", \.\.\.GROUPS\]/.test(des) && /draggable=\{drag\}/.test(des) && /onDrop=\{onDropKind/.test(des));
+  ok("the library: found by name, filtered by part of the store, dragged onto the plan or tapped in", /placeholder="Find a fixture"/.test(des) && /SHELF = \["All", \.\.\.GROUPS\]/.test(des) && /draggable=\{drag\}/.test(des) && /onDrop=\{onDropKind/.test(read("components/vision/PlanView.tsx")));
   ok("…a drop lands where it was let go, snapped", /x_in: snap\(at\?\.x \?\? draft\.width_in \/ 2\)/.test(des));
   ok("a phone or an iPad upright: the library in a sheet", /<Sheet open onClose=\{\(\) => setAddOpen\(false\)\} label="Add to the room"/.test(des));
-  ok("a phone: what's picked docks over the canvas's foot — its peek, then the whole inspector", /size === "phone" && item/.test(des) && /className=\{`vz-dock mpanel/.test(des) && /aria-expanded=\{dock\}/.test(des));
+  ok("a phone: what's picked docks under the drawing — its line, then the whole inspector as a sheet (S1.1: beside it, never over it)", /\{docked && \(/.test(des) && /className="vz-dock mpanel mb-0"/.test(des) && /narrow && dock && item && \(\n\s*<Sheet open/.test(des));
   ok("Flow floats over the canvas; still said to be a simulation on assumed timings", /className="vz-float-flow/.test(des) && /floating \/>/.test(des) && /Simulated, on assumed timings/.test(flow));
   ok("full screen: the app's own root, safe areas kept, Escape leaves", /createPortal\(studio, host\)/.test(des) && /\.vz-studio\.full\{position:fixed;inset:0[^}]*safe-area-inset-top/.test(css) && /e\.key === "Escape" && !sel && full/.test(des));
   ok("the studio's stylesheet rides with the designer alone — the presenter and the vision's other screens don't carry it", /^"use client";\n\nimport "\.\/studio\.css";/.test(des) && !/vz-studio/.test(vcss));

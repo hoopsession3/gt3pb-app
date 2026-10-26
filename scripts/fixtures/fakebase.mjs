@@ -346,10 +346,11 @@ export async function startFakebase({ port = 54329, before, seed, user } = {}) {
     if (method === "POST") {
       const rows = Array.isArray(body) ? body : [body];
       if (!rows.length) return { rows: [], single };
-      const keys = params.get("columns")?.split(",") ?? [...new Set(rows.flatMap((r) => Object.keys(r)))];
+      const keys = params.get("columns")?.split(",").map((c) => c.trim().replace(/^"(.*)"$/, "$1")) ?? [...new Set(rows.flatMap((r) => Object.keys(r)))];
       const i = P.push(JSON.stringify(rows));
       const upsert = /resolution=(merge|ignore)-duplicates/.exec(prefer);
-      const conflict = params.get("on_conflict");
+      // No on_conflict: PostgREST resolves on the primary key — every table here keys on id.
+      const conflict = params.get("on_conflict") ?? (keys.includes("id") ? "id" : null);
       let tail = "";
       if (upsert) {
         const target = conflict ? `(${conflict.split(",").map(q).join(", ")})` : "";

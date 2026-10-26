@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { homeCamera, pick, sceneFaces, type Camera, type Figure, type FloorMark } from "@/lib/vision3d";
+import { fitCamera, homeCamera, pick, sceneFaces, type Camera, type Figure, type FloorMark } from "@/lib/vision3d";
 import { kindOf, type Layout } from "@/lib/vision";
 
 // THE STORE, IN 3D (R52). The room and everything in it, drawn as shaded boxes on a canvas (lib/vision3d — no 3D
@@ -68,11 +68,12 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
       if (el.width !== Math.round(w * dpr) || el.height !== Math.round(h * dpr)) { el.width = Math.round(w * dpr); el.height = Math.round(h * dpr); dirty.current = true; }
       // A new size frames the room for it (a phone upright stands farther back than a laptop) — until a hand has moved it.
       const size = `${w}x${h}`;
-      if (framed.current !== size && w > 0 && h > 0 && !touched.current && !goal.current) { framed.current = size; cam.current = homeCamera(scene.current.layout, cam.current.yaw, w / h); dirty.current = true; }
+      if (framed.current !== size && w > 0 && h > 0 && !touched.current && !goal.current) { framed.current = size; cam.current = fitCamera(scene.current.layout, cam.current.yaw, w, h); dirty.current = true; }
       if (dirty.current && w > 0 && h > 0) {
         dirty.current = false;
         const { layout: L, selected: sel, figures: people, heat: warm } = scene.current;
-        const f = sceneFaces(L, L.items, c, w, h, sel, { figures: people, heat: warm });
+        // The camera as it is now — a resize above may have just framed a new one (S1.1: the old frame drew with the old one).
+        const f = sceneFaces(L, L.items, cam.current, w, h, sel, { figures: people, heat: warm });
         faces.current = f;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, w, h);
@@ -129,7 +130,7 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
         if (moved < 6) {
           const r = el.getBoundingClientRect();
           const now = Date.now();
-          if (now - lastTap < 320) { cam.current = homeCamera(scene.current.layout, cam.current.yaw, el.clientWidth / Math.max(1, el.clientHeight)); dirty.current = true; }
+          if (now - lastTap < 320) { cam.current = fitCamera(scene.current.layout, cam.current.yaw, el.clientWidth, el.clientHeight); dirty.current = true; }
           lastTap = now;
           onPick?.(pick(faces.current, e.clientX - r.left, e.clientY - r.top));
         }
