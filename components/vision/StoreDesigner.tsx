@@ -42,6 +42,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [past, setPast] = useState<Layout[]>([]);
   const [future, setFuture] = useState<Layout[]>([]);
   const [sel, setSel] = useState<string | null>(null);
+  const [find, setFind] = useState("");
   // The view: chosen, or the studio's default for its size (the plan alone on a phone; side by side wider).
   const [viewChoice, setView] = useState<View | null>(null);
   const [busy, setBusy] = useState(false);
@@ -225,15 +226,17 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           {found.length > 8 && <p className="vz-issue warn">…and {found.length - 8} more.</p>}
         </div>
       )}
-      {/* THE SCHEDULE — every thing in the room, numbered as the plan numbers it (a plan set's equipment schedule): its
-          name, its size, its pillars. A tap picks it on the plan and in 3D. */}
+      {/* THE SCHEDULE — every thing in the room (a plan set's equipment schedule): its name, its size, its pillars, found
+          by typing. A tap picks it on the plan (sliding the plan to it) and in 3D. The drawing carries no numbers (S1.1b),
+          so this is the list a screen reader and a long room are read from. */}
       <details className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
         <summary className="font-sans font-bold text-subhead cursor-pointer py-2">Schedule · {draft.items.length} things</summary>
+        {draft.items.length > 6 && <label className="prod-f mt-1"><span>Find</span><input type="search" value={find} placeholder="Table, fridge, counter…" onChange={(e) => setFind(e.target.value)} /></label>}
         <div className="k-rows mt-2">
-          {draft.items.map((it, n) => (
-            <InfoRow key={it.id} lead={String(n + 1)} name={it.label || kindOf(it.kind).name}
+          {draft.items.filter((it) => !find.trim() || `${it.label ?? ""} ${kindOf(it.kind).name}`.toLowerCase().includes(find.trim().toLowerCase())).map((it) => (
+            <InfoRow key={it.id} name={it.label || kindOf(it.kind).name}
               meta={`${ftIn(it.w_in)} × ${ftIn(it.d_in)} × ${ftIn(it.h_in)}${it.pillars.length ? ` · ${it.pillars.map((p) => PILLAR_WORD[p]).join(", ")}` : ""}`}
-              onClick={() => setSel(it.id)} />
+              onClick={() => setSel(it.id)} ariaLabel={`Pick ${it.label || kindOf(it.kind).name}, ${ftIn(it.w_in)} by ${ftIn(it.d_in)}`} />
           ))}
         </div>
       </details>

@@ -4,8 +4,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { clampInside, footprint, ftIn, kindOf, snap, type Item, type Layout } from "@/lib/vision";
 import { fit, isFitted, keepNear, pan, resized, scaleOf, toRoom, toScreen, zoomAt, type Box, type Cam, type Size } from "@/lib/visionCamera";
 import { resizeTo } from "@/lib/visionStudio";
+import { dimSpots, nameSpots, placeFirst, textBox, wallGaps, type Rect } from "@/lib/planLabels";
 import { PHASE_COLOR } from "@/lib/visionFlow";
 import { haptic } from "@/lib/haptics";
+import { useChanged } from "@/lib/useChanged";
 import type { FlowFrame } from "./useFlow";
 
 // THE PLAN (R52; S1.1 — a real camera). The room to scale, drawn into whatever pane it's given and fitted to it on
@@ -19,6 +21,8 @@ import type { FlowFrame } from "./useFlow";
 export const KIND_MIME = "application/x-gt3-kind";
 const PAD = 36;
 const RULER_PX = 30;
+/** The zoom buttons' column down the right edge (44 wide, 12 in from the edge). */
+const TOOLS_PX = 64;
 /** A thing is a target at least this many pixels across on screen, however thin (a door, a window wall). */
 const HIT_PX = 28;
 
@@ -50,11 +54,14 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
   const W = layout.width_in, D = layout.depth_in;
   const room: Box = useMemo(() => ({ x0: 0, y0: 0, x1: W, y1: D }), [W, D]);
   // Fitted: the room and a margin for its rulers — at least RULER_PX on screen, so a foot mark is never cut off.
+  // The zoom buttons stand down the right edge: the fitted room keeps clear of them (S1.1b — the corner was under them).
   const home = useMemo(() => {
-    let pad = PAD, c = fit({ x0: -pad, y0: -pad, x1: W + pad, y1: D + pad }, view);
+    let pad = PAD, right = PAD, c = fit({ x0: -pad, y0: -pad, x1: W + right, y1: D + pad }, view);
     for (let k = 0; k < 3; k++) {
-      pad = Math.max(PAD, RULER_PX / scaleOf(c, view));
-      c = fit({ x0: -pad, y0: -pad, x1: W + pad, y1: D + pad }, view);
+      const s = scaleOf(c, view);
+      pad = Math.max(PAD, RULER_PX / s);
+      right = Math.max(pad, TOOLS_PX / s);
+      c = fit({ x0: -pad, y0: -pad, x1: W + right, y1: D + pad }, view);
     }
     return c;
   }, [W, D, view]);
@@ -65,6 +72,8 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
 
   // The pane's size, measured: a resize keeps the room where it was (same centre, same scale) unless it's fitted.
   const lastView = useRef(view);
+  const memRef = useRef({ key: `gt3.plancam.${layout.id}`, W, D });
+  useLayoutEffect(() => { memRef.current = { key: `gt3.plancam.${layout.id}`, W, D }; });
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -76,6 +85,16 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
       lastView.current = next;
       setManual((m) => (m ? resized(m, prev, next) : m));
       setView(next);
+      // The first measurement: bring back the view the hands left this room at this session (S1.1b).
+      if (!restored.current && next.w) {
+        restored.current = true;
+        try {
+          const raw = sessionStorage.getItem(memRef.current.key);
+          const m = raw ? JSON.parse(raw) as { cam: Cam; view: Size; W: number; D: number } : null;
+          const { W: w0, D: d0 } = memRef.current;
+          if (m && m.W === w0 && m.D === d0 && m.view?.w && m.cam?.w) setManual(keepNear(resized(m.cam, m.view, next), { x0: 0, y0: 0, x1: w0, y1: d0 }));
+        } catch { /* a private window or bad JSON: start fitted */ }
+      }
     };
     apply();
     if (typeof ResizeObserver === "undefined") return;
@@ -95,6 +114,23 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
     settle(zoomAt(c, k, at ?? { x: c.x + c.w / 2, y: c.y + c.h / 2 }, home));
   }, [manual, home, settle]);
   const fitAll = useCallback(() => { setManual(null); haptic("selection"); }, []);
+  // Fit the picked thing: it and a room's-worth of air around it fill the pane (never closer than the camera allows).
+  const fitSel = useCallback(() => {
+    const it = selected ? layout.items.find((i) => i.id === selected) : null;
+    if (!it || !view.w) return;
+    const b = footprint(it), air = Math.max(48, Math.max(b.x1 - b.x0, b.y1 - b.y0));
+    settle(fit({ x0: b.x0 - air, y0: b.y0 - air, x1: b.x1 + air, y1: b.y1 + air }, view));
+    haptic("selection");
+  }, [selected, layout.items, view, settle]);
+
+  // The view is remembered for this room for the session (S1.1b): leave for the 3D or another tab and come back to it.
+  // Only a view the hands set is kept; a fitted room stays fitted. A changed room size starts fitted again.
+  const memKey = `gt3.plancam.${layout.id}`;
+  const restored = useRef(false);
+  useEffect(() => {
+    if (!restored.current || !view.w) return;
+    try { if (manual) sessionStorage.setItem(memKey, JSON.stringify({ cam: manual, view, W, D })); else sessionStorage.removeItem(memKey); } catch { /* storage refused */ }
+  }, [manual, view, memKey, W, D]);
 
   // F fits, + and − zoom (the designer's own keys move the picked thing).
   useEffect(() => {
@@ -103,12 +139,13 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
       if (t && /input|textarea|select/i.test(t.tagName)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "f" || e.key === "F") { e.preventDefault(); fitAll(); }
+      else if (e.key === "s" || e.key === "S") { e.preventDefault(); fitSel(); }
       else if (e.key === "+" || e.key === "=") { e.preventDefault(); zoomBy(1.25); }
       else if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomBy(0.8); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [fitAll, zoomBy]);
+  }, [fitAll, fitSel, zoomBy]);
 
   // The wheel: a trackpad's pinch (it arrives as ctrl + wheel) or ⌘ + wheel zooms at the pointer; a plain wheel slides.
   // Not passive — the page mustn't scroll under a drawing being zoomed.
@@ -233,12 +270,52 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
     el.style.setProperty("--by", `${Math.round(y)}px`);
   });
 
+  // Picked from somewhere else — the Schedule, the 3D, a finding — and off the edge of the view: slide to it, same zoom.
+  // Adjusted while rendering when the pick changes (lib/useChanged), never by a finger on the plan (it's under the finger).
+  if (useChanged(selected) && sb && view.w && !moving) {
+    const c = manual ?? home;
+    if (sb.x0 < c.x || sb.y0 < c.y || sb.x1 > c.x + c.w || sb.y1 > c.y + c.h)
+      setManual(keepNear({ ...c, x: (sb.x0 + sb.x1) / 2 - c.w / 2, y: (sb.y0 + sb.y1) / 2 - c.h / 2 }, room));
+  }
+
   const lines: number[] = [];
   for (let v = 12; v < Math.max(W, D); v += 12) lines.push(v);
   const showDims = moving ?? selected;
   const di = showDims ? layout.items.find((i) => i.id === showDims) : null;
   const db = di ? footprint(di) : null;
-  const cx = db ? (db.x0 + db.x1) / 2 : 0, cy = db ? (db.y0 + db.y1) / 2 : 0;
+
+  // ── the words (S1.1b) ── every name that fits inside its thing is drawn there; nothing gets a number. The picked
+  // thing says its name and its own size on a label placed clear of everything, and each gap to a wall is a measured
+  // distance — ticks at both ends, its own colour — with its length placed where it touches nothing. A gap's length is
+  // never written beside a thing as if it were the thing's size (the 19′ 6″ "table", 2026-10-26).
+  const labels = useMemo(() => {
+    const boxes = layout.items.map((it) => ({ it, b: footprint(it) }));
+    const inner = boxes.map(({ it, b }) => {
+      const k = kindOf(it.kind), w = b.x1 - b.x0, h = b.y1 - b.y0, name = it.label || k.name;
+      const vertical = h > w * 1.4;
+      const along = (vertical ? h : w) - 6 * u, across = (vertical ? w : h) - 4 * u;
+      const fs = Math.min(14 * u, across * 0.8, along / Math.max(3, name.length * 0.58));
+      return { id: it.id, name, fs, vertical, named: fs * scale >= 8 };
+    });
+    const view: Rect = { x0: cam.x, y0: cam.y, x1: cam.x + cam.w, y1: cam.y + cam.h };
+    const obstacles: Rect[] = inner.flatMap((n, i) => (n.named ? [textBox(boxes[i].it.x_in, boxes[i].it.y_in, n.fs, n.name)] : []));
+    let tag: (ReturnType<typeof placeFirst> & { text: string; size: number }) | null = null;
+    const gaps: { x1: number; y1: number; x2: number; y2: number; len: number; text: { x: number; y: number; t: string } | null }[] = [];
+    if (di && db) {
+      const others = boxes.filter((x) => x.it.id !== di.id).map((x) => x.b);
+      const size = 13 * u, gap = 6 * u;
+      const text = `${di.label || kindOf(di.kind).name} · ${ftIn(di.w_in)} × ${ftIn(di.d_in)}`;
+      const spot = placeFirst(nameSpots(db, size, text, gap), size, text, [...others, ...obstacles], view);
+      if (spot) { tag = { ...spot, text, size }; obstacles.push(spot.box); }
+      for (const g of wallGaps(db, layout)) {
+        const t = ftIn(g.len), fs = 12 * u;
+        const p = placeFirst(dimSpots(g.x1, g.y1, g.x2, g.y2, fs, 4 * u), fs, t, [...others, ...obstacles, db], view);
+        if (p) obstacles.push(p.box);
+        gaps.push({ ...g, text: p ? { x: p.x, y: p.y, t } : null });
+      }
+    }
+    return { inner, tag, gaps };
+  }, [layout, di, db, cam, u, scale]);
 
   return (
     <div ref={box} className="vz-planbox">
@@ -258,19 +335,15 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
           {layout.items.map((it, n) => {
             const b = footprint(it), k = kindOf(it.kind);
             const w = b.x1 - b.x0, h = b.y1 - b.y0;
-            const name = it.label || k.name;
-            // The name fits its box or isn't drawn (a picked thing always says its name, over it): a label wider than the
-            // thing it names lies about where the thing ends. Judged in screen pixels, so it holds at any zoom.
-            const vertical = h > w * 1.4;
-            const along = (vertical ? h : w) - 6 * u, across = (vertical ? w : h) - 4 * u;
-            const fs = Math.min(14 * u, across * 0.8, along / Math.max(3, name.length * 0.58));
-            const named = fs * scale >= 8;
+            // The name fits its box or isn't drawn — a label wider than the thing it names lies about where the thing
+            // ends. Judged in screen pixels, so coming closer names the small things too. No numbers on the drawing.
+            const { name, fs, vertical, named } = labels.inner[n];
             const on = it.id === selected;
             const front: [number, number, number, number] = it.rot === 0 ? [b.x0 + w * 0.3, b.y1, b.x1 - w * 0.3, b.y1] : it.rot === 180 ? [b.x0 + w * 0.3, b.y0, b.x1 - w * 0.3, b.y0]
               : it.rot === 90 ? [b.x0, b.y0 + h * 0.3, b.x0, b.y1 - h * 0.3] : [b.x1, b.y0 + h * 0.3, b.x1, b.y1 - h * 0.3];
             return (
               <g key={it.id} data-id={it.id} className={`it${on ? " sel" : ""}${bad.has(it.id) ? " bad" : ""}`} tabIndex={0} role="button" aria-pressed={on}
-                aria-label={`${n + 1}. ${name}, ${ftIn(it.w_in)} by ${ftIn(it.d_in)}${bad.has(it.id) ? " — a plan reviewer would circle it" : ""}`}
+                aria-label={`${name}, ${ftIn(it.w_in)} by ${ftIn(it.d_in)}${bad.has(it.id) ? " — a plan reviewer would circle it" : ""}`}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(it.id); } }}>
                 <title>{`${name} — ${ftIn(it.w_in)} × ${ftIn(it.d_in)}`}</title>
                 {/* A thin thing still gets a fingertip-sized target (WCAG 2.5.8), centred on it. */}
@@ -280,22 +353,31 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
                 <line className="front" x1={front[0]} y1={front[1]} x2={front[2]} y2={front[3]} />
                 {named && <text x={it.x_in} y={it.y_in} fontSize={fs} textAnchor="middle" dominantBaseline="central"
                   transform={vertical ? `rotate(-90 ${it.x_in} ${it.y_in})` : undefined}>{name}</text>}
-                {!named && <><circle cx={it.x_in} cy={it.y_in} r={9 * u} className="tag" /><text x={it.x_in} y={it.y_in} fontSize={10 * u} textAnchor="middle" dominantBaseline="central" className="tagt">{n + 1}</text></>}
-                {on && !named && <text x={it.x_in} y={b.y0 - 10 * u} fontSize={13 * u} textAnchor="middle" className="dimt">{name}</text>}
               </g>
             );
           })}
           {flow?.guests.map((g) => <circle key={g.id} className="guest" cx={g.x} cy={g.y} r={g.phase === "seated" ? 7 : 8} fill={PHASE_COLOR[g.phase]} />)}
-          {di && db && (
-            <g aria-hidden="true">
-              {([[db.x0, cy, 0, cy, db.x0], [db.x1, cy, W, cy, W - db.x1], [cx, db.y0, cx, 0, db.y0], [cx, db.y1, cx, D, D - db.y1]] as const)
-                .filter(([, , , , len]) => len > 3)
-                .map(([x1, y1, x2, y2, len], i) => (
+          {db && (
+            <g aria-hidden="true" className="gaps">
+              {labels.gaps.map((g, i) => {
+                const horiz = g.y1 === g.y2, t = 5 * u;
+                return (
                   <g key={i}>
-                    <line className="dim" x1={x1} y1={y1} x2={x2} y2={y2} strokeDasharray={`${6 * u} ${4 * u}`} />
-                    <text className="dimt" x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 5 * u} fontSize={12 * u} textAnchor="middle">{ftIn(len)}</text>
+                    <line className="gap" x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2} />
+                    {horiz
+                      ? <><line className="gap" x1={g.x1} y1={g.y1 - t} x2={g.x1} y2={g.y1 + t} /><line className="gap" x1={g.x2} y1={g.y2 - t} x2={g.x2} y2={g.y2 + t} /></>
+                      : <><line className="gap" x1={g.x1 - t} y1={g.y1} x2={g.x1 + t} y2={g.y1} /><line className="gap" x1={g.x2 - t} y1={g.y2} x2={g.x2 + t} y2={g.y2} /></>}
+                    {g.text && <text className="gapt" x={g.text.x} y={g.text.y} fontSize={12 * u} textAnchor="middle" dominantBaseline="central">{g.text.t}</text>}
                   </g>
-                ))}
+                );
+              })}
+            </g>
+          )}
+          {di && labels.tag && (
+            <g aria-hidden="true" className="seltag">
+              {labels.tag.leader && <line className="lead" x1={labels.tag.leader[0]} y1={labels.tag.leader[1]} x2={labels.tag.leader[2]} y2={labels.tag.leader[3]} />}
+              <rect className="tagbg" x={labels.tag.box.x0} y={labels.tag.box.y0} width={labels.tag.box.x1 - labels.tag.box.x0} height={labels.tag.box.y1 - labels.tag.box.y0} rx={4 * u} />
+              <text x={labels.tag.x} y={labels.tag.y} fontSize={labels.tag.size} textAnchor="middle" dominantBaseline="central">{labels.tag.text}</text>
             </g>
           )}
           {/* The picked thing's corner: drag it to size the thing (a wide, invisible ring makes it an easy target). */}
@@ -325,6 +407,7 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
         <button type="button" className="k-icon-btn glass" onClick={() => zoomBy(1.25)} title="Closer (+)" aria-label="Closer">+</button>
         <button type="button" className="k-icon-btn glass" onClick={() => zoomBy(0.8)} title="Farther (−)" aria-label="Farther">−</button>
         <button type="button" className="k-icon-btn glass" onClick={fitAll} disabled={fitted} title="Fit the whole room (F)" aria-label="Fit the whole room">⤢</button>
+        {sel && <button type="button" className="k-icon-btn glass" onClick={fitSel} title="Fit the picked thing (S)" aria-label={`Fit ${sel.label || kindOf(sel.kind).name}`}>⌖</button>}
       </div>
     </div>
   );
