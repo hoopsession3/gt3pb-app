@@ -18,6 +18,7 @@ import Store3D from "./Store3D";
 import PlanView, { KIND_MIME } from "./PlanView";
 import { SPLIT_AT, defaultView } from "@/lib/visionStudio";
 import { FORMAT, type Plan } from "@/lib/visionPlans";
+import Evaluate from "./Evaluate";
 import FlowBar, { figuresOf } from "./FlowBar";
 import { useFlow, type Speed } from "./useFlow";
 import { InfoRow } from "@/components/kit";
@@ -33,6 +34,20 @@ type View = "plan" | "3d" | "both";
 const GROUPS = ["Bar", "Front", "Seating", "Back", "Room"] as const;
 const newId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(16)}-0000-4000-8000-${Math.random().toString(16).slice(2, 14).padEnd(12, "0")}`);
 
+type KeptDraft = { at: number; draft: Layout };
+/** A short fingerprint of a room as saved, so a kept draft is offered only on top of the save it started from. */
+function hashOf(l: Layout): number { const t = JSON.stringify(l); let h = 0; for (let k = 0; k < t.length; k++) h = (h * 31 + t.charCodeAt(k)) | 0; return h; }
+function keptFor(original: Layout | null | undefined): KeptDraft | null {
+  if (!original || typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(`gt3.studio.draft.${original.id}`);
+    if (!raw) return null;
+    const k = JSON.parse(raw) as { at: number; base: number; draft: Layout };
+    if (k.base !== hashOf(original) || k.draft?.id !== original.id) { localStorage.removeItem(`gt3.studio.draft.${original.id}`); return null; }
+    return { at: k.at, draft: k.draft };
+  } catch { return null; }
+}
+
 export default function StoreDesigner({ layouts, plans = [], initialId = null, canEdit, onSaved }: { layouts: Layout[]; plans?: Plan[]; initialId?: string | null; canEdit: boolean; onSaved: () => void }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
@@ -47,7 +62,11 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [viewChoice, setView] = useState<View | null>(null);
   const [busy, setBusy] = useState(false);
   // Flow: guests moving through the room as it's drawn (lib/visionFlow).
-  const [flowOn, setFlowOn] = useState(false);
+  // THE LENS (S1.1b): one saved room, three ways to look at it — Design (the geometry, to edit it), Experience (people
+  // through it: the flow, a hypothesis until there are real days), Evaluate (what the Standard, the plan reviewer and the
+  // plans that read this room say, the most serious first). A lens is a way of looking, not another designer.
+  const [lens, setLens] = useState<"design" | "experience" | "evaluate">("design");
+  const flowOn = lens === "experience";
   const [perHour, setPerHour] = useState(60);
   const [speed, setSpeed] = useState<Speed>(30);
   // The studio (S1): its width, the library folded or open, the add sheet, the phone's dock, full screen.
@@ -109,16 +128,27 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // A different room, or a fresh read after a save: start from what is saved (React's "adjusting state when a prop
   // changes" — during render, guarded, not an effect).
   const [base, setBase] = useState(original);
+  // AN INTERRUPTED SESSION (S1.1b): unsaved changes are kept on this device as they're made, and offered back the next
+  // time this room opens — only if the room hasn't been saved since (a draft never lands on a newer save).
+  const [kept, setKept] = useState<KeptDraft | null>(() => keptFor(original));
   // The same room read again after its own save keeps its undo history and what's picked (S1.1 — the gate: "save changes
   // and preserve undo/redo history"); another room, or a fresh read from elsewhere, starts clean.
   const [savedId, setSavedId] = useState<string | null>(null);
   if (base !== original) {
     const same = !!original && savedId === original.id;
     setBase(original); setDraft(original ?? null); setSavedId(null);
-    if (!same) { setPast([]); setFuture([]); setSel(null); }
+    if (!same) { setPast([]); setFuture([]); setSel(null); setKept(keptFor(original)); }
   }
 
   const dirty = !!draft && !!original && JSON.stringify(draft) !== JSON.stringify(original);
+  useEffect(() => {
+    if (!original || kept) return;   // an offer on screen isn't overwritten until it's answered
+    try {
+      const k = `gt3.studio.draft.${original.id}`;
+      if (dirty && draft) localStorage.setItem(k, JSON.stringify({ at: Date.now(), base: hashOf(original), draft }));
+      else localStorage.removeItem(k);
+    } catch { /* storage refused: nothing kept, nothing lost from the screen */ }
+  }, [draft, dirty, original, kept]);
   const found = useMemo(() => (draft ? issues(draft) : []), [draft]);
   const bad = useMemo(() => new Set(found.flatMap((i) => i.ids)), [found]);
   const stats = draft ? roomStats(draft) : null;
@@ -227,11 +257,13 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       onRemove={() => void takeOut(item)} onClose={() => { setSel(null); setDock(false); }} />
   );
   // What a plan reviewer would circle, the schedule, the room itself: beside the canvas on a wide studio, under it on a phone.
+  const evaluate = draft ? <Evaluate draft={draft} saved={original ?? null} found={found} plans={plans} onLook={(id) => pick(id)} /> : null;
   const roomPanels = (
     <>
+      {lens === "evaluate" && evaluate}
       {/* Heard as it changes (mounted before its words — spoken.audit); the list itself is below. */}
       <p className="sr-only" aria-live="polite">{found.length ? `${found.length} ${found.length === 1 ? "thing" : "things"} a plan reviewer would circle.` : ""}</p>
-      {found.length > 0 && (
+      {lens !== "evaluate" && found.length > 0 && (
         <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label="What a plan reviewer would circle">
           {found.slice(0, 8).map((f, i) => (
             <p key={i} className={f.level === "error" ? "vz-issue error" : "vz-issue warn"}><button type="button" className="btn-ter" onClick={() => setSel(f.ids[0])}>{f.level === "error" ? "Fix" : "Look"}</button> {f.words}</p>
@@ -286,7 +318,8 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
         </div>
         <div className="vz-tbar-r">
           {canEdit && !(size === "wide" && libOpen && !full) && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>{narrow ? "+" : "+ Add"}</button>}
-          {!flowOn && <button type="button" className="btn-sec btn-sm" aria-label="Run the flow" title="Run the flow" onClick={() => { haptic("selection"); setFlowOn(true); }}>{size === "phone" ? "▶ Flow" : "▶ Run the flow"}</button>}
+          <Segmented label="Lens" kind="choice" value={lens} onChange={(v) => { haptic("selection"); setLens(v); }}
+            options={[{ key: "design", label: "Design" }, { key: "experience", label: "Experience" }, { key: "evaluate", label: size === "phone" ? "Evaluate" : `Evaluate${found.length ? ` · ${found.length}` : ""}` }]} />
           {canEdit && (
             <>
               <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (⌘Z)">↶</button>
@@ -310,6 +343,14 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
             const off = pl.sqft != null && Math.abs(pl.sqft - stats.sqft) > pl.sqft * 0.1;
             return <span key={pl.id} className={off ? "vz-stat-warn" : undefined}>For {FORMAT[pl.format].mark} <b>{pl.name}</b> · phase {pl.phase}{off ? ` — the plan says ${pl.sqft!.toLocaleString("en-US")} sq ft` : ""}</span>;
           })}
+        </p>
+      )}
+
+      {kept && (
+        <p className="vz-issue warn">
+          Unsaved changes to this room from {new Date(kept.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} were kept on this device.{" "}
+          <button type="button" className="btn-ter" onClick={() => { commit(kept.draft); setKept(null); haptic("success"); }}>Bring them back</button>{" "}
+          <button type="button" className="btn-ter" onClick={() => { try { localStorage.removeItem(`gt3.studio.draft.${kept.draft.id}`); } catch { /* */ } setKept(null); }}>Discard</button>
         </p>
       )}
 
@@ -351,7 +392,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           {/* FLOW floats over the room it runs in — the plan stays whole on screen while it runs. */}
           {flowOn && (
             <div className="vz-float-flow mpanel mb-0">
-              <FlowBar on={flowOn} onToggle={() => setFlowOn((o) => !o)} perHour={perHour} onPerHour={setPerHour} speed={speed} onSpeed={setSpeed} frame={flow} floating />
+              <FlowBar on={flowOn} onToggle={() => setLens("design")} perHour={perHour} onPerHour={setPerHour} speed={speed} onSpeed={setSpeed} frame={flow} floating />
             </div>
           )}
 
@@ -360,7 +401,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
               size, why) and opens the rest as a sheet over the drawing; full screen shows the inspector in the dock. */}
           {docked && (
             <div className="vz-dock mpanel mb-0" aria-label="What's picked">
-              {!item ? (narrow ? <p className="vz-card-s">{canEdit ? "Pick a thing to move, size or turn it." : "Pick a thing to see why it's there."}</p> : roomPanels)
+              {!item ? (narrow ? lens === "evaluate" ? evaluate : <p className="vz-card-s">{canEdit ? "Pick a thing to move, size or turn it." : "Pick a thing to see why it's there."}</p> : roomPanels)
                 : !narrow ? inspector : (
                 <div className="vz-dock-peek">
                   <div className="min-w-0">

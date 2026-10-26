@@ -76,11 +76,12 @@ const STUDIO_FITS = () => {
 const VISITS = [
   { key: "vision-roadmap", path: "/vision", ready: ".vz-board", drawn: ".vz-board .vz-card", long: true },
   { key: "vision-store", path: "/vision", ready: ".vz-board", clicks: ["The store"], drawn: ".vz-plan .it", long: true, check: STUDIO_FITS },
-  { key: "vision-flow", path: "/vision", ready: ".vz-board", clicks: ["The store", "Run the flow"], drawn: ".vz-plan .guest", long: true },
+  { key: "vision-flow", path: "/vision", ready: ".vz-board", clicks: ["The store", "Experience"], drawn: ".vz-plan .guest", long: true },
   // S1, the studio: the canvas full screen, and the library (a sheet on a phone and an iPad upright, beside the canvas wide).
   { key: "vision-store-full", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], drawn: ".vz-studio.full .vz-plan .it", long: false, check: STUDIO_FITS },
   { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "Add a fixture"], drawn: ".vz-library .vz-lib-row", long: false },
   { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
+  { key: "vision-evaluate", path: "/vision", ready: ".vz-board", clicks: ["The store", "Evaluate"], drawn: "[aria-label=\"Evaluate — the most serious first\"]", long: false },
   { key: "vision-standard", path: "/vision", ready: ".vz-board", clicks: ["Standard"], drawn: "[role=radiogroup][aria-label=\"The Standard\"]", long: false },
   { key: "vision-present", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], drawn: ".vp-slide", long: false },
   { key: "vision-ways", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-steps" }, drawn: ".vp-steps .vp-chip", long: false },

@@ -68,5 +68,32 @@ ok("the split is dragged, or moved with the arrow keys, a quarter to three quart
 ok("…set as a CSS variable, not an inline style", /style\.setProperty\("--sa"/.test(des) && /var\(--sa,1\.15fr\)/.test(css));
 ok("the pane the hands are in is marked", /activePane === "plan" \? " active"/.test(des) && /\.vz-pane\.active\{box-shadow/.test(css));
 ok("a phone stacks them — no divider", /view === "both" && size !== "phone" && \(\s*<div className="vz-divider"/.test(des));
+const ev = read("components/vision/Evaluate.tsx");
+ok("three lenses over one room: Design, Experience (the flow), Evaluate — one control", /label="Lens"/.test(des) && /const flowOn = lens === "experience"/.test(des) && /key: "evaluate"/.test(des));
+ok("Evaluate: the Standard's serious findings first, then the plan reviewer, then what the change does to the plans", ev.indexOf("serious.map") < ev.indexOf("shown.map") && ev.indexOf("shown.map") < ev.indexOf("diff.says.map"));
+ok("…the money effect is the engine's own roomDiff against the room as saved — nothing guessed from shape", /roomDiff\(saved, draft\)/.test(ev) && /an approved baseline doesn't move/.test(ev));
+ok("…automated checks are said to be a first read, not a code review", /not a code review/.test(ev));
+ok("…a finding can be set aside for the session, and brought back", /Set aside/.test(ev) && /set aside<\/button>|set aside`?\}?<\/button>|Show \{aside\.size\} set aside/.test(ev));
+ok("…unjudged isn't passed, and a failed read isn't an all-clear", /unjudged isn&apos;t passed/.test(ev) && /this isn&apos;t an all-clear/.test(ev));
+ok("an interrupted session: unsaved changes kept on the device, offered back only on top of the save they began from", /gt3\.studio\.draft\./.test(des) && /k\.base !== hashOf\(original\)/.test(des) && /Bring them back/.test(des));
+ok("…bringing them back is one undoable step", /onClick=\{\(\) => \{ commit\(kept\.draft\)/.test(des));
+const smoke = read("scripts/smoke.console.mjs");
+ok("the phone check visits the Evaluate lens and runs the flow through Experience", /key: "vision-evaluate"/.test(smoke) && /clicks: \["The store", "Experience"\]/.test(smoke));
+const D3 = loadTs("lib/vision3d.ts");
+{
+  const kinds = V.CATALOG.map((c) => c.kind);
+  let outside = [], counts = {};
+  for (const kind of kinds) for (const rot of [0, 90, 180, 270]) {
+    const c = V.kindOf(kind);
+    const it = { kind, rot, x_in: 100, y_in: 100, w_in: c.w, d_in: c.d, h_in: c.h };
+    const b = V.footprint(it);
+    const parts = D3.fixtureParts(it, b, 0, c.h, c.color);
+    counts[kind] = parts.length;
+    for (const p of parts) if (p[0] < b.x0 - 1e-6 || p[1] < b.y0 - 1e-6 || p[2] > b.x1 + 1e-6 || p[3] > b.y1 + 1e-6 || p[4] < -1e-6 || p[5] > c.h + 1e-6 || p[0] >= p[2] || p[1] >= p[3] || p[4] >= p[5]) outside.push([kind, rot, p]);
+  }
+  ok("every 3D part of every fixture, turned every way, sits inside its real footprint and height", outside.length === 0, outside.slice(0, 3));
+  ok("a table is a top on four legs, a counter a body and a top, a fridge a body and a glass front, shelving has shelves", counts.community === 5 && counts.order_counter === 2 && counts.reach_in === 2 && counts.storage >= 4, counts);
+  ok("everything else stays one box, as before", counts.column === 1 && counts.door === 1);
+}
 console.log(`S1.1b — THE STUDIO, SECOND PASS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

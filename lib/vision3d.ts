@@ -64,6 +64,52 @@ export function boxFaces(x0: number, z0: number, x1: number, z1: number, y0: num
   return out;
 }
 
+/** A fixture as a few boxes that say what it is (S1.1b — "the 3D relies on generic rectangles"): a table is a top on
+ *  four legs, a counter a body under an overhanging top, a fridge has a glass front, shelving has shelves, a lounge a
+ *  seat and a back. Lightweight and parametric: every part sits inside the fixture's real footprint and height, so the
+ *  size, the place and what's picked are exactly the plan's. No maker's detail is invented. Parts: x0, z0, x1, z1, y0,
+ *  y1, colour, opacity. */
+export type Part = [number, number, number, number, number, number, string, number];
+export function fixtureParts(it: Pick<Item, "kind" | "rot">, b: { x0: number; y0: number; x1: number; y1: number }, lift: number, hh: number, color: string): Part[] {
+  const top = lift + hh, w = b.x1 - b.x0, d = b.y1 - b.y0;
+  const k = it.kind;
+  // The front, where people stand: the same side the plan draws its front line on.
+  const front = (t: number): [number, number, number, number] => it.rot === 0 ? [b.x0, b.y1 - t, b.x1, b.y1] : it.rot === 180 ? [b.x0, b.y0, b.x1, b.y0 + t]
+    : it.rot === 90 ? [b.x0, b.y0, b.x0 + t, b.y1] : [b.x1 - t, b.y0, b.x1, b.y1];
+  if ((k === "two_top" || k === "four_top" || k === "community" || k === "window_bar") && w >= 12 && d >= 12) {
+    const slab = 1.5, leg = 2, inset = Math.min(3, w / 6, d / 6);
+    const legs: Part[] = [[b.x0 + inset, b.y0 + inset], [b.x1 - inset - leg, b.y0 + inset], [b.x0 + inset, b.y1 - inset - leg], [b.x1 - inset - leg, b.y1 - inset - leg]]
+      .map(([x, z]) => [x, z, x + leg, z + leg, lift, top - slab, "#4a3f30", 1]);
+    return [[b.x0, b.y0, b.x1, b.y1, top - slab, top, color, 1], ...legs];
+  }
+  if ((k === "order_counter" || k === "prep_counter" || k === "broth_station" || k === "three_sink") && w >= 12 && d >= 12) {
+    const slab = 1.5, kick = 1.5;
+    return [[b.x0 + kick, b.y0 + kick, b.x1 - kick, b.y1 - kick, lift, top - slab, color, 1], [b.x0, b.y0, b.x1, b.y1, top - slab, top, k === "order_counter" ? "#b8902f" : "#d9dcdd", 1]];
+  }
+  if ((k === "reach_in" || k === "bottle_cooler") && w >= 12 && d >= 12) {
+    const [gx0, gz0, gx1, gz1] = front(1);
+    return [[b.x0, b.y0, b.x1, b.y1, lift, top, color, 1], [gx0, gz0, gx1, gz1, lift + 6, top - 4, "#9fc3d1", 0.7]];
+  }
+  if ((k === "storage" || k === "merch_wall" || k === "pickup_shelf") && hh >= 24) {
+    const shelves = Math.max(2, Math.min(5, Math.floor(hh / 18)));
+    const parts: Part[] = [];
+    const t = 1.25;
+    for (let n = 0; n <= shelves; n++) { const y = lift + (n * (hh - t)) / shelves; parts.push([b.x0, b.y0, b.x1, b.y1, y, y + t, color, 1]); }
+    const side = Math.min(1.5, w / 8);
+    parts.push([b.x0, b.y0, b.x0 + side, b.y1, lift, top, color, 1], [b.x1 - side, b.y0, b.x1, b.y1, lift, top, color, 1]);
+    return parts;
+  }
+  if (k === "lounge" && w >= 24 && d >= 24) {
+    const seatTop = lift + Math.min(hh, 17);
+    const [fx0, fz0, fx1, fz1] = front(Math.max(w, d));
+    // The back: the side opposite the front, a quarter of the depth.
+    const back: Part = it.rot === 0 ? [b.x0, b.y0, b.x1, b.y0 + d * 0.25, lift, top, color, 1] : it.rot === 180 ? [b.x0, b.y1 - d * 0.25, b.x1, b.y1, lift, top, color, 1]
+      : it.rot === 90 ? [b.x1 - w * 0.25, b.y0, b.x1, b.y1, lift, top, color, 1] : [b.x0, b.y0, b.x0 + w * 0.25, b.y1, lift, top, color, 1];
+    return [[Math.max(b.x0, fx0), Math.max(b.y0, fz0), Math.min(b.x1, fx1), Math.min(b.y1, fz1), lift, seatTop, color, 1], back];
+  }
+  return [[b.x0, b.y0, b.x1, b.y1, lift, top, color, k === "window_wall" || k === "walk_up" ? 0.55 : 1]];
+}
+
 /** The scene: the floor, two low walls at the back (cut-away, so the room stays visible), and every item — sorted far to near. */
 export type Figure = { x: number; y: number; color: string; seated?: boolean };
 export type FloorMark = { x: number; y: number; size: number; v: number };
@@ -97,8 +143,7 @@ export function sceneFaces(room: { width_in: number; depth_in: number; ceiling_i
     const k = kindOf(it.kind);
     const hh = Math.max(1, it.h_in);
     const lift = k.kind === "menu_board" ? 54 : k.kind === "window_wall" || k.kind === "walk_up" ? 24 : 0;   // what hangs on a wall hangs
-    faces.push(...boxFaces(b.x0, b.y0, b.x1, b.y1, lift, lift + hh, it.id === selected ? "#d4a73a" : k.color, it.id, project, eye,
-      k.kind === "window_wall" || k.kind === "walk_up" ? 0.55 : 1));
+    for (const p of fixtureParts(it, b, lift, hh, it.id === selected ? "#d4a73a" : k.color)) faces.push(...boxFaces(p[0], p[1], p[2], p[3], p[4], p[5], p[6], it.id, project, eye, p[7]));
   }
   // Guests: a body and a head, about a person's size — shorter when they sit.
   for (const f of extra.figures ?? []) {

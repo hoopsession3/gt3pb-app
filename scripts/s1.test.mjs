@@ -28,7 +28,7 @@ const read = (p) => readFileSync(join(ROOT, p), "utf8");
 // ── 2 · the workspace ───────────────────────────────────────────────────────────────────────────────────────────────
 {
   const des = read("components/vision/StoreDesigner.tsx"), css = read("components/vision/studio.css"), vcss = read("components/vision/vision.css"), flow = read("components/vision/FlowBar.tsx");
-  ok("one thin bar: the room, the view, add, flow, undo, redo, save, full screen", /role="toolbar"/.test(des) && /\+ Add/.test(des) && /aria-label="Run the flow"/.test(des) && /"⤢ Full screen"/.test(des));
+  ok("one thin bar: the room, the view, add, the lens (the flow is Experience, S1.1b), undo, redo, save, full screen", /role="toolbar"/.test(des) && /\+ Add/.test(des) && /key: "experience", label: "Experience"/.test(des) && /"⤢ Full screen"/.test(des));
   ok("the canvas takes the height the screen has left — never a fixed strip", /\.vz-stage\{[^}]*height:var\(--stage-h,clamp\([^)]*100dvh/.test(css) && /\.vz-stage \.vz-3d\{height:100%\}/.test(css));
   ok("wide: library · canvas · inspector; the library folds away", /\.vz-studio\.wide\.lib \.vz-work\{grid-template-columns:240px minmax\(0,1fr\) 320px\}/.test(css) && /setLibChoice\(!libOpen\)/.test(des));
   ok("the library: found by name, filtered by part of the store, dragged onto the plan or tapped in", /placeholder="Find a fixture"/.test(des) && /SHELF = \["All", \.\.\.GROUPS\]/.test(des) && /draggable=\{drag\}/.test(des) && /onDrop=\{onDropKind/.test(read("components/vision/PlanView.tsx")));
