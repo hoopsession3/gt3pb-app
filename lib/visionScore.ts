@@ -27,6 +27,8 @@ export const READINESS_WORD: Record<Readiness, string> = { ready: "Ready to pres
 export type Score = {
   /** Overall investment readiness, 0–100 (null until the money is set). */
   total: number | null; readiness: Readiness; says: string;
+  /** How much of the weight is judged, 0–100: the total counts the rest as zero (S1.1c). */
+  coverage: number;
   assessments: Record<AssessKey, Assessment>;
   /** The three changes that would raise the outcome most, each with the criterion it moves. */
   actions: { text: string; criterion: CriterionKey; gain: number }[];
@@ -164,8 +166,11 @@ export function score(raw: Inputs, m: Model, research: readonly Finding[] = [], 
 
   const assessments = { market, execution, financial, evidence };
   const scored = (Object.keys(assessments) as AssessKey[]).filter((k) => assessments[k].score != null);
-  const w = scored.reduce((n, k) => n + ASSESS_WEIGHT[k], 0);
-  const total = m.ok && w > 0 ? clamp(scored.reduce((n, k) => n + assessments[k].score! * ASSESS_WEIGHT[k], 0) / w) : null;
+  // An assessment not judged yet counts as zero, not as absent (S1.1c — the audit's H1: dividing by the judged weight
+  // alone let one strong assessment and three unknowns read as ready). Coverage says how much of the total is judged.
+  const allW = (Object.keys(assessments) as AssessKey[]).reduce((n, k) => n + ASSESS_WEIGHT[k], 0);
+  const coverage = Math.round((scored.reduce((n, k) => n + ASSESS_WEIGHT[k], 0) / allW) * 100);
+  const total = m.ok && scored.length > 0 ? clamp(scored.reduce((n, k) => n + assessments[k].score! * ASSESS_WEIGHT[k], 0) / allW) : null;
   // The gate: a plan isn't ready to present on a strong spreadsheet alone.
   const readiness: Readiness = total == null ? "unknown"
     : (financial.score ?? 0) < 40 || (execution.score ?? 100) < 40 ? "not_ready"
@@ -177,6 +182,6 @@ export function score(raw: Inputs, m: Model, research: readonly Finding[] = [], 
     return a.criteria.filter((c) => (c.points ?? (k === "market" ? 0 : null)) != null && (c.points ?? 0) < 100)
       .map((c) => ({ text: c.action, criterion: c.key, gain: Math.round(((100 - (c.points ?? 0)) * (c.weight / cw) * ASSESS_WEIGHT[k]) / 100) }));
   }).sort((a, b) => b.gain - a.gain).slice(0, 3);
-  return { total, readiness, assessments, actions,
-    says: total == null ? "Set the money to see the assessment." : `${READINESS_WORD[readiness]} — ${total} of 100 across ${scored.length} of 4 assessments. GT3's written rubrics, not a probability of success; the returns are the money's own figures.` };
+  return { total, coverage, readiness, assessments, actions,
+    says: total == null ? "Set the money to see the assessment." : `${READINESS_WORD[readiness]} — ${total} of 100, with ${scored.length} of 4 assessments judged (${coverage}% of the weight); what isn't judged counts as zero. GT3's written rubrics, not a probability of success; the returns are the money's own figures.` };
 }

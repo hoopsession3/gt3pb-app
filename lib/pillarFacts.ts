@@ -15,13 +15,13 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 export function pillarFacts(l: Pick<Layout, "items" | "width_in" | "depth_in">, found: readonly Issue[]): Fact[] {
   const seats = l.items.reduce((s, i) => s + (kindOf(i.kind).seats ?? 0), 0);
-  const aisle = found.filter((f) => /aisle|36 in|walk/i.test(f.words)).length;
+  const aisle = found.filter((f) => f.level !== "error" && /aisle|36 in|walk/i.test(f.words)).length;
   const overlaps = found.filter((f) => /overlap|through a wall|outside/i.test(f.words)).length;
   const doors = count(l, ["door"]), windows = count(l, ["window_wall", "walk_up"]);
   const bar = count(l, ["tap_tower", "bottle_cooler", "broth_station", "order_counter"]), back = count(l, ["prep_counter", "brew_vessels", "reach_in", "ice_machine", "three_sink", "storage"]);
   const sinks = count(l, ["hand_sink", "three_sink"]);
   return [
-    { pillar: "movement", source: "drawn", text: `${plural(doors, "door")}; ${aisle ? `${plural(aisle, "aisle")} under 36 in` : "no aisle under 36 in"}${overlaps ? `; ${plural(overlaps, "overlap")} or wall crossings` : ""}.` },
+    { pillar: "movement", source: "drawn", text: `${plural(doors, "door")}; ${aisle ? `${plural(aisle, "tight spot")} under 36 in` : "nothing closer than 36 in"}${overlaps ? `; ${plural(overlaps, "overlap")} or wall crossings` : ""}.` },
     { pillar: "movement", source: "simulated", text: "How guests and crew move through it: the Experience lens runs the flow on assumed timings — a model, not a count." },
     { pillar: "stillness", source: "drawn", text: `${plural(seats, "seat")}, ${plural(count(l, ["lounge", "community", "bench"]), "place", "places")} to stay a while.` },
     { pillar: "stillness", source: "unknown", text: "Sound and sensory load aren't in the drawing — unknown until measured." },

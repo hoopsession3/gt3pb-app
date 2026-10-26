@@ -104,7 +104,7 @@ const P = loadTs("lib/pillarFacts.ts"), STD = loadTs("lib/standard.ts");
   ].map((x, i) => ({ id: String(i), label: null, x_in: 0, y_in: 0, rot: 0, w_in: 10, d_in: 10, h_in: 10, why: null, sort: i, ...x })) };
   const facts = P.pillarFacts(room, [{ ids: ["1"], level: "warn", words: "20 in between A and B — an aisle needs 36" }]);
   ok("every pillar has its facts, each tagged with where it comes from", ["movement", "stillness", "light", "fuel"].every((p) => facts.some((f) => f.pillar === p)) && facts.every((f) => ["drawn", "simulated", "standard", "unknown"].includes(f.source)));
-  ok("the drawing's counts are said as drawn", /1 door; 1 aisle under 36 in/.test(facts.find((f) => f.pillar === "movement" && f.source === "drawn").text) && /8 seats/.test(facts.find((f) => f.pillar === "stillness").text), facts.map((f) => f.text));
+  ok("the drawing's counts are said as drawn", /1 door; 1 tight spot under 36 in/.test(facts.find((f) => f.pillar === "movement" && f.source === "drawn").text) && /8 seats/.test(facts.find((f) => f.pillar === "stillness").text), facts.map((f) => f.text));
   ok("light levels and sound are unknown, never guessed from the drawing", facts.some((f) => f.pillar === "light" && f.source === "unknown") && facts.some((f) => f.pillar === "stillness" && f.source === "unknown"));
   ok("the flow is said to be simulated", facts.some((f) => f.source === "simulated" && /model, not a count/.test(f.text)));
   ok("no fact makes a health or toxicity claim", facts.every((f) => !STD.isProhibited(f.text) && !/healthy|safe|toxic/i.test(f.text)));

@@ -32,8 +32,8 @@ type Mode =
   | { k: "pan"; sx: number; sy: number; cam: Cam; moved: boolean; onEmpty: boolean }
   | { k: "pinch"; d0: number; cam: Cam; at: { x: number; y: number } };
 
-export default function PlanView({ layout, selected, bad, canEdit, flow, onSelect, onMove, onResize, onBegin, onDropKind, onTurn, onCopy, onRemove, onDetails }: {
-  layout: Layout; selected: string | null; bad: Set<string>; canEdit: boolean; flow: FlowFrame | null;
+export default function PlanView({ layout, selected, bad, focus = [], canEdit, flow, onSelect, onMove, onResize, onBegin, onDropKind, onTurn, onCopy, onRemove, onDetails }: {
+  layout: Layout; selected: string | null; bad: Set<string>; focus?: string[]; canEdit: boolean; flow: FlowFrame | null;
   onSelect: (id: string | null) => void;
   onMove: (id: string, at: { x_in: number; y_in: number }, record: boolean) => void;
   onResize: (id: string, patch: Pick<Item, "w_in" | "d_in" | "x_in" | "y_in">) => void;
@@ -353,8 +353,8 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
             const front: [number, number, number, number] = it.rot === 0 ? [b.x0 + w * 0.3, b.y1, b.x1 - w * 0.3, b.y1] : it.rot === 180 ? [b.x0 + w * 0.3, b.y0, b.x1 - w * 0.3, b.y0]
               : it.rot === 90 ? [b.x0, b.y0 + h * 0.3, b.x0, b.y1 - h * 0.3] : [b.x1, b.y0 + h * 0.3, b.x1, b.y1 - h * 0.3];
             return (
-              <g key={it.id} data-id={it.id} className={`it${on ? " sel" : ""}${bad.has(it.id) ? " bad" : ""}`} tabIndex={0} role="button" aria-pressed={on}
-                aria-label={`${name}, ${ftIn(it.w_in)} by ${ftIn(it.d_in)}${bad.has(it.id) ? " — a plan reviewer would circle it" : ""}`}
+              <g key={it.id} data-id={it.id} className={`it${on ? " sel" : ""}${bad.has(it.id) ? " bad" : ""}${focus.includes(it.id) ? " focus" : ""}`} tabIndex={0} role="button" aria-pressed={on}
+                aria-label={`${name}, ${ftIn(it.w_in)} by ${ftIn(it.d_in)}${bad.has(it.id) ? " — overlaps or sits outside the walls" : focus.includes(it.id) ? " — part of the finding you chose" : ""}`}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(it.id); } }}>
                 <title>{`${name} — ${ftIn(it.w_in)} × ${ftIn(it.d_in)}`}</title>
                 {/* A thin thing still gets a fingertip-sized target (WCAG 2.5.8), centred on it. */}

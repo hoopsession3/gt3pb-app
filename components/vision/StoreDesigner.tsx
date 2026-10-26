@@ -10,7 +10,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { Segmented } from "@/components/controls";
 import { haptic } from "@/lib/haptics";
 import {
-  AISLE_IN, CATALOG, PILLARS, PILLAR_WORD, allowedKind, clampInside, ftIn, issues, kindOf, parseFtIn, roomStats, snap,
+  AISLE_IN, CATALOG, PILLARS, PILLAR_WORD, allowedKind, clampInside, ftIn, groupIssues, issues, kindOf, parseFtIn, roomStats, snap,
   type Item, type Layout, type Pillar,
 } from "@/lib/vision";
 import { saveLayout } from "@/lib/visionRead";
@@ -151,8 +151,12 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       else localStorage.removeItem(k);
     } catch { /* storage refused: nothing kept, nothing lost from the screen */ }
   }, [draft, dirty, original, kept]);
-  const found = useMemo(() => (draft ? issues(draft) : []), [draft]);
-  const bad = useMemo(() => new Set(found.flatMap((i) => i.ids)), [found]);
+  // The findings, grouped (S1.1c): errors one by one, touching warnings as one. Only errors are drawn on the plan by
+  // default; a finding chosen from the list highlights everything it names (focus), until something else is picked.
+  const found = useMemo(() => (draft ? groupIssues(issues(draft)) : []), [draft]);
+  const bad = useMemo(() => new Set(found.filter((f) => f.level === "error").flatMap((i) => i.ids)), [found]);
+  const [focus, setFocus] = useState<string[]>([]);
+  const look = (f: { ids: string[] }) => { pick(f.ids[0]); setFocus(f.ids); };
   const stats = draft ? roomStats(draft) : null;
   const item = draft?.items.find((i) => i.id === sel) ?? null;
   const flow = useFlow(draft ?? EMPTY_ROOM, flowOn && !!draft, perHour, speed);
@@ -172,7 +176,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const redo = () => { if (!future.length || !draft) return; setPast((p) => [...p, draft]); setDraft(future[0]); setFuture((f) => f.slice(1)); };
 
   /** Pick a thing (or nothing): the phone's dock opens on its peek, never straight onto the whole inspector. */
-  const pick = (id: string | null) => { setSel(id); setDock(false); };
+  const pick = (id: string | null) => { setSel(id); setDock(false); setFocus([]); };
   /** Details for a thing (its bar's ⓘ): the dock pulled up on a phone; wider, the inspector beside the canvas, its first
    *  field ready to type in. */
   const details = (id: string) => {
@@ -259,7 +263,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       onRemove={() => void takeOut(item)} onClose={() => { setSel(null); setDock(false); }} />
   );
   // What a plan reviewer would circle, the schedule, the room itself: beside the canvas on a wide studio, under it on a phone.
-  const evaluate = draft ? <Evaluate draft={draft} saved={original ?? null} found={found} plans={plans} onLook={(id) => pick(id)} /> : null;
+  const evaluate = draft ? <Evaluate draft={draft} saved={original ?? null} found={found} plans={plans} onLook={(id) => { const f = found.find((x) => x.ids.includes(id)); if (f) look(f); else pick(id); }} /> : null;
   const roomPanels = (
     <>
       {lens === "evaluate" && evaluate}
@@ -268,7 +272,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       {lens !== "evaluate" && found.length > 0 && (
         <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label="What a plan reviewer would circle">
           {found.slice(0, 8).map((f, i) => (
-            <p key={i} className={f.level === "error" ? "vz-issue error" : "vz-issue warn"}><button type="button" className="btn-ter" onClick={() => setSel(f.ids[0])}>{f.level === "error" ? "Fix" : "Look"}</button> {f.words}</p>
+            <p key={i} className={f.level === "error" ? "vz-issue error" : "vz-issue warn"}><button type="button" className="btn-ter" onClick={() => look(f)}>{f.level === "error" ? "Fix" : "Look"}</button> {f.words}</p>
           ))}
           {found.length > 8 && <p className="vz-issue warn">…and {found.length - 8} more.</p>}
         </div>
@@ -371,7 +375,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           <div ref={storeEl} className={view === "both" ? "vz-store both" : "vz-store"}>
             {view !== "3d" && (
               <div className={`vz-pane mpanel mb-0 relative min-w-0 overflow-hidden${view === "both" && activePane === "plan" ? " active" : ""}`} onPointerDownCapture={() => setActivePane("plan")}>
-                <PlanView layout={draft} selected={sel} bad={bad} canEdit={canEdit} onSelect={pick} flow={flow}
+                <PlanView layout={draft} selected={sel} bad={bad} focus={focus} canEdit={canEdit} onSelect={pick} flow={flow}
                   onMove={(id, at, done) => patchItem(id, at, done)} onResize={(id, p) => patchItem(id, p, false)}
                   onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }}
                   onDropKind={canEdit ? (k, at) => add(k, at) : undefined}
@@ -429,8 +433,10 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           {narrow && dock && item && (
             <Sheet open onClose={() => setDock(false)} label={`${name} — its size and why it's there`}>{inspector}</Sheet>
           )}
-          {full && found.length > 0 && !item && (
-            <button type="button" className={found.some((f) => f.level === "error") ? "k-chip vz-pill-issue error" : "k-chip vz-pill-issue"} onClick={() => pick(found[0].ids[0])}>
+          {/* The count of findings over the canvas — not on a phone, where the dock holds the lens and "Evaluate · n" says it
+              (S1.1c, measured: the chip sat on the lens control). */}
+          {full && size !== "phone" && found.length > 0 && !item && (
+            <button type="button" className={found.some((f) => f.level === "error") ? "k-chip vz-pill-issue error" : "k-chip vz-pill-issue"} onClick={() => look(found[0])}>
               {found.length} to look at
             </button>
           )}

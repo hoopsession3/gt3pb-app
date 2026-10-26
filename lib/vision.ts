@@ -125,6 +125,24 @@ export function issues(layout: Pick<Layout, "width_in" | "depth_in" | "items">):
   return out;
 }
 
+/** The findings as a person reads them (S1.1c, 2026-10-26 — Ryan: "eliminate excessive repeated overlays… grouped issue
+ *  summaries"). An error stays its own line (an overlap, a thing outside the walls). Warnings that touch — a cluster of
+ *  tables each closer than an aisle to the next — become ONE finding naming the group, not a line (and an outline) per
+ *  pair. The ids are all there, so choosing the finding highlights the whole group. */
+export function groupIssues(found: readonly Issue[]): Issue[] {
+  const errors = found.filter((f) => f.level === "error");
+  const warns = found.filter((f) => f.level !== "error");
+  const parent = new Map<string, string>();
+  const root = (x: string): string => { let r = x; while (parent.get(r) !== r) r = parent.get(r)!; parent.set(x, r); return r; };
+  for (const w of warns) for (const id of w.ids) if (!parent.has(id)) parent.set(id, id);
+  for (const w of warns) for (let k = 1; k < w.ids.length; k++) parent.set(root(w.ids[k]), root(w.ids[0]));
+  const groups = new Map<string, { ids: Set<string>; pairs: Issue[] }>();
+  for (const w of warns) { const r = root(w.ids[0]); const g = groups.get(r) ?? { ids: new Set<string>(), pairs: [] }; w.ids.forEach((i) => g.ids.add(i)); g.pairs.push(w); groups.set(r, g); }
+  const grouped: Issue[] = [...groups.values()].map((g) => g.pairs.length === 1 ? g.pairs[0]
+    : { ids: [...g.ids], level: "warn", words: `${g.ids.size} things closer than ${AISLE_IN} in to each other in ${g.pairs.length} places — an aisle needs ${AISLE_IN}` });
+  return [...errors, ...grouped];
+}
+
 export type RoomStats = { sqft: number; seats: number; items: number; pillars: Record<Pillar, number> };
 export function roomStats(layout: Pick<Layout, "width_in" | "depth_in" | "items">): RoomStats {
   const pillars = { stillness: 0, light: 0, fuel: 0, movement: 0 } as Record<Pillar, number>;
