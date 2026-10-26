@@ -16,11 +16,19 @@ const STEPS: [Phase, string][] = [["in", "Walking in"], ["queue", "In line"], ["
 export const figuresOf = (f: FlowFrame | null): Figure[] | undefined =>
   f ? f.guests.map((g) => ({ x: g.x, y: g.y, color: PHASE_COLOR[g.phase], seated: g.phase === "seated" })) : undefined;
 
-export default function FlowBar({ on, onToggle, perHour, onPerHour, speed, onSpeed, frame, compact = false }: {
+export default function FlowBar({ on, onToggle, perHour, onPerHour, speed, onSpeed, frame, compact = false, floating = false }: {
   on: boolean; onToggle: () => void; perHour: number; onPerHour: (n: number) => void; speed: Speed; onSpeed: (s: Speed) => void;
   frame: FlowFrame | null; compact?: boolean;
+  /** Over the canvas (S1, the studio): the same controls and numbers, the assumptions a tap away so the room stays in view. */
+  floating?: boolean;
 }) {
   const st = frame?.stats;
+  const legend = (
+    <div className="vz-legend" aria-hidden="true">
+      {STEPS.map(([p, w]) => <span key={p}><i className={`ph-${p}`} />{w}</span>)}
+      <span><i className="ph-heat" />Where it&apos;s busiest</span>
+    </div>
+  );
   const words = frame?.problem ?? (st ? flowWords(st, perHour) : null);
   const toggle = <button type="button" className={on ? "btn-pri btn-sm" : "btn-sec btn-sm"} aria-pressed={on} onClick={() => { haptic("selection"); onToggle(); }}>{on ? "❚❚ Stop the flow" : "▶ Run the flow"}</button>;
   if (compact) {
@@ -54,13 +62,10 @@ export default function FlowBar({ on, onToggle, perHour, onPerHour, speed, onSpe
       )}
       {/* Mounted before its words, so a reader hears them arrive (spoken.audit). */}
       <p className={frame?.problem ? "vz-issue error" : "vz-flow-say"} aria-live="polite">{on && words ? words : ""}</p>
-      <p className="vz-card-s">{assumptionsWords()}</p>
-      {on && !frame?.problem && (
-        <div className="vz-legend" aria-hidden="true">
-          {STEPS.map(([p, w]) => <span key={p}><i className={`ph-${p}`} />{w}</span>)}
-          <span><i className="ph-heat" />Where it&apos;s busiest</span>
-        </div>
-      )}
+      {floating
+        ? <details className="vz-flow-what"><summary>Simulated, on assumed timings — what it assumes</summary><p className="vz-card-s">{assumptionsWords()}</p>{legend}</details>
+        : <p className="vz-card-s">{assumptionsWords()}</p>}
+      {on && !frame?.problem && !floating && legend}
     </div>
   );
 }

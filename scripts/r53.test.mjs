@@ -87,8 +87,9 @@ const plan = (id, phase, extra = {}) => ({ id, program_id: "s", name: id, format
   ok("the roadmap: a program's ways in, and an ask \"For\" a plan", /way in" : "ways in"/.test(road) && /<span>For<\/span>/.test(road) && /plan_id: r\.plan \|\| null/.test(road));
   ok("the presenter: a ways-in slide, drawn at the top of the document", /kind: "ways"/.test(pres) && /createPortal\(/.test(pres) && /document\.body/.test(pres));
   ok("the vision is on the desk from 1,024 wide in landscape", /p === "\/vision" \|\| p\.startsWith\("\/vision\/"\)/.test(surf));
-  ok("the drafting table: palette, room, inspector — three columns from 1,100 wide, two on an iPad upright", /min-\[1100px\]:grid-cols-\[230px_minmax\(0,1fr\)_320px\]/.test(des) && /min-\[760px\]:grid-cols-2/.test(des));
-  ok("…the plan and the 3D side by side when the room's pane is wide enough (a container query)", /@container/.test(des) && /@min-\[720px\]:grid-cols/.test(des));
+  // S1 (the studio) lays the drafting table out by the studio's own width, not the screen's: scripts/s1.test.mjs.
+  ok("the drafting table: library, room, inspector — three columns wide, two on an iPad upright (S1: by the studio's width)", /useStudioSize\(\)/.test(des) && /\.vz-studio\.wide\.lib \.vz-work\{grid-template-columns:240px minmax\(0,1fr\) 320px\}/.test(read("components/vision/studio.css")) && /\.vz-studio\.mid \.vz-work\{grid-template-columns:minmax\(0,1fr\) 300px\}/.test(read("components/vision/studio.css")));
+  ok("…the plan and the 3D side by side when the studio is wide enough", /\.vz-studio:not\(\.phone\) \.vz-store\.both\{grid-template-rows:none;grid-template-columns:minmax\(0,1\.15fr\) minmax\(0,1fr\)\}/.test(read("components/vision/studio.css")));
   ok("the device check: iPads both ways up, in Split View, and a desktop", ["ipad-11", "ipad-11-side", "ipad-13", "ipad-13-side", "ipad-split-half", "ipad-split-two-thirds", "desktop"].every((k) => smoke.includes(`key: "${k}"`)));
   ok("the column gate reads a later pending migration's added column on a pending table (0448's expires_at on 0447's links)",
     /at === undefined \|\| at < born/.test(read("scripts/columns.audit.mjs")));

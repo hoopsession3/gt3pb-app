@@ -1,7 +1,9 @@
 "use client";
 
+import "./studio.css";
 import { failureWords } from "@/lib/failureWords";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { useAppStable } from "@/components/AppProvider";
 import { useConfirm } from "@/components/ConfirmSheet";
@@ -18,6 +20,8 @@ import FlowBar, { figuresOf } from "./FlowBar";
 import { useFlow, type FlowFrame, type Speed } from "./useFlow";
 import { PHASE_COLOR } from "@/lib/visionFlow";
 import { InfoRow } from "@/components/kit";
+import Sheet from "@/components/Sheet";
+import { useStudioSize } from "./useStudioSize";
 
 // THE STORE DESIGNER (R52) — a light AutoCAD for the first GT3 Performance Bar. A plan to scale (inches, a 6-inch snap,
 // feet-and-inches everywhere, the distance to each wall while a thing is moved), a 3D view that follows every move, and
@@ -45,6 +49,15 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [flowOn, setFlowOn] = useState(false);
   const [perHour, setPerHour] = useState(60);
   const [speed, setSpeed] = useState<Speed>(30);
+  // The studio (S1): its width, the library folded or open, the add sheet, the phone's dock, full screen.
+  const { ref: box, size, roomy } = useStudioSize();
+  // The library beside the canvas: open from the start when the studio is roomy, folded otherwise — until a tap says.
+  const [libChoice, setLibChoice] = useState<boolean | null>(null);
+  const libOpen = libChoice ?? roomy;
+  const [addOpen, setAddOpen] = useState(false);
+  const [dock, setDock] = useState(false);
+  const [full, setFull] = useState(false);
+  const host = useSyncExternalStore(noSubscribe, findHost, noHost);
 
   // A different room, or a fresh read after a save: start from what is saved (React's "adjusting state when a prop
   // changes" — during render, guarded, not an effect).
@@ -72,13 +85,16 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const undo = () => { if (!past.length || !draft) return; setFuture((f) => [draft, ...f]); setDraft(past[past.length - 1]); setPast((p) => p.slice(0, -1)); };
   const redo = () => { if (!future.length || !draft) return; setPast((p) => [...p, draft]); setDraft(future[0]); setFuture((f) => f.slice(1)); };
 
-  const add = (kind: string) => {
+  /** Pick a thing (or nothing): the phone's dock opens on its peek, never straight onto the whole inspector. */
+  const pick = (id: string | null) => { setSel(id); setDock(false); };
+  /** A new thing, in the middle of the room — or where it was dropped on the plan. */
+  const add = (kind: string, at?: { x: number; y: number }) => {
     if (!draft || !allowedKind(kind)) return;
     const k = kindOf(kind);
-    const it: Item = { id: newId(), kind, label: null, x_in: snap(draft.width_in / 2), y_in: snap(draft.depth_in / 2), rot: 0, w_in: k.w, d_in: k.d, h_in: k.h,
+    const it: Item = { id: newId(), kind, label: null, x_in: snap(at?.x ?? draft.width_in / 2), y_in: snap(at?.y ?? draft.depth_in / 2), rot: 0, w_in: k.w, d_in: k.d, h_in: k.h,
       why: k.why, pillars: [...k.pillars], sort: draft.items.length + 1 };
     commit({ ...draft, items: [...draft.items, { ...it, ...clampInside(it, draft) }] });
-    setSel(it.id);
+    setSel(it.id); setDock(false);
     haptic("selection");
   };
   const remove = (id: string) => { if (!draft) return; commit({ ...draft, items: draft.items.filter((i) => i.id !== id) }); setSel(null); };
@@ -118,6 +134,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       const t = e.target as HTMLElement | null;
       if (t && /input|textarea|select/i.test(t.tagName)) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+      if (e.key === "Escape" && !sel && full) { setFull(false); return; }
       if (!sel || !draft) return;
       const it = draft.items.find((i) => i.id === sel); if (!it) return;
       const step = e.shiftKey ? 12 : 6;
@@ -125,7 +142,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       if (mv[e.key]) { e.preventDefault(); const n = { ...it, x_in: it.x_in + mv[e.key][0], y_in: it.y_in + mv[e.key][1] }; patchItem(sel, clampInside(n, draft)); }
       else if (e.key === "r" || e.key === "R") turn(sel);
       else if (e.key === "Delete" || e.key === "Backspace") remove(sel);
-      else if (e.key === "Escape") setSel(null);
+      else if (e.key === "Escape") pick(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -140,28 +157,85 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
     );
   }
 
-  return (
-    <div className="vz">
-      <div className="vz-top">
-        <div className="vz-row grow min-w-0">
-          {layouts.length > 1 && (
-            <select aria-label="Which room" value={draft.id} onChange={(e) => setLayoutId(e.target.value)} className="grow min-w-0 basis-[180px]">
+  const name = item ? item.label || kindOf(item.kind).name : "";
+  const takeOut = async (it: Item) => { if (await confirm({ title: `Take out ${it.label || kindOf(it.kind).name}?`, body: "Undo brings it back, until you save.", confirmLabel: "Take it out", danger: true })) remove(it.id); };
+  const inspector = item && (
+    <Inspector key={item.id} item={item} canEdit={canEdit} room={draft}
+      onPatch={(p) => patchItem(item.id, p)} onTurn={() => turn(item.id)} onCopy={() => copy(item.id)}
+      onRemove={() => void takeOut(item)} onClose={() => { setSel(null); setDock(false); }} />
+  );
+  // What a plan reviewer would circle, the schedule, the room itself: beside the canvas on a wide studio, under it on a phone.
+  const roomPanels = (
+    <>
+      {/* Heard as it changes (mounted before its words — spoken.audit); the list itself is below. */}
+      <p className="sr-only" aria-live="polite">{found.length ? `${found.length} ${found.length === 1 ? "thing" : "things"} a plan reviewer would circle.` : ""}</p>
+      {found.length > 0 && (
+        <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label="What a plan reviewer would circle">
+          {found.slice(0, 8).map((f, i) => (
+            <p key={i} className={f.level === "error" ? "vz-issue error" : "vz-issue warn"}><button type="button" className="btn-ter" onClick={() => setSel(f.ids[0])}>{f.level === "error" ? "Fix" : "Look"}</button> {f.words}</p>
+          ))}
+          {found.length > 8 && <p className="vz-issue warn">…and {found.length - 8} more.</p>}
+        </div>
+      )}
+      {/* THE SCHEDULE — every thing in the room, numbered as the plan numbers it (a plan set's equipment schedule): its
+          name, its size, its pillars. A tap picks it on the plan and in 3D. */}
+      <details className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
+        <summary className="font-sans font-bold text-subhead cursor-pointer py-2">Schedule · {draft.items.length} things</summary>
+        <div className="k-rows mt-2">
+          {draft.items.map((it, n) => (
+            <InfoRow key={it.id} lead={String(n + 1)} name={it.label || kindOf(it.kind).name}
+              meta={`${ftIn(it.w_in)} × ${ftIn(it.d_in)} × ${ftIn(it.h_in)}${it.pillars.length ? ` · ${it.pillars.map((p) => PILLAR_WORD[p]).join(", ")}` : ""}`}
+              onClick={() => setSel(it.id)} />
+          ))}
+        </div>
+      </details>
+      {canEdit && (
+        <details className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" open={size === "wide" ? true : undefined}>
+          <summary className="font-sans font-bold text-subhead cursor-pointer py-2">The room · {ftIn(draft.width_in)} × {ftIn(draft.depth_in)}</summary>
+          <RoomFields bare key={`${draft.id}-${draft.name}-${draft.width_in}-${draft.depth_in}-${draft.ceiling_in}`} layout={draft} onChange={(p) => commit({ ...draft, ...p })} />
+          <div className="vz-row">
+            <button type="button" className="btn-sec btn-sm" onClick={() => void newRoom()}>+ Another room</button>
+            {dirty && <button type="button" className="btn-ter" onClick={() => { setDraft(original ?? null); setPast([]); setFuture([]); }}>Discard changes</button>}
+          </div>
+        </details>
+      )}
+    </>
+  );
+
+  // THE STUDIO (S1 — "the canvas should be the primary experience"). One workspace laid out by its own width
+  // (useStudioSize): a thin bar on top; the canvas filling what's left; on a wide studio the library at the left (it folds
+  // away) and the inspector at the right; on a phone the inspector docks over the canvas's foot and the library opens as a
+  // sheet. Flow floats over the canvas it runs in. Full screen takes the whole display for drawing or showing.
+  const studio = (
+    <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${libOpen && canEdit && size === "wide" ? " lib" : ""}`}>
+      <div className="vz-tbar" role="toolbar" aria-label="The store designer">
+        <div className="vz-tbar-l">
+          {canEdit && size === "wide" && (
+            <button type="button" className="k-icon-btn glass" aria-pressed={libOpen} aria-label={libOpen ? "Hide the library" : "Show the library"} onClick={() => setLibChoice(!libOpen)}>☰</button>
+          )}
+          {layouts.length > 1 ? (
+            <select aria-label="Which room" value={draft.id} onChange={(e) => setLayoutId(e.target.value)} className="vz-tbar-room">
               {layouts.map((l) => { const pl = plans.find((x) => x.layout_id === l.id); return <option key={l.id} value={l.id}>{l.name}{pl ? ` — phase ${pl.phase}` : ""}</option>; })}
             </select>
-          )}
-          <Segmented label="View" kind="choice" size="sm" value={view} onChange={setView} options={[{ key: "plan", label: "Plan" }, { key: "3d", label: "3D" }, { key: "both", label: "Both" }]} />
+          ) : <b className="vz-tbar-name">{draft.name}</b>}
+          <Segmented label="View" kind="choice" value={view} onChange={setView} options={[{ key: "plan", label: "Plan" }, { key: "3d", label: "3D" }, { key: "both", label: "Both" }]} />
         </div>
-        {canEdit && (
-          <div className="vz-row">
-            <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo">↶ Undo</button>
-            <button type="button" className="btn-sec btn-sm" onClick={redo} disabled={!future.length} aria-label="Redo">↷ Redo</button>
-            <button type="button" className={dirty ? "btn-pri btn-sm" : "btn-sec btn-sm"} onClick={() => void save()} disabled={!dirty || busy}>{busy ? "Saving…" : dirty ? "Save" : "Saved"}</button>
-          </div>
-        )}
+        <div className="vz-tbar-r">
+          {canEdit && !(size === "wide" && libOpen) && <button type="button" className="btn-pri btn-sm" onClick={() => setAddOpen(true)}>+ Add</button>}
+          {!flowOn && <button type="button" className="btn-sec btn-sm" aria-label="Run the flow" onClick={() => { haptic("selection"); setFlowOn(true); }}>{size === "phone" ? "▶ Flow" : "▶ Run the flow"}</button>}
+          {canEdit && (
+            <>
+              <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo">↶</button>
+              <button type="button" className="btn-sec btn-sm" onClick={redo} disabled={!future.length} aria-label="Redo">↷</button>
+              <button type="button" className={dirty ? "btn-pri btn-sm" : "btn-sec btn-sm"} onClick={() => void save()} disabled={!dirty || busy}>{busy ? "Saving…" : dirty ? "Save" : "Saved"}</button>
+            </>
+          )}
+          <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Leave full screen" : "Full screen"} onClick={() => setFull((f) => !f)}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>
+        </div>
       </div>
 
       {stats && (
-        <p className="vz-stats">
+        <p className="vz-stats vz-stats-line">
           <span><b>{stats.sqft.toLocaleString()}</b> sq ft</span>
           <span><b>{ftIn(draft.width_in)}</b> × <b>{ftIn(draft.depth_in)}</b></span>
           <span><b>{stats.seats}</b> seats</span>
@@ -169,22 +243,23 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           {PILLARS.map((p) => <span key={p}><i className={`inline-block w-2 h-2 rounded-full mr-1 pz-${p}`} />{PILLAR_WORD[p]} <b>{stats.pillars[p]}</b></span>)}
         </p>
       )}
-
-      {plans.filter((x) => x.layout_id === draft.id).map((pl) => (
+      {!full && plans.filter((x) => x.layout_id === draft.id).map((pl) => (
         <p key={pl.id} className="vz-card-s">The room for <b>{FORMAT[pl.format].mark} {pl.name}</b> · phase {pl.phase}{pl.sqft && Math.abs(pl.sqft - Math.round((draft.width_in * draft.depth_in) / 144)) > pl.sqft * 0.1 ? ` — the plan says ${pl.sqft.toLocaleString("en-US")} sq ft; this room is ${Math.round((draft.width_in * draft.depth_in) / 144).toLocaleString("en-US")}` : ""}</p>
       ))}
-      {/* THE DRAWING BOARD (R53 — "be amazing on iPad Pro… and desktop"). A phone: one column — the room, then what's
-          picked, then what to add. An iPad upright or in Split View: the room across the top, the inspector and the
-          palette side by side below it. A wide screen (an iPad on its side, a desktop): a drafting table — what to add
-          at the left, the room in the middle, what's picked at the right, both rails staying put while the room scrolls.
-          The room's own pane is a container: the plan and the 3D stand side by side when it is wide enough for both. */}
-      <div className="vz-cad grid gap-3 grid-cols-1 min-[760px]:grid-cols-2 min-[1100px]:grid-cols-[230px_minmax(0,1fr)_320px] min-[1100px]:items-start">
-        <div className="vz-cad-main @container flex flex-col gap-3 min-w-0 min-[760px]:col-span-2 min-[1100px]:col-span-1 min-[1100px]:col-start-2 min-[1100px]:row-start-1">
-          <div className={view === "plan" ? "vz-store plan grid-cols-1" : view === "3d" ? "vz-store 3d grid-cols-1" : "vz-store both grid-cols-1 @min-[720px]:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]"}>
+
+      <div className="vz-work">
+        {canEdit && size === "wide" && libOpen && (
+          <aside className="vz-lib mpanel mb-0" aria-label="Add to the room">
+            <Library onAdd={(k) => add(k)} drag />
+          </aside>
+        )}
+        <div className="vz-stage">
+          <div className={view === "both" ? "vz-store both" : "vz-store"}>
             {view !== "3d" && (
-              <div className="vz-pane mpanel mb-0 relative min-w-0 overflow-auto min-[760px]:h-[min(68vh,700px)]">
-                <PlanView layout={draft} zoom={zoom} selected={sel} bad={bad} canEdit={canEdit} onSelect={setSel} flow={flow}
-                  onMove={(id, at, done) => patchItem(id, at, done)} onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }} />
+              <div className="vz-pane mpanel mb-0 relative min-w-0 overflow-auto">
+                <PlanView layout={draft} zoom={zoom} selected={sel} bad={bad} canEdit={canEdit} onSelect={pick} flow={flow}
+                  onMove={(id, at, done) => patchItem(id, at, done)} onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }}
+                  onDropKind={canEdit ? (k, at) => add(k, at) : undefined} />
                 <div className="vz-tools">
                   <button type="button" className="k-icon-btn lg glass" onClick={() => setZoom((z) => Math.min(4, +(z * 1.4).toFixed(2)))} aria-label="Closer">+</button>
                   <button type="button" className="k-icon-btn lg glass" onClick={() => setZoom((z) => Math.max(1, +(z / 1.4).toFixed(2)))} aria-label="Farther">−</button>
@@ -193,85 +268,106 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
             )}
             {view !== "plan" && (
               <div className="vz-pane mpanel mb-0 relative min-w-0">
-                <Store3D layout={draft} selected={sel} onPick={setSel} figures={figures} heat={flow?.heat} label={`${draft.name}, in 3D — drag to turn, pinch to come closer`} />
+                <Store3D layout={draft} selected={sel} onPick={pick} figures={figures} heat={flow?.heat} label={`${draft.name}, in 3D — drag to turn, pinch to come closer`} />
                 <p className="vz-hint">Drag to turn · pinch or scroll to zoom · double-tap: corner view</p>
               </div>
             )}
           </div>
 
-
-          {/* FLOW, under the room it runs in: the plan stays on screen while it runs. */}
-          <FlowBar on={flowOn} onToggle={() => setFlowOn((o) => !o)} perHour={perHour} onPerHour={setPerHour} speed={speed} onSpeed={setSpeed} frame={flow} />
-
-        </div>
-        <aside className="vz-cad-right flex flex-col gap-3 min-w-0 min-[1100px]:col-start-3 min-[1100px]:row-start-1 min-[1100px]:sticky min-[1100px]:top-3 min-[1100px]:max-h-[calc(100dvh-24px)] min-[1100px]:overflow-y-auto" aria-label="What's picked, and the room">
-          {item && (
-            <Inspector key={item.id} item={item} canEdit={canEdit} room={draft}
-              onPatch={(p) => patchItem(item.id, p)} onTurn={() => turn(item.id)} onCopy={() => copy(item.id)}
-              onRemove={async () => { if (await confirm({ title: `Take out ${item.label || kindOf(item.kind).name}?`, body: "Undo brings it back, until you save.", confirmLabel: "Take it out", danger: true })) remove(item.id); }}
-              onClose={() => setSel(null)} />
-          )}
-
-          {!item && canEdit && <p className="vz-card-s hidden min-[1100px]:block">Pick a thing on the plan or in 3D — its size, which way it faces and why it&apos;s there open here.</p>}
-          {/* Heard as it changes (mounted before its words — spoken.audit); the list itself is below. */}
-          <p className="sr-only" aria-live="polite">{found.length ? `${found.length} ${found.length === 1 ? "thing" : "things"} a plan reviewer would circle.` : ""}</p>
-          {found.length > 0 && (
-            <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label="What a plan reviewer would circle">
-              {found.slice(0, 8).map((f, i) => (
-                <p key={i} className={f.level === "error" ? "vz-issue error" : "vz-issue warn"}><button type="button" className="btn-ter" onClick={() => setSel(f.ids[0])}>{f.level === "error" ? "Fix" : "Look"}</button> {f.words}</p>
-              ))}
-              {found.length > 8 && <p className="vz-issue warn">…and {found.length - 8} more.</p>}
+          {/* FLOW floats over the room it runs in — the plan stays whole on screen while it runs. */}
+          {flowOn && (
+            <div className="vz-float-flow mpanel mb-0">
+              <FlowBar on={flowOn} onToggle={() => setFlowOn((o) => !o)} perHour={perHour} onPerHour={setPerHour} speed={speed} onSpeed={setSpeed} frame={flow} floating />
             </div>
           )}
 
-          {/* THE SCHEDULE — every thing in the room, numbered as the plan numbers it (a plan set's equipment schedule): its
-              name, its size, its pillars. A tap picks it on the plan and in 3D. */}
-          <details className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
-            <summary className="font-sans font-bold text-subhead cursor-pointer py-2">Schedule · {draft.items.length} things</summary>
-            <div className="k-rows mt-2">
-              {draft.items.map((it, n) => (
-                <InfoRow key={it.id} lead={String(n + 1)} name={it.label || kindOf(it.kind).name}
-                  meta={`${ftIn(it.w_in)} × ${ftIn(it.d_in)} × ${ftIn(it.h_in)}${it.pillars.length ? ` · ${it.pillars.map((p) => PILLAR_WORD[p]).join(", ")}` : ""}`}
-                  onClick={() => setSel(it.id)} />
-              ))}
-            </div>
-          </details>
-
-          {canEdit && (
-            <>
-              <RoomFields key={`${draft.id}-${draft.name}-${draft.width_in}-${draft.depth_in}-${draft.ceiling_in}`} layout={draft} onChange={(p) => commit({ ...draft, ...p })} />
-              <div className="vz-row">
-                <button type="button" className="btn-sec btn-sm" onClick={() => void newRoom()}>+ Another room</button>
-                {dirty && <button type="button" className="btn-ter" onClick={() => { setDraft(original ?? null); setPast([]); setFuture([]); }}>Discard changes</button>}
-              </div>
-            </>
-          )}
-        </aside>
-        {canEdit && (
-          <aside className="vz-cad-left min-w-0 min-[1100px]:col-start-1 min-[1100px]:row-start-1 min-[1100px]:sticky min-[1100px]:top-3 min-[1100px]:max-h-[calc(100dvh-24px)] min-[1100px]:overflow-y-auto" aria-label="Add to the room">
-            <div className="vz-palette" aria-label="Add to the room">
-              {GROUPS.map((g) => (
-                <div key={g}>
-                  <h3>{g === "Bar" ? "The bar — cold, clean, no espresso" : g}</h3>
+          {/* On a phone, what's picked docks over the canvas's foot: its name and the quick moves, pulled up for the rest. */}
+          {size === "phone" && item && (
+            <div className={`vz-dock mpanel mb-0${dock ? " open" : ""}`} aria-label={`${name} — what's picked`}>
+              <button type="button" className="vz-dock-grab" aria-expanded={dock} aria-label={dock ? "Less about it" : "More about it"} onClick={() => setDock((o) => !o)}><i /></button>
+              {dock ? inspector : (
+                <div className="vz-dock-peek">
+                  <div className="min-w-0">
+                    <b className="font-sans text-body">{name}</b>
+                    <p className="vz-card-s">{ftIn(item.w_in)} × {ftIn(item.d_in)}{item.why ? ` · ${item.why}` : ""}</p>
+                  </div>
                   <div className="vz-row">
-                    {CATALOG.filter((c) => c.group === g).map((c) => (
-                      <button key={c.kind} type="button" className="k-chip" onClick={() => add(c.kind)}>+ {c.name}</button>
-                    ))}
+                    {canEdit && <button type="button" className="btn-sec btn-sm" onClick={() => turn(item.id)} aria-label="Turn it">↻</button>}
+                    {canEdit && <button type="button" className="btn-sec btn-sm" onClick={() => copy(item.id)}>Copy</button>}
+                    <button type="button" className="btn-sec btn-sm" onClick={() => setDock(true)}>{canEdit ? "Edit" : "Why"}</button>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
+          )}
+          {full && found.length > 0 && !(size === "phone" && item) && (
+            <button type="button" className={found.some((f) => f.level === "error") ? "k-chip vz-pill-issue error" : "k-chip vz-pill-issue"} onClick={() => pick(found[0].ids[0])}>
+              {found.length} to look at
+            </button>
+          )}
+        </div>
+
+        {size !== "phone" && (
+          <aside className="vz-side" aria-label="What's picked, and the room">
+            {inspector}
+            {!item && canEdit && <p className="vz-card-s">Pick a thing on the plan or in 3D — its size, which way it faces and why it&apos;s there open here.</p>}
+            {roomPanels}
           </aside>
         )}
       </div>
+      {size === "phone" && !full && <div className="vz-below">{roomPanels}</div>}
+
+      {addOpen && (
+        <Sheet open onClose={() => setAddOpen(false)} label="Add to the room" header={<b className="font-sans text-subhead">Add to the room</b>}>
+          <Library onAdd={(k) => { add(k); setAddOpen(false); }} />
+        </Sheet>
+      )}
+    </div>
+  );
+
+  return full && host ? createPortal(studio, host) : studio;
+}
+
+// ── the library: everything the room can hold, found by name or by part of the store; dragged onto the plan or added ──
+const SHELF = ["All", ...GROUPS] as const;
+function Library({ onAdd, drag = false }: { onAdd: (kind: string) => void; drag?: boolean }) {
+  const [q, setQ] = useState("");
+  const [shelf, setShelf] = useState<(typeof SHELF)[number]>("All");
+  const words = q.trim().toLowerCase();
+  const shown = CATALOG.filter((c) => (shelf === "All" || c.group === shelf) && (!words || c.name.toLowerCase().includes(words) || (c.why ?? "").toLowerCase().includes(words)));
+  return (
+    <div className="vz-library">
+      <input type="search" className="vz-lib-q" placeholder="Find a fixture" aria-label="Find a fixture" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="vz-lib-shelves" role="group" aria-label="Part of the store">
+        {SHELF.map((g) => <button key={g} type="button" className={`k-chip${shelf === g ? " on" : ""}`} aria-pressed={shelf === g} onClick={() => setShelf(g)}>{g}</button>)}
+      </div>
+      {shelf === "Bar" && <p className="vz-card-s">The bar — cold, clean, no espresso.</p>}
+      <ul className="vz-lib-list">
+        {shown.map((c) => (
+          <li key={c.kind}>
+            <button type="button" className="vz-lib-row" onClick={() => onAdd(c.kind)} draggable={drag}
+              onDragStart={drag ? (e) => { e.dataTransfer.setData(KIND_MIME, c.kind); e.dataTransfer.effectAllowed = "copy"; } : undefined}
+              aria-label={`Add ${c.name}, ${ftIn(c.w)} by ${ftIn(c.d)}`}>
+              <svg viewBox="0 0 14 14" aria-hidden="true"><rect width="14" height="14" rx="3" fill={c.color} /></svg>
+              <span className="min-w-0"><b>{c.name}</b><small>{ftIn(c.w)} × {ftIn(c.d)}</small></span>
+              <em aria-hidden="true">+</em>
+            </button>
+          </li>
+        ))}
+        {!shown.length && <li className="vz-card-s">Nothing by that name. Try another word, or All.</li>}
+      </ul>
+      {drag && <p className="vz-card-s">Drag one onto the plan to place it, or tap to add it in the middle.</p>}
     </div>
   );
 }
+const KIND_MIME = "application/x-gt3-kind";
 
 // ── the plan: to scale, snapping, with the distance to each wall while a thing moves ──
-function PlanView({ layout, zoom, selected, bad, canEdit, onSelect, onMove, onBegin, flow }: {
+function PlanView({ layout, zoom, selected, bad, canEdit, onSelect, onMove, onBegin, flow, onDropKind }: {
   layout: Layout; zoom: number; selected: string | null; bad: Set<string>; canEdit: boolean; flow: FlowFrame | null;
   onSelect: (id: string | null) => void; onMove: (id: string, at: { x_in: number; y_in: number }, record: boolean) => void; onBegin: () => void;
+  /** A fixture dragged in from the library, let go over the room. */
+  onDropKind?: (kind: string, at: { x: number; y: number }) => void;
 }) {
   const svg = useRef<SVGSVGElement | null>(null);
   const drag = useRef<{ id: string; dx: number; dy: number; moved: boolean } | null>(null);
@@ -301,7 +397,9 @@ function PlanView({ layout, zoom, selected, bad, canEdit, onSelect, onMove, onBe
         if (at.x_in !== it.x_in || at.y_in !== it.y_in) { d.moved = true; onMove(d.id, at, false); }
       }}
       onPointerUp={() => { if (drag.current?.moved) haptic("selection"); drag.current = null; setMoving(null); }}
-      onPointerCancel={() => { drag.current = null; setMoving(null); }}>
+      onPointerCancel={() => { drag.current = null; setMoving(null); }}
+      onDragOver={onDropKind ? (e) => { if (e.dataTransfer.types.includes(KIND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } } : undefined}
+      onDrop={onDropKind ? (e) => { const k = e.dataTransfer.getData(KIND_MIME); if (!k) return; e.preventDefault(); onDropKind(k, toRoom(e)); } : undefined}>
       <rect className="room" x={0} y={0} width={W} height={D} rx={2} onPointerDown={() => onSelect(null)} />
       {lines.filter((v) => v < W).map((v) => <line key={`x${v}`} className={v % 48 === 0 ? "grid4" : "grid1"} x1={v} y1={0} x2={v} y2={D} />)}
       {lines.filter((v) => v < D).map((v) => <line key={`y${v}`} className={v % 48 === 0 ? "grid4" : "grid1"} x1={0} y1={v} x2={W} y2={v} />)}
@@ -355,6 +453,11 @@ function PlanView({ layout, zoom, selected, bad, canEdit, onSelect, onMove, onBe
   );
 }
 const EMPTY_ROOM: Pick<Layout, "width_in" | "depth_in" | "items"> = { width_in: 0, depth_in: 0, items: [] };
+// Full screen goes to the app's own root (as the sheets do): inside the scrolling body an iPhone stacks a fixed layer under
+// the tab bar.
+const noSubscribe = () => () => {};
+const findHost = (): HTMLElement | null => (typeof document === "undefined" ? null : document.querySelector<HTMLElement>(".app") ?? document.body);
+const noHost = (): HTMLElement | null => null;
 const it2 = (b: { x0: number; y0: number; x1: number; y1: number }) => ({ cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2 });
 
 // ── a thing's inspector: what it is, its size, which way it faces, and why it's there ──
@@ -416,7 +519,7 @@ function Inspector({ item, canEdit, room, onPatch, onTurn, onCopy, onRemove, onC
 }
 
 // ── the room itself ──
-function RoomFields({ layout, onChange }: { layout: Layout; onChange: (p: Partial<Layout>) => void }) {
+function RoomFields({ layout, onChange, bare = false }: { layout: Layout; onChange: (p: Partial<Layout>) => void; bare?: boolean }) {
   const [name, setName] = useState(layout.name);
   const [w, setW] = useState(ftIn(layout.width_in)), [d, setD] = useState(ftIn(layout.depth_in)), [c, setC] = useState(ftIn(layout.ceiling_in));
   const dim = (which: "width_in" | "depth_in" | "ceiling_in", raw: string, reset: (v: string) => void, lo: number) => {
@@ -426,8 +529,8 @@ function RoomFields({ layout, onChange }: { layout: Layout; onChange: (p: Partia
     reset(ftIn(v));
   };
   return (
-    <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label="The room">
-      <b className="font-sans text-subhead">The room</b>
+    <div className={bare ? "flex flex-col gap-2" : "vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5"} aria-label="The room">
+      {!bare && <b className="font-sans text-subhead">The room</b>}
       <label className="prod-f"><span>Name</span><input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onBlur={() => { if (name.trim() && name.trim() !== layout.name) onChange({ name: name.trim() }); }} /></label>
       <div className="vz-dims">
         <label className="prod-f"><span>Width</span><input value={w} onChange={(e) => setW(e.target.value)} onBlur={() => dim("width_in", w, setW, 96)} aria-label="Room width" /></label>

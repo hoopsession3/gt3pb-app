@@ -60,7 +60,10 @@ export const SECTIONS = ["day", "now", "command", "prep", "plan", "studio", "bre
 const VISITS = [
   { key: "vision-roadmap", path: "/vision", ready: ".vz-board", drawn: ".vz-board .vz-card", long: true },
   { key: "vision-store", path: "/vision", ready: ".vz-board", clicks: ["The store"], drawn: ".vz-plan .it", long: true },
-  { key: "vision-flow", path: "/vision", ready: ".vz-board", clicks: ["The store", "▶ Run the flow"], drawn: ".vz-plan .guest", long: true },
+  { key: "vision-flow", path: "/vision", ready: ".vz-board", clicks: ["The store", "Run the flow"], drawn: ".vz-plan .guest", long: true },
+  // S1, the studio: the canvas full screen, and the library (a sheet on a phone and an iPad upright, beside the canvas wide).
+  { key: "vision-store-full", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], drawn: ".vz-studio.full .vz-plan .it", long: false },
+  { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "+ Add"], drawn: ".vz-library .vz-lib-row", long: false },
   { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
   { key: "vision-present", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], drawn: ".vp-slide", long: false },
   { key: "vision-ways", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-steps" }, drawn: ".vp-steps .vp-chip", long: false },

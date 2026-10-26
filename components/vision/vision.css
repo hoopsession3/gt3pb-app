@@ -45,7 +45,6 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-ask-x{grid-column:1/-1;display:flex;justify-content:flex-end}
 
 /* ── the store designer ── */
-.vz-store{display:grid;gap:12px}
 
 .vz-plan{display:block;touch-action:none;user-select:none;-webkit-user-select:none}
 .vz-plan .room{fill:#f6f0e3;stroke:#2a2820;stroke-width:6}
@@ -67,9 +66,6 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-hint{position:absolute;left:12px;bottom:10px;margin:0;font-family:var(--sans);font-size:12px;color:rgba(42,40,32,.65);pointer-events:none}
 .vz-stats{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--sans);font-size:13px;color:var(--cream-m)}
 .vz-stats b{color:var(--cream);font-variant-numeric:tabular-nums}
-.vz-palette{display:flex;flex-direction:column;gap:8px}
-.vz-palette .k-chip{white-space:normal;text-align:left}
-.vz-palette h3{margin:4px 0 0;font-family:var(--sans);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--cream-d)}
 .vz-insp .prod-f{margin-top:0}
 .vz-dims{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .vz-issue{margin:0;font-family:var(--sans);font-size:13px;line-height:1.4}
