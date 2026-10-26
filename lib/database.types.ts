@@ -9772,6 +9772,509 @@ export type Database = {
           },
         ]
       }
+      std_assessments: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          version_id: string
+          criterion_id: string
+          subject_type: string
+          subject_id: string
+          outcome: string
+          hazard: string | null
+          exposure: string | null
+          risk: string
+          task: string | null
+          population: string | null
+          evidence_ids: string[]
+          notes: string | null
+          assessed_by: string | null
+          assessed_at: string
+          stale_at: string | null
+          stale_reason: string | null
+          superseded_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          version_id: string
+          criterion_id: string
+          subject_type: string
+          subject_id: string
+          outcome: string
+          hazard?: string | null
+          exposure?: string | null
+          risk?: string
+          task?: string | null
+          population?: string | null
+          evidence_ids?: string[]
+          notes?: string | null
+          assessed_by?: string | null
+          assessed_at?: string
+          stale_at?: string | null
+          stale_reason?: string | null
+          superseded_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          version_id?: string
+          criterion_id?: string
+          subject_type?: string
+          subject_id?: string
+          outcome?: string
+          hazard?: string | null
+          exposure?: string | null
+          risk?: string
+          task?: string | null
+          population?: string | null
+          evidence_ids?: string[]
+          notes?: string | null
+          assessed_by?: string | null
+          assessed_at?: string
+          stale_at?: string | null
+          stale_reason?: string | null
+          superseded_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_assessments_criterion_id_fkey"
+            columns: ["criterion_id"]
+            isOneToOne: false
+            referencedRelation: "std_criteria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_assessments_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "std_assessments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_assessments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_assessments_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "std_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_claims: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          subject_type: string | null
+          subject_id: string | null
+          text: string
+          kind: string
+          status: string
+          evidence_ids: string[]
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          subject_type?: string | null
+          subject_id?: string | null
+          text: string
+          kind?: string
+          status?: string
+          evidence_ids?: string[]
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          subject_type?: string | null
+          subject_id?: string | null
+          text?: string
+          kind?: string
+          status?: string
+          evidence_ids?: string[]
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_claims_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_criteria: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          version_id: string
+          pillar: string
+          code: string
+          title: string
+          requirement: string
+          applies_to: string
+          severity: string
+          evidence_needed: string | null
+          required_measures: string[]
+          needs_task_population: boolean
+          sort: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          version_id: string
+          pillar: string
+          code: string
+          title: string
+          requirement: string
+          applies_to: string
+          severity?: string
+          evidence_needed?: string | null
+          required_measures?: string[]
+          needs_task_population?: boolean
+          sort?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          version_id?: string
+          pillar?: string
+          code?: string
+          title?: string
+          requirement?: string
+          applies_to?: string
+          severity?: string
+          evidence_needed?: string | null
+          required_measures?: string[]
+          needs_task_population?: boolean
+          sort?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_criteria_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_criteria_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "std_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_evidence: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          subject_type: string
+          subject_id: string
+          criterion_id: string | null
+          bearing: string
+          kind: string
+          summary: string
+          source_title: string | null
+          source_url: string | null
+          source_date: string | null
+          method: string | null
+          coverage: string | null
+          limitations: string | null
+          confidence: string
+          measures: Json
+          expires_on: string | null
+          review_status: string
+          review_note: string | null
+          submitted_by: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          subject_type: string
+          subject_id: string
+          criterion_id?: string | null
+          bearing?: string
+          kind: string
+          summary: string
+          source_title?: string | null
+          source_url?: string | null
+          source_date?: string | null
+          method?: string | null
+          coverage?: string | null
+          limitations?: string | null
+          confidence?: string
+          measures?: Json
+          expires_on?: string | null
+          review_status?: string
+          review_note?: string | null
+          submitted_by?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          subject_type?: string
+          subject_id?: string
+          criterion_id?: string | null
+          bearing?: string
+          kind?: string
+          summary?: string
+          source_title?: string | null
+          source_url?: string | null
+          source_date?: string | null
+          method?: string | null
+          coverage?: string | null
+          limitations?: string | null
+          confidence?: string
+          measures?: Json
+          expires_on?: string | null
+          review_status?: string
+          review_note?: string | null
+          submitted_by?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_evidence_criterion_id_fkey"
+            columns: ["criterion_id"]
+            isOneToOne: false
+            referencedRelation: "std_criteria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_evidence_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_item_materials: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          item_id: string
+          material_id: string
+          role: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          item_id: string
+          material_id: string
+          role?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          item_id?: string
+          material_id?: string
+          role?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_item_materials_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "store_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_item_materials_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "std_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_item_materials_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_materials: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          name: string
+          category: string
+          maker: string | null
+          product_ref: string | null
+          composition: string | null
+          watch_list: string[]
+          notes: string | null
+          archived_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          name: string
+          category?: string
+          maker?: string | null
+          product_ref?: string | null
+          composition?: string | null
+          watch_list?: string[]
+          notes?: string | null
+          archived_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          name?: string
+          category?: string
+          maker?: string | null
+          product_ref?: string | null
+          composition?: string | null
+          watch_list?: string[]
+          notes?: string | null
+          archived_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_materials_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_reviews: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          subject_type: string
+          subject_id: string
+          reason: string
+          status: string
+          closed_by: string | null
+          closed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          subject_type: string
+          subject_id: string
+          reason: string
+          status?: string
+          closed_by?: string | null
+          closed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          subject_type?: string
+          subject_id?: string
+          reason?: string
+          status?: string
+          closed_by?: string | null
+          closed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_reviews_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_versions: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          label: string
+          summary: string | null
+          status: string
+          published_at: string | null
+          published_by: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          label: string
+          summary?: string | null
+          status?: string
+          published_at?: string | null
+          published_by?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          label?: string
+          summary?: string | null
+          status?: string
+          published_at?: string | null
+          published_by?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stop_ops: {
         Row: {
           stop_id: string
@@ -11778,6 +12281,21 @@ export type Database = {
         }
         Relationships: []
       }
+      std_subject_summary: {
+        Row: {
+          subject_type: string | null
+          subject_id: string | null
+          passes: number | null
+          conditionals: number | null
+          fails: number | null
+          unknowns: number | null
+          stale: number | null
+          critical_fail: boolean | null
+          serious_unknown: boolean | null
+          last_assessed_at: string | null
+        }
+        Relationships: []
+      }
       v_agreement_hours: {
         Row: {
           agreement_id: string | null
@@ -13048,6 +13566,14 @@ export type Database = {
         { Args: { p_kind: string | null; p_id: string | null }; Returns: string }
       stale_content_count:
         { Args: Record<PropertyKey, never>; Returns: number }
+      std_mark_stale:
+        { Args: { p_type: string | null; p_ids: string[] | null; p_reason: string | null }; Returns: undefined }
+      std_owner_only:
+        { Args: { p_what: string | null }; Returns: undefined }
+      std_prohibited_claim:
+        { Args: { p: string | null }; Returns: boolean }
+      std_subject_ok:
+        { Args: { p_type: string | null; p_id: string | null; p_tenant: string | null }; Returns: boolean }
       stop_menu:
         { Args: { p_stop: string | null }; Returns: string[] }
       stop_recap_alerts:

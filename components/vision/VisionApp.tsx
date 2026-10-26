@@ -16,12 +16,13 @@ import StoreDesigner from "./StoreDesigner";
 import Present from "./Present";
 import Shares from "./Shares";
 import Plans from "./Plans";
+import Standard from "./Standard";
 
 // THE VISION (R52) — "What are our plans? What's next?" answered in one place: the roadmap (Now · Next · Later, why each
 // program exists, where capital may be needed), the store designer (a plan to scale and the room in 3D, the reason for
 // everything in it), Present (the story, full screen, to show someone across a table), and private links for someone who
 // isn't. The crew read it; owners and admins change it.
-type Tab = "roadmap" | "plans" | "store" | "links";
+type Tab = "roadmap" | "plans" | "store" | "links" | "standard";
 
 export default function VisionApp({ canEdit, isOwner = false }: { canEdit: boolean; isOwner?: boolean }) {
   const [tab, setTab] = useState<Tab>("roadmap");
@@ -46,13 +47,14 @@ export default function VisionApp({ canEdit, isOwner = false }: { canEdit: boole
         <button type="button" className="btn-pri" onClick={() => setPresenting(true)} disabled={!state.data}>▶ Present</button>
       </div>
       <Segmented label="The vision" kind="choice" value={tab} onChange={setTab}
-        options={[{ key: "roadmap", label: "Roadmap" }, { key: "plans", label: "Plans" }, { key: "store", label: "The store" }, ...(canEdit ? [{ key: "links" as const, label: "Links" }] : [])]} />
+        options={[{ key: "roadmap", label: "Roadmap" }, { key: "plans", label: "Plans" }, { key: "store", label: "The store" }, ...(canEdit ? [{ key: "links" as const, label: "Links" }, { key: "standard" as const, label: "Standard" }] : [])]} />
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="Nothing yet" loadingLabel="Loading the plan…" errorTitle="Couldn't load the plan" errorSub="This is not an empty plan — we couldn't read it just now.">
         {(v) => (
           <>
             {tab === "roadmap" && <Roadmap programs={v.programs} asks={v.asks} layouts={v.layouts} plans={v.plans} canEdit={canEdit} showAsks onSaved={state.reload} onOpenStore={openStore} onOpenPlans={() => setTab("plans")} />}
             {tab === "plans" && <Plans programs={v.programs} plans={v.plans} needs={v.needs} deps={v.deps} asks={v.asks} layouts={v.layouts} ready={v.plansReady} canEdit={canEdit} isOwner={isOwner} onSaved={state.reload} onOpenStore={openStore} />}
             {tab === "store" && <StoreDesigner key={room ?? "first"} layouts={v.layouts} plans={v.plans} initialId={room} canEdit={canEdit} onSaved={state.reload} />}
+            {tab === "standard" && canEdit && <Standard layouts={v.layouts} isOwner={isOwner} />}
             {tab === "links" && canEdit && <Shares canEdit={canEdit} isOwner={isOwner} plans={v.plans} programs={v.programs} layouts={v.layouts} />}
             {canEdit && <DueChecks plans={v.plans} />}
             {presenting && <InTheRoom vision={v} withCases={canEdit} onExit={() => setPresenting(false)} />}

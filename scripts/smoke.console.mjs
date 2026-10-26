@@ -81,6 +81,7 @@ const VISITS = [
   { key: "vision-store-full", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], drawn: ".vz-studio.full .vz-plan .it", long: false, check: STUDIO_FITS },
   { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "Add a fixture"], drawn: ".vz-library .vz-lib-row", long: false },
   { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
+  { key: "vision-standard", path: "/vision", ready: ".vz-board", clicks: ["Standard"], drawn: "[role=radiogroup][aria-label=\"The Standard\"]", long: false },
   { key: "vision-present", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], drawn: ".vp-slide", long: false },
   { key: "vision-ways", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-steps" }, drawn: ".vp-steps .vp-chip", long: false },
   { key: "vision-case", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vz-kpis" }, drawn: ".vp-slide .vz-kpis .vz-kpi", long: false },
