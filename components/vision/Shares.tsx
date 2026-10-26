@@ -11,13 +11,14 @@ import { InfoRow } from "@/components/kit";
 import { publicOrigin } from "@/lib/native";
 import { ageLabel } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
-import { isMissingColumn, isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
+import { isMissingColumn } from "@/lib/schemaSkew";
 import type { Plan } from "@/lib/visionPlans";
+import type { Layout, Program } from "@/lib/vision";
 
 // PRIVATE LINKS (R52, 0447 vision_shares) — the plan for someone outside: an investor, a landlord, a partner. Each link
 // is its own long random token, named for who it's for, with or without the money; it counts its opens, and one tap turns
 // it off for good. The token rides after the # (app/present), so it never reaches a server log or a referrer.
-type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[] };
+type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[]; program_ids?: string[]; layout_ids?: string[] };
 const COLS = "id, token, label, show_asks, created_at, revoked_at, last_opened_at, opens";
 /** How long a new link lives (R53, 0448): until it's turned off, or a set number of days. */
 const ENDS = [{ key: "never", label: "Until I turn it off", days: 0 }, { key: "7", label: "7 days", days: 7 }, { key: "30", label: "30 days", days: 30 }, { key: "90", label: "90 days", days: 90 }] as const;
@@ -31,7 +32,7 @@ export function linkState(s: Pick<Share, "revoked_at" | "expires_at">, now = Dat
 }
 export const shareUrl = (token: string) => `${publicOrigin()}/present#${token}`;
 
-export default function Shares({ canEdit, isOwner = false, plans = [] }: { canEdit: boolean; isOwner?: boolean; plans?: Plan[] }) {
+export default function Shares({ canEdit, isOwner = false, plans = [], programs = [], layouts = [] }: { canEdit: boolean; isOwner?: boolean; plans?: Plan[]; programs?: Program[]; layouts?: Pick<Layout, "id" | "name">[] }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
   const [label, setLabel] = useState("");
@@ -40,8 +41,19 @@ export default function Shares({ canEdit, isOwner = false, plans = [] }: { canEd
   const canEnd = true;   // 0448 is applied (2026-10-25): every link can end
   const [busy, setBusy] = useState(false);
   const [canCase, setCanCase] = useState(true);
+  // What a link shows of the roadmap and the store (0455): chosen per link. A new link starts with the programs and rooms
+  // of the plans marked to show — ticked, so the maker sees and can change them before making it.
+  const [canChoose, setCanChoose] = useState(true);
+  const shownPlans = plans.filter((p) => p.shareable);
+  const [pickPrograms, setPickPrograms] = useState<string[]>(() => [...new Set(shownPlans.map((p) => p.program_id).filter((x): x is string => !!x))]);
+  const [pickRooms, setPickRooms] = useState<string[]>(() => [...new Set(shownPlans.map((p) => p.layout_id).filter((x): x is string => !!x))]);
   const loader = useCallback(async (): Promise<Share[]> => {
     if (!supabase) return [];
+    // arrives-with: 0455 — program_ids, layout_ids: before 0455 the read asks as before, and the choosers hide
+    const withShows = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids`).order("created_at", { ascending: false });
+    if (!withShows.error) { setCanCase(true); setCanChoose(true); return (withShows.data as Share[]) ?? []; }
+    if (!isMissingColumn(withShows.error)) throw new Error(withShows.error.message);
+    setCanChoose(false);
     // arrives-with: 0451  — money_plans, research_plans: before 0451 the read asks as before, and the case chooser hides
     const withCase = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans`).order("created_at", { ascending: false });
     if (!withCase.error) { setCanCase(true); return (withCase.data as Share[]) ?? []; }
@@ -61,7 +73,8 @@ export default function Shares({ canEdit, isOwner = false, plans = [] }: { canEd
     if (!supabase || busy || !label.trim()) return;
     setBusy(true);
     const days = ENDS.find((e) => e.key === ends)?.days ?? 0;
-    const row = { label: label.trim(), show_asks: money, ...(canEnd && days ? { expires_at: new Date(Date.now() + days * 86400000).toISOString() } : {}) };
+    const row = { label: label.trim(), show_asks: money, ...(canEnd && days ? { expires_at: new Date(Date.now() + days * 86400000).toISOString() } : {}),
+      ...(canChoose ? { program_ids: pickPrograms, layout_ids: pickRooms } : {}) };
     const { data, error } = await supabase.from("vision_shares").insert(row).select(COLS).single();
     setBusy(false);
     if (error) { toast(failureWords(error, "Couldn't make the link"), "error"); return; }
@@ -84,7 +97,8 @@ export default function Shares({ canEdit, isOwner = false, plans = [] }: { canEd
           <label className="prod-f"><span>Who it&apos;s for</span><input value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Upstate investors" /></label>
           <label className="prod-toggle"><input type="checkbox" checked={money} onChange={(e) => setMoney(e.target.checked)} /> Show where capital may be needed</label>
           {canEnd && <label className="prod-f"><span>It lives</span><select value={ends} onChange={(e) => setEnds(e.target.value as typeof ends)}>{ENDS.map((e) => <option key={e.key} value={e.key}>{e.label}</option>)}</select></label>}
-          <p className="vz-card-s">Plans show on a link only when marked &ldquo;Show it on a link&rdquo; in their sheet — drafts stay with the crew.</p>
+          {canChoose && <ShowsPicker programs={programs} layouts={layouts} pickPrograms={pickPrograms} setPickPrograms={setPickPrograms} pickRooms={pickRooms} setPickRooms={setPickRooms} />}
+          <p className="vz-card-s">Plans show on a link only when marked &ldquo;Show it on a link&rdquo; in their sheet — drafts stay with the crew. Programs and rooms show only when ticked here.</p>
           <button type="button" className="btn-pri" onClick={() => void make()} disabled={busy || !label.trim()}>{busy ? "Making…" : "Make the link — it's copied"}</button>
         </div>
       )}
@@ -95,7 +109,12 @@ export default function Shares({ canEdit, isOwner = false, plans = [] }: { canEd
               <InfoRow key={s.id} name={s.label}
                 nameExtra={<span className={`adm-substat ${st.live ? "active" : "past_due"}`}>{st.word}</span>}
                 meta={`${s.show_asks ? "With the asks" : "The vision only"} · made ${ageLabel(s.created_at)}${st.ends ? ` · ${st.ends}` : ""} · ${s.opens ? `opened ${s.opens}× · last ${ageLabel(s.last_opened_at ?? s.created_at)}` : "not opened yet"}`}
-                sub={st.live && isOwner && canCase ? <CaseChooser share={s} plans={plans.filter((p) => p.shareable)} onSaved={state.reload} /> : undefined}
+                sub={st.live && (canEdit || isOwner) ? (
+                  <div className="flex flex-col gap-1">
+                    {canEdit && canChoose && <ShowsChooser share={s} programs={programs} layouts={layouts} onSaved={state.reload} />}
+                    {isOwner && canCase && <CaseChooser share={s} plans={plans.filter((p) => p.shareable)} onSaved={state.reload} />}
+                  </div>
+                ) : undefined}
                 trailing={st.live ? (
                   <span className="flex gap-2">
                     <button type="button" className="btn-sec btn-sm" onClick={() => void copy(s)}>Copy</button>
@@ -121,9 +140,7 @@ function CaseChooser({ share, plans, onSaved }: { share: Share; plans: Plan[]; o
   const [busy, setBusy] = useState(false);
   const loadApproved = useCallback(async (): Promise<Set<string>> => {
     if (!supabase || !open) return new Set();
-    // arrives-with: 0449
     const { data, error } = await supabase.from("vision_plan_money").select("plan_id").not("baseline", "is", null);
-    if (error && (isMissingTable(error) || isMissingRelation(error))) return new Set();
     if (error) throw new Error(error.message);
     return new Set(((data ?? []) as { plan_id: string }[]).map((r) => r.plan_id));
   }, [open]);
@@ -156,6 +173,56 @@ function CaseChooser({ share, plans, onSaved }: { share: Share; plans: Plan[]; o
               </div>
             );
           })}
+          <button type="button" className="btn-pri btn-sm self-start" onClick={() => void save()} disabled={!changed || busy}>{busy ? "Saving…" : "Save what it shows"}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The roadmap programs and store rooms a link shows (0455), as ticks — used when making a link and when changing one. */
+function ShowsPicker({ programs, layouts, pickPrograms, setPickPrograms, pickRooms, setPickRooms }: {
+  programs: Program[]; layouts: Pick<Layout, "id" | "name">[];
+  pickPrograms: string[]; setPickPrograms: (f: (l: string[]) => string[]) => void; pickRooms: string[]; setPickRooms: (f: (l: string[]) => string[]) => void;
+}) {
+  const flip = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  return (
+    <div className="flex flex-col gap-1">
+      <b className="font-sans text-subhead">What it shows of the roadmap</b>
+      {programs.length === 0 ? <p className="vz-card-s">No programs yet.</p> : programs.map((p) => (
+        <label key={p.id} className="prod-toggle"><input type="checkbox" checked={pickPrograms.includes(p.id)} onChange={() => setPickPrograms((l) => flip(l, p.id))} /> {p.title}</label>
+      ))}
+      <b className="font-sans text-subhead mt-2">Which rooms it shows</b>
+      {layouts.length === 0 ? <p className="vz-card-s">No rooms yet.</p> : layouts.map((l) => (
+        <label key={l.id} className="prod-toggle"><input type="checkbox" checked={pickRooms.includes(l.id)} onChange={() => setPickRooms((x) => flip(x, l.id))} /> {l.name}</label>
+      ))}
+    </div>
+  );
+}
+
+/** Change what a live link shows of the roadmap and the store (0455). Nothing leaves until it's ticked and saved. */
+function ShowsChooser({ share, programs, layouts, onSaved }: { share: Share; programs: Program[]; layouts: Pick<Layout, "id" | "name">[]; onSaved: () => void }) {
+  const { toast } = useAppStable();
+  const [open, setOpen] = useState(false);
+  const [pickPrograms, setPickPrograms] = useState<string[]>(share.program_ids ?? []);
+  const [pickRooms, setPickRooms] = useState<string[]>(share.layout_ids ?? []);
+  const [busy, setBusy] = useState(false);
+  const changed = JSON.stringify([[...pickPrograms].sort(), [...pickRooms].sort()]) !== JSON.stringify([[...(share.program_ids ?? [])].sort(), [...(share.layout_ids ?? [])].sort()]);
+  const save = async () => {
+    if (!supabase || busy) return;
+    setBusy(true);
+    const { error } = await supabase.from("vision_shares").update({ program_ids: pickPrograms, layout_ids: pickRooms }).eq("id", share.id);
+    setBusy(false);
+    if (error) { toast(failureWords(error, "Couldn't change what the link shows"), "error"); return; }
+    haptic("success"); toast(`Saved — the link for ${share.label} shows ${pickPrograms.length} program${pickPrograms.length === 1 ? "" : "s"} and ${pickRooms.length} room${pickRooms.length === 1 ? "" : "s"}.`); onSaved();
+  };
+  const np = (share.program_ids ?? []).length, nr = (share.layout_ids ?? []).length;
+  return (
+    <div className="flex flex-col gap-2">
+      <button type="button" className="btn-ter self-start" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Done choosing" : `Shows ${np} program${np === 1 ? "" : "s"} and ${nr} room${nr === 1 ? "" : "s"} — change`}</button>
+      {open && (
+        <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
+          <ShowsPicker programs={programs} layouts={layouts} pickPrograms={pickPrograms} setPickPrograms={setPickPrograms} pickRooms={pickRooms} setPickRooms={setPickRooms} />
           <button type="button" className="btn-pri btn-sm self-start" onClick={() => void save()} disabled={!changed || busy}>{busy ? "Saving…" : "Save what it shows"}</button>
         </div>
       )}

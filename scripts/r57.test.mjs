@@ -58,7 +58,7 @@ const research = [{ topic: "demand", claim: "The gym has 2,400 members.", figure
   ok("the presenter: a case slide per plan with a case, after its ways in", /out\.push\(\{ kind: "case", id: pl\.id \}\)/.test(present) && /vision\.cases\?\.\[pl\.id\]/.test(present));
   ok("…loaded only when reached (the engine and the chart are their own chunk)", /const CaseSlide = dynamic\(\(\) => import\("\.\/CaseSlide"\)/.test(present));
   ok("…the slide reads the one engine and says what it is", /figuresOf\(c, room\)/.test(slide) && /not a forecast of what will happen, not an offer of securities and not financial advice/.test(slide) && /not a probability/.test(slide));
-  ok("the owner chooses per link; adding the money asks first", /isOwner && canCase \? <CaseChooser/.test(shares) && /await confirm\(\{ title: `Show \$\{added\.join/.test(shares));
+  ok("the owner chooses per link; adding the money asks first", /isOwner && canCase && <CaseChooser/.test(shares) && /await confirm\(\{ title: `Show \$\{added\.join/.test(shares));
   ok("…a plan without an approved baseline can't be given", /disabled=\{!has\}/.test(shares));
   ok("in the room, the owners and admins present the cases", /readCases\(supabase\)/.test(app) && /withCases=\{canEdit\}/.test(app));
   ok("before 0451 the link shows no case and the chooser hides", /arrives-with: 0451/.test(shares) && /setCanCase\(false\)/.test(shares) && /toCase\(r\.money/.test(rd));

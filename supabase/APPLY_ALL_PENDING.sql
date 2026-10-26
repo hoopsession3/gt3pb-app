@@ -17,94 +17,13 @@
 -- the others back with it. Each section below is wrapped in its own begin … commit: its locks end with it, and if one
 -- stops (a busy table's lock wait ran out), the ones above it stay applied and nothing below it runs — paste the file
 -- again a moment later; a migration already applied changes nothing the second time.
--- pending-from: 0454
--- generated-at: 2026-10-25
+-- pending-from: 0455
+-- generated-at: 2026-10-26
 -- pending-count: 6
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- held: 0376_nobody_on_the_pass_during_service_is_an_alert.sql — NOT in this file; applied by hand once the condition in its header is met
 -- held: 0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql — NOT in this file; applied by hand once the condition in its header is met
 -- held: 0442_the_course_is_bought_and_the_pillars_are_given.sql — NOT in this file; applied by hand once the condition in its header is met
--- ============================================================
--- 0449_the_money_plan_by_plan.sql
--- ============================================================
-begin;   -- 0449, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
--- ── 0449 — THE MONEY, PLAN BY PLAN ─────────────────────────────────────────────────────────────────────────────────
--- 2026-10-25. R54, phase B of the investor-ready vision (Ryan, 2026-10-25: "each plan should be able to show an investor
--- how we plan to get the returns… what it costs, how it generates revenue, when it can become profitable… Conservative,
--- Base, Upside… investor payouts based on an explicitly defined investment structure"). Paste into Supabase → SQL
--- Editor → Run. A second run changes nothing. Needs 0448.
---
--- WHAT.
---   vision_plan_money — one row per plan: its three scenarios' inputs (conservative, base, upside — each the uses of
---   funds, the demand, the costs; lib/visionMoney reads them) and its investment structure (a loan, a revenue share to a
---   cap, equity with a stated payout, or a SAFE). The projections are computed on the screen from these, never stored:
---   a stored number would go stale the moment an input moved.
---   The approved baseline (2026-10-25, the traceability audit — Ryan: "do not overwrite approved baseline projections
---   without explicit confirmation"; "owners only" approve): `baseline` is a snapshot of the scenarios and the structure
---   an owner approved, with when and by whom. The working numbers (`scenarios`, `structure`) are what-ifs against it;
---   only an owner may set or clear the baseline (a trigger refuses anyone else, PT403), and restoring copies it back.
---   Sensitive by nature (rent, wages, terms): owners and admins read and write it — the crew see the plan, not its money.
---   No link reads it (vision_shared is unchanged); the investor case that shows a link a plan's money is phase E, and it
---   will ask for it per link. Every change is in Settings › Activity log.
---   No draft: the numbers are Ryan's to set — nothing here is seeded.
---
--- set lock_timeout (database F16): one table made, its triggers and policies.
--- existing rows: none changed.
--- rollback: drop table vision_plan_money cascade; drop function vision_money_baseline_guard().
--- changelog: none — the owner's own screen.
-
-set lock_timeout = '5s';
-
-create table if not exists public.vision_plan_money (
-  id          uuid primary key default gen_random_uuid(),
-  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  plan_id     uuid not null unique references public.vision_plans(id) on delete cascade,
-  scenarios   jsonb not null default '{}'::jsonb check (jsonb_typeof(scenarios) = 'object' and pg_column_size(scenarios) < 200000),
-  structure   jsonb not null default '{"kind":"none"}'::jsonb check (jsonb_typeof(structure) = 'object' and structure ? 'kind'
-                and structure->>'kind' in ('none','loan','rev_share','equity','safe')),
-  baseline    jsonb check (baseline is null or (jsonb_typeof(baseline) = 'object' and baseline ? 'scenarios' and baseline ? 'structure' and pg_column_size(baseline) < 220000)),
-  baseline_at timestamptz,
-  baseline_by uuid,
-  updated_by  uuid,
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-
--- Only an owner approves a baseline (or clears one). Admins work the what-ifs; the service role (tests, repair) passes.
-create or replace function public.vision_money_baseline_guard()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  if (tg_op = 'INSERT' and new.baseline is not null) or (tg_op = 'UPDATE' and new.baseline is distinct from old.baseline) then
-    if auth.uid() is not null and not public.is_owner() then
-      raise exception 'Only an owner can approve a baseline.' using errcode = 'PT403';
-    end if;
-    if new.baseline is not null then new.baseline_at := now(); new.baseline_by := auth.uid(); else new.baseline_at := null; new.baseline_by := null; end if;
-  end if;
-  return new;
-end $$;
-revoke all on function public.vision_money_baseline_guard() from public, anon, authenticated;
-drop trigger if exists vision_money_baseline_guard_tg on public.vision_plan_money;
-create trigger vision_money_baseline_guard_tg before insert or update on public.vision_plan_money for each row execute function public.vision_money_baseline_guard();
-
-drop trigger if exists stamp_tenant_tg on public.vision_plan_money;
-create trigger stamp_tenant_tg before insert on public.vision_plan_money for each row execute function public.stamp_tenant();
-alter table public.vision_plan_money enable row level security;
-drop policy if exists "vision money admin" on public.vision_plan_money;
-create policy "vision money admin" on public.vision_plan_money for all using ((select public.is_admin())) with check ((select public.is_admin()));
-drop policy if exists "tenant isolation" on public.vision_plan_money;
-create policy "tenant isolation" on public.vision_plan_money as restrictive for all
-  using (tenant_id = (select public.effective_tenant())) with check (tenant_id = (select public.effective_tenant()));
-revoke all on public.vision_plan_money from public, anon, authenticated;
-grant select, insert, update, delete on public.vision_plan_money to authenticated;
-drop trigger if exists admin_audit_vision_plan_money on public.vision_plan_money;
-create trigger admin_audit_vision_plan_money after insert or update or delete on public.vision_plan_money for each row execute function public.log_admin_audit();
-
--- verify (numbers only):
---   select count(*) from public.vision_plan_money;   -- 0 (first run)
-select public.record_migration('0449_the_money_plan_by_plan');
-reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
-commit;  -- 0449
-
 -- ============================================================
 -- 0450_what_the_market_says.sql
 -- ============================================================
@@ -487,3 +406,119 @@ grant execute on function public.vision_shared(text) to anon, authenticated;
 select public.record_migration('0454_the_plans_case_in_words');
 reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
 commit;  -- 0454
+
+-- ============================================================
+-- 0455_a_link_shows_what_you_chose.sql
+-- ============================================================
+begin;   -- 0455, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
+-- ── 0455 — A LINK SHOWS WHAT YOU CHOSE ───────────────────────────────────────────────────────────────────────────────
+-- 2026-10-26. Ryan, 2026-10-26: "every link currently shows all roadmap programs and all store layouts, not just the ones
+-- you choose. Fix that as well." Paste into Supabase → SQL Editor → Run. A second run changes nothing. Needs 0454.
+--
+-- WHAT.
+--   vision_shares.program_ids — the roadmap programs this link shows; layout_ids — the store rooms it shows. Before this,
+--   vision_shared returned every program and every room in the business to anyone holding any link (plans were already
+--   opt-in: only those marked shareable). Now a program, a program's asks and a room reach a link only when chosen for
+--   it. A new link chooses nothing until its maker picks.
+--   Existing links: on the first run only, each is given what it was evidently meant to show — the programs and rooms of
+--   the plans marked to show on a link — so no live link goes blank. Programs and rooms with no shareable plan stop
+--   showing. The owner can change either list on the link any time.
+--   vision_shared — as 0454, with programs, program-level asks and rooms filtered by the link's choices.
+--
+-- set lock_timeout (database F16): two columns added (a constant default — no rewrite), one function replaced (same
+-- signature).
+-- existing rows: vision_shares — each existing link's two new lists set once, as above.
+-- rollback: re-run 0454's vision_shared; alter table vision_shares drop column program_ids, drop column layout_ids.
+-- changelog: none — links the owner sends.
+
+set lock_timeout = '5s';
+
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'vision_shares' and column_name = 'program_ids') then
+    alter table public.vision_shares add column program_ids uuid[] not null default '{}';
+    alter table public.vision_shares add column layout_ids uuid[] not null default '{}';
+    -- The first run only: what each existing link was meant to show.
+    update public.vision_shares s set
+      program_ids = coalesce((select array_agg(distinct v.program_id) from public.vision_plans v
+                               where v.tenant_id = s.tenant_id and v.shareable and v.program_id is not null), '{}'),
+      layout_ids  = coalesce((select array_agg(distinct v.layout_id) from public.vision_plans v
+                               where v.tenant_id = s.tenant_id and v.shareable and v.layout_id is not null), '{}');
+  end if;
+end $$;
+
+-- vision_shared, filtered by what the link was given.
+create or replace function public.vision_shared(p_token text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare s public.vision_shares;
+begin
+  if p_token is null or length(p_token) < 32 then
+    raise exception 'This link isn''t live.' using errcode = 'PT404';
+  end if;
+  select * into s from public.vision_shares
+   where token = p_token and revoked_at is null and (expires_at is null or expires_at > now());
+  if not found then
+    raise exception 'This link isn''t live.' using errcode = 'PT404';
+  end if;
+  update public.vision_shares set opens = opens + 1, last_opened_at = now() where id = s.id;
+  return jsonb_build_object(
+    'label', s.label,
+    'show_asks', s.show_asks,
+    'expires_at', s.expires_at,
+    'programs', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', p.id, 'lane', p.lane, 'title', p.title, 'summary', p.summary, 'why', p.why, 'pillars', p.pillars,
+        'horizon', p.horizon, 'status', p.status, 'start_on', p.start_on, 'target_on', p.target_on, 'emoji', p.emoji,
+        'layout_id', p.layout_id, 'sort', p.sort) order by p.horizon, p.sort, p.created_at)
+      from public.vision_programs p where p.tenant_id = s.tenant_id and p.id = any(s.program_ids)), '[]'::jsonb),
+    -- 0455: the programs this link was given, and no others.
+    'asks', case when s.show_asks then coalesce((select jsonb_agg(jsonb_build_object(
+        'program_id', a.program_id, 'plan_id', a.plan_id, 'label', a.label, 'amount_cents', a.amount_cents, 'state', a.state,
+        'note', a.note, 'sort', a.sort) order by a.sort, a.created_at)
+      from public.vision_asks a
+      where a.tenant_id = s.tenant_id
+        -- 0455: an ask on a program shows only with that program; an ask on a plan, only with a plan marked to show.
+        and ((a.plan_id is null and a.program_id = any(s.program_ids)) or exists (select 1 from public.vision_plans x where x.id = a.plan_id and x.shareable))), '[]'::jsonb)
+      else '[]'::jsonb end,
+    'plans', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', v.id, 'program_id', v.program_id, 'name', v.name, 'format', v.format, 'phase', v.phase, 'status', v.status,
+        'sqft', v.sqft, 'deal', v.deal, 'place', v.place, 'summary', v.summary, 'why', v.why, 'gate', v.gate,
+        'layout_id', v.layout_id, 'sort', v.sort,
+        -- 0454: who it's for, the market, how it stands apart — part of the plan, shown wherever the plan is.
+        'customer', v.customer, 'market', v.market, 'positioning', v.positioning,
+        'needs', coalesce((select jsonb_agg(jsonb_build_object('label', n.label, 'kind', n.kind, 'due_on', n.due_on, 'done_on', n.done_on, 'sort', n.sort)
+            order by n.sort, n.created_at) from public.vision_plan_needs n where n.plan_id = v.id), '[]'::jsonb),
+        'waits_on', coalesce((select jsonb_agg(d.needs_plan_id) from public.vision_plan_deps d
+            join public.vision_plans w on w.id = d.needs_plan_id and w.shareable where d.plan_id = v.id), '[]'::jsonb),
+        -- 0451: the plan's money, only its owner-approved baseline, only where an owner chose this link to show it.
+        'money', case when v.id = any(s.money_plans) then (select jsonb_build_object('baseline', m.baseline, 'approved_at', m.baseline_at)
+            from public.vision_plan_money m where m.plan_id = v.id and m.baseline is not null) end,
+        -- 0451: its research — accepted findings only, each with its source — where an owner chose this link to show it.
+        'research', case when v.id = any(s.research_plans) then coalesce((select jsonb_agg(jsonb_build_object(
+            'topic', r.topic, 'claim', r.claim, 'figure', r.figure, 'source_url', r.source_url, 'source_title', r.source_title,
+            'published', r.published, 'bearing', r.bearing, 'retrieved_at', r.retrieved_at) order by r.topic, r.retrieved_at desc)
+          from public.vision_research r where r.plan_id = v.id and r.status = 'accepted'), '[]'::jsonb) end,
+        -- 0454: its risks and assumptions — with the case, where an owner chose this link to show it.
+        'risks', case when v.id = any(s.money_plans) then coalesce((select jsonb_agg(jsonb_build_object(
+            'kind', k.kind, 'words', k.words, 'likelihood', k.likelihood, 'impact', k.impact, 'mitigation', k.mitigation,
+            'evidence', k.evidence, 'status', k.status) order by k.sort, k.created_at)
+          from public.vision_plan_risks k where k.plan_id = v.id), '[]'::jsonb) end)
+        order by v.phase, v.sort, v.created_at)
+      from public.vision_plans v where v.tenant_id = s.tenant_id and v.shareable), '[]'::jsonb),
+    'layouts', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', l.id, 'name', l.name, 'width_in', l.width_in, 'depth_in', l.depth_in, 'ceiling_in', l.ceiling_in, 'notes', l.notes,
+        'items', coalesce((select jsonb_agg(jsonb_build_object(
+            'id', i.id, 'kind', i.kind, 'label', i.label, 'x_in', i.x_in, 'y_in', i.y_in, 'rot', i.rot,
+            'w_in', i.w_in, 'd_in', i.d_in, 'h_in', i.h_in, 'why', i.why, 'pillars', i.pillars, 'sort', i.sort) order by i.sort, i.created_at)
+          from public.store_items i where i.layout_id = l.id), '[]'::jsonb)) order by l.created_at)
+      from public.store_layouts l where l.tenant_id = s.tenant_id and l.id = any(s.layout_ids)), '[]'::jsonb)
+    -- 0455: the rooms this link was given, and no others.
+  );
+end $$;
+revoke all on function public.vision_shared(text) from public, anon, authenticated;
+grant execute on function public.vision_shared(text) to anon, authenticated;
+
+-- verify (numbers only):
+--   select count(*) from public.vision_shares where cardinality(program_ids) = 0 and cardinality(layout_ids) = 0;
+select public.record_migration('0455_a_link_shows_what_you_chose');
+reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
+commit;  -- 0455

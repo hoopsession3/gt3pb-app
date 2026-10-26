@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-25T23:25:08.257Z",
+    "pulled_at": "2026-10-26T16:38:10.682Z",
     "project": "unrecorded — rerun with --project=<ref> to name it",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 240,
-    "columns": 3032
+    "relations": 241,
+    "columns": 3043
   },
   "academy_acknowledgements": [
     "user_id",
@@ -3398,6 +3398,19 @@
     "plan_id",
     "needs_plan_id",
     "created_at"
+  ],
+  "vision_plan_money": [
+    "id",
+    "tenant_id",
+    "plan_id",
+    "scenarios",
+    "structure",
+    "baseline",
+    "baseline_at",
+    "baseline_by",
+    "updated_by",
+    "created_at",
+    "updated_at"
   ],
   "vision_plan_needs": [
     "id",

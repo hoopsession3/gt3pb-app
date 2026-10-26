@@ -135,9 +135,8 @@ export async function saveLayout(sb: SupabaseClient, layout: Layout, before: rea
 /** The investor cases the owners and admins can present in the room (R57): every plan with an approved baseline, and
  *  its accepted research. Before 0449/0450 there are none — the presenter shows the plan as before. */
 export async function readCases(sb: SupabaseClient): Promise<Record<string, PlanCase>> {
-  // arrives-with: 0449
   const m = await sb.from("vision_plan_money").select("plan_id, baseline, baseline_at").not("baseline", "is", null);
-  if (m.error) { if (notYet(m.error)) return {}; throw new Error(m.error.message); }
+  if (m.error) throw new Error(m.error.message);
   // arrives-with: 0450
   const r = await sb.from("vision_research").select("plan_id, topic, claim, figure, source_url, source_title, published, bearing, retrieved_at").eq("status", "accepted");
   if (r.error && !notYet(r.error)) throw new Error(r.error.message);

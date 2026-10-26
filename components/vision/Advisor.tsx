@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { failureWords } from "@/lib/failureWords";
-import { isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
 import { NO_ROOM, toInputs, type Inputs, type Structure } from "@/lib/visionMoney";
 import { ASSUMED_SERVE_SEC, capacity } from "@/lib/visionRoom";
 import { advise, type PlanState } from "@/lib/visionAdvisor";
@@ -22,9 +21,7 @@ type Loaded = { money: Row[]; research: RRow[]; risks: Risk[] } | "not-yet";
 export default function Advisor({ plans, needs, deps, layouts, onOpen }: { plans: Plan[]; needs: Need[]; deps: Dep[]; layouts: Layout[]; onOpen: (planId: string) => void }) {
   const load = useCallback(async (): Promise<Loaded> => {
     if (!supabase) return "not-yet";
-    // arrives-with: 0449  — before 0449 there is no money to advise on; the advisor stays out of the way
     const m = await supabase.from("vision_plan_money").select("plan_id, scenarios, structure, baseline");
-    if (m.error && (isMissingTable(m.error) || isMissingRelation(m.error))) return "not-yet";
     if (m.error) throw new Error(m.error.message);
     // arrives-with: 0450
     const r = await supabase.from("vision_research").select("plan_id, topic, status, bearing, retrieved_at");

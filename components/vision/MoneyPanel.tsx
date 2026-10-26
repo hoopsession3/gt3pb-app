@@ -58,9 +58,7 @@ export default function MoneyPanel({ plan, asks, canEdit, isOwner = false, view 
 }) {
   const load = useCallback(async (): Promise<Saved | "not-yet"> => {
     if (!supabase) throw new Error("Supabase client not configured");
-    // arrives-with: 0449  — until 0449 is applied the table is absent: the panel says the money arrives with it, nothing fails
     const { data, error } = await supabase.from("vision_plan_money").select("scenarios, structure, baseline, baseline_at").eq("plan_id", plan.id).maybeSingle();
-    if (error && (isMissingTable(error) || isMissingRelation(error))) return "not-yet";
     if (error) throw new Error(error.message);
     const row = data as { scenarios?: Record<string, unknown>; structure?: Structure; baseline?: { scenarios?: Record<string, unknown>; structure?: Structure } | null; baseline_at?: string | null } | null;
     return { ...snapOf(row), baseline: row?.baseline ? snapOf(row.baseline) : null, baselineAt: row?.baseline_at ?? null };

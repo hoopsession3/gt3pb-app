@@ -11420,6 +11420,8 @@ export type Database = {
           expires_at: string | null
           money_plans: string[]
           research_plans: string[]
+          program_ids: string[]
+          layout_ids: string[]
         }
         Insert: {
           id?: string
@@ -11435,6 +11437,8 @@ export type Database = {
           expires_at?: string | null
           money_plans?: string[]
           research_plans?: string[]
+          program_ids?: string[]
+          layout_ids?: string[]
         }
         Update: {
           id?: string
@@ -11450,6 +11454,8 @@ export type Database = {
           expires_at?: string | null
           money_plans?: string[]
           research_plans?: string[]
+          program_ids?: string[]
+          layout_ids?: string[]
         }
         Relationships: [
           {

@@ -10,7 +10,7 @@
 //       cap, its share). An IRR is found or is null, never invented.
 //   4 · What moves it most; the flags are arithmetic on Ryan's numbers, never benchmarks.
 //   5 · GT3's own sales as evidence: paid, not canceled, by channel, repeat guests.
-//   6 · The wiring: a plan's case (the plan, then Money), the money for owners only, before 0449 nothing fails.
+//   6 · The wiring: a plan's case (the plan, then Money), the money for owners only, 0449 is in production, so the panel reads it directly.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -121,7 +121,7 @@ const plain = M.toInputs({ uses: [{ id: "bar", label: "Bar", category: "equipmen
   const panel = read("components/vision/MoneyPanel.tsx"), plans = read("components/vision/Plans.tsx"), sql = read("supabase/migrations/0449_the_money_plan_by_plan.sql");
   ok("a plan opens its case: the plan, then Money", /function PlanCase/.test(plans) && /key: "money", label: "Money"/.test(plans) && /setCaseId\(p\.id\)/.test(plans));
   ok("the money is the owners': the crew are told so, and 0449's only policy is admin", /if \(!canEdit\) return/.test(panel) && /"vision money admin"/.test(sql) && !/vision staff read/.test(sql));
-  ok("before 0449 the panel says the money arrives with it — nothing fails", /arrives-with: 0449/.test(panel) && /"not-yet"/.test(panel));
+  ok("0449 is in production: the panel reads the money directly, no arrives-with fallback left", !/arrives-with: 0449/.test(panel) && /from\("vision_plan_money"\)/.test(panel));
   ok("our sales are offered, never filled in silently (a button to use the average order)", /Use \{dollars\(o\.avgOrderCents\)\} as the average order/.test(panel));
   ok("projections are labelled as projections — not a forecast, not advice", /not a forecast of what will happen, and not financial advice/.test(panel));
   ok("the structure carries the attorney and accountant line", /securities attorney and an accountant/.test(panel));
