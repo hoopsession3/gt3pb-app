@@ -104,7 +104,7 @@
 .vz-plan .it text{font-family:var(--sans);font-weight:700;fill:#1a1610;pointer-events:none}
 .vz-plan .front{stroke:#1a1610;stroke-width:3;stroke-linecap:round}
 .vz-plan .gap{stroke:#5a4a2c;stroke-width:1.25;stroke-opacity:.7}
-.vz-plan .gapt{font-family:var(--mono);fill:#5a4a2c;font-weight:600;pointer-events:none}
+.vz-plan .gapt{font-family:var(--sans);fill:#5a4a2c;font-weight:700;pointer-events:none}
 .vz-plan .seltag{pointer-events:none}
 .vz-plan .seltag .tagbg{fill:#1a1610;fill-opacity:.92}
 .vz-plan .seltag text{font-family:var(--sans);font-weight:700;fill:#f6e7c4}

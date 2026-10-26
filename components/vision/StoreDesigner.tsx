@@ -134,6 +134,8 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // The same room read again after its own save keeps its undo history and what's picked (S1.1 — the gate: "save changes
   // and preserve undo/redo history"); another room, or a fresh read from elsewhere, starts clean.
   const [savedId, setSavedId] = useState<string | null>(null);
+  // When this session last saved (S1.1b — a quiet save status: "Saved 3:41 PM" on the button's label, nothing permanent).
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   if (base !== original) {
     const same = !!original && savedId === original.id;
     setBase(original); setDraft(original ?? null); setSavedId(null);
@@ -208,7 +210,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
     setBusy(false);
     if (err) { toast(failureWords(err, "Couldn't save the room"), "error"); haptic("error"); return; }
     haptic("success"); toast("Saved — the room, and everything in it.");
-    setSavedId(draft.id);
+    setSavedId(draft.id); setSavedAt(Date.now());
     onSaved();
   };
   const newRoom = async () => {
@@ -327,7 +329,8 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
             <>
               <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (⌘Z)">↶</button>
               <button type="button" className="btn-sec btn-sm" onClick={redo} disabled={!future.length} aria-label="Redo" title="Redo (⇧⌘Z)">↷</button>
-              <button type="button" className={dirty ? "btn-pri btn-sm" : "btn-sec btn-sm"} onClick={() => void save()} disabled={!dirty || busy} aria-label={busy ? "Saving" : dirty ? "Save" : "Saved"}>{busy ? "Saving…" : dirty ? "Save" : size === "phone" ? "✓" : "Saved"}</button>
+              <button type="button" className={dirty ? "btn-pri btn-sm" : "btn-sec btn-sm"} onClick={() => void save()} disabled={!dirty || busy} aria-label={busy ? "Saving" : dirty ? "Save" : "Saved"}
+                title={dirty ? "Save — until you do, your changes are kept on this device" : savedAt ? `Saved at ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Everything is saved"}>{busy ? "Saving…" : dirty ? "Save" : size === "phone" ? "✓" : "Saved"}</button>
             </>
           )}
           <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Done — back to the vision" : "Full screen"} title={full ? "Done (Esc)" : "Full screen"} onClick={() => { setDock(false); setFull((f) => !f); }}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>

@@ -97,5 +97,23 @@ const D3 = loadTs("lib/vision3d.ts");
 }
 ok("a phone: the lens sits in the dock when nothing is picked, so the bar stays two rows and the drawing keeps its height", /\{size === "phone" && lensControl\}/.test(des) && /\{size !== "phone" && lensControl\}/.test(des) && /stats && size !== "phone"/.test(des));
 ok("a phone on its side opens full screen too, the dock beside the plan", /\(size === "phone" \|\| short\)/.test(des) && /\.vz-studio\.short\.full \.vz-stage\.docked\{flex-direction:row\}/.test(css));
+const P = loadTs("lib/pillarFacts.ts"), STD = loadTs("lib/standard.ts");
+{
+  const room = { width_in: 360, depth_in: 480, items: [
+    { kind: "door", pillars: [] }, { kind: "community", pillars: [] }, { kind: "window_wall", pillars: [] }, { kind: "hand_sink", pillars: [] }, { kind: "prep_counter", pillars: [] },
+  ].map((x, i) => ({ id: String(i), label: null, x_in: 0, y_in: 0, rot: 0, w_in: 10, d_in: 10, h_in: 10, why: null, sort: i, ...x })) };
+  const facts = P.pillarFacts(room, [{ ids: ["1"], level: "warn", words: "20 in between A and B — an aisle needs 36" }]);
+  ok("every pillar has its facts, each tagged with where it comes from", ["movement", "stillness", "light", "fuel"].every((p) => facts.some((f) => f.pillar === p)) && facts.every((f) => ["drawn", "simulated", "standard", "unknown"].includes(f.source)));
+  ok("the drawing's counts are said as drawn", /1 door; 1 aisle under 36 in/.test(facts.find((f) => f.pillar === "movement" && f.source === "drawn").text) && /8 seats/.test(facts.find((f) => f.pillar === "stillness").text), facts.map((f) => f.text));
+  ok("light levels and sound are unknown, never guessed from the drawing", facts.some((f) => f.pillar === "light" && f.source === "unknown") && facts.some((f) => f.pillar === "stillness" && f.source === "unknown"));
+  ok("the flow is said to be simulated", facts.some((f) => f.source === "simulated" && /model, not a count/.test(f.text)));
+  ok("no fact makes a health or toxicity claim", facts.every((f) => !STD.isProhibited(f.text) && !/healthy|safe|toxic/i.test(f.text)));
+}
+ok("Evaluate shows the room by pillar, folded, after the serious findings", /The room by pillar/.test(ev) && ev.indexOf("diff.says.map") < ev.indexOf("The room by pillar") && /<details/.test(ev));
+ok("the picked thing's quick bar stands clear of its label as well as the thing", /const tb = labels\.tag\?\.box \?\? null/.test(plan) && /Math\.min\(sb\.y0, tb\.y0\)/.test(plan));
+ok("gap lengths and the picked label share one typeface (one way of writing feet and inches)", /\.gapt\{font-family:var\(--sans\)/.test(css));
+ok("a quiet save status in the tooltip: the time of the last save, and that unsaved changes are kept on the device", /title=\{dirty \? "Save — until you do, your changes are kept on this device" : savedAt \? `Saved at/.test(des));
+ok("…while the button's spoken name stays one word — Save or Saved (voice control says it)", /aria-label=\{busy \? "Saving" : dirty \? "Save" : "Saved"\}/.test(des));
+ok("a drawn count or a pointer to the Standard is never tinted as a pass; unknown carries the warning tint", /f\.source === "unknown" \? "k-tag warn" : f\.source === "simulated" \? "k-tag gold" : "k-tag"/.test(ev) && !/"k-tag ok"\}>\{SOURCE_WORD/.test(ev));
 console.log(`S1.1b — THE STUDIO, SECOND PASS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

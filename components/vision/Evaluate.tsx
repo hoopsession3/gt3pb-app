@@ -8,6 +8,8 @@ import { kindOf, type Issue, type Layout } from "@/lib/vision";
 import { roomDiff } from "@/lib/visionRoom";
 import { summaryWords, type Summary } from "@/lib/standard";
 import type { Plan } from "@/lib/visionPlans";
+import { PILLARS, PILLAR_WORD } from "@/lib/vision";
+import { SOURCE_WORD, pillarFacts } from "@/lib/pillarFacts";
 
 // THE EVALUATE LENS (S1.1b, 2026-10-26 — Ryan: "Evaluate: focus on design quality and business consequences… surface the
 // most consequential finding first… allow users to inspect, dismiss, defer, or resolve findings"). Three sources, each
@@ -39,6 +41,7 @@ export default function Evaluate({ draft, saved, found, plans, onLook }: { draft
   const shown = found.filter((f) => !aside.has(f.words));
   const readers = plans.filter((p) => p.layout_id === draft.id);
   const diff = saved ? roomDiff(saved, draft) : null;
+  const facts = useMemo(() => pillarFacts(draft, found), [draft, found]);
 
   return (
     <section className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label="Evaluate — the most serious first">
@@ -60,6 +63,17 @@ export default function Evaluate({ draft, saved, found, plans, onLook }: { draft
         </div>
       )}
       {stale.length > 0 && <p className="vz-card-s">{stale.length} {stale.length === 1 ? "thing's" : "things'"} Standard judgement is stale — something it depended on changed. Reassess under Standard.</p>}
+      {/* The room by pillar (S1.1b): what the drawing can say, each line tagged with where it comes from. Folded until
+          asked — the most serious findings stay first. */}
+      <details className="vz-pillars">
+        <summary className="font-sans font-bold cursor-pointer py-1">The room by pillar</summary>
+        {PILLARS.map((p) => (
+          <div key={p} className="flex flex-col gap-1 mt-2">
+            <b className="font-sans">{PILLAR_WORD[p]}</b>
+            {facts.filter((f) => f.pillar === p).map((f, i) => <p key={i} className="vz-card-s"><span className={f.source === "unknown" ? "k-tag warn" : f.source === "simulated" ? "k-tag gold" : "k-tag"}>{SOURCE_WORD[f.source]}</span> {f.text}</p>)}
+          </div>
+        ))}
+      </details>
       {std.data === "missing" && <p className="vz-card-s">The Primal Standard arrives with the next database update (0456).</p>}
       {std.error && <p className="vz-issue warn">Couldn&apos;t read the Standard just now — this isn&apos;t an all-clear.</p>}
       {!serious.length && !shown.length && !(diff && diff.says.length) && !stale.length && std.data && std.data !== "missing" && (

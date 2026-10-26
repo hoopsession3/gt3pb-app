@@ -262,19 +262,6 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
   // from the camera, so it follows a pinch or a slide.
   const sel = selected ? layout.items.find((i) => i.id === selected) ?? null : null;
   const sb = sel ? footprint(sel) : null;
-  useLayoutEffect(() => {
-    const el = bar.current;
-    if (!el || !sb || !view.w) return;
-    const top = toScreen(cam, view, (sb.x0 + sb.x1) / 2, sb.y0);
-    const bot = toScreen(cam, view, (sb.x0 + sb.x1) / 2, sb.y1);
-    const bw = el.offsetWidth, bh = el.offsetHeight;
-    // Clear of the zoom buttons, wherever they stand (down the right edge, or along the bottom).
-    const x = Math.min(view.w - bw / 2 - (toolsAt === "right" ? 60 : 8), Math.max(bw / 2 + 8, top.x));
-    const above = top.y - bh - 24;   // clear of the label a picked thing shows beside itself
-    const y = above >= 8 ? above : Math.min(view.h - bh - (toolsAt === "bottom" ? 64 : 8), bot.y + 12);
-    el.style.setProperty("--bx", `${Math.round(x)}px`);
-    el.style.setProperty("--by", `${Math.round(y)}px`);
-  });
 
   // Picked from somewhere else — the Schedule, the 3D, a finding — and off the edge of the view: slide to it, same zoom.
   // Adjusted while rendering when the pick changes (lib/useChanged), never by a finger on the plan (it's under the finger).
@@ -322,6 +309,24 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
     }
     return { inner, tag, gaps };
   }, [layout, di, db, cam, u, scale]);
+  useLayoutEffect(() => {
+    const el = bar.current;
+    if (!el || !sb || !view.w) return;
+    // The bar stands clear of the thing AND of its label (S1.1b on an iPhone: it sat on "Community table · 8′ × 3′"):
+    // above both, or below both when there's no room above.
+    const tb = labels.tag?.box ?? null;
+    const topY = tb && tb.y1 <= sb.y0 + 1 ? Math.min(sb.y0, tb.y0) : sb.y0;
+    const botY = tb && tb.y0 >= sb.y1 - 1 ? Math.max(sb.y1, tb.y1) : sb.y1;
+    const top = toScreen(cam, view, (sb.x0 + sb.x1) / 2, topY);
+    const bot = toScreen(cam, view, (sb.x0 + sb.x1) / 2, botY);
+    const bw = el.offsetWidth, bh = el.offsetHeight;
+    // Clear of the zoom buttons, wherever they stand (down the right edge, or along the bottom).
+    const x = Math.min(view.w - bw / 2 - (toolsAt === "right" ? 60 : 8), Math.max(bw / 2 + 8, top.x));
+    const above = top.y - bh - 10;
+    const y = above >= 8 ? above : Math.min(view.h - bh - (toolsAt === "bottom" ? 64 : 8), bot.y + 10);
+    el.style.setProperty("--bx", `${Math.round(x)}px`);
+    el.style.setProperty("--by", `${Math.round(y)}px`);
+  });
 
   return (
     <div ref={box} className="vz-planbox">
