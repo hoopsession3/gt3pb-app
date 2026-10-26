@@ -117,6 +117,7 @@
 .vz-plan .grip .hit{fill:transparent}
 .vz-plan .grip .dot{fill:#fff;stroke:#c8902f;stroke-width:2}
 .vz-tools{position:absolute;right:10px;top:10px;z-index:2;display:flex;flex-direction:column;gap:6px}
+.vz-tools.bottom{top:auto;bottom:10px;flex-direction:row}
 .vz-hint{position:absolute;left:12px;bottom:10px;margin:0;font-family:var(--sans);font-size:12px;color:rgba(42,40,32,.65);pointer-events:none}
 .vz-empty{position:absolute;left:16px;right:16px;top:45%;margin:0;text-align:center;font-family:var(--sans);font-size:15px;font-weight:600;color:rgba(42,40,32,.7);pointer-events:none}
 /* the picked thing's quick moves, beside it on the drawing */

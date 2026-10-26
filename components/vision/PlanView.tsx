@@ -54,16 +54,22 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
   const W = layout.width_in, D = layout.depth_in;
   const room: Box = useMemo(() => ({ x0: 0, y0: 0, x1: W, y1: D }), [W, D]);
   // Fitted: the room and a margin for its rulers — at least RULER_PX on screen, so a foot mark is never cut off.
-  // The zoom buttons stand down the right edge: the fitted room keeps clear of them (S1.1b — the corner was under them).
-  const home = useMemo(() => {
-    let pad = PAD, right = PAD, c = fit({ x0: -pad, y0: -pad, x1: W + right, y1: D + pad }, view);
-    for (let k = 0; k < 3; k++) {
-      const s = scaleOf(c, view);
-      pad = Math.max(PAD, RULER_PX / s);
-      right = Math.max(pad, TOOLS_PX / s);
-      c = fit({ x0: -pad, y0: -pad, x1: W + right, y1: D + pad }, view);
-    }
-    return c;
+  // The zoom buttons keep clear of the fitted room (S1.1b — the corner was under them), along whichever edge has room to
+  // spare: down the right in a wide pane, along the bottom in a tall one (a phone held upright is short of width, not
+  // height). Both fits are worked out; the one that draws the room larger wins.
+  const { home, toolsAt } = useMemo(() => {
+    const fitWith = (side: "right" | "bottom") => {
+      let pad = PAD, extra = PAD, c = fit({ x0: -pad, y0: -pad, x1: W + pad, y1: D + pad }, view);
+      for (let k = 0; k < 3; k++) {
+        const s = scaleOf(c, view);
+        pad = Math.max(PAD, RULER_PX / s);
+        extra = Math.max(pad, TOOLS_PX / s);
+        c = fit(side === "right" ? { x0: -pad, y0: -pad, x1: W + extra, y1: D + pad } : { x0: -pad, y0: -pad, x1: W + pad, y1: D + extra }, view);
+      }
+      return c;
+    };
+    const r = fitWith("right"), b = fitWith("bottom");
+    return scaleOf(b, view) > scaleOf(r, view) * 1.01 ? { home: b, toolsAt: "bottom" as const } : { home: r, toolsAt: "right" as const };
   }, [W, D, view]);
   const cam = manual ?? home;
   const fitted = !manual || isFitted(manual, home);
@@ -262,10 +268,10 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
     const top = toScreen(cam, view, (sb.x0 + sb.x1) / 2, sb.y0);
     const bot = toScreen(cam, view, (sb.x0 + sb.x1) / 2, sb.y1);
     const bw = el.offsetWidth, bh = el.offsetHeight;
-    // Clear of the zoom buttons down the right edge.
-    const x = Math.min(view.w - bw / 2 - 60, Math.max(bw / 2 + 8, top.x));
-    const above = top.y - bh - 24;   // clear of the name a small thing shows over itself when picked
-    const y = above >= 8 ? above : Math.min(view.h - bh - 8, bot.y + 12);
+    // Clear of the zoom buttons, wherever they stand (down the right edge, or along the bottom).
+    const x = Math.min(view.w - bw / 2 - (toolsAt === "right" ? 60 : 8), Math.max(bw / 2 + 8, top.x));
+    const above = top.y - bh - 24;   // clear of the label a picked thing shows beside itself
+    const y = above >= 8 ? above : Math.min(view.h - bh - (toolsAt === "bottom" ? 64 : 8), bot.y + 12);
     el.style.setProperty("--bx", `${Math.round(x)}px`);
     el.style.setProperty("--by", `${Math.round(y)}px`);
   });
@@ -403,7 +409,7 @@ export default function PlanView({ layout, selected, bad, canEdit, flow, onSelec
         </div>
       )}
 
-      <div className="vz-tools">
+      <div className={toolsAt === "bottom" ? "vz-tools bottom" : "vz-tools"}>
         <button type="button" className="k-icon-btn glass" onClick={() => zoomBy(1.25)} title="Closer (+)" aria-label="Closer">+</button>
         <button type="button" className="k-icon-btn glass" onClick={() => zoomBy(0.8)} title="Farther (−)" aria-label="Farther">−</button>
         <button type="button" className="k-icon-btn glass" onClick={fitAll} disabled={fitted} title="Fit the whole room (F)" aria-label="Fit the whole room">⤢</button>

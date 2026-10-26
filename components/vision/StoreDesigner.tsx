@@ -302,6 +302,10 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // (useStudioSize): a thin bar on top; the canvas filling what's left; on a wide studio the library at the left (it folds
   // away) and the inspector at the right; on a phone the inspector docks over the canvas's foot and the library opens as a
   // sheet. Flow floats over the canvas it runs in. Full screen takes the whole display for drawing or showing.
+  const lensControl = (
+    <Segmented label="Lens" kind="choice" value={lens} onChange={(v) => { haptic("selection"); setLens(v); }}
+      options={[{ key: "design", label: "Design" }, { key: "experience", label: "Experience" }, { key: "evaluate", label: `Evaluate${found.length ? ` · ${found.length}` : ""}` }]} />
+  );
   const studio = (
     <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${narrow ? " narrow" : ""}${short ? " short" : ""}${libOpen && canEdit && size === "wide" && !full ? " lib" : ""}`}>
       <div className="vz-tbar" role="toolbar" aria-label="The store designer">
@@ -318,8 +322,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
         </div>
         <div className="vz-tbar-r">
           {canEdit && !(size === "wide" && libOpen && !full) && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>{narrow ? "+" : "+ Add"}</button>}
-          <Segmented label="Lens" kind="choice" value={lens} onChange={(v) => { haptic("selection"); setLens(v); }}
-            options={[{ key: "design", label: "Design" }, { key: "experience", label: "Experience" }, { key: "evaluate", label: size === "phone" ? "Evaluate" : `Evaluate${found.length ? ` · ${found.length}` : ""}` }]} />
+          {size !== "phone" && lensControl}
           {canEdit && (
             <>
               <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (⌘Z)">↶</button>
@@ -332,7 +335,8 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       </div>
 
       {/* One line under the bar: the room's numbers and the plans it's drawn for (a size that disagrees with a plan's says so). */}
-      {stats && (
+
+      {stats && size !== "phone" && (
         <p className="vz-stats vz-stats-line">
           <span><b>{stats.sqft.toLocaleString()}</b> sq ft</span>
           <span><b>{ftIn(draft.width_in)}</b> × <b>{ftIn(draft.depth_in)}</b></span>
@@ -401,7 +405,13 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
               size, why) and opens the rest as a sheet over the drawing; full screen shows the inspector in the dock. */}
           {docked && (
             <div className="vz-dock mpanel mb-0" aria-label="What's picked">
-              {!item ? (narrow ? lens === "evaluate" ? evaluate : <p className="vz-card-s">{canEdit ? "Pick a thing to move, size or turn it." : "Pick a thing to see why it's there."}</p> : roomPanels)
+              {!item ? (narrow ? (
+                // A phone (S1.1b): with nothing picked, the dock holds the lens — the drawing keeps the whole height above
+                // it (measured: the lens in the bar, or on its own line, cost an iPhone SE a tenth of the plan's size).
+                <div className="flex flex-col gap-2">
+                  {size === "phone" && lensControl}
+                  {lens === "evaluate" ? evaluate : size === "phone" ? <p className="sr-only">{canEdit ? "Pick a thing on the plan to move, size or turn it." : "Pick a thing on the plan to see why it's there."}</p> : <p className="vz-card-s">{canEdit ? "Pick a thing to move, size or turn it." : "Pick a thing to see why it's there."}</p>}
+                </div>) : roomPanels)
                 : !narrow ? inspector : (
                 <div className="vz-dock-peek">
                   <div className="min-w-0">

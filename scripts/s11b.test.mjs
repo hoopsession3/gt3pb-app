@@ -95,5 +95,7 @@ const D3 = loadTs("lib/vision3d.ts");
   ok("a table is a top on four legs, a counter a body and a top, a fridge a body and a glass front, shelving has shelves", counts.community === 5 && counts.order_counter === 2 && counts.reach_in === 2 && counts.storage >= 4, counts);
   ok("everything else stays one box, as before", counts.column === 1 && counts.door === 1);
 }
+ok("a phone: the lens sits in the dock when nothing is picked, so the bar stays two rows and the drawing keeps its height", /\{size === "phone" && lensControl\}/.test(des) && /\{size !== "phone" && lensControl\}/.test(des) && /stats && size !== "phone"/.test(des));
+ok("a phone on its side opens full screen too, the dock beside the plan", /\(size === "phone" \|\| short\)/.test(des) && /\.vz-studio\.short\.full \.vz-stage\.docked\{flex-direction:row\}/.test(css));
 console.log(`S1.1b — THE STUDIO, SECOND PASS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
