@@ -15,7 +15,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 export function pillarFacts(l: Pick<Layout, "items" | "width_in" | "depth_in">, found: readonly Issue[]): Fact[] {
   const seats = l.items.reduce((s, i) => s + (kindOf(i.kind).seats ?? 0), 0);
-  const aisle = found.filter((f) => f.level !== "error" && /aisle|36 in|walk/i.test(f.words)).length;
+  const aisle = found.filter((f) => f.level !== "error" && /aisle|36 in|walk|narrows/i.test(f.words)).length;
   const overlaps = found.filter((f) => /overlap|through a wall|outside/i.test(f.words)).length;
   const doors = count(l, ["door"]), windows = count(l, ["window_wall", "walk_up"]);
   const bar = count(l, ["tap_tower", "bottle_cooler", "broth_station", "order_counter"]), back = count(l, ["prep_counter", "brew_vessels", "reach_in", "ice_machine", "three_sink", "storage"]);

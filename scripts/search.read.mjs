@@ -29,6 +29,8 @@ export function loadTs(rel) {
   const dir = rel.slice(0, rel.lastIndexOf("/") + 1);
   new Function("module", "exports", "require", out)(mod, mod.exports, (spec) => {
     if (spec.startsWith("./")) return loadTs(`${dir}${spec.slice(2)}.ts`);
+    // "../x" (lib/spatial reaching lib/vision, 2026-10-26): resolved against the importing file's folder.
+    if (spec.startsWith("../")) { const parts = dir.split("/").filter(Boolean); let rest = spec; while (rest.startsWith("../")) { parts.pop(); rest = rest.slice(3); } return loadTs(`${parts.length ? parts.join("/") + "/" : ""}${rest}.ts`); }
     throw new Error(`search.read: ${rel} imports ${spec}, which this loader doesn't follow`);
   });
   return mod.exports;

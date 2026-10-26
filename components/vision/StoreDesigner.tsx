@@ -2,7 +2,7 @@
 
 import "./studio.css";
 import { failureWords } from "@/lib/failureWords";
-import { useCallback, useLayoutEffect, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useDeferredValue, useCallback, useLayoutEffect, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { useAppStable } from "@/components/AppProvider";
@@ -10,7 +10,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { Segmented } from "@/components/controls";
 import { haptic } from "@/lib/haptics";
 import {
-  AISLE_IN, CATALOG, PILLARS, PILLAR_WORD, allowedKind, clampInside, ftIn, groupIssues, issues, kindOf, parseFtIn, roomStats, snap,
+  AISLE_IN, CATALOG, PILLARS, PILLAR_WORD, allowedKind, clampInside, ftIn, kindOf, parseFtIn, roomStats, snap,
   type Item, type Layout, type Pillar,
 } from "@/lib/vision";
 import { saveLayout } from "@/lib/visionRead";
@@ -19,6 +19,8 @@ import PlanView, { KIND_MIME } from "./PlanView";
 import { SPLIT_AT, defaultView } from "@/lib/visionStudio";
 import { FORMAT, type Plan } from "@/lib/visionPlans";
 import Evaluate from "./Evaluate";
+import { evaluate as runSpatial, type Finding } from "@/lib/spatial/evaluate";
+import { PROFILES, modelOf } from "@/lib/spatial/profiles";
 import FlowBar, { figuresOf } from "./FlowBar";
 import { useFlow, type Speed } from "./useFlow";
 import { InfoRow } from "@/components/kit";
@@ -153,10 +155,15 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   }, [draft, dirty, original, kept]);
   // The findings, grouped (S1.1c): errors one by one, touching warnings as one. Only errors are drawn on the plan by
   // default; a finding chosen from the list highlights everything it names (focus), until something else is picked.
-  const found = useMemo(() => (draft ? groupIssues(issues(draft)) : []), [draft]);
+  // The shared spatial engine (lib/spatial), run as the room's operating model — the model of the plan that uses this room
+  // (a storefront when none does). Worked out a moment behind a drag (useDeferredValue), so moving a thing stays smooth.
+  const model = modelOf(plans.find((p) => p.layout_id === draft?.id)?.format ?? null);
+  const settled = useDeferredValue(draft);
+  const found: Finding[] = useMemo(() => (settled ? runSpatial(settled, PROFILES[model]) : []), [settled, model]);
   const bad = useMemo(() => new Set(found.filter((f) => f.level === "error").flatMap((i) => i.ids)), [found]);
   const [focus, setFocus] = useState<string[]>([]);
-  const look = (f: { ids: string[] }) => { pick(f.ids[0]); setFocus(f.ids); };
+  const [focusPath, setFocusPath] = useState<Finding["path"] | null>(null);
+  const look = (f: Finding) => { pick(f.ids[0]); setFocus(f.ids); setFocusPath(f.path?.length ? f.path : null); };
   const stats = draft ? roomStats(draft) : null;
   const item = draft?.items.find((i) => i.id === sel) ?? null;
   const flow = useFlow(draft ?? EMPTY_ROOM, flowOn && !!draft, perHour, speed);
@@ -176,7 +183,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const redo = () => { if (!future.length || !draft) return; setPast((p) => [...p, draft]); setDraft(future[0]); setFuture((f) => f.slice(1)); };
 
   /** Pick a thing (or nothing): the phone's dock opens on its peek, never straight onto the whole inspector. */
-  const pick = (id: string | null) => { setSel(id); setDock(false); setFocus([]); };
+  const pick = (id: string | null) => { setSel(id); setDock(false); setFocus([]); setFocusPath(null); };
   /** Details for a thing (its bar's ⓘ): the dock pulled up on a phone; wider, the inspector beside the canvas, its first
    *  field ready to type in. */
   const details = (id: string) => {
@@ -208,7 +215,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
 
   const save = async () => {
     if (!supabase || !draft || !original || busy) return;
-    if (found.some((f) => f.level === "error") && !(await confirm({ title: "Save with problems?", body: `${found.filter((f) => f.level === "error").length} thing(s) overlap or sit outside the walls. Save anyway, or fix them first?`, confirmLabel: "Save anyway" }))) return;
+    if (found.some((f) => f.level === "error") && !(await confirm({ title: "Save with problems?", body: `${found.filter((f) => f.level === "error").length} problem(s): things that overlap, sit outside the walls, or can't be reached from the door. Save anyway, or fix them first?`, confirmLabel: "Save anyway" }))) return;
     setBusy(true);
     const err = await saveLayout(supabase, draft, original.items);
     setBusy(false);
@@ -263,7 +270,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       onRemove={() => void takeOut(item)} onClose={() => { setSel(null); setDock(false); }} />
   );
   // What a plan reviewer would circle, the schedule, the room itself: beside the canvas on a wide studio, under it on a phone.
-  const evaluate = draft ? <Evaluate draft={draft} saved={original ?? null} found={found} plans={plans} onLook={(id) => { const f = found.find((x) => x.ids.includes(id)); if (f) look(f); else pick(id); }} /> : null;
+  const evaluate = draft ? <Evaluate draft={draft} saved={original ?? null} found={found} plans={plans} checkedAs={PROFILES[model]} onLook={(id) => { const f = found.find((x) => x.ids.includes(id)); if (f) look(f); else pick(id); }} /> : null;
   const roomPanels = (
     <>
       {lens === "evaluate" && evaluate}
@@ -375,7 +382,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           <div ref={storeEl} className={view === "both" ? "vz-store both" : "vz-store"}>
             {view !== "3d" && (
               <div className={`vz-pane mpanel mb-0 relative min-w-0 overflow-hidden${view === "both" && activePane === "plan" ? " active" : ""}`} onPointerDownCapture={() => setActivePane("plan")}>
-                <PlanView layout={draft} selected={sel} bad={bad} focus={focus} canEdit={canEdit} onSelect={pick} flow={flow}
+                <PlanView layout={draft} selected={sel} bad={bad} focus={focus} focusPath={focusPath} canEdit={canEdit} onSelect={pick} flow={flow}
                   onMove={(id, at, done) => patchItem(id, at, done)} onResize={(id, p) => patchItem(id, p, false)}
                   onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }}
                   onDropKind={canEdit ? (k, at) => add(k, at) : undefined}

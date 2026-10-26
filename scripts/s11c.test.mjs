@@ -57,10 +57,11 @@ const V = loadTs("lib/vision.ts"), S = loadTs("lib/visionScore.ts"), M = loadTs(
   const des = read("components/vision/StoreDesigner.tsx"), plan = read("components/vision/PlanView.tsx"), css = read("lib/../components/vision/studio.css");
   ok("only errors are drawn on the plan by default", /new Set\(found\.filter\(\(f\) => f\.level === "error"\)/.test(des));
   ok("errors are a solid red outline (no longer dashed like a warning)", /\.it\.bad rect\.body\{stroke:#b82420;stroke-width:3\}/.test(css));
-  ok("choosing a finding highlights its whole group, in gold", /const look = \(f: \{ ids: string\[\] \}\) => \{ pick\(f\.ids\[0\]\); setFocus\(f\.ids\); \}/.test(des) && /focus\.includes\(it\.id\) \? " focus"/.test(plan) && /\.it\.focus rect\.body\{stroke:#c8902f/.test(css));
-  ok("picking something else clears the highlight", /setFocus\(\[\]\); \};/.test(des));
+  ok("choosing a finding highlights its whole group, in gold", /const look = \(f: Finding\) => \{ pick\(f\.ids\[0\]\); setFocus\(f\.ids\);/.test(des) && /focus\.includes\(it\.id\) \? " focus"/.test(plan) && /\.it\.focus rect\.body\{stroke:#c8902f/.test(css));
+  ok("picking something else clears the highlight", /setFocus\(\[\]\); setFocusPath\(null\); \};/.test(des));
   ok("on a phone the findings count is the Evaluate label, not a chip over the dock", /full && size !== "phone" && found\.length > 0 && !item/.test(des));
-  ok("the findings list is grouped", /groupIssues\(issues\(draft\)\)/.test(des));
+  ok("the findings come from the shared spatial engine (which groups them), as the room's operating model", /runSpatial\(settled, PROFILES\[model\]\)/.test(des) && /groupIssues\(issues\(l\)\)/.test(read("lib/spatial/evaluate.ts")));
+  ok("a chosen route finding draws the way it measured", /focusPath && focusPath\.length > 1 && <polyline className="route"/.test(plan));
 }
 
 console.log(`S1.1c — FINDINGS GROUPED, UNKNOWNS COUNTED: ${pass} passed, ${fail} failed`);

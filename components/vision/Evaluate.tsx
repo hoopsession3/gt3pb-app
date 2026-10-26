@@ -23,7 +23,7 @@ import { SOURCE_WORD, pillarFacts } from "@/lib/pillarFacts";
 //       baseline never moves: the plans' working numbers recompute when the room is saved.
 type Std = (Summary & { subject_type: string; subject_id: string })[] | "missing";
 
-export default function Evaluate({ draft, saved, found, plans, onLook }: { draft: Layout; saved: Layout | null; found: Issue[]; plans: Plan[]; onLook: (id: string) => void }) {
+export default function Evaluate({ draft, saved, found, plans, onLook, checkedAs }: { draft: Layout; saved: Layout | null; found: Issue[]; plans: Plan[]; onLook: (id: string) => void; checkedAs?: { name: string; basis: string } }) {
   const ids = useMemo(() => [draft.id, ...draft.items.map((i) => i.id)], [draft.id, draft.items]);
   const key = ids.join(",");
   const loader = useCallback(async (): Promise<Std> => {
@@ -79,6 +79,7 @@ export default function Evaluate({ draft, saved, found, plans, onLook }: { draft
       {!serious.length && !shown.length && !(diff && diff.says.length) && !stale.length && std.data && std.data !== "missing" && (
         <p className="vz-card-s">Nothing found. The plan reviewer checks overlaps, walls and aisles; the Standard shows only what an owner has judged — unjudged isn&apos;t passed.</p>
       )}
+      {checkedAs && <p className="vz-card-s">Checked as a {checkedAs.name.toLowerCase()} — its dimensions are a {checkedAs.basis.charAt(0).toLowerCase()}{checkedAs.basis.slice(1)}.</p>}
       <p className="vz-card-s">Automated checks are a first read, not a code review or an inspector&apos;s finding.</p>
     </section>
   );

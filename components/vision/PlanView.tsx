@@ -32,8 +32,8 @@ type Mode =
   | { k: "pan"; sx: number; sy: number; cam: Cam; moved: boolean; onEmpty: boolean }
   | { k: "pinch"; d0: number; cam: Cam; at: { x: number; y: number } };
 
-export default function PlanView({ layout, selected, bad, focus = [], canEdit, flow, onSelect, onMove, onResize, onBegin, onDropKind, onTurn, onCopy, onRemove, onDetails }: {
-  layout: Layout; selected: string | null; bad: Set<string>; focus?: string[]; canEdit: boolean; flow: FlowFrame | null;
+export default function PlanView({ layout, selected, bad, focus = [], focusPath = null, canEdit, flow, onSelect, onMove, onResize, onBegin, onDropKind, onTurn, onCopy, onRemove, onDetails }: {
+  layout: Layout; selected: string | null; bad: Set<string>; focus?: string[]; focusPath?: { x: number; y: number }[] | null; canEdit: boolean; flow: FlowFrame | null;
   onSelect: (id: string | null) => void;
   onMove: (id: string, at: { x_in: number; y_in: number }, record: boolean) => void;
   onResize: (id: string, patch: Pick<Item, "w_in" | "d_in" | "x_in" | "y_in">) => void;
@@ -367,6 +367,8 @@ export default function PlanView({ layout, selected, bad, focus = [], canEdit, f
               </g>
             );
           })}
+          {/* A chosen route finding: the way it measured, drawn under the people (S1.1c). */}
+          {focusPath && focusPath.length > 1 && <polyline className="route" aria-hidden="true" points={focusPath.map((p) => `${p.x},${p.y}`).join(" ")} />}
           {flow?.guests.map((g) => <circle key={g.id} className="guest" cx={g.x} cy={g.y} r={g.phase === "seated" ? 7 : 8} fill={PHASE_COLOR[g.phase]} />)}
           {db && (
             <g aria-hidden="true" className="gaps">
