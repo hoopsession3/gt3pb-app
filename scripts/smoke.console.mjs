@@ -38,6 +38,8 @@ export const DEVICES = [
   { key: "iphone-17", w: 402, h: 874, dpr: 3 },
   { key: "iphone-se", w: 375, h: 667, dpr: 2 },
   { key: "iphone-17-pro-max", w: 440, h: 956, dpr: 3 },
+  // S1.1b (Ryan: "iPhone landscape where supported"): the vision on its side — the studio has 402 points of height.
+  { key: "iphone-17-side", w: 874, h: 402, dpr: 3, visitsOnly: true },
   // R53 (Ryan: "be amazing on iPad Pro, iPad… and desktop"): the vision on the iPads, both ways up and in Split View
   // (half of a 13-inch on its side; two thirds), and on a desktop. Their pages are the vision's (VISITS) — the console's
   // sections on an iPad are smoke:native's (its two iPad Airs).
@@ -68,7 +70,8 @@ const STUDIO_FITS = () => {
   const use = Math.max(r.width / b.width, r.height / b.height);
   if (use < 0.7) out.push(`the room uses ${Math.round(use * 100)}% of its pane`);
   if (s.bottom > window.innerHeight + 1) out.push(`the canvas runs ${Math.round(s.bottom - window.innerHeight)}px past the screen`);
-  if (s.height < 300) out.push(`the canvas is only ${Math.round(s.height)}px tall`);
+  // At least 300px — or, on a screen too short for that (a phone on its side, S1.1b), at least 70% of the screen.
+  if (s.height < Math.min(300, window.innerHeight * 0.7)) out.push(`the canvas is only ${Math.round(s.height)}px tall`);
   return out.length ? out.join("; ") : null;
 };
 
@@ -130,7 +133,21 @@ const userObject = { id: OWNER.id, aud: "authenticated", role: "authenticated", 
 const token = `${b64({ alg: "none", typ: "JWT" })}.${b64({ sub: OWNER.id, role: "authenticated", aud: "authenticated", email: OWNER.email, exp, aal: "aal2", amr: [{ method: "totp", timestamp: exp - 3600 }], session_id: "fixture" })}.fixture`;
 const session = () => ({ access_token: token, refresh_token: "fixture-refresh", expires_in: 6 * 3600, expires_at: exp, token_type: "bearer", user: userObject });
 let seedNotes = [];
-const fb = await startFakebase({ port: DB_PORT, user: { id: OWNER.id, email: OWNER.email, object: userObject, session }, seed: async (db) => { seedNotes = await seedConsoleWorld(db); } });
+const fb = await startFakebase({ port: DB_PORT, user: { id: OWNER.id, email: OWNER.email, object: userObject, session }, seed: async (db) => {
+  seedNotes = await seedConsoleWorld(db);
+  // CONSOLE_ITEMS=<n> (S1.1b, the studio's performance budget): the first room filled to n things — two-tops in rows,
+  // 3 ft apart — to measure picking, dragging and panning with 20, 50 and 100 things in a room.
+  const want = Number(process.env.CONSOLE_ITEMS || 0);
+  if (want > 0) {
+    const lay = (await db.query(`select id, width_in, depth_in from public.store_layouts order by created_at limit 1`)).rows[0];
+    const have = Number((await db.query(`select count(*) n from public.store_items where layout_id = $1`, [lay.id])).rows[0].n);
+    for (let k = 0; k < want - have; k++) {
+      const col = k % 9, row = Math.floor(k / 9);
+      await db.query(`insert into public.store_items (layout_id, kind, label, x_in, y_in, rot, w_in, d_in, h_in, pillars, sort) values ($1, 'two_top', $2, $3, $4, 0, 24, 24, 30, '{}', $5)`,
+        [lay.id, `Test table ${k + 1}`, 24 + col * 36, 24 + row * 36, 100 + k]);
+    }
+  }
+} });
 if (seedNotes.length) console.log(`  (the world's seed skipped ${seedNotes.length}: ${seedNotes.slice(0, 4).join(" | ")})`);
 
 const NEXT_BIN = require.resolve("next/dist/bin/next");

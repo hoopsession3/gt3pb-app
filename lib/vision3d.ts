@@ -35,10 +35,18 @@ export function projector(c: Camera, w: number, h: number) {
 }
 
 /** A colour darkened (or lightened) by `k` (0–2, 1 = itself). */
+const SHADES = new Map<string, string>();
+/** A colour, lit: cached by colour and light (S1.1b — a hundred things are a few thousand faces a frame). */
 export function shade(hex: string, k: number): string {
+  const key = `${hex}|${k.toFixed(3)}`;
+  const hit = SHADES.get(key);
+  if (hit) return hit;
   const n = parseInt(hex.replace("#", "").padEnd(6, "0").slice(0, 6), 16);
   const ch = (v: number) => Math.max(0, Math.min(255, Math.round(v * k)));
-  return `rgb(${ch((n >> 16) & 255)}, ${ch((n >> 8) & 255)}, ${ch(n & 255)})`;
+  const out = `rgb(${ch((n >> 16) & 255)}, ${ch((n >> 8) & 255)}, ${ch(n & 255)})`;
+  if (SHADES.size > 4000) SHADES.clear();
+  SHADES.set(key, out);
+  return out;
 }
 
 const LIGHT = norm([0.45, 0.85, 0.3]);
@@ -143,7 +151,11 @@ export function sceneFaces(room: { width_in: number; depth_in: number; ceiling_i
     const k = kindOf(it.kind);
     const hh = Math.max(1, it.h_in);
     const lift = k.kind === "menu_board" ? 54 : k.kind === "window_wall" || k.kind === "walk_up" ? 24 : 0;   // what hangs on a wall hangs
-    for (const p of fixtureParts(it, b, lift, hh, it.id === selected ? "#d4a73a" : k.color)) faces.push(...boxFaces(p[0], p[1], p[2], p[3], p[4], p[5], p[6], it.id, project, eye, p[7]));
+    // Level of detail (S1.1b, measured): legs and shelves only when the thing is big enough on screen to show them — at
+    // under 48px across they're a pixel or two, and a hundred tables' legs were most of a frame on an iPad.
+    const a = project([b.x0, lift + hh, b.y0]), z = project([b.x1, lift + hh, b.y1]);
+    const detail = !!a && !!z && Math.hypot(a[0] - z[0], a[1] - z[1]) >= 48;
+    for (const p of (detail ? fixtureParts(it, b, lift, hh, it.id === selected ? "#d4a73a" : k.color) : fixtureParts({ kind: "plain", rot: it.rot }, b, lift, hh, it.id === selected ? "#d4a73a" : k.color))) faces.push(...boxFaces(p[0], p[1], p[2], p[3], p[4], p[5], p[6], it.id, project, eye, p[7]));
   }
   // Guests: a body and a head, about a person's size — shorter when they sit.
   for (const f of extra.figures ?? []) {

@@ -27,6 +27,8 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
   const touched = useRef(false);
   const scene = useRef({ layout, selected: selected ?? null, spin, figures, heat });
   const faces = useRef<ReturnType<typeof sceneFaces>>([]);
+  const cost = useRef(0);
+  const drewAt = useRef(0);
   const dirty = useRef(true);
 
   // A new room size, a moved thing or a new pick is a new frame.
@@ -69,8 +71,15 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
       // A new size frames the room for it (a phone upright stands farther back than a laptop) — until a hand has moved it.
       const size = `${w}x${h}`;
       if (framed.current !== size && w > 0 && h > 0 && !touched.current && !goal.current) { framed.current = size; cam.current = fitCamera(scene.current.layout, cam.current.yaw, w, h); dirty.current = true; }
-      if (dirty.current && w > 0 && h > 0) {
+      // Paced (S1.1b, measured: 100 things in Split on an iPad, the 3D's redraw on every drag move pushed the plan's frames
+      // to 33ms): a draw that cost more than 8ms waits three times its own cost before the next, so the 3D takes at most
+      // about a quarter of the main thread and the pane the hands are in keeps its frames. A cheap room draws every frame.
+      const at = performance.now();
+      const skip = cost.current > 8 && at - drewAt.current < cost.current * 3;
+      if (dirty.current && w > 0 && h > 0 && !skip) {
         dirty.current = false;
+        const t0 = at;
+        drewAt.current = at;
         const { layout: L, selected: sel, figures: people, heat: warm } = scene.current;
         // The camera as it is now — a resize above may have just framed a new one (S1.1: the old frame drew with the old one).
         const f = sceneFaces(L, L.items, cam.current, w, h, sel, { figures: people, heat: warm });
@@ -99,6 +108,7 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
           ctx.beginPath(); ctx.roundRect?.(x - tw / 2, y - 24, tw, 22, 11); ctx.fill();
           ctx.fillStyle = "#f5f1e8"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(words, x, y - 13);
         }
+        cost.current = performance.now() - t0;
       }
       raf = requestAnimationFrame(frame);
     };

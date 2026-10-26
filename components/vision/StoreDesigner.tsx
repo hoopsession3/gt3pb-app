@@ -70,7 +70,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [perHour, setPerHour] = useState(60);
   const [speed, setSpeed] = useState<Speed>(30);
   // The studio (S1): its width, the library folded or open, the add sheet, the phone's dock, full screen.
-  const { ref: box, size, roomy, width } = useStudioSize();
+  const { ref: box, size, roomy, width, short } = useStudioSize();
   const [full, setFull] = useState(false);
   const view: View = viewChoice ?? defaultView(width);
   // Narrow: under SPLIT_AT (a phone, an iPad upright, Split View) the drawing takes the whole width — what's picked is a
@@ -81,7 +81,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // A phone opens the studio full screen, as an iPhone opens a document (S1.1 — measured: on an iPhone SE the page's own
   // title, tabs and numbers left the drawing 250px tall). Done returns to the vision; once left, it stays left.
   const [autoFull, setAutoFull] = useState(false);
-  if (width > 0 && size === "phone" && !autoFull) { setAutoFull(true); setFull(true); }
+  if (width > 0 && (size === "phone" || short) && !autoFull) { setAutoFull(true); setFull(true); }
   const docked = narrow || full;
   // The canvas's height: the space actually left under it (S1.1 — the gate's question 1). Measured from where the stage
   // sits in its scrolling page to that page's bottom, again when anything resizes; never shorter than a usable canvas.
@@ -303,7 +303,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // away) and the inspector at the right; on a phone the inspector docks over the canvas's foot and the library opens as a
   // sheet. Flow floats over the canvas it runs in. Full screen takes the whole display for drawing or showing.
   const studio = (
-    <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${narrow ? " narrow" : ""}${libOpen && canEdit && size === "wide" && !full ? " lib" : ""}`}>
+    <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${narrow ? " narrow" : ""}${short ? " short" : ""}${libOpen && canEdit && size === "wide" && !full ? " lib" : ""}`}>
       <div className="vz-tbar" role="toolbar" aria-label="The store designer">
         <div className="vz-tbar-l">
           {canEdit && size === "wide" && (

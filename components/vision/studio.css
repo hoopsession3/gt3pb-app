@@ -63,6 +63,12 @@
 .vz-stage.docked{display:flex;flex-direction:column;gap:8px}
 .vz-stage.docked .vz-store{flex:1 1 0;min-height:0;height:auto}
 .vz-studio.full:not(.narrow) .vz-stage.docked{flex-direction:row}
+/* A phone on its side (S1.1b): height is what's short, so the numbers line steps aside and the dock goes beside the plan. */
+.vz-studio.short .vz-stats-line{display:none}
+.vz-studio.short .vz-tbar-name,.vz-studio.short .vz-tbar-room{display:none}
+.vz-studio.short .vz-tbar{flex-wrap:nowrap}
+.vz-studio.short.full .vz-stage.docked{flex-direction:row}
+.vz-studio.short.full .vz-dock{width:260px;max-height:100%;min-height:0}
 /* the dock sits beside the drawing, never over it (S1.1 — "contextual panels do not obscure essential design content") */
 .vz-dock{animation:vzDockUp .22s cubic-bezier(.2,.9,.2,1) both;position:relative;flex:none;display:flex;flex-direction:column;gap:6px;padding:10px 12px;max-height:40%;overflow-y:auto}
 .vz-studio.full:not(.narrow) .vz-dock{width:340px;max-height:100%}
