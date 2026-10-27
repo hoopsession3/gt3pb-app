@@ -32,6 +32,7 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-card-t{display:flex;gap:8px;align-items:flex-start;font-family:var(--sans);font-weight:700;font-size:17px;line-height:1.25}
 .vz-card-t span:first-child{flex:none}
 .vz-card-s{margin:0;font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--cream-m)}
+.vz-more{min-height:44px;display:flex;align-items:center;cursor:pointer}
 .vz-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-family:var(--sans);font-size:12px;color:var(--cream-d)}
 .vz-dots{display:inline-flex;gap:3px}
 .vz-dots i{width:8px;height:8px;border-radius:50%}

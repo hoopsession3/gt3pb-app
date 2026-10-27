@@ -101,7 +101,7 @@ function Blockers({ list, actions }: { list: Blocker[]; actions: BlockerActions 
             {b.need && <span className="vz-card-s">Being worked on as a need: {b.need.label}{b.need.owner ? ` · ${b.need.owner}` : " · no owner named yet"}{b.need.done_on ? ` · marked done ${b.need.done_on}, waiting to be checked against the plan` : b.need.due_on ? ` · due ${b.need.due_on}` : ""}</span>}
             {b.acknowledged && <span className="vz-card-s">Accepted as a risk{b.acknowledged.at ? ` on ${b.acknowledged.at.slice(0, 10)}` : ""}, review by {b.acknowledged.reviewBy}: {b.acknowledged.note} Investors on a link see this.</span>}
             <details>
-              <summary className="vz-card-s">What closes it</summary>
+              <summary className="vz-card-s vz-more">What closes it</summary>
               <dl className="vz-dl">
                 <dt>Criterion</dt><dd>{b.remedy.criterion}</dd>
                 <dt>Missing</dt><dd>{b.remedy.missing}</dd>

@@ -108,7 +108,7 @@ const VISITS = [
   { key: "vision-money", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money"], drawn: ".vz-chart .line", long: true },
   { key: "vision-traffic", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Traffic"], drawn: ".vz-funnel li", long: true },
   { key: "vision-room", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "The room"], drawn: ".vz-kpis .vz-kpi", long: true },
-  { key: "vision-money-drill", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money", "Startup spending:"], drawn: ".vz-formula code", long: false },
+  { key: "vision-money-drill", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money", "Cost to open:"], drawn: ".vz-formula code", long: false },
 ];
 const DB_PORT = 54329, PORT = 3219;
 const DB_URL = `http://127.0.0.1:${DB_PORT}`, BASE = `http://127.0.0.1:${PORT}`;
@@ -400,7 +400,7 @@ try {
       const mark = fb.failures.length;
       await page.goto(`${BASE}${v.path}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
       await page.waitForSelector(v.ready, { timeout: 15000 }).catch(() => {});
-      const tap = async (c) => { await page.getByRole("radio", { name: c, exact: false }).or(page.getByRole("button", { name: c, exact: false })).first().click({ timeout: 5000 }).catch(() => {}); await page.waitForTimeout(500); };
+      const tap = async (c) => { await page.getByRole("radio", { name: c, exact: false }).or(page.getByRole("button", { name: c, exact: false })).or(page.locator("summary", { hasText: c })).first().click({ timeout: 5000 }).catch(() => {}); await page.waitForTimeout(500); };
       for (const c of v.clicks ?? []) await tap(c);
       // A slide found by stepping to it (the presenter's slides shift as the plan grows): Next until it's there.
       if (v.until) for (let k = 0; k < 20 && !(await page.$(v.until.sel)); k++) await tap(v.until.click);
