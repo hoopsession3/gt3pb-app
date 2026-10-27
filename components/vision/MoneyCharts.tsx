@@ -36,7 +36,7 @@ export function CashChart({ models, focus }: { models: Partial<Record<Scenario, 
   };
   return (
     <figure className="vz-fig">
-      <figcaption className="vz-fig-h"><b>Cash on hand</b><span>the funding raised, less startup spending, plus each month<span>after the startup cost, month by month</span>apos;s net cash</span></figcaption>
+      <figcaption className="vz-fig-h"><b>Cash on hand</b><span>the funding raised, less startup spending, plus each month&apos;s net cash — month by month from opening</span></figcaption>
       <div className="vz-legend" role="list">{series.map((s) => <span key={s.k} role="listitem"><i className={SC_CLASS[s.k]} />{SCENARIO_WORD[s.k]}</span>)}</div>
       <svg viewBox={`0 0 ${W} ${H}`} className="vz-chart" role="img" aria-label={`Cash on hand over ${MONTHS} months: ${series.map((s) => `${SCENARIO_WORD[s.k]} ends at ${dollars(s.pts[MONTHS])}, lowest ${dollars(Math.min(...s.pts))}`).join("; ")}`}
         onPointerMove={(e) => pick(e.clientX, e.currentTarget)} onPointerLeave={() => setAt(null)}>

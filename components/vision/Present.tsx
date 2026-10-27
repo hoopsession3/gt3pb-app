@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { createPortal } from "react-dom";
 import { HORIZONS, HORIZON_WORD, PILLARS, PILLAR_WORD, ASK_WORD, askTotals, board, kindOf, shortMoney, whenWords, type Layout, type Pillar } from "@/lib/vision";
 import type { Vision } from "@/lib/visionRead";
-import { haptic } from "@/lib/haptics";
+import { keyRisks } from "@/lib/visionRisks";
+import { MODE_SAYS, MODE_WORD, PRESENT_MODES, caseParts, type CasePart, type PresentMode } from "@/lib/visionPresent";
 import Store3D from "./Store3D";
 import { CapitalBar } from "./Roadmap";
 import { DEAL_WORD, FORMAT, phases } from "@/lib/visionPlans";
@@ -20,15 +21,20 @@ const CaseSlide = dynamic(() => import("./CaseSlide"), { ssr: false, loading: ()
 // capital may be needed. Tap the right side (or →) for the next, the left (or ←) for the one before; swipe works too.
 // The same screen opens from a private link (app/present) for someone who isn't in the room.
 type Slide =
-  | { kind: "cover" } | { kind: "board" } | { kind: "program"; id: string } | { kind: "ways"; id: string } | { kind: "case"; id: string } | { kind: "store"; id: string } | { kind: "capital" } | { kind: "end" };
+  | { kind: "cover" } | { kind: "board" } | { kind: "program"; id: string } | { kind: "ways"; id: string } | { kind: "case"; id: string; part?: CasePart } | { kind: "store"; id: string } | { kind: "capital" } | { kind: "end" };
 const PILLAR_LINE: Record<Pillar, string> = {
-  stillness: "Room to slow down.", light: "Daylight, and nothing to hide.", fuel: "Clean fuel — cold extracted, nothing toxic.", movement: "A reason to move, every day.",
+  stillness: "Room to slow down.", light: "Daylight, and nothing to hide.", fuel: "Clean fuel — cold extracted, every ingredient named.", movement: "A reason to move, every day.",
 };
+
+/** Pitch: each case told in parts, one message a slide (the ask and return, cash and the scenarios, the risks, the evidence). */
+function toldInParts(slides: Slide[], cases: Vision["cases"]): Slide[] {
+  return slides.flatMap((x) => (x.kind === "case" && cases?.[x.id] ? caseParts(cases[x.id], keyRisks(cases[x.id].risks).length).map((part) => ({ kind: "case" as const, id: x.id, part })) : [x]));
+}
 
 export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }: { vision: Vision; onExit?: () => void; forWhom?: string | null; exitLabel?: string }) {
   const cols = useMemo(() => board(vision.programs), [vision.programs]);
   const asksOf = useCallback((id: string) => vision.asks.filter((a) => a.program_id === id), [vision.asks]);
-  const slides = useMemo<Slide[]>(() => {
+  const base = useMemo<Slide[]>(() => {
     const out: Slide[] = [{ kind: "cover" }, { kind: "board" }];
     const shownRooms = new Set<string>();
     for (const h of HORIZONS) for (const p of cols[h]) {
@@ -45,12 +51,28 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
     out.push({ kind: "end" });
     return out;
   }, [cols, vision]);
+  // IP1: three ways to show it. Pitch tells each case in parts, one message a slide; Explore and Diligence keep the case
+  // whole on one slide (its levers, its drill-down). The modes appear only when there's a case to show.
+  const [mode, setMode] = useState<PresentMode>("pitch");
+  const hasCase = base.some((x) => x.kind === "case");
+  const slides = useMemo(() => (mode === "pitch" ? toldInParts(base, vision.cases) : base), [base, mode, vision.cases]);
   const [at, setAt] = useState(0);
   const [focus, setFocus] = useState(0);
-  const go = useCallback((d: number) => { setAt((i) => Math.max(0, Math.min(slides.length - 1, i + d))); setFocus(0); haptic("selection"); }, [slides.length]);
+  // No haptics on slides (IP1 — nothing decorative in front of a guest).
+  const go = useCallback((d: number) => { setAt((i) => Math.max(0, Math.min(slides.length - 1, i + d))); setFocus(0); }, [slides.length]);
+  // Changing the way keeps the place: the same slide (or the same case) in the other list.
+  const switchTo = (m: PresentMode) => {
+    if (m === mode) return;
+    const cur = slides[at];
+    const next = m === "pitch" ? toldInParts(base, vision.cases) : base;
+    const same = (x: Slide) => x.kind === cur.kind && ("id" in x ? x.id : null) === ("id" in cur ? cur.id : null);
+    const idx = next.findIndex(same);
+    setMode(m); setAt(idx < 0 ? Math.min(at, next.length - 1) : idx); setFocus(0);
+  };
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.("input, select, textarea")) return; // a lever in Explore keeps its arrows
       if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); go(1); }
       else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); go(-1); }
       else if (e.key === "Escape" && onExit) onExit();
@@ -77,21 +99,26 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
           <button type="button" className="btn-sec btn-sm" onClick={() => go(1)} disabled={at === slides.length - 1} aria-label="Next">›</button>
         </span>
       </div>
+      {hasCase && (
+        <div className="vp-modes" role="radiogroup" aria-label="How to show it">
+          {PRESENT_MODES.map((m) => <button key={m} type="button" role="radio" aria-checked={mode === m} title={MODE_SAYS[m]} className={mode === m ? "on" : undefined} onClick={() => switchTo(m)}>{MODE_WORD[m]}</button>)}
+        </div>
+      )}
       <div className="vp-stage"
         onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY }; }}
         onPointerUp={(e) => {
           const st = swipe.current; swipe.current = null;
-          if (!st || (e.target as HTMLElement).closest("canvas, button, a")) return;
+          if (!st || (e.target as HTMLElement).closest("canvas, button, a, input, label, .vp-drill, .vp-explore")) return;
           const dx = e.clientX - st.x;
           if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
           else if (Math.abs(dx) < 8 && Math.abs(e.clientY - st.y) < 8) go(e.clientX > window.innerWidth / 3 ? 1 : -1);
         }}>
-        <div className="vp-slide" key={at}>
+        <div className="vp-slide" key={`${mode}:${at}`}>
           {s.kind === "cover" && (
             <>
               <p className="vp-eyebrow">GT3 Performance Bar{forWhom ? ` · for ${forWhom}` : ""}</p>
               <h1 className="vp-title">What&apos;s next.</h1>
-              <p className="vp-lede">People want clean coffee, and they want it every day. Everything we build stands on four pillars — and puts nothing toxic in the body.</p>
+              <p className="vp-lede">People want clean coffee, and they want it every day. Everything we build stands on four pillars — and says plainly what goes into the cup.</p>
               <div className="vp-pillars">{PILLARS.map((p) => <span key={p} className="vp-pillar"><i className={`pz-${p}`} />{PILLAR_WORD[p]}</span>)}</div>
             </>
           )}
@@ -158,7 +185,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
           })()}
           {s.kind === "case" && (() => {
             const pl = vision.plans.find((x) => x.id === s.id)!;
-            return <CaseSlide plan={pl} c={vision.cases![s.id]} room={vision.layouts.find((l) => l.id === pl.layout_id) ?? null} />;
+            return <CaseSlide key={`${s.id}:${mode}`} plan={pl} c={vision.cases![s.id]} room={vision.layouts.find((l) => l.id === pl.layout_id) ?? null} part={mode === "pitch" ? s.part : "all"} mode={mode} />;
           })()}
           {s.kind === "store" && (() => {
             const l = vision.layouts.find((x) => x.id === s.id)!;
