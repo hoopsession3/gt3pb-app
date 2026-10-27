@@ -51,7 +51,7 @@ export const DEVICES = [
   { key: "ipad-split-two-thirds", w: 917, h: 1032, dpr: 2, kind: "ipad", visitsOnly: true },
   { key: "desktop", w: 1440, h: 900, dpr: 2, kind: "desktop", visitsOnly: true },
   // IP1 (Ryan: the presenter across a table, or on a wall): a 1080p projector, the presenter's slides only.
-  { key: "projector", w: 1920, h: 1080, dpr: 1, kind: "desktop", visitsOnly: true, visits: /^vision-(present|ways|case|explore|diligence)$/ },
+  { key: "projector", w: 1920, h: 1080, dpr: 1, kind: "desktop", visitsOnly: true, visits: /^vision-(present|ways|case|cash|explore|diligence)$/ },
 ];
 const UA = {
   phone: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
@@ -92,8 +92,10 @@ const VISITS = [
   { key: "vision-ways", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-steps" }, drawn: ".vp-steps .vp-chip", long: false },
   { key: "vision-case", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vz-kpis" }, drawn: ".vp-slide .vz-kpis .vz-kpi", long: false },
   // IP1 — the presenter's three ways: Explore's levers, and Diligence's figure opened to its formula.
+  // IP1.1 — Pitch's cash slide: the low point, the month table, what the investor is paid.
+  { key: "vision-cash", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vp-table" }, drawn: ".vp-table summary", long: false },
   { key: "vision-explore", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vz-kpis" }, then: ["Explore"], drawn: ".vp-explore input[type=range]", long: false },
-  { key: "vision-diligence", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vz-kpis" }, then: ["Diligence", "Funding required"], drawn: ".vp-drill .vz-formula", long: false },
+  { key: "vision-diligence", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vz-kpis" }, then: ["Diligence", "The model's minimum need"], drawn: ".vp-drill .vz-formula", long: false },
   { key: "vision-tour", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-tour canvas" }, drawn: ".vp-tour canvas", long: false },
   { key: "vision-tour-flow", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-tour canvas" }, then: ["▶ Run the flow"], drawn: ".vp-tour .vz-flow-say", long: false },
   { key: "vision-plans", path: "/vision", ready: ".vz-board", clicks: ["Plans"], drawn: ".vz-ladder .vz-card", long: true },

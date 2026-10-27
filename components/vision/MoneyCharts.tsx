@@ -39,13 +39,14 @@ export function CashChart({ models, focus }: { models: Partial<Record<Scenario, 
       <figcaption className="vz-fig-h"><b>Cash on hand</b><span>the funding raised, less startup spending, plus each month&apos;s net cash — month by month from opening</span></figcaption>
       <div className="vz-legend" role="list">{series.map((s) => <span key={s.k} role="listitem"><i className={SC_CLASS[s.k]} />{SCENARIO_WORD[s.k]}</span>)}</div>
       <svg viewBox={`0 0 ${W} ${H}`} className="vz-chart" role="img" aria-label={`Cash on hand over ${MONTHS} months: ${series.map((s) => `${SCENARIO_WORD[s.k]} ends at ${dollars(s.pts[MONTHS])}, lowest ${dollars(Math.min(...s.pts))}`).join("; ")}`}
-        onPointerMove={(e) => pick(e.clientX, e.currentTarget)} onPointerLeave={() => setAt(null)}>
+        onPointerDown={(e) => pick(e.clientX, e.currentTarget)} onPointerMove={(e) => pick(e.clientX, e.currentTarget)} onPointerLeave={(e) => { if (e.pointerType === "mouse") setAt(null); }}>
         {ticks.map((t) => <g key={t}><line className={t === 0 ? "zero" : "gl"} x1={L} x2={W - R} y1={y(t)} y2={y(t)} /><text className="tick" x={L - 8} y={y(t) + 4} textAnchor="end">{dollars(t)}</text></g>)}
         {[0, 12, 24, 36].map((m) => <text key={m} className="tick" x={x(m)} y={H - 10} textAnchor="middle">{m === 0 ? "Open" : `Mo ${m}`}</text>)}
         {series.map((s) => (
           <polyline key={s.k} className={SC_LINE[s.k][s.k === focus ? 1 : 0]} fill="none"
             points={s.pts.map((v, m) => `${x(m).toFixed(1)},${y(v).toFixed(1)}`).join(" ")} />
         ))}
+        {series.filter((s) => s.k === focus).map((s) => { const v = Math.min(...s.pts), m = s.pts.indexOf(v); return <g key={`low${s.k}`} className="low"><circle cx={x(m)} cy={y(v)} r={4} /><text className="tick" x={x(m) + 8} y={y(v) - 10}>Lowest {dollars(v)}{m ? `, month ${m}` : ", at opening"}</text></g>; })}
         {series.map((s) => <text key={`l${s.k}`} className="end" x={x(MONTHS) + 6} y={y(s.pts[MONTHS]) + 4}>{SCENARIO_WORD[s.k]}</text>)}
         {at != null && (
           <g className="cross">
@@ -54,7 +55,7 @@ export function CashChart({ models, focus }: { models: Partial<Record<Scenario, 
           </g>
         )}
       </svg>
-      <p className="vz-fig-read" aria-live="off">{at == null ? "Point at a month to read it." : `${at === 0 ? "Opening day" : `Month ${at}`}: ${series.map((s) => `${SCENARIO_WORD[s.k]} ${dollars(s.pts[at])}`).join(" · ")}`}</p>
+      <p className="vz-fig-read" aria-live="off">{at == null ? "Point at or tap a month to read it — every month is in the table below." : `${at === 0 ? "Opening day" : `Month ${at}`}: ${series.map((s) => `${SCENARIO_WORD[s.k]} ${dollars(s.pts[at])}`).join(" · ")}`}</p>
     </figure>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { money } from "@/lib/money";
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -271,7 +272,7 @@ function Drill({ t, all, i, m, flagsAbout, change, refWord, onOpen, onClose }: {
                   <thead><tr><th scope="col">Line</th><th scope="col">Qty × unit</th><th scope="col">Total</th><th scope="col">Source · how sure</th></tr></thead>
                   <tbody>{lines.map((l) => { const tot = lineTotal(l); return (
                     <tr key={l.id}><th scope="row">{l.label || "(no name)"}<br /><span className="vz-card-s">{CATEGORY_WORD[l.category]}</span></th>
-                      <td>{l.unitCents == null ? "—" : `${l.qty ?? 1} × ${dollars(l.unitCents)}`}</td><td>{tot == null ? "Not priced yet" : dollars(tot)}</td>
+                      <td>{l.unitCents == null ? "—" : `${l.qty ?? 1} × ${money(l.unitCents)}`}</td><td>{tot == null ? "Not priced yet" : dollars(tot)}</td>
                       <td>{[l.source, l.on, l.confidence ? CONFIDENCE_WORD[l.confidence] : null].filter(Boolean).join(" · ") || "—"}{l.notes ? <><br /><span className="vz-card-s">{l.notes}</span></> : null}</td></tr>); })}</tbody>
                 </table>
               </div>
@@ -311,7 +312,7 @@ function Lines({ i, set, on, m, onOpen }: { i: Inputs; set: (p: Partial<Inputs>)
           <label className="prod-f col-span-2"><span>Category</span><select value={u.category} onChange={(e) => put(u.id, { category: e.target.value as Category })}>{CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_WORD[c]}</option>)}</select></label>
           <Num label="Quantity" value={u.qty} set={(v) => put(u.id, { qty: v })} />
           <Num label="Unit cost" unit="$" cents value={u.unitCents} set={(v) => put(u.id, { unitCents: v })} />
-          <p className="vz-line-total col-span-2">{tot == null ? "Not priced yet — not in any total" : `${u.qty ?? 1} × ${dollars(u.unitCents!)} = ${dollars(tot)}`}</p>
+          <p className="vz-line-total col-span-2">{tot == null ? "Not priced yet — not in any total" : `${u.qty ?? 1} × ${money(u.unitCents!)} = ${dollars(tot)}`}</p>
           <label className="prod-f col-span-2"><span>Vendor or source</span><input value={u.source ?? ""} maxLength={120} onChange={(e) => put(u.id, { source: e.target.value || null })} /></label>
           <label className="prod-f"><span>As of</span><input type="date" value={u.on ?? ""} onChange={(e) => put(u.id, { on: e.target.value || null })} /></label>
           <label className="prod-f"><span>How sure</span><select value={u.confidence ?? ""} onChange={(e) => put(u.id, { confidence: (e.target.value || null) as Confidence | null })}><option value="">Not said</option>{CONFIDENCES.map((c) => <option key={c} value={c}>{CONFIDENCE_WORD[c]}</option>)}</select></label>
@@ -490,8 +491,8 @@ function Evidence({ onUse }: { onUse: (avgOrderCents: number) => void }) {
           {obs.filter((o) => o.orders > 0).map((o) => (
             <div key={o.channel} className="vz-obs">
               <b>{o.channel === "all" ? "All channels" : CHANNEL_WORD[o.channel as Channel] ?? o.channel}</b>
-              <span>{o.orders.toLocaleString("en-US")} orders on {o.activeDays} days{o.avgOrderCents ? ` · average ${dollars(o.avgOrderCents)}` : ""}{o.ordersPerActiveDay ? ` · ${o.ordersPerActiveDay} a day they sold` : ""}{o.repeatPct != null ? ` · ${o.repeatPct}% came back` : ""}</span>
-              {o.avgOrderCents != null && <button type="button" className="btn-ter self-start" onClick={() => onUse(o.avgOrderCents!)}>Use {dollars(o.avgOrderCents)} as the average order</button>}
+              <span>{o.orders.toLocaleString("en-US")} orders on {o.activeDays} days{o.avgOrderCents ? ` · average ${money(o.avgOrderCents)}` : ""}{o.ordersPerActiveDay ? ` · ${o.ordersPerActiveDay} a day they sold` : ""}{o.repeatPct != null ? ` · ${o.repeatPct}% came back` : ""}</span>
+              {o.avgOrderCents != null && <button type="button" className="btn-ter self-start" onClick={() => onUse(o.avgOrderCents!)}>Use {money(o.avgOrderCents)} as the average order</button>}
             </div>
           ))}
           {obs.every((o) => o.orders === 0) && <p className="vz-card-s">No paid orders in the last 90 days to learn from.</p>}

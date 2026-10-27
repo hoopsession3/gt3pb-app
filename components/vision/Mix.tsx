@@ -1,5 +1,6 @@
 "use client";
 
+import { money } from "@/lib/money";
 import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
@@ -42,7 +43,7 @@ export default function MixEditor({ i, set }: { i: Inputs; set: (p: Partial<Inpu
           <Num label="Price" unit="$" cents value={l.priceCents} set={(v) => put(k, { priceCents: v })} />
           <Num label="Ingredients" unit="$ each" cents value={l.unitCostCents} set={(v) => put(k, { unitCostCents: v })} />
           <Num label="Packing" unit="$ each" cents value={l.packagingCents} set={(v) => put(k, { packagingCents: v })} />
-          <p className="vz-line-total col-span-2">{l.priceCents != null && l.unitCostCents != null ? `${dollars(l.priceCents)} − ${dollars(l.unitCostCents + (l.packagingCents ?? 0))} = ${dollars(l.priceCents - l.unitCostCents - (l.packagingCents ?? 0))} each (${l.priceCents ? Math.round(((l.priceCents - l.unitCostCents - (l.packagingCents ?? 0)) / l.priceCents) * 100) : 0}%)` : "Needs a price and a cost"}</p>
+          <p className="vz-line-total col-span-2">{l.priceCents != null && l.unitCostCents != null ? `${money(l.priceCents)} − ${dollars(l.unitCostCents + (l.packagingCents ?? 0))} = ${dollars(l.priceCents - l.unitCostCents - (l.packagingCents ?? 0))} each (${l.priceCents ? Math.round(((l.priceCents - l.unitCostCents - (l.packagingCents ?? 0)) / l.priceCents) * 100) : 0}%)` : "Needs a price and a cost"}</p>
           <div className="vz-ask-x"><button type="button" className="btn-ter" onClick={() => set({ mix: i.mix.filter((_, j) => j !== k) })}>Remove</button></div>
         </div>
       ))}

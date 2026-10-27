@@ -32,15 +32,28 @@ export function caseParts(c: Pick<PlanCase, "research" | "risks">): CasePart[] {
 }
 
 // ── Explore ────────────────────────────────────────────────────────────────────────────────────────────────────────
-export const LEVERS = ["ordersPerDay", "avgOrderCents", "cogsPct", "rentCents"] as const;
+export const LEVERS = ["ordersPerDay", "avgOrderCents", "cogsPct", "rentCents", "startupPct", "sharePct"] as const;
 export type Lever = (typeof LEVERS)[number];
 export type Edits = Partial<Record<Lever, number>>;
-export const LEVER_WORD: Record<Lever, string> = { ordersPerDay: "Orders a day", avgOrderCents: "Average order", cogsPct: "Cost of goods", rentCents: "Rent a month" };
+export const LEVER_WORD: Record<Lever, string> = { ordersPerDay: "Orders a day", avgOrderCents: "Average order", cogsPct: "Cost of goods", rentCents: "Rent a month", startupPct: "Startup costs", sharePct: "Investor's share of sales" };
+/** The levers that change a scenario's inputs (the rest change the startup lines or the deal's terms). */
+const INPUT_LEVERS = ["ordersPerDay", "avgOrderCents", "cogsPct", "rentCents"] as const;
+
+/** A lever's approved value, read from the case — never invented. Startup costs are 100% of the priced lines; the
+ *  investor's share only exists under a revenue share. */
+export function approvedOf(c: PlanCase, lever: Lever): number | null {
+  if (lever === "startupPct") return 100;
+  if (lever === "sharePct") return c.structure.kind === "rev_share" ? c.structure.sharePct : null;
+  const v = (c.scenarios.base as Record<string, unknown>)[lever];
+  return typeof v === "number" ? v : null;
+}
 
 /** A lever's range: half to one and a half times the approved value, in sensible steps. Null when the approved case has
  *  no value for it (nothing to move from — we never invent one). */
 export function leverRange(lever: Lever, approved: number | null | undefined): { min: number; max: number; step: number } | null {
   if (approved == null || !Number.isFinite(approved)) return null;
+  if (lever === "startupPct") return { min: 50, max: 150, step: 5 };
+  if (lever === "sharePct") return approved > 0 ? { min: Math.max(0.5, Math.round(approved * 0.5 * 2) / 2), max: Math.round(approved * 1.5 * 2) / 2, step: 0.5 } : null;
   if (lever === "cogsPct") return { min: Math.max(0, Math.round(approved * 0.5)), max: Math.min(95, Math.round(approved * 1.5) || 10), step: 1 };
   if (lever === "ordersPerDay") return { min: Math.max(1, Math.round(approved * 0.5)), max: Math.max(2, Math.round(approved * 1.5)), step: 1 };
   if (approved <= 0) return null;
@@ -49,18 +62,25 @@ export function leverRange(lever: Lever, approved: number | null | undefined): {
   return { min: snap(approved * 0.5), max: snap(approved * 1.5), step };
 }
 
-/** The approved case with the guest's what-if laid over its base scenario. A new object: the approved case is untouched.
- *  Only the four levers can change, and only on the base. */
+/** The approved case with the guest's what-if laid over it. A new object: the approved case is untouched. Four levers
+ *  move the base scenario's inputs; "startup costs" scales every priced line but the reserve; "investor's share" changes
+ *  only a revenue share's percentage. Nothing else can change, and the other scenarios stay as approved. */
 export function whatIf(c: PlanCase, edits: Edits): PlanCase {
-  const keep: Edits = {};
-  for (const k of LEVERS) if (typeof edits[k] === "number" && Number.isFinite(edits[k])) keep[k] = edits[k];
-  if (!Object.keys(keep).length) return c;
-  return { ...c, scenarios: { ...c.scenarios, base: { ...c.scenarios.base, ...keep } } };
+  const ok = (k: Lever) => typeof edits[k] === "number" && Number.isFinite(edits[k]);
+  const keep: Record<string, number> = {};
+  for (const k of INPUT_LEVERS) if (ok(k)) keep[k] = edits[k]!;
+  const scale = ok("startupPct") && edits.startupPct !== 100 ? edits.startupPct! / 100 : null;
+  const share = ok("sharePct") && c.structure.kind === "rev_share" && edits.sharePct !== c.structure.sharePct ? edits.sharePct! : null;
+  if (!Object.keys(keep).length && scale == null && share == null) return c;
+  let base: Record<string, unknown> = { ...c.scenarios.base, ...keep };
+  if (scale != null && Array.isArray(base.uses)) base = { ...base, uses: (base.uses as { category?: string; unitCents?: number | null }[]).map((l) => (l.category === "reserve" || l.unitCents == null ? l : { ...l, unitCents: Math.round(l.unitCents * scale) })) };
+  const structure = share != null && c.structure.kind === "rev_share" ? { ...c.structure, sharePct: share } : c.structure;
+  return { ...c, structure, scenarios: { ...c.scenarios, base } };
 }
 export const isEdited = (e: Edits) => LEVERS.some((k) => typeof e[k] === "number");
 
 /** What Explore shows, before and after. */
-export const EXPLORE_FIGURES: MetricKey[] = ["revenue", "requiredFunding", "breakEven", "payback"];
+export const EXPLORE_FIGURES: MetricKey[] = ["revenue", "requiredFunding", "breakEven", "payback", "investorReturn"];
 
 // ── Diligence ──────────────────────────────────────────────────────────────────────────────────────────────────────
 /** The figures a guest can open on the case slide, in the order they're shown. */

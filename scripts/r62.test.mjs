@@ -35,7 +35,7 @@ const base = M.toInputs({ ordersPerDay: 100, avgOrderCents: 900, daysOpenPerMont
   ok("change an ingredient cost: the margin follows, no button", cheaper.grossMarginPct > driven.grossMarginPct);
   ok("an incomplete mix that drives: the money says what's missing", !M.project({ ...base, mixDrives: true, mix: [mix[0]] }).ok && M.missing({ ...base, mixDrives: true, mix: [mix[0]] }).some((w) => /the mix \(the shares add to 60%/.test(w)));
   const t = M.trace({ ...base, mixDrives: true }, { kind: "none" }, driven);
-  ok("gross margin drills product by product: price, ingredients, packing, margin", t.grossMargin.path.some((p) => /Cold brew \(60%\)/.test(p.label) && /ingredients \$1 · packing \$0/.test(p.value)) && t.grossMargin.path.some((p) => /from the mix/.test(p.label)), t.grossMargin.path);
+  ok("gross margin drills product by product: price, ingredients, packing, margin", t.grossMargin.path.some((p) => /Cold brew \(60%\)/.test(p.label) && /\$6 · ingredients \$1\.20 · packing \$0\.30/.test(p.value)) && t.grossMargin.path.some((p) => /from the mix/.test(p.label)), t.grossMargin.path);
   ok("sales drills to the mix", t.revenue.path.some((p) => /Bone broth · 40% of items/.test(p.label)));
   ok("on the one map: the mix feeds sales and cost of goods", M.DEPS.revenue.includes("mix") && M.DEPS.cogs.includes("mix") && M.upstreamInputs("roiBusiness").includes("mix"));
   ok("the what-if names the mix when it starts to drive", M.changedInputs(base, { ...base, mixDrives: true }, { kind: "none" }, { kind: "none" }).includes("mix"));

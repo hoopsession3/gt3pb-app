@@ -12,6 +12,7 @@
 // Nothing here is a benchmark: an input not set is named as missing and nothing is computed from it.
 import { MONTHS, breakEvenMonth, dollars, paybackMonth, roi } from "./finance";
 import { traffic, type Traffic } from "./visionTraffic";
+import { money } from "./money";
 
 export { MONTHS, dollars };
 
@@ -419,7 +420,7 @@ export function trace(raw: Inputs, s: Structure, m: Model = project(raw, s), obs
       `Orders × the average order, month by month — ${m.demandFrom === "channels" ? "the orders the traffic channels bring (new guests and the ones who come back)" : "the ramp to full stride, then growth each year"}${m.capPerMonth != null ? ", capped at what the room's counter can take" : ""}.`,
       m.demandFrom === "channels" ? `Σ (the channels' orders that month${m.capPerMonth != null ? ", at most the counter's" : ""}) × average order, months 1–36`
         : `orders a day × ramp × growth × days open${m.capPerMonth != null ? ", at most the counter's," : ""} × average order, summed over months 1–36`,
-      ok ? `month 1: ${m.months[0].orders.toLocaleString("en-US")} orders × ${dollars(i.avgOrderCents!)} = ${dollars(m.months[0].revenue)} · year 1 ${dollars(m.years[0].revenue)} · 36 months ${dollars(rev)}${m.ordersLost > 0 ? ` · ${Math.round(m.ordersLost).toLocaleString("en-US")} orders (${dollars(m.salesLost)}) past the counter, not counted` : ""}` : need,
+      ok ? `month 1: ${m.months[0].orders.toLocaleString("en-US")} orders × ${money(i.avgOrderCents!)} = ${dollars(m.months[0].revenue)} · year 1 ${dollars(m.years[0].revenue)} · 36 months ${dollars(rev)}${m.ordersLost > 0 ? ` · ${Math.round(m.ordersLost).toLocaleString("en-US")} orders (${dollars(m.salesLost)}) past the counter, not counted` : ""}` : need,
       "Months 1–36", { kind: m.capPerMonth != null || m.demandFrom === "channels" ? "simulated" : "computed", path: ok ? [
         ...(m.demandFrom === "channels" && m.traffic ? [
           { label: "Demand from", value: "The traffic channels, live" },
@@ -431,8 +432,8 @@ export function trace(raw: Inputs, s: Structure, m: Model = project(raw, s), obs
           { label: "Ramp", value: i.rampMonths ? `${i.rampStartPct}% → 100% over ${i.rampMonths} months` : "Full from month 1" }, { label: "Growth after the ramp", value: `${i.growthPctPerYear}% a year` },
         ]),
         ...(m.capPerMonth != null ? [{ label: "The room's counter takes", value: `${Math.round(m.capPerMonth).toLocaleString("en-US")} orders a month — capped in ${m.cappedMonths} of 36` }] : []),
-        { label: "Transactions, 36 months", value: Math.round(tot((x) => x.orders)).toLocaleString("en-US") }, { label: "Average order", value: dollars(i.avgOrderCents!) },
-        ...(mixRows ? mixRows.map((l) => ({ label: `${l.label} · ${l.sharePct}% of items`, value: dollars(l.priceCents!) })) : [{ label: "Product mix", value: "Not set — the typed average order stands for the mix" }])] : undefined }),
+        { label: "Transactions, 36 months", value: Math.round(tot((x) => x.orders)).toLocaleString("en-US") }, { label: "Average order", value: money(i.avgOrderCents!) },
+        ...(mixRows ? mixRows.map((l) => ({ label: `${l.label} · ${l.sharePct}% of items`, value: money(l.priceCents!) })) : [{ label: "Product mix", value: "Not set — the typed average order stands for the mix" }])] : undefined }),
     cogs: T("cogs", "Cost of goods, 36 months", ok ? cogs : null, "cents", ok ? dollars(cogs) : "—",
       "Ingredients, packaging and other direct costs of what's sold — one percentage of sales until a product mix is modelled.",
       "sales × cost of goods %", ok ? `${dollars(rev)} × ${pct(i.cogsPct, 1)} = ${dollars(cogs)}` : need, "Months 1–36"),
@@ -442,7 +443,7 @@ export function trace(raw: Inputs, s: Structure, m: Model = project(raw, s), obs
       "Gross profit as a share of sales. Card fees are an operating expense, below this line.", "gross profit ÷ sales",
       ok ? `${dollars(gp)} ÷ ${dollars(rev)} = ${pct(m.grossMarginPct)}` : need, "Months 1–36",
       { path: ok ? [{ label: "Sales", value: dollars(rev) },
-        ...(mixRows ? mixRows.map((l) => ({ label: `${l.label} (${l.sharePct}%)`, value: `${dollars(l.priceCents!)} · ingredients ${dollars(l.unitCostCents!)} · packing ${dollars(l.packagingCents ?? 0)} · ${l.priceCents ? pct(((l.priceCents - l.unitCostCents! - (l.packagingCents ?? 0)) / l.priceCents) * 100, 0) : "—"} margin` })) : []),
+        ...(mixRows ? mixRows.map((l) => ({ label: `${l.label} (${l.sharePct}%)`, value: `${money(l.priceCents!)} · ingredients ${money(l.unitCostCents!)} · packing ${money(l.packagingCents ?? 0)} · ${l.priceCents ? pct(((l.priceCents - l.unitCostCents! - (l.packagingCents ?? 0)) / l.priceCents) * 100, 0) : "—"} margin` })) : []),
         { label: mixRows ? "Cost of goods, from the mix" : "Cost of goods (ingredients, packaging, direct — one typed %)", value: `${dollars(cogs)} (${pct(i.cogsPct, 1)})` }, { label: "Gross profit", value: dollars(gp) }, { label: "Gross margin", value: pct(m.grossMarginPct) }] : undefined }),
     operatingExpenses: T("operatingExpenses", "Operating expenses, 36 months", ok ? opx : null, "cents", ok ? dollars(opx) : "—",
       "Card fees, staff, rent, other costs and marketing.", "card fees + labor + rent + other + marketing, each month",
