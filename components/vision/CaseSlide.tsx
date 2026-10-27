@@ -87,7 +87,7 @@ export default function CaseSlide({ plan, c, room, part = "all", mode = "pitch" 
           ))}
         </div>
       )}
-      <p className="vz-card-s">Projections from the plan{approved ? ` approved on ${approved}` : ""}, not results. Not an offer of securities and not financial advice.</p>
+      <p className="vz-card-s">Projections from the plan{approved ? ` approved on ${approved}` : ""}{c.version ? ` (version ${c.version})` : ""}, not results. Not an offer of securities and not financial advice.</p>
     </>
   );
 }

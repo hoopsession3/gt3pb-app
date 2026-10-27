@@ -11649,6 +11649,56 @@ export type Database = {
           },
         ]
       }
+      vision_plan_versions: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          plan_id: string
+          version: number
+          baseline: Json
+          plan: Json
+          research: Json
+          risks: Json
+          approved_at: string
+          approved_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          plan_id: string
+          version: number
+          baseline: Json
+          plan?: Json
+          research?: Json
+          risks?: Json
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          plan_id?: string
+          version?: number
+          baseline?: Json
+          plan?: Json
+          research?: Json
+          risks?: Json
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vision_plan_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vision_plans: {
         Row: {
           id: string
@@ -11925,6 +11975,7 @@ export type Database = {
           research_plans: string[]
           program_ids: string[]
           layout_ids: string[]
+          pinned_at: string
         }
         Insert: {
           id?: string
@@ -11942,6 +11993,7 @@ export type Database = {
           research_plans?: string[]
           program_ids?: string[]
           layout_ids?: string[]
+          pinned_at?: string
         }
         Update: {
           id?: string
@@ -11959,6 +12011,7 @@ export type Database = {
           research_plans?: string[]
           program_ids?: string[]
           layout_ids?: string[]
+          pinned_at?: string
         }
         Relationships: [
           {
@@ -13620,6 +13673,8 @@ export type Database = {
         { Args: { p_threshold?: number | null }; Returns: { a: string; a_name: string; b: string; b_name: string; sim: number }[] }
       vision_shared:
         { Args: { p_token: string | null }; Returns: Json }
+      vision_version_write:
+        { Args: { p_plan: string | null; p_baseline: Json | null; p_at: string | null; p_by: string | null; p_tenant: string | null }; Returns: undefined }
       void_expense:
         { Args: { p_id: string | null; p_reason: string | null }; Returns: Database["public"]["Tables"]["expenses"]["Row"] }
       void_jug_entry:

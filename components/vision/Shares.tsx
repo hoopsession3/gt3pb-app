@@ -18,7 +18,7 @@ import type { Layout, Program } from "@/lib/vision";
 // PRIVATE LINKS (R52, 0447 vision_shares) — the plan for someone outside: an investor, a landlord, a partner. Each link
 // is its own long random token, named for who it's for, with or without the money; it counts its opens, and one tap turns
 // it off for good. The token rides after the # (app/present), so it never reaches a server log or a referrer.
-type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[]; program_ids?: string[]; layout_ids?: string[] };
+type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[]; program_ids?: string[]; layout_ids?: string[]; pinned_at?: string | null };
 const COLS = "id, token, label, show_asks, created_at, revoked_at, last_opened_at, opens";
 /** How long a new link lives (R53, 0448): until it's turned off, or a set number of days. */
 const ENDS = [{ key: "never", label: "Until I turn it off", days: 0 }, { key: "7", label: "7 days", days: 7 }, { key: "30", label: "30 days", days: 30 }, { key: "90", label: "90 days", days: 90 }] as const;
@@ -49,6 +49,10 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
   const [pickRooms, setPickRooms] = useState<string[]>(() => [...new Set(shownPlans.map((p) => p.layout_id).filter((x): x is string => !!x))]);
   const loader = useCallback(async (): Promise<Share[]> => {
     if (!supabase) return [];
+    // arrives-with: 0458 — pinned_at: the moment a link's case is fixed at. Before 0458 the read asks as before.
+    const withPin = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids, pinned_at`).order("created_at", { ascending: false });
+    if (!withPin.error) { setCanCase(true); setCanChoose(true); return (withPin.data as Share[]) ?? []; }
+    if (!isMissingColumn(withPin.error)) throw new Error(withPin.error.message);
     // arrives-with: 0455 — program_ids, layout_ids: before 0455 the read asks as before, and the choosers hide
     const withShows = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids`).order("created_at", { ascending: false });
     if (!withShows.error) { setCanCase(true); setCanChoose(true); return (withShows.data as Share[]) ?? []; }
@@ -113,6 +117,7 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
                   <div className="flex flex-col gap-1">
                     {canEdit && canChoose && <ShowsChooser share={s} programs={programs} layouts={layouts} onSaved={state.reload} />}
                     {isOwner && canCase && <CaseChooser share={s} plans={plans.filter((p) => p.shareable)} onSaved={state.reload} />}
+                    {s.pinned_at && <PinLine share={s} isOwner={isOwner} onSaved={state.reload} />}
                   </div>
                 ) : undefined}
                 trailing={st.live ? (
@@ -226,6 +231,30 @@ function ShowsChooser({ share, programs, layouts, onSaved }: { share: Share; pro
           <button type="button" className="btn-pri btn-sm self-start" onClick={() => void save()} disabled={!changed || busy}>{busy ? "Saving…" : "Save what it shows"}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** What a link's case is fixed at (BP2a, 0458): the approvals made by that moment. A newer approval doesn't reach a link
+ *  already sent until an owner moves it on — the investor sees the date either way. */
+function PinLine({ share, isOwner, onSaved }: { share: Share; isOwner: boolean; onSaved: () => void }) {
+  const { toast } = useAppStable();
+  const confirm = useConfirm();
+  const [busy, setBusy] = useState(false);
+  const when = new Date(share.pinned_at!).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const move = async () => {
+    if (!supabase || busy) return;
+    if (!(await confirm({ title: `Show the latest approval on ${share.label}?`, body: `Anyone who opens this link will see the plans as approved now, instead of as approved by ${when}. The earlier approvals stay on record.`, confirmLabel: "Show the latest" }))) return;
+    setBusy(true);
+    const { error } = await supabase.from("vision_shares").update({ pinned_at: new Date().toISOString() }).eq("id", share.id);
+    setBusy(false);
+    if (error) { haptic("error"); toast(failureWords(error, "Couldn't move the link on"), "error"); return; }
+    haptic("success"); toast(`${share.label} shows the latest approval now.`); onSaved();
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="vz-card-s">Shows the case as approved by {when}.</span>
+      {isOwner && <button type="button" className="btn-ter" onClick={() => void move()} disabled={busy}>{busy ? "Moving…" : "Show the latest approval"}</button>}
     </div>
   );
 }
