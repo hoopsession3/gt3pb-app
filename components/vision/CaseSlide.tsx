@@ -113,9 +113,9 @@ function Explore({ c, room, base }: { c: PlanCase; room: Layout | null; base: Re
           const v = edits[l] ?? was;
           return (
             <label key={l} className="vp-lever">
-              <span><b>{LEVER_WORD[l]}</b> {v == null ? "—" : say(l, v)}{r && edits[l] != null && edits[l] !== was ? <em> · approved {say(l, was!)}</em> : null}</span>
+              <span><b>{LEVER_WORD[l]}</b> {v == null || !r ? "" : say(l, v)}{r && edits[l] != null && edits[l] !== was ? <em> · approved {say(l, was!)}</em> : null}</span>
               {r ? <input type="range" min={r.min} max={r.max} step={r.step} value={v ?? r.min} onChange={(e) => setEdits((x) => ({ ...x, [l]: Number(e.target.value) }))} aria-valuetext={v == null ? undefined : say(l, v)} />
-                : <em>Not set in the approved case.</em>}
+                : <em>{l === "rentCents" && was === 0 ? "No fixed rent in the approved case — nothing to move." : "Not set in the approved case — nothing to move from."}</em>}
             </label>
           );
         })}

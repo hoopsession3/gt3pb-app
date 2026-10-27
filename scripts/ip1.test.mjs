@@ -59,6 +59,7 @@ const c = C.toCase(stored, research);
   ok("…and leaving Explore drops it (the slide is keyed by the mode)", /key=\{`\$\{s\.id\}:\$\{mode\}`\}/.test(read("components/vision/Present.tsx")));
   ok("…the levers come first, under the title (Explore replaces the approved figures with its own before-and-after)", slide.indexOf('mode === "explore" && b.ok && <Explore') < slide.indexOf('b.ok && show("ask") && mode !== "explore"'));
   ok("the cash chart's caption reads as words (it said \"monthapos;s\" on the slide)", !/apos;s net cash<\/span>|month<span>/.test(read("components/vision/MoneyCharts.tsx")) && /plus each month&apos;s net cash/.test(read("components/vision/MoneyCharts.tsx")));
+  ok("a lever with nothing to move from says why, and shows no number (not a misleading $0)", /No fixed rent in the approved case/.test(ex) && /v == null \|\| !r \? ""/.test(ex));
   ok("…each lever says its approved value beside the moved one", /approved \{say\(l, was!\)\}/.test(ex));
 }
 
