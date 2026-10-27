@@ -202,7 +202,7 @@ function CashFacts({ f }: { f: ReturnType<typeof figuresOf> }) {
         <div className="vz-kpi"><span>After three years</span><b>{dollars(b.months[b.months.length - 1].cumulative)}</b><em>base case</em></div>
         <div className="vz-kpi"><span>Paid to the investor</span><b>{dollars(toInv)}</b><em>{f.inv?.stillOwed ? `in three years · ${dollars(f.inv.stillOwed)} still owed` : "in three years"}</em></div>
       </div>
-      <p className="vz-card-s">{consLow == null ? "There's no downside case in this plan yet." : `In the conservative case, the lowest point is ${dollars(consLow)}.`}{short.length ? ` In month${short.length === 1 ? "" : "s"} ${listMonths(short)}, the investor's share is more than the business earns; cash on hand covers it.` : ""}</p>
+      <p className="vz-card-s">{consLow == null ? "There's no downside case in this plan yet." : `In the conservative case, the lowest point is ${dollars(consLow)}.`}{short.length ? ` In month${short.length === 1 ? "" : "s"} ${listMonths(short)}, the investor's share is more than the business earns${low >= 0 ? "; cash on hand covers it" : ""}.` : ""}</p>
       <details className="vp-table">
         <summary>Month by month</summary>
         <div className="vz-cmp-wrap" role="region" aria-label="Cash, month by month" tabIndex={0}>

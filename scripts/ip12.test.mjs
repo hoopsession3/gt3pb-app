@@ -47,6 +47,7 @@ const words = [slide, read("components/vision/Present.tsx"), read("lib/visionPre
 for (const phrase of ["What it takes, and what it returns", "The model's minimum need", "this plan is alive", "Computed by the engine", "owner-approved baseline", "not a forecast of what will happen", "Held on this screen only", "Working out the case"])
   ok(`no "${phrase}"`, !words.includes(phrase));
 ok("the presenter's figures speak in the presenter's words (Explore and Diligence use PRESENT_LABEL)", (slide.match(/PRESENT_LABEL\[/g) ?? []).length >= 3);
+ok("\"cash on hand covers it\" only when cash never goes below zero", /low >= 0 \? "; cash on hand covers it" : ""/.test(slide));
 ok("the shared chart no longer points to a table only the presenter has", !/table below/.test(read("components/vision/MoneyCharts.tsx")));
 
 console.log(`IP1.2 — THE EDITORIAL PASS: ${pass} passed, ${fail} failed`);
