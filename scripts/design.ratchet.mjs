@@ -791,7 +791,7 @@ export const WEIGHT = {
   "/office":                   { js: 273, css: 90, chunks: 17 },
   "/scan":                     { js: 265, css: 90, chunks: 16 },
   "/architecture":             { js: 274, css: 90, chunks: 17 },
-  "/playbook":                 { js: 272, css: 90, chunks: 17 },
+  "/playbook":                 { js: 268, css: 90, chunks: 16 },
   "/driver":                   { js: 271, css: 90, chunks: 17 },
   "/agreement":                { js: 266, css: 90, chunks: 16 },
   "/offer":                    { js: 276, css: 90, chunks: 17 },
