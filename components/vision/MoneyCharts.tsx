@@ -36,7 +36,7 @@ export function CashChart({ models, focus }: { models: Partial<Record<Scenario, 
   };
   return (
     <figure className="vz-fig">
-      <figcaption className="vz-fig-h"><b>Cash on hand</b><span>the funding raised, less startup spending, plus each month&apos;s net cash — month by month from opening</span></figcaption>
+      <figcaption className="vz-fig-h"><b>Cash in the bank</b><span>what&apos;s left after opening, plus each month&apos;s cash in and out</span></figcaption>
       <div className="vz-legend" role="list">{series.map((s) => <span key={s.k} role="listitem"><i className={SC_CLASS[s.k]} />{SCENARIO_WORD[s.k]}</span>)}</div>
       <svg viewBox={`0 0 ${W} ${H}`} className="vz-chart" role="img" aria-label={`Cash on hand over ${MONTHS} months: ${series.map((s) => `${SCENARIO_WORD[s.k]} ends at ${dollars(s.pts[MONTHS])}, lowest ${dollars(Math.min(...s.pts))}`).join("; ")}`}
         onPointerDown={(e) => pick(e.clientX, e.currentTarget)} onPointerMove={(e) => pick(e.clientX, e.currentTarget)} onPointerLeave={(e) => { if (e.pointerType === "mouse") setAt(null); }}>
@@ -55,7 +55,7 @@ export function CashChart({ models, focus }: { models: Partial<Record<Scenario, 
           </g>
         )}
       </svg>
-      <p className="vz-fig-read" aria-live="off">{at == null ? "Point at or tap a month to read it — every month is in the table below." : `${at === 0 ? "Opening day" : `Month ${at}`}: ${series.map((s) => `${SCENARIO_WORD[s.k]} ${dollars(s.pts[at])}`).join(" · ")}`}</p>
+      <p className="vz-fig-read" aria-live="off">{at == null ? "Point at or tap a month to read it." : `${at === 0 ? "Opening day" : `Month ${at}`}: ${series.map((s) => `${SCENARIO_WORD[s.k]} ${dollars(s.pts[at])}`).join(" · ")}`}</p>
     </figure>
   );
 }

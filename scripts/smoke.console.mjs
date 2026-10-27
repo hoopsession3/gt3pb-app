@@ -95,7 +95,7 @@ const VISITS = [
   // IP1.1 — Pitch's cash slide: the low point, the month table, what the investor is paid.
   { key: "vision-cash", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vp-table" }, drawn: ".vp-table summary", long: false },
   { key: "vision-explore", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vz-kpis" }, then: ["Explore"], drawn: ".vp-explore input[type=range]", long: false },
-  { key: "vision-diligence", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vz-kpis" }, then: ["Diligence", "The model's minimum need"], drawn: ".vp-drill .vz-formula", long: false },
+  { key: "vision-diligence", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-slide .vz-kpis" }, then: ["Diligence", "Minimum funding"], drawn: ".vp-drill .vz-formula", long: false },
   { key: "vision-tour", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-tour canvas" }, drawn: ".vp-tour canvas", long: false },
   { key: "vision-tour-flow", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-tour canvas" }, then: ["▶ Run the flow"], drawn: ".vp-tour .vz-flow-say", long: false },
   { key: "vision-plans", path: "/vision", ready: ".vz-board", clicks: ["Plans"], drawn: ".vz-ladder .vz-card", long: true },

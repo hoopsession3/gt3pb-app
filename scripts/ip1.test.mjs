@@ -55,11 +55,11 @@ const c = C.toCase(stored, research);
   const slide = read("components/vision/CaseSlide.tsx");
   const ex = slide.slice(slide.indexOf("function Explore("), slide.indexOf("function Drill("));
   ok("Explore holds the what-if in React state only: no storage, no fetch, no Supabase", /useState<Edits>/.test(ex) && !/localStorage|sessionStorage|indexedDB|fetch\(|supabase|\.rpc\(|\.from\(/.test(ex));
-  ok("…labelled as theirs, with the way back", /Your what-if — not GT3&apos;s plan|Your what-if — not GT3's plan/.test(ex) && /Back to the approved case/.test(ex) && /nothing is saved or sent/.test(ex));
+  ok("…labelled as theirs, with the way back", /Your what-if — not GT3&apos;s plan|Your what-if — not GT3's plan/.test(ex) && /Back to the approved case/.test(ex) && /Nothing is saved or sent/.test(ex));
   ok("…and leaving Explore drops it (the slide is keyed by the mode)", /key=\{`\$\{s\.id\}:\$\{mode\}`\}/.test(read("components/vision/Present.tsx")));
   ok("…the levers come first, under the title (Explore replaces the approved figures with its own before-and-after)", slide.indexOf('mode === "explore" && b.ok && <Explore') < slide.indexOf('b.ok && show("ask") && mode !== "explore"'));
-  ok("the cash chart's caption reads as words (it said \"monthapos;s\" on the slide)", !/apos;s net cash<\/span>|month<span>/.test(read("components/vision/MoneyCharts.tsx")) && /plus each month&apos;s net cash/.test(read("components/vision/MoneyCharts.tsx")));
-  ok("a lever with nothing to move from says why, and shows no number (not a misleading $0)", /No fixed rent in the approved case/.test(ex) && /v == null \|\| !r \? ""/.test(ex));
+  ok("the cash chart's caption reads as words (it said \"monthapos;s\" on the slide)", !/apos;s net cash<\/span>|month<span>/.test(read("components/vision/MoneyCharts.tsx")) && /plus each month&apos;s cash in and out/.test(read("components/vision/MoneyCharts.tsx")));
+  ok("a lever with nothing to move from says why, and shows no number (not a misleading $0)", /No fixed rent in this plan/.test(ex) && /v == null \|\| !r \? ""/.test(ex));
   ok("…each lever says its approved value beside the moved one", /approved \{say\(l, was!\)\}/.test(ex));
 }
 
@@ -69,7 +69,7 @@ const c = C.toCase(stored, research);
   for (const k of P.DILIGENCE_FIGURES) ok(`${k}: a formula, its worked numbers, what it's made of`, t[k] && t[k].formula.length > 3 && t[k].worked.length > 1 && t[k].madeOf.length > 0, t[k]);
   const slide = read("components/vision/CaseSlide.tsx");
   ok("figures open only in Diligence, and say how they're worked out", /const drill = mode === "diligence"/.test(slide) && /How it's worked out/.test(slide) && /aria-expanded=\{open === key\}/.test(slide));
-  ok("the drill names the sources behind the case, each a link", /function Drill\(/.test(slide) && /accepted finding/.test(slide) && /href=\{r\.source_url\}/.test(slide));
+  ok("the drill names the sources behind the case, each a link", /function Drill\(/.test(slide) && /accepted research finding/.test(slide) && /href=\{r\.source_url\}/.test(slide));
 }
 
 // ── 4 · wiring and words ──────────────────────────────────────────────────────────────────────────────────────────

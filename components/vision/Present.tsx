@@ -13,7 +13,7 @@ import { useFlow, type Speed } from "./useFlow";
 import dynamic from "next/dynamic";
 
 // A plan's case (R57) draws the money's engine and its chart — loaded only when a case slide is reached.
-const CaseSlide = dynamic(() => import("./CaseSlide"), { ssr: false, loading: () => <p className="vp-lede">Working out the case…</p> });
+const CaseSlide = dynamic(() => import("./CaseSlide"), { ssr: false, loading: () => <p className="vp-lede">Loading the numbers…</p> });
 
 // THE PRESENTER (R52) — "pull the app up and show someone". The plan as a story, full screen, in its own dark room:
 // the four pillars, the board, each program and why, the store in 3D with the reason for each thing in it, and where
@@ -164,7 +164,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
               <>
                 <p className="vp-eyebrow">{p.title} · the ways in</p>
                 <h2 className="vp-title">Step by step.</h2>
-                <p className="vp-lede">Each phase proves the next — smaller first, the full room once the demand is shown.</p>
+                <p className="vp-lede">Each step earns the next: start small, and build the full room once demand is proven.</p>
                 <div className="vp-steps grid-cols-1 min-[700px]:grid-cols-none min-[700px]:grid-flow-col min-[700px]:auto-cols-fr">
                   {steps.map(({ phase, plans: ps }) => (
                     <div key={phase} className="vp-col">
@@ -192,7 +192,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
           })()}
           {s.kind === "capital" && (
             <>
-              <p className="vp-eyebrow">Where capital may be needed</p>
+              <p className="vp-eyebrow">Where we need capital</p>
               <div className="vp-big">{total.total > 0 ? shortMoney(total.total) : "Partners wanted"}</div>
               <CapitalBar t={total} dark />
               {vision.programs.filter((p) => asksOf(p.id).length).map((p) => {
@@ -205,7 +205,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
             <>
               <p className="vp-eyebrow">GT3 Performance Bar</p>
               <h2 className="vp-title">Clean fuel. Every day. Everywhere people move.</h2>
-              <p className="vp-lede">Questions are welcome — this plan is alive, and it changes as we learn.</p>
+              <p className="vp-lede">Questions welcome. The plan changes as we learn.</p>
             </>
           )}
         </div>

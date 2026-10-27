@@ -125,7 +125,7 @@ const plain = M.toInputs({ uses: [{ id: "bar", label: "Bar", category: "equipmen
   ok("our sales are offered, never filled in silently (a button to use the average order)", /Use \{money\(o\.avgOrderCents\)\} as the average order/.test(panel));
   ok("projections are labelled as projections — not a forecast, not advice", /not a forecast of what will happen, and not financial advice/.test(panel));
   ok("the structure carries the attorney and accountant line", /securities attorney and an accountant/.test(panel));
-  ok("one axis: the cash chart draws one scale; the scenario hues are validated", /Cash on hand/.test(read("components/vision/MoneyCharts.tsx")) && /\.sc-cons\{--sc:#3987e5\}/.test(read("components/vision/vision.css")));
+  ok("one axis: the cash chart draws one scale; the scenario hues are validated", /Cash in the bank/.test(read("components/vision/MoneyCharts.tsx")) && /\.sc-cons\{--sc:#3987e5\}/.test(read("components/vision/vision.css")));
 }
 
 // ── 7 · traceable (the 2026-10-25 audit: "click any financial number… where did it come from, what makes it up, how was it

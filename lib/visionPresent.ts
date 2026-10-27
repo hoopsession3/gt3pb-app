@@ -8,16 +8,17 @@
 //     storage, no network, no write — and it's labelled as theirs, never as GT3's plan. Leaving it returns the approved case.
 //   · Diligence: the whole case on one slide, every figure opens to its formula, its worked numbers, what it's made of,
 //     and the accepted research behind the case, each with its source.
-import type { MetricKey } from "./visionMoney";
+import type { MetricKey, Model } from "./visionMoney";
+import { dollars } from "./finance";
 import type { PlanCase } from "./visionCaseData";
 
 export const PRESENT_MODES = ["pitch", "explore", "diligence"] as const;
 export type PresentMode = (typeof PRESENT_MODES)[number];
 export const MODE_WORD: Record<PresentMode, string> = { pitch: "Pitch", explore: "Explore", diligence: "Diligence" };
 export const MODE_SAYS: Record<PresentMode, string> = {
-  pitch: "The story, one message a slide.",
-  explore: "Move the numbers yourself — nothing is saved.",
-  diligence: "Open any figure to see how it's worked out.",
+  pitch: "The story, one point per slide.",
+  explore: "Change the numbers yourself — nothing is saved.",
+  diligence: "Open any figure to see how it's calculated.",
 };
 
 /** The parts a case is told in, in Pitch. Risks and evidence only when there are some; an incomplete case says what's missing on its first two. */
@@ -79,9 +80,38 @@ export function whatIf(c: PlanCase, edits: Edits): PlanCase {
 }
 export const isEdited = (e: Edits) => LEVERS.some((k) => typeof e[k] === "number");
 
+/** What a figure is called in front of an investor (IP1.2, the editorial pass): plain words first, the exact meaning kept.
+ *  The Money screen keeps the engine's own labels; Diligence shows both the formula and these. */
+export const PRESENT_LABEL: Partial<Record<MetricKey, string>> = {
+  startupSpend: "Cost to open", requiredFunding: "Minimum funding", breakEven: "Covers its costs from",
+  breakEvenAfter: "Covers its costs, after the investor", payback: "Earns back the opening cost",
+  paybackAfter: "Earns back the opening cost, after the investor", roiBusiness: "Return on the opening cost, 3 years",
+  roiAfter: "Return after the investor, 3 years", investorReturn: "Investor's annual return", revenue: "Sales over three years",
+  reserveNeeded: "Cash the first months use", reservePlanned: "Reserve held", fundingRaised: "Raised",
+};
+
 /** What Explore shows, before and after. */
 export const EXPLORE_FIGURES: MetricKey[] = ["revenue", "requiredFunding", "breakEven", "payback", "investorReturn"];
 
 // ── Diligence ──────────────────────────────────────────────────────────────────────────────────────────────────────
 /** The figures a guest can open on the case slide, in the order they're shown. */
 export const DILIGENCE_FIGURES: MetricKey[] = ["startupSpend", "requiredFunding", "breakEven", "payback", "roiBusiness", "revenue"];
+
+// ── Headlines (IP1.2, the editorial pass): a slide's title says what its numbers mean, from the engine's own figures. ──
+/** The ask's headline: the plan's bottom line, after the investor is paid. */
+export function askHeadline(m: Model, structure: string): string {
+  const inv = structure !== "none";
+  const n = inv ? m.paybackAfterMonth : m.paybackMonth;
+  if (m.startupSpend <= 0) return "Nothing to earn back — the plan opens without startup costs.";
+  if (n) return `Earns back its opening cost by month ${n}${inv ? ", after paying the investor" : ""}.`;
+  return `Doesn't earn back its opening cost within three years${inv ? " once the investor is paid" : ""}.`;
+}
+
+/** The cash headline: the low point, said plainly. */
+export function cashHeadline(m: Model): string {
+  const open = m.months[0].cumulative - m.months[0].net;
+  let low = open, at = 0;
+  m.months.forEach((x, i) => { if (x.cumulative < low) { low = x.cumulative; at = i + 1; } });
+  return low >= 0 ? `In the plan, cash never falls below ${dollars(low)}.` : `In the plan, cash runs ${dollars(-low)} short in month ${at}.`;
+}
+

@@ -63,19 +63,19 @@ const i = M.toInputs(base), m = M.project(i, structure), t = M.trace(i, structur
   const left = m.fundingRaised - m.startupSpend - m.reservePlanned;
   ok("raised = startup $30,000 + reserve $10,000 + $5,000 not yet allocated", left === 500000);
   const slide = read("components/vision/CaseSlide.tsx");
-  ok("the ask slide says it in one line, from the engine's figures", /function Raising\(/.test(slide) && /not yet allocated/.test(slide) && /the model&apos;s minimum is/.test(slide));
-  ok("\"Funding required\" is now called what it is: the model's minimum need", /"The model's minimum need"/.test(slide) && !/"Funding required"/.test(slide.slice(slide.indexOf("k(\"startupSpend\""), slide.indexOf("k(\"startupSpend\"") + 900)));
-  ok("an unpriced line shows on the startup figure itself", /not priced yet — not counted/.test(slide) && /t\.startupSpend\.display\}\+/.test(slide));
+  ok("the ask slide says it in one line, from the engine's figures", /function Raising\(/.test(slide) && /isn't yet assigned/.test(slide) && /The plan needs at least/.test(slide));
+  ok("\"Funding required\" is called what it is: minimum funding, opening cost plus what the first months use", /requiredFunding: "Minimum funding"/.test(read("lib/visionPresent.ts")) && /opening cost \+ \$\{dollars\(b\.reserveNeeded\)\} to carry the first months/.test(slide));
+  ok("an unpriced line shows on the startup figure itself", /not yet priced/.test(slide) && /t\.startupSpend\.display\}\+/.test(slide));
 }
 
 // ── 3 · which measure is which ────────────────────────────────────────────────────────────────────────────────────
 {
   const slide = read("components/vision/CaseSlide.tsx");
-  ok("break-even says operating, before investor payments, and gives the after-investor month", /operating, before investor payments · \$\{t\.breakEvenAfter\.display\.toLowerCase\(\)\} after/.test(slide));
-  ok("payback and ROI say before and after the investor", /\$\{t\.paybackAfter\.display\.toLowerCase\(\)\} after/.test(slide) && /\$\{t\.roiAfter\.display\} after the investor/.test(slide));
-  ok("the investor's rate says what the investor receives, and when it leans past month 36", /function investorNote\(/.test(slide) && /The rate counts months past 36, assuming sales hold\./.test(slide));
+  ok("break-even and payback give the after-investor month beside the before", /after\(t\.breakEvenAfter\.display, c\)/.test(slide) && /after\(t\.paybackAfter\.display, c\)/.test(slide) && /after the investor's share/.test(slide));
+  ok("ROI says before tax and the investor, and gives the after figure", /before tax and the investor · \$\{t\.roiAfter\.display\} after/.test(slide));
+  ok("the investor's rate says what the investor receives, and when it leans past month 36", /function investorNote\(/.test(slide) && /if year-3 sales hold/.test(slide) && /cap is met in month/.test(slide));
   ok("the investor's rate opens to its formula in Diligence", /k\(f\.inv \? "investorReturn" : null/.test(slide));
-  ok("model complete is said apart from investment readiness", /A complete model is not a validated one\./.test(slide) && /not a probability/.test(slide));
+  ok("readiness is a checklist score, not a probability; gaps and missing research are said", /not a probability of success/.test(slide) && /The plan still has gaps/.test(slide) && /No market research has been accepted yet/.test(slide));
 }
 
 // ── 4 · Explore, wider and still sandboxed ────────────────────────────────────────────────────────────────────────
@@ -104,9 +104,9 @@ const i = M.toInputs(base), m = M.project(i, structure), t = M.trace(i, structur
   ok("…and a tap on it, or on the table, never turns the slide", /\.vz-chart, \.vz-cmp-wrap/.test(pres) && /summary/.test(pres));
   ok("the chart marks its lowest point and says when", /Lowest \{dollars\(v\)\}/.test(chart));
   ok("every month is in a table, without a pointer", /<summary>Month by month<\/summary>/.test(slide) && /aria-label="Cash, month by month"/.test(slide));
-  ok("opening, lowest, month-36 cash and what the investor is paid are said beside the chart", /Opening cash/.test(slide) && /Lowest cash/.test(slide) && /Cash at month 36/.test(slide) && /Paid to the investor/.test(slide));
-  ok("a missing downside is said, not hidden", /no conservative case is set, so no downside is modelled/.test(slide));
-  ok("the chart's caption reads as words (it once said \"monthapos;s\")", /plus each month&apos;s net cash/.test(chart) && !/apos;s net cash<\/span>|month<span>/.test(chart));
+  ok("opening, lowest, month-36 cash and what the investor is paid are said beside the chart", /Cash on opening day/.test(slide) && /Lowest point/.test(slide) && /After three years/.test(slide) && /Paid to the investor/.test(slide));
+  ok("a missing downside is said, not hidden", /There's no downside case in this plan yet\./.test(slide));
+  ok("the chart's caption reads as words (it once said \"monthapos;s\")", /plus each month&apos;s cash in and out/.test(chart) && !/apos;s net cash<\/span>|month<span>/.test(chart));
   ok("unit prices keep their cents wherever a price is shown", /money\(i\.avgOrderCents!\)/.test(read("lib/visionMoney.ts")) && /money\(l\.priceCents\)/.test(read("components/vision/Mix.tsx")));
 }
 
