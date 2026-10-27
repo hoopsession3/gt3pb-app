@@ -798,7 +798,7 @@ export const WEIGHT = {
   "/built/gt3-built-k7m9x4q2": { js: 262, css: 90, chunks: 17 },
   "/display":                  { js: 263, css: 90, chunks: 17 },
   "/vision":                   { js: 266, css: 90, chunks: 17 },
-  "/present":                  { js: 285, css: 93, chunks: 18 },
+  "/present":                  { js: 287, css: 93, chunks: 18 },  // IP1: +1 KB — the Pitch · Explore · Diligence control and Pitch's parts (the engine stays lazy)
   "/shop":                     { js: 294, css: 90, chunks: 20 },
   "/primal":                   { js: 269, css: 94, chunks: 18 },
   "/privacy":                  { js: 260, css: 90, chunks: 16 },
