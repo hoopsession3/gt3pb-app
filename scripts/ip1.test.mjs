@@ -29,9 +29,9 @@ const c = C.toCase(stored, research);
 
 // ── 1 · Pitch ─────────────────────────────────────────────────────────────────────────────────────────────────────
 {
-  ok("a case with risks and research: four parts, in order", JSON.stringify(P.caseParts(c, 2)) === JSON.stringify(["ask", "cash", "risks", "evidence"]));
-  ok("no risks, no research: the ask and the cash only", JSON.stringify(P.caseParts({ research: [] }, 0)) === JSON.stringify(["ask", "cash"]));
-  ok("every part has words", P.caseParts(c, 1).every((p) => P.PART_WORD[p]?.length > 5));
+  ok("a case with risks and research: four parts, in order", JSON.stringify(P.caseParts({ ...c, risks: [{ status: "open" }, { status: "handled" }] })) === JSON.stringify(["ask", "cash", "risks", "evidence"]));
+  ok("no open risks, no research: the ask and the cash only", JSON.stringify(P.caseParts({ research: [], risks: [{ status: "handled" }] })) === JSON.stringify(["ask", "cash"]));
+  ok("every part has words", P.caseParts(c).every((p) => P.PART_WORD[p]?.length > 5));
 }
 
 // ── 2 · Explore ───────────────────────────────────────────────────────────────────────────────────────────────────

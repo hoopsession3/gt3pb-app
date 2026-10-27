@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { createPortal } from "react-dom";
 import { HORIZONS, HORIZON_WORD, PILLARS, PILLAR_WORD, ASK_WORD, askTotals, board, kindOf, shortMoney, whenWords, type Layout, type Pillar } from "@/lib/vision";
 import type { Vision } from "@/lib/visionRead";
-import { keyRisks } from "@/lib/visionRisks";
 import { MODE_SAYS, MODE_WORD, PRESENT_MODES, caseParts, type CasePart, type PresentMode } from "@/lib/visionPresent";
 import Store3D from "./Store3D";
 import { CapitalBar } from "./Roadmap";
@@ -28,7 +27,7 @@ const PILLAR_LINE: Record<Pillar, string> = {
 
 /** Pitch: each case told in parts, one message a slide (the ask and return, cash and the scenarios, the risks, the evidence). */
 function toldInParts(slides: Slide[], cases: Vision["cases"]): Slide[] {
-  return slides.flatMap((x) => (x.kind === "case" && cases?.[x.id] ? caseParts(cases[x.id], keyRisks(cases[x.id].risks).length).map((part) => ({ kind: "case" as const, id: x.id, part })) : [x]));
+  return slides.flatMap((x) => (x.kind === "case" && cases?.[x.id] ? caseParts(cases[x.id]).map((part) => ({ kind: "case" as const, id: x.id, part })) : [x]));
 }
 
 export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }: { vision: Vision; onExit?: () => void; forWhom?: string | null; exitLabel?: string }) {

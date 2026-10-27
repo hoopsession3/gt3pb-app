@@ -23,9 +23,10 @@ export const MODE_SAYS: Record<PresentMode, string> = {
 /** The parts a case is told in, in Pitch. Risks and evidence only when there are some; an incomplete case says what's missing on its first two. */
 export type CasePart = "ask" | "cash" | "risks" | "evidence";
 export const PART_WORD: Record<CasePart, string> = { ask: "The ask and the return", cash: "Cash and the scenarios", risks: "The risks we watch", evidence: "What the market says" };
-export function caseParts(c: Pick<PlanCase, "research">, riskCount: number): CasePart[] {
+export function caseParts(c: Pick<PlanCase, "research" | "risks">): CasePart[] {
   const out: CasePart[] = ["ask", "cash"];
-  if (riskCount > 0) out.push("risks");
+  // The risks slide shows the open ones (lib/visionRisks keyRisks: open, or an assumption proved wrong).
+  if (c.risks.some((r) => r.status === "open" || r.status === "wrong")) out.push("risks");
   if (c.research.length > 0) out.push("evidence");
   return out;
 }
