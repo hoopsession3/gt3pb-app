@@ -12,10 +12,11 @@ export function askHeadline(m: Model, structure: string): string {
   return `Doesn't earn back its opening cost within three years${inv ? " once the investor is paid" : ""}.`;
 }
 
-/** The cash headline: the low point, said plainly. */
-export function cashHeadline(m: Model): string {
+/** The cash headline: the low point and when, for the scenario shown (IP1.4 — derived, never written in). */
+export function cashHeadline(m: Model, scenario = "base case"): string {
   const open = m.months[0].cumulative - m.months[0].net;
   let low = open, at = 0;
   m.months.forEach((x, i) => { if (x.cumulative < low) { low = x.cumulative; at = i + 1; } });
-  return low >= 0 ? `In the plan, cash never falls below ${dollars(low)}.` : `In the plan, cash runs ${dollars(-low)} short in month ${at}.`;
+  if (low < 0) return `In the ${scenario}, cash runs ${dollars(-low)} short in month ${at}.`;
+  return at === 0 ? `In the ${scenario}, cash never falls below the ${dollars(low)} it opens with.` : `In the ${scenario}, cash bottoms out at ${dollars(low)} in month ${at}.`;
 }

@@ -27,8 +27,8 @@ ok("the ask's headline is the bottom line after the investor: month 14", P.askHe
 ok("…and without an investor, the plain payback month", P.askHeadline(m0, "none") === `Earns back its opening cost by month ${m0.paybackMonth}.`, P.askHeadline(m0, "none"));
 const slow = M.project(M.toInputs({ ...base, ordersPerDay: 12 }), rs);
 ok("a plan that never earns it back says so", /^Doesn't earn back its opening cost within three years once the investor is paid\.$/.test(P.askHeadline(slow, "rev_share")), P.askHeadline(slow, "rev_share"));
-ok("the cash headline is the low point: $12,807", P.cashHeadline(m) === "In the plan, cash never falls below $12,807.", P.cashHeadline(m));
-ok("…and a shortfall is said as one", /^In the plan, cash runs \$[\d,]+ short in month \d+\.$/.test(P.cashHeadline(M.project(M.toInputs({ ...base, ownerCashCents: 0 }), { kind: "none" }))), P.cashHeadline(M.project(M.toInputs({ ...base, ownerCashCents: 0 }), { kind: "none" })));
+ok("the cash headline is the low point: $12,807", P.cashHeadline(m) === "In the base case, cash bottoms out at $12,807 in month 2.", P.cashHeadline(m));  // IP1.4: names its case and its month
+ok("…and a shortfall is said as one", /^In the base case, cash runs \$[\d,]+ short in month \d+\.$/.test(P.cashHeadline(M.project(M.toInputs({ ...base, ownerCashCents: 0 }), { kind: "none" }))), P.cashHeadline(M.project(M.toInputs({ ...base, ownerCashCents: 0 }), { kind: "none" })));
 
 // ── 2 · same meaning, plainer words ───────────────────────────────────────────────────────────────────────────────
 const L = P.PRESENT_LABEL;
@@ -47,7 +47,7 @@ const words = [slide, read("components/vision/Present.tsx"), read("lib/visionPre
 for (const phrase of ["What it takes, and what it returns", "The model's minimum need", "this plan is alive", "Computed by the engine", "owner-approved baseline", "not a forecast of what will happen", "Held on this screen only", "Working out the case"])
   ok(`no "${phrase}"`, !words.includes(phrase));
 ok("the presenter's figures speak in the presenter's words (Explore and Diligence use PRESENT_LABEL)", (slide.match(/PRESENT_LABEL\[/g) ?? []).length >= 3);
-ok("\"cash on hand covers it\" only when cash never goes below zero", /low >= 0 \? "; cash on hand covers it" : ""/.test(slide));
+ok("\"cash on hand covers it\" only when cash never goes below zero", /lowRow\.closing >= 0 \? "; cash on hand covers it" : ""/.test(slide));
 ok("the shared chart no longer points to a table only the presenter has", !/table below/.test(read("components/vision/MoneyCharts.tsx")));
 
 console.log(`IP1.2 — THE EDITORIAL PASS: ${pass} passed, ${fail} failed`);

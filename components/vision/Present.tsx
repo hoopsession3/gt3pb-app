@@ -107,7 +107,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
         onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY }; }}
         onPointerUp={(e) => {
           const st = swipe.current; swipe.current = null;
-          if (!st || (e.target as HTMLElement).closest("canvas, button, a, input, label, summary, .vp-drill, .vp-explore, .vz-chart, .vz-cmp-wrap")) return;
+          if (!st || (e.target as HTMLElement).closest("canvas, button, a, input, label, summary, details, .vp-drill, .vp-explore, .vz-chart, .vz-cmp-wrap, .vp-month, .vp-scn")) return;
           const dx = e.clientX - st.x;
           if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
           else if (Math.abs(dx) < 8 && Math.abs(e.clientY - st.y) < 8) go(e.clientX > window.innerWidth / 3 ? 1 : -1);
@@ -210,7 +210,8 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
           )}
         </div>
       </div>
-      <p className="vp-tap">Tap or swipe · ← → on a keyboard</p>
+      {/* IP1.4: said once, on the first slide — on a phone the line took room under every slide after it. */}
+      {at === 0 && <p className="vp-tap">Tap or swipe · ← → on a keyboard</p>}
     </div>,
     document.body,
   );

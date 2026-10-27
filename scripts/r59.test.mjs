@@ -36,14 +36,17 @@ const ctx = { needs: { done: 3, all: 6 }, waitingOn: [], conservative: { ok: tru
   ok("evidence: costs 60, three accepted → 75, all fresh → 100, three of four reviewed → 75 → 74", a.evidence.score === 74, a.evidence.criteria.map((c) => [c.key, c.points]));
   ok("readiness: 73 on what's judged (IP1.3 — each criterion at its share of its assessment's weight, the same weights)", s.total === 73, s.total);
   // IP1.3: one accepted finding against the plan is a critical blocker — answered, or acknowledged by an owner, before "ready".
-  ok("…a finding against the plan holds it at needs validation until it's answered", s.readiness === "validate" && s.blockers.map((x) => x.key).join() === "evidence_against", [s.readiness, s.blockers.map((x) => x.key)]);
+  // IP1.4 (Ryan, 2026-10-28: "Acknowledgment alone must not count as resolution"): stages by policy, not by score.
+  ok("…a finding against the plan holds it at internal review until it's answered", s.readiness === "internal" && s.blockers.map((x) => x.key).join() === "evidence_against", [s.readiness, s.blockers.map((x) => x.key)]);
   const ack = S.score(i, m, research, { ...ctx, acknowledged: [{ key: "evidence_against", note: "The nearest competitor serves a different crowd; see the site visit." }] });
-  ok("…and with an owner's written acknowledgement, the gate passes: ready to present", ack.readiness === "ready" && ack.open === 0 && ack.total === 73, [ack.readiness, ack.open]);
+  ok("…an acknowledgement without a review date isn't an acceptance: still internal review", ack.readiness === "internal" && ack.open === 1, [ack.readiness, ack.open]);
+  const acc = S.score(i, m, research, { ...ctx, acknowledged: [{ key: "evidence_against", note: "The nearest competitor serves a different crowd; see the site visit.", reviewBy: "2026-12-31" }] });
+  ok("…accepted as a risk with a reason and a review date: ready for investor discussion, the blocker still listed — never complete", acc.readiness === "discussion" && acc.open === 0 && acc.blockers.length === 1 && acc.blockers[0].status === "risk_accepted" && acc.total === 73, [acc.readiness, acc.open, acc.blockers.map((b) => b.status)]);
   ok("each assessment says why, the evidence and what's uncertain", Object.values(a).every((x) => x.why.length > 10 && Array.isArray(x.evidence) && Array.isArray(x.uncertain)));
   ok("every criterion writes down its rubric and an action", Object.values(a).every((x) => x.criteria.every((c) => c.rubric.length > 20 && c.action.length > 10)));
   ok("the assessments' weights add to 100, and each one's criteria are weighted", Object.values(S.ASSESS_WEIGHT).reduce((n, w) => n + w, 0) === 100);
   ok("three actions, the biggest gain first, each tied to a criterion", s.actions.length === 3 && s.actions[0].gain >= s.actions[1].gain && s.actions[1].gain >= s.actions[2].gain && s.actions.every((x) => x.text && x.criterion), s.actions);
-  ok("it says it isn't a probability, and that the returns are the money's", /not a probability of success/.test(s.says) && /returns are the money's own figures/.test(s.says));
+  ok("it says it isn't a probability, and that the returns are the money's", /not a probability of success/.test(s.says) && /not the same as being ready/.test(s.says));  // IP1.4: the score isn't readiness
 }
 
 // ── 2 · the gate ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -51,7 +54,7 @@ const ctx = { needs: { done: 3, all: 6 }, waitingOn: [], conservative: { ok: tru
   const weak = S.score(i, { ...m, paybackMonth: null, breakEvenMonth: null, roiBusiness: -0.5 }, research, { ...ctx, conservative: { ok: true, breakEvenMonth: null } });
   ok("finances under 40: not ready, whatever else is true", weak.assessments.financial.score === 0 && weak.readiness === "not_ready");
   const thin = S.score(i, m, [], ctx);
-  ok("no market research: the market isn't scored, and the plan needs validation", thin.assessments.market.score === null && thin.readiness === "validate", [thin.assessments.market.score, thin.readiness]);
+  ok("no market research: the market isn't scored, and the plan stays at internal review", thin.assessments.market.score === null && thin.readiness === "internal", [thin.assessments.market.score, thin.readiness]);
   ok("…and validating the market is among the first actions", thin.actions.some((x) => x.criterion === "demandSupport"));
   ok("no money: not judged yet", S.score(M.BLANK, M.project(M.BLANK)).readiness === "unknown");
 }

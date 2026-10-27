@@ -15,7 +15,7 @@ export const SC_CLASS: Record<Scenario, string> = { conservative: "sc-cons", bas
 export const SC_SWATCH: Record<Scenario, string> = { conservative: "vz-sw sc-cons", base: "vz-sw sc-base", upside: "vz-sw sc-up" };
 const SC_LINE: Record<Scenario, [string, string]> = { conservative: ["line sc-cons", "line sc-cons on"], base: ["line sc-base", "line sc-base on"], upside: ["line sc-up", "line sc-up on"] };
 
-export function CashChart({ models, focus }: { models: Partial<Record<Scenario, Model>>; focus: Scenario }) {
+export function CashChart({ models, focus, onPick }: { models: Partial<Record<Scenario, Model>>; focus: Scenario; onPick?: (month: number) => void }) {
   // IP1.3 (mobile): the drawing is as wide as its box, so 12px labels stay 12px on a phone instead of shrinking with a
   // 640-wide drawing to about 7px. Narrow boxes shorten the axis money ($20K) to keep the plot room.
   const box = useRef<HTMLElement>(null);
@@ -45,7 +45,9 @@ export function CashChart({ models, focus }: { models: Partial<Record<Scenario, 
   const pick = (clientX: number, el: SVGSVGElement) => {
     const r = el.getBoundingClientRect();
     const px = ((clientX - r.left) / r.width) * W;
-    setAt(Math.max(0, Math.min(MONTHS, Math.round(((px - L) / (W - L - R)) * MONTHS))));
+    const v = Math.max(0, Math.min(MONTHS, Math.round(((px - L) / (W - L - R)) * MONTHS)));
+    setAt(v);
+    onPick?.(v);   // IP1.4: the month a finger lands on opens in full beside the chart
   };
   return (
     <figure className="vz-fig" ref={box}>

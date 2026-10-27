@@ -8,7 +8,7 @@ import { failureOr, failureWords } from "@/lib/failureWords";
 import { haptic } from "@/lib/haptics";
 import Said from "@/components/Said";
 import type { MetricKey } from "@/lib/visionMoney";
-import { ASSESS_WEIGHT, BLOCKER_WORD, READINESS_WORD, type AssessKey, type Blocker, type Readiness, type Score } from "@/lib/visionScore";
+import { ASSESS_WEIGHT, BLOCKER_STATUS_WORD, BLOCKER_WORD, READINESS_WORD, SCORE_METHOD, STAGE_POLICY, type AssessKey, type Blocker, type BlockerKey, type BlockerStatus, type Readiness, type Score } from "@/lib/visionScore";
 import { BEARING_WORD, EVERY, EVERY_WORD, STALE_DAYS, TOPICS, TOPIC_WORD, age, domainOf, type Bearing, type Research } from "@/lib/visionResearch";
 
 // THE SCORE AND THE RESEARCH (R56, phase D). The score: out of 100, every factor its points, its weight, its rubric and
@@ -16,23 +16,40 @@ import { BEARING_WORD, EVERY, EVERY_WORD, STALE_DAYS, TOPICS, TOPIC_WORD, age, d
 // each finding with its source's address and the day GT3 read it; proposed until an owner or admin accepts it, and
 // only accepted findings count. A finding older than ninety days says so: run it again.
 
-const READY_TAG: Record<Readiness, string> = { ready: "k-tag ok", validate: "k-tag gold", not_ready: "k-tag warn", unknown: "k-tag" };
+const READY_TAG: Record<Readiness, string> = { complete: "k-tag ok", discussion: "k-tag gold", internal: "k-tag gold", not_ready: "k-tag warn", unknown: "k-tag" };
+const STATUS_TAG_B: Record<BlockerStatus, string> = { open: "k-tag warn", in_remediation: "k-tag gold", pending_verification: "k-tag gold", risk_accepted: "k-tag", acceptance_lapsed: "k-tag warn" };
 const TONE = (p: number | null) => (p == null ? "k-tag" : p >= 70 ? "k-tag ok" : p >= 40 ? "k-tag gold" : "k-tag warn");
 const STATUS_TAG = { proposed: "k-tag", accepted: "k-tag ok", rejected: "k-tag warn" } as const;
 const STATUS_WORD = { proposed: "Proposed", accepted: "Accepted", rejected: "Rejected" } as const;
 
-export function ScoreCard({ s, onOpen, onAcknowledge, ackWhy = null }: { s: Score; onOpen: (k: MetricKey) => void; onAcknowledge?: (key: string, note: string) => Promise<void>; ackWhy?: string | null }) {
+export type BlockerActions = {
+  /** An owner accepts a blocker as a risk: a reason and a review date (IP1.4). Omitted when this person can't. */
+  onAccept?: (key: string, note: string, reviewBy: string) => Promise<void>;
+  acceptWhy?: string | null;
+  /** Start the remediation as one of the plan's needs (vision_plan_needs) — the existing workflow, no second task list. */
+  onAddNeed?: (key: BlockerKey) => Promise<void>;
+  /** Go to where the remedy is done (the research, the scenarios, the startup lines). */
+  onGo?: (key: BlockerKey) => void;
+};
+export function ScoreCard({ s, onOpen, actions = {} }: { s: Score; onOpen: (k: MetricKey) => void; actions?: BlockerActions }) {
   const [open, setOpen] = useState<AssessKey | null>(null);
+  const accepted = s.blockers.filter((b) => b.status === "risk_accepted").length;
   return (
     <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
-      <div className="vz-drill-v"><b>{s.total == null ? "—" : s.total}<span className="vz-card-s"> / 100</span></b><span className={READY_TAG[s.readiness]}>{READINESS_WORD[s.readiness]}</span></div>
-      <div className="vz-kpis grid gap-2 grid-cols-3">
-        <div className="vz-kpi"><span>Readiness score</span><b>{s.total == null ? "—" : s.total}</b><em>on what&apos;s judged</em></div>
-        <div className="vz-kpi"><span>Evidence coverage</span><b>{s.coverage}%</b><em>of the weight judged</em></div>
-        <div className="vz-kpi"><span>Critical blockers</span><b>{s.open}</b><em>{s.blockers.length - s.open ? `open · ${s.blockers.length - s.open} acknowledged` : "open"}</em></div>
+      <div className="self-start"><span className={READY_TAG[s.readiness]}>{READINESS_WORD[s.readiness]}</span></div>
+      <div className="vz-kpis grid gap-2 grid-cols-1 min-[420px]:grid-cols-3">
+        <div className="vz-kpi"><span>Assessed score</span><b>{s.total == null ? "—" : `${s.total} / 100`}</b><em>on what can be judged</em></div>
+        <div className="vz-kpi"><span>Evidence coverage</span><b>{s.coverage}%</b><em>of the score&apos;s weight</em></div>
+        <div className="vz-kpi"><span>Critical blockers</span><b>{s.open} to close</b><em>{accepted ? `${accepted} accepted as a risk` : s.blockers.length ? "none accepted" : "none"}</em></div>
       </div>
-      <p className="vz-card-s">{s.says}</p>
-      {s.blockers.length > 0 && <Blockers list={s.blockers} onAcknowledge={onAcknowledge} why={ackWhy} />}
+      <p className="vz-card-s">An assessed score isn&apos;t readiness: the stage above comes from the blockers, by policy.</p>
+      {s.blockers.length > 0 && <Blockers list={s.blockers} actions={actions} />}
+      <details className="vp-table">
+        <summary>How it&apos;s worked out · method {s.method}</summary>
+        <p className="vz-card-s">{SCORE_METHOD.summary}</p>
+        <ul className="vz-path">{(Object.keys(STAGE_POLICY) as (keyof typeof STAGE_POLICY)[]).map((k) => <li key={k} className="flex-col"><b className="font-sans">{READINESS_WORD[k]}</b><span className="vz-card-s">{STAGE_POLICY[k]}</span></li>)}</ul>
+        <p className="vz-card-s">Method history: {SCORE_METHOD.changes.map((c) => `${c.version} — ${c.what}`).join(" ")}</p>
+      </details>
       <div className="vz-kpis grid gap-2 grid-cols-2 min-[700px]:grid-cols-4">
         {(Object.keys(s.assessments) as AssessKey[]).map((k) => { const a = s.assessments[k]; return (
           <button key={k} type="button" className={open === k ? "vz-kpi vz-kpi-btn moved" : "vz-kpi vz-kpi-btn"} aria-expanded={open === k} onClick={() => setOpen((v) => (v === k ? null : k))}>
@@ -65,30 +82,51 @@ export function ScoreCard({ s, onOpen, onAcknowledge, ackWhy = null }: { s: Scor
   );
 }
 
-/** IP1.3 — the critical blockers: what each is, what it does to the result, and an owner's acknowledgement with its reason. */
-function Blockers({ list, onAcknowledge, why }: { list: Blocker[]; onAcknowledge?: (key: string, note: string) => Promise<void>; why: string | null }) {
+/** IP1.3/IP1.4 — the critical blockers: where each stands, what it does to the result, what closes it, who says so — and
+ *  the actions that start the work. Accepting a risk keeps it listed; only fixing the cause clears it. */
+function Blockers({ list, actions }: { list: Blocker[]; actions: BlockerActions }) {
   const [writing, setWriting] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [review, setReview] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [today, setToday] = useState("");
   return (
     <div className="flex flex-col gap-1">
-      <b className="font-sans">Critical blockers — resolve each, or an owner acknowledges it, before the plan is called ready</b>
+      <b className="font-sans">Critical blockers</b>
       <ol className="vz-path" aria-label="Critical blockers">
         {list.map((b) => (
           <li key={b.key} className="flex-col">
-            <div className="flex justify-between gap-3"><span>{BLOCKER_WORD[b.key]} · {b.kind}</span><span className={b.acknowledged ? "k-tag gold" : "k-tag warn"}>{b.acknowledged ? "Acknowledged" : "Open"}</span></div>
+            <div className="flex justify-between gap-3"><span><b className="font-sans">{BLOCKER_WORD[b.key]}</b> · {b.kind}</span><span className={STATUS_TAG_B[b.status]}>{BLOCKER_STATUS_WORD[b.status]}</span></div>
             <span className="vz-card-s">{b.says}</span>
-            <span className="vz-card-s">What it does to the result: {b.effect}</span>
-            {b.acknowledged && <span className="vz-card-s">Owner&apos;s reason{b.acknowledged.at ? ` (${b.acknowledged.at.slice(0, 10)})` : ""}: {b.acknowledged.note}</span>}
-            {!b.acknowledged && onAcknowledge && (writing === b.key ? (
-              <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); if (note.trim()) void onAcknowledge(b.key, note).then(() => { setWriting(null); setNote(""); }); }}>
-                <label className="prod-f"><span>Why it&apos;s acceptable to present with this open — investors on a link see this reason</span><textarea rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} /></label>
-                <div className="flex gap-2"><button type="submit" className="btn-sec btn-sm" disabled={!note.trim()}>Acknowledge</button><button type="button" className="btn-ter" onClick={() => { setWriting(null); setNote(""); }}>Cancel</button></div>
+            {b.need && <span className="vz-card-s">Being worked on as a need: {b.need.label}{b.need.owner ? ` · ${b.need.owner}` : " · no owner named yet"}{b.need.done_on ? ` · marked done ${b.need.done_on}, waiting to be checked against the plan` : b.need.due_on ? ` · due ${b.need.due_on}` : ""}</span>}
+            {b.acknowledged && <span className="vz-card-s">Accepted as a risk{b.acknowledged.at ? ` on ${b.acknowledged.at.slice(0, 10)}` : ""}, review by {b.acknowledged.reviewBy}: {b.acknowledged.note} Investors on a link see this.</span>}
+            <details>
+              <summary className="vz-card-s">What closes it</summary>
+              <dl className="vz-dl">
+                <dt>Criterion</dt><dd>{b.remedy.criterion}</dd>
+                <dt>Missing</dt><dd>{b.remedy.missing}</dd>
+                <dt>Where</dt><dd>{b.remedy.section}</dd>
+                <dt>Closed when</dt><dd>{b.remedy.acceptance}</dd>
+                <dt>Checked by</dt><dd>{b.remedy.verifier}</dd>
+                <dt>Effect now</dt><dd>{b.effect}</dd>
+              </dl>
+            </details>
+            <div className="flex flex-wrap gap-2">
+              {actions.onGo && <button type="button" className="btn-sec btn-sm" onClick={() => actions.onGo!(b.key)}>{b.remedy.action}</button>}
+              {actions.onAddNeed && !b.need && <button type="button" className="btn-ter" disabled={busy === b.key} onClick={() => { setBusy(b.key); void actions.onAddNeed!(b.key).finally(() => setBusy(null)); }}>{busy === b.key ? "Adding…" : "Add it to the plan's needs"}</button>}
+              {actions.onAccept && b.status !== "risk_accepted" && writing !== b.key && <button type="button" className="btn-ter" onClick={() => { const now = new Date(); setToday(now.toISOString().slice(0, 10)); setWriting(b.key); setNote(""); setReview(new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10)); }}>Accept as a risk</button>}
+            </div>
+            {writing === b.key && actions.onAccept && (
+              <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); if (note.trim() && review) void actions.onAccept!(b.key, note, review).then(() => { setWriting(null); setNote(""); }); }}>
+                <label className="prod-f"><span>Why it&apos;s acceptable to go to investors with this open — they&apos;ll see this reason</span><textarea rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} /></label>
+                <label className="prod-f"><span>Review by — the acceptance lapses after this date</span><input type="date" value={review} min={today} onChange={(e) => setReview(e.target.value)} /></label>
+                <div className="flex gap-2"><button type="submit" className="btn-sec btn-sm" disabled={!note.trim() || !review}>Accept the risk</button><button type="button" className="btn-ter" onClick={() => setWriting(null)}>Cancel</button></div>
               </form>
-            ) : <button type="button" className="btn-ter self-start" onClick={() => { setWriting(b.key); setNote(""); }}>Acknowledge with a reason</button>)}
+            )}
           </li>
         ))}
       </ol>
-      {!onAcknowledge && why && list.some((b) => !b.acknowledged) && <p className="vz-card-s">{why}</p>}
+      {!actions.onAccept && actions.acceptWhy && list.some((b) => b.status !== "risk_accepted") && <p className="vz-card-s">{actions.acceptWhy}</p>}
     </div>
   );
 }

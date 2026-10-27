@@ -9,7 +9,7 @@
 // biggest gains the assessments name. Nothing here is a benchmark: rent is flagged when it is what stands between the plan
 // and breaking even, not when it passes somebody's percentage.
 import { effective, project, type Context, type Inputs, type Model, type Structure } from "./visionMoney";
-import { score, type ScoreContext } from "./visionScore";
+import { READINESS_WORD, score, type ScoreContext } from "./visionScore";
 import { traffic, trafficFlags } from "./visionTraffic";
 import { isDue, type Research } from "./visionResearch";
 import { keyRisks, type Risk } from "./visionRisks";
@@ -60,7 +60,7 @@ export function advise(states: readonly PlanState[], now = Date.now()): Advice[]
     // The assessments' own top action.
     const sc = score(s.i, m, s.research, { ...s.progress, now });
     const top = sc.actions[0];
-    if (top) out.push({ ...P, level: "look", gain: top.gain, words: `Readiness ${sc.total ?? "—"}: ${sc.readiness === "ready" ? "ready to present" : sc.readiness === "validate" ? "needs validation" : sc.readiness === "not_ready" ? "not ready" : "not judged yet"}.`, action: top.text });
+    if (top) out.push({ ...P, level: "look", gain: top.gain, words: `Readiness ${sc.total ?? "—"}: ${READINESS_WORD[sc.readiness].toLowerCase()}.`, action: top.text });
   }
   // Stops first, then what would move the most; one line per plan and action.
   const seen = new Set<string>();

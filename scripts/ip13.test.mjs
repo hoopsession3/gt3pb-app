@@ -37,7 +37,7 @@ const iC = plan(), mC = run(iC);
 const complete = S.score(iC, mC, STRONG, ctxOf(iC));
 {
   ok("complete: the money works and the Conservative case runs", mC.ok && cons(iC).ok);
-  ok("complete: no critical blocker, ready to present", complete.blockers.length === 0 && complete.readiness === "ready", [complete.readiness, complete.blockers.map((b) => b.key), complete.total]);
+  ok("complete: no critical blocker — diligence complete (IP1.4's stage)", complete.blockers.length === 0 && complete.readiness === "complete", [complete.readiness, complete.blockers.map((b) => b.key), complete.total]);
   ok("complete: coverage counts only the judged weight (the room and the channels aren't set here)", complete.coverage < 100 && complete.coverage > 80, complete.coverage);
 }
 const iI = plan({ uses: [...plan().uses, { id: "s", label: "Signage", category: "launch", qty: 1, unitCents: null }] }), mI = run(iI);
@@ -45,7 +45,7 @@ const incomplete = S.score(iI, mI, [], ctxOf(iI, { conservative: null }));
 {
   const keys = incomplete.blockers.map((b) => b.key);
   ok("incomplete: no research, no downside, a cost unpriced — three blockers, each named", ["demand_unvalidated", "no_downside", "costs_unpriced"].every((k) => keys.includes(k)), keys);
-  ok("incomplete: held at needs validation", incomplete.readiness === "validate");
+  ok("incomplete: held at internal review (IP1.4's stage)", incomplete.readiness === "internal");
   ok("incomplete: missing evidence lowers coverage, not the score — the market and the downside are left out, not zeroed",
     incomplete.coverage < complete.coverage && incomplete.assessments.market.criteria.find((c) => c.key === "demandSupport").points === null && incomplete.assessments.financial.criteria.find((c) => c.key === "conservativeHolds").points === null, [incomplete.coverage, complete.coverage]);
   const same = S.score(iC, mC, [], ctxOf(iC, { conservative: null }));
@@ -86,7 +86,10 @@ const unsupported = S.score(iC, mC, [found("demand", null), found("competition",
 // ── 3 · acknowledgements ─────────────────────────────────────────────────────────────────────────────────────────
 {
   const acked = S.score(iC, mC, [], ctxOf(iC, { acknowledged: [{ key: "demand_unvalidated", note: "Pre-sales at the gym start in November; we present with that said." }] }));
-  ok("an acknowledgement with a reason closes that blocker", acked.open === 0 && acked.blockers[0].acknowledged?.note.startsWith("Pre-sales"));
+  // IP1.4: an acknowledgement is a risk acceptance — it needs a review date too, and it never resolves the blocker.
+  ok("a reason without a review date doesn't accept the risk", acked.open === 1 && acked.blockers[0].status === "open");
+  const accepted = S.score(iC, mC, [], ctxOf(iC, { acknowledged: [{ key: "demand_unvalidated", note: "Pre-sales at the gym start in November; we present with that said.", reviewBy: "2026-12-01" }] }));
+  ok("a reason and a review date accept it — still listed, never resolved", accepted.open === 0 && accepted.blockers[0].status === "risk_accepted" && accepted.blockers[0].acknowledged?.note.startsWith("Pre-sales") && accepted.readiness === "discussion");
   ok("…an empty reason doesn't", S.score(iC, mC, [], ctxOf(iC, { acknowledged: [{ key: "demand_unvalidated", note: "  " }] })).open === 1);
   ok("…and acknowledging never changes the score or the coverage", acked.total === S.score(iC, mC, [], ctxOf(iC)).total && acked.coverage === S.score(iC, mC, [], ctxOf(iC)).coverage);
   const D = loadTs("lib/visionCaseData.ts");
@@ -94,9 +97,9 @@ const unsupported = S.score(iC, mC, [found("demand", null), found("competition",
   ok("the case reads acknowledgements from the baseline, and only well-formed ones with a reason", c.acknowledged.length === 1 && c.acknowledged[0].key === "no_downside", c.acknowledged);
   const panel = read("components/vision/MoneyPanel.tsx"), mig = read("supabase/migrations/0449_the_money_plan_by_plan.sql");
   ok("they're written into the approved baseline, which only an owner can change (0449's guard)", /baseline: \{ \.\.\.baseline\.snap, acknowledged: next \}/.test(panel) && /Only an owner can approve a baseline\./.test(mig));
-  ok("the button is offered to owners on Base, against the approved numbers only", /onAcknowledge=\{on === "base" && isOwner && baseline && !offBaseline \? acknowledge : undefined\}/.test(panel));
+  ok("accepting a risk is offered to owners on Base, against the approved numbers only", /onAccept: on === "base" && isOwner && baseline && !offBaseline \? accept : undefined/.test(panel));
   ok("a new baseline clears them, and says so", /setAcks\(\[\]\)/.test(panel) && /acknowledge again for the new numbers/.test(panel));
-  ok("the score card shows score, coverage and blockers apart, with each owner's reason", /Evidence coverage/.test(read("components/vision/Research.tsx")) && /Critical blockers/.test(read("components/vision/Research.tsx")) && /Owner&apos;s reason/.test(read("components/vision/Research.tsx")));
+  ok("the score card shows score, coverage and blockers apart, with each owner's reason", /Evidence coverage/.test(read("components/vision/Research.tsx")) && /Critical blockers/.test(read("components/vision/Research.tsx")) && /Accepted as a risk/.test(read("components/vision/Research.tsx")));
 }
 
 // ── 4 · the investor's terms, by hand ────────────────────────────────────────────────────────────────────────────
@@ -127,10 +130,10 @@ const unsupported = S.score(iC, mC, [found("demand", null), found("competition",
   const world = new Function(`return (${src.slice(at + 14, src.indexOf(";\n", at))});`)();
   const fc = C.figuresOf(C.toCase({ baseline: { scenarios: world, structure: st }, approved_at: "2026-10-27T00:00:00Z" })).scores.base;
   ok("the test plan's readiness: 62 on what's judged (60 before), 51% evidence coverage (shown as 100% before), 3 blockers open",
-    fc.total === 62 && fc.coverage === 51 && fc.open === 3 && fc.readiness === "validate" && fc.blockers.map((x) => x.key).join() === "demand_unvalidated,no_downside,costs_unpriced", [fc.total, fc.coverage, fc.blockers.map((x) => x.key)]);
+    fc.total === 62 && fc.coverage === 51 && fc.open === 3 && fc.readiness === "internal" && fc.blockers.map((x) => x.key).join() === "demand_unvalidated,no_downside,costs_unpriced", [fc.total, fc.coverage, fc.blockers.map((x) => x.key)]);
   const slide = read("components/vision/CaseSlide.tsx");
   ok("Diligence says the terms apart: the contract, paid, owed, the projected month, the modelled rate", /function Terms\(/.test(slide) && /A revenue share — no ownership of the business\./.test(slide) && /Still owed after month 36/.test(slide) && /internal rate of return/.test(slide) && /not a promised rate/.test(slide));
-  ok("…and says the payoff month doesn't extend the plan's growth", /The plan&apos;s growth isn&apos;t extended past month 36\.|The plan's growth isn't extended past month 36\./.test(slide));
+  ok("…and says the payoff month doesn't extend the plan's growth", /the plan's growth isn't extended/.test(slide));  // IP1.4: said in the terms' own row
 }
 
 const base0 = { uses: [{ id: "f1", label: "Bar and cooler", category: "equipment", qty: 1, unitCents: 1800000 }, { id: "f2", label: "Tap tower", category: "equipment", qty: 2, unitCents: 150000 }, { id: "f3", label: "Build-out", category: "buildout", qty: 1, unitCents: 900000 }, { id: "f4", label: "Signage", category: "launch", qty: 1, unitCents: null }, { id: "f5", label: "Working-capital reserve", category: "reserve", qty: 1, unitCents: 1000000 }],
@@ -159,9 +162,9 @@ const st0 = { kind: "rev_share", amountCents: 4000000, sharePct: 6, capMultiple:
     ok(`at ${w}px the low label clears the line, the zero line and the plot's edges`, !crossed && !(y(0) >= top && y(0) <= bot) && top >= T && bot <= H - B, { sp, top, bot, zero: y(0) });
   }
   ok("tap to read a month still works", /onPointerDown=\{\(e\) => pick\(e\.clientX, e\.currentTarget\)\}/.test(chart));
-  ok("Pitch says readiness in one line; the method and every blocker are in Diligence", /\{part === "cash" && <p className="vz-card-s">\{readinessLine\(sc\)\}<\/p>\}/.test(slide) && /\{drill && b\.ok && <><Readiness s=\{sc\} \/><Terms c=\{c\} f=\{f\} \/><\/>\}/.test(slide));
-  ok("Pitch drops the scenario table when there's only one scenario to show", /part === "all" \|\| SCENARIOS\.filter\(\(s\) => f\.models\[s\]\.ok\)\.length > 1/.test(slide));
-  ok("the material caveats stay in Pitch: what's open is named", /Still open: /.test(slide) && /a checklist, not a probability/.test(slide));
+  ok("Pitch says readiness in one line; the method and every blocker are in Diligence", /<p className="vz-card-s">\{readinessLine\(sc\)\}<\/p>/.test(slide) && /\{drill && b\.ok && <Diligence /.test(slide) && /<Readiness s=\{sc\} \/>/.test(slide));  // IP1.4: inside Diligence's sections
+  ok("Pitch carries no scenario table at all — the cases side by side are Explore's (IP1.4)", !/aria-label="The three scenarios"/.test(slide) && /function Scenarios\(/.test(slide));
+  ok("the material caveats stay in Pitch: what's open is named", /Still to close: /.test(slide) && /a checklist, not a probability/.test(slide));
 }
 
 console.log(`IP1.3 — READINESS, TERMS, THE PHONE CHART: ${pass} passed, ${fail} failed`);

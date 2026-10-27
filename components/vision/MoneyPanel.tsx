@@ -25,7 +25,11 @@ import Num from "./Num";
 import { RoomView, TrafficView } from "./TrafficRoom";
 import type { Layout } from "@/lib/vision";
 import { ASSUMED_SERVE_SEC, capacity } from "@/lib/visionRoom";
-import { score } from "@/lib/visionScore";
+import { PRESENT_LABEL } from "@/lib/visionPresent";
+import { REMEDY, needNoteFor, score, type BlockerKey, type NeedRef } from "@/lib/visionScore";
+import type { NeedKind } from "@/lib/visionPlans";
+/** The need kind a blocker's remediation files under (0448's kinds). */
+const NEED_FOR: Record<BlockerKey, NeedKind> = { demand_unvalidated: "demand", evidence_against: "demand", no_downside: "financing", costs_unpriced: "financing", inputs_missing: "financing", waiting_on: "other" };
 import { acksOf, type Acknowledgement } from "@/lib/visionCaseData";
 import type { Research } from "@/lib/visionResearch";
 import { ResearchPanel, ScoreCard } from "./Research";
@@ -53,10 +57,12 @@ const isInput = (k: NodeKey): k is (typeof INPUT_KEYS)[number] => (INPUT_KEYS as
 let lineSeq = 0;
 
 export type MoneyView = "traffic" | "room" | "money";
-export default function MoneyPanel({ plan, asks, canEdit, isOwner = false, view = "money", room = null, onOpenRoom, progress }: {
+export default function MoneyPanel({ plan, asks, canEdit, isOwner = false, view = "money", room = null, onOpenRoom, progress, onNeedsChanged }: {
   plan: Plan; asks: Ask[]; canEdit: boolean; isOwner?: boolean; view?: MoneyView; room?: Layout | null; onOpenRoom?: () => void;
   /** What the assessment needs beyond the money (R59): the plan's needs done, and the unfinished plans it waits on. */
-  progress?: { needs: { done: number; all: number }; waitingOn: string[] };
+  progress?: { needs: { done: number; all: number }; waitingOn: string[]; needList?: NeedRef[] };
+  /** IP1.4: the plan's needs changed here (a blocker added as a need) — the plan reads them again. */
+  onNeedsChanged?: () => void;
 }) {
   const load = useCallback(async (): Promise<Saved | "not-yet"> => {
     if (!supabase) throw new Error("Supabase client not configured");
@@ -69,13 +75,13 @@ export default function MoneyPanel({ plan, asks, canEdit, isOwner = false, view 
   if (!canEdit) return <p className="vz-sub">A plan&apos;s money — its costs, rent, wages and terms — is the owners&apos;. Ask an owner to walk you through it.</p>;
   if (state.status === "loading" || !state.data) return state.status === "error" ? <p className="load-failed">{failureWords(state.error as Error, "Couldn't read the money")}</p> : <p className="vz-sub">Reading the money…</p>;
   if (state.data === "not-yet") return <p className="vz-sub">The money arrives with the next database update (0449). The plan, its phases and its room work as before.</p>;
-  return <Money key={plan.id} plan={plan} asks={asks} saved={state.data} isOwner={isOwner} view={view} room={room} onOpenRoom={onOpenRoom} progress={progress} />;
+  return <Money key={plan.id} plan={plan} asks={asks} saved={state.data} isOwner={isOwner} view={view} room={room} onOpenRoom={onOpenRoom} progress={progress} onNeedsChanged={onNeedsChanged} />;
 }
 
 const KPIS: MetricKey[] = ["startupSpend", "reservePlanned", "requiredFunding", "fundingGap", "breakEven", "payback", "grossMargin", "roiBusiness", "roiAfter"];
 const NEEDS_MODEL = new Set<MetricKey>(["requiredFunding", "fundingGap", "breakEven", "payback", "grossMargin", "roiBusiness", "roiAfter"]);
 
-function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }: { plan: Plan; asks: Ask[]; saved: Saved; isOwner: boolean; view: MoneyView; room: Layout | null; onOpenRoom?: () => void; progress?: { needs: { done: number; all: number }; waitingOn: string[] } }) {
+function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress, onNeedsChanged }: { plan: Plan; asks: Ask[]; saved: Saved; isOwner: boolean; view: MoneyView; room: Layout | null; onOpenRoom?: () => void; progress?: { needs: { done: number; all: number }; waitingOn: string[]; needList?: NeedRef[] }; onNeedsChanged?: () => void }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
   const [scen, setScen] = useState<Record<Scenario, Inputs>>(saved.scenarios);
@@ -116,7 +122,7 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }:
   const research = useMemo(() => (Array.isArray(rs.data) ? rs.data : []), [rs.data]);
   const scores = useMemo(() => {
     // IP1.3: the downside is Base's question (the Conservative run beside it); the owner's acknowledgements are the baseline's.
-    const ctx = { needs: progress?.needs, waitingOn: progress?.waitingOn };
+    const ctx = { needs: progress?.needs, waitingOn: progress?.waitingOn, needList: progress?.needList };
     return { conservative: score(scen.conservative, models.conservative, research, ctx), base: score(scen.base, models.base, research, { ...ctx, conservative: models.conservative.ok ? models.conservative : null, acknowledged: acks }), upside: score(scen.upside, models.upside, research, ctx) };
   }, [scen, models, research, progress, acks]);
   // The what-if is against the approved baseline — or, before there is one, against the numbers as this was opened.
@@ -143,12 +149,27 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }:
     const snap = { scenarios: scen, structure };
     if (await write({ scenarios: scen, structure, baseline: snap }, "Approved — this is the baseline now.", "Couldn't approve the baseline")) { setBaseline({ snap, at: new Date().toISOString() }); setAcks([]); setFirst(JSON.stringify([scen, structure])); }
   };
-  // IP1.3: an owner acknowledges an open blocker with a written reason. It's stored in the approved baseline itself, which
-  // only an owner can write (0449's guard stamps who and when) — so an investor link carries the acknowledgement with it.
-  const acknowledge = async (key: string, note: string) => {
+  // IP1.4: an owner accepts a blocker as a risk — a reason and a review date — stored in the approved baseline itself,
+  // which only an owner can write (0449's guard stamps who and when), so an investor link carries it. It never clears the
+  // blocker: the plan stays at investor discussion with the limitation disclosed until the cause is fixed.
+  const accept = async (key: string, note: string, reviewBy: string) => {
     if (!baseline || offBaseline) return;
-    const next = [...acks.filter((a) => a.key !== key), { key, note: note.trim(), at: new Date().toISOString() }];
-    if (await write({ baseline: { ...baseline.snap, acknowledged: next } }, "Acknowledged — it's recorded with the approved baseline.", "Couldn't record the acknowledgement")) { setAcks(next); setBaseline({ ...baseline, at: new Date().toISOString() }); }
+    const next = [...acks.filter((a) => a.key !== key), { key, note: note.trim(), at: new Date().toISOString(), reviewBy }];
+    if (await write({ baseline: { ...baseline.snap, acknowledged: next } }, "Accepted as a risk — recorded with the approved baseline, and shown to investors.", "Couldn't record the risk acceptance")) { setAcks(next); setBaseline({ ...baseline, at: new Date().toISOString() }); }
+  };
+  // IP1.4: a blocker's remediation starts as one of the plan's needs — the planning workflow that already exists (owner,
+  // due date, done), tagged so the blocker knows it's being worked on. Never a second task list.
+  const addNeed = async (key: BlockerKey) => {
+    if (!supabase) return;
+    const { error } = await supabase.from("vision_plan_needs").insert({ plan_id: plan.id, label: REMEDY[key].action, kind: NEED_FOR[key], note: needNoteFor(key), sort: 900 });
+    if (error) { haptic("error"); toast(failureWords(error, "Couldn't add the need"), "error"); return; }
+    haptic("success"); toast(`Added to the plan's needs: ${REMEDY[key].action}.`); onNeedsChanged?.();
+  };
+  const go = (key: BlockerKey) => {
+    if (key === "waiting_on") { toast(`It waits on ${(progress?.waitingOn ?? []).join(", ") || "another plan"} — move that forward on the roadmap.`); return; }
+    if (key === "no_downside" && on !== "base") setOn("base");
+    const id = key === "demand_unvalidated" || key === "evidence_against" ? "vz-research" : key === "no_downside" ? "vz-derive" : "vz-lines";
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
   const restore = async () => {
     if (!baseline) return;
@@ -196,18 +217,20 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }:
       {view === "room" && <RoomView i={i} set={set} room={room} model={m} onOpenRoom={onOpenRoom} onOpen={setDrill} />}
       {view === "money" && <div className="vz-money grid gap-4 grid-cols-1 min-[1100px]:grid-cols-[minmax(0,400px)_minmax(0,1fr)] min-[1100px]:items-start">
         <div className="flex flex-col gap-3 min-w-0">
-          <Lines i={i} set={set} on={on} m={m} onOpen={setDrill} />
+          <div id="vz-lines" className="contents"><Lines i={i} set={set} on={on} m={m} onOpen={setDrill} /></div>
           <Inputs_ i={i} set={set} fromSales={fromSales} />
           <MixEditor i={i} set={set} />
-          {on === "base" && <Derive base={scen.base} onMake={(c, u) => void makeBoth(c, u)} />}
+          {on === "base" && <div id="vz-derive" className="contents"><Derive base={scen.base} onMake={(c, u) => void makeBoth(c, u)} /></div>}
           <StructureForm s={structure} set={setStructure} raised={asked} i={i} setI={set} />
           <Evidence onUse={(cents) => { set({ avgOrderCents: cents }); setFromSales(cents); }} />
-          <ResearchPanel planId={plan.id} items={research} ready={rs.data !== "not-yet"} onChanged={rs.reload} every={plan.research_every_days ?? 0} lastAt={plan.research_last_at ?? null} />
+          <div id="vz-research" className="contents"><ResearchPanel planId={plan.id} items={research} ready={rs.data !== "not-yet"} onChanged={rs.reload} every={plan.research_every_days ?? 0} lastAt={plan.research_last_at ?? null} /></div>
           <ActualPanel plan={plan} model={baselineBase ?? models.base} against={baseline ? "the approved baseline's Base" : "the working Base (no baseline approved yet)"} />
         </div>
         <div className="flex flex-col gap-3 min-w-0">
-          <ScoreCard s={scores[on]} onOpen={setDrill} onAcknowledge={on === "base" && isOwner && baseline && !offBaseline ? acknowledge : undefined}
-            ackWhy={on !== "base" ? "Blockers are acknowledged on Base." : !isOwner ? "Only an owner can acknowledge a blocker." : !baseline ? "Approve a baseline first — an acknowledgement is recorded with it." : offBaseline ? "The working numbers have moved from the baseline — approve them, or go back, to acknowledge." : null} />
+          <ScoreCard s={scores[on]} onOpen={setDrill} actions={{
+            onAccept: on === "base" && isOwner && baseline && !offBaseline ? accept : undefined,
+            acceptWhy: on !== "base" ? "Blockers are worked on Base." : !isOwner ? "Only an owner can accept a risk." : !baseline ? "Approve a baseline first — a risk acceptance is recorded with it." : offBaseline ? "The working numbers have moved from the baseline — approve them, or go back, to accept a risk." : null,
+            onAddNeed: on === "base" ? addNeed : undefined, onGo: go }} />
           <div className="vz-kpis grid gap-2 grid-cols-2 min-[700px]:grid-cols-3">
             {KPIS.filter((k) => m.ok || !NEEDS_MODEL.has(k)).map((k) => <Kpi key={k} t={traces[k]} was={moved.get(k)?.before ?? null} onOpen={setDrill} />)}
           </div>
@@ -238,9 +261,12 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }:
 const pick = (f: (s: Scenario) => void) => (s: Scenario) => { haptic("selection"); f(s); };
 
 function Kpi({ t, was, onOpen }: { t: Trace; was: string | null; onOpen: (k: MetricKey) => void }) {
+  // IP1.4: the same precise names the presenter uses (lib/visionPresent PRESENT_LABEL), so an owner and an investor read
+  // one word for one figure. The engine's own label stays inside the trace, unchanged.
+  const label = PRESENT_LABEL[t.key] ?? t.label;
   return (
-    <button type="button" className={was != null ? "vz-kpi vz-kpi-btn moved" : "vz-kpi vz-kpi-btn"} onClick={() => onOpen(t.key)} aria-label={`${t.label}: ${t.display}${was != null ? `, was ${was}` : ""}. How it's worked out`}>
-      <span>{t.label}</span><b>{t.display}</b>{was != null && <em>was {was}</em>}
+    <button type="button" className={was != null ? "vz-kpi vz-kpi-btn moved" : "vz-kpi vz-kpi-btn"} onClick={() => onOpen(t.key)} aria-label={`${label}: ${t.display}${was != null ? `, was ${was}` : ""}. How it's worked out`}>
+      <span>{label}</span><b>{t.display}</b>{was != null && <em>was {was}</em>}
     </button>
   );
 }
@@ -459,20 +485,20 @@ function Investor({ v, t, onOpen }: { v: ReturnType<typeof investor>; t: Record<
 
 function Compare({ models, structure, scores }: { models: Record<Scenario, Model>; structure: Structure; scores: Record<Scenario, ReturnType<typeof score>> }) {
   const rows: [string, (m: Model) => string][] = [
-    ["Year 3 sales", (m) => (m.ok ? dollars(m.years[2].revenue) : "—")],
-    ["Funding required", (m) => (m.ok ? dollars(m.requiredFunding) : "—")],
-    ["Breaks even", (m) => (m.ok ? (m.breakEvenMonth ? `Month ${m.breakEvenMonth}` : "Not in 36") : "—")],
-    ["Payback", (m) => (m.ok ? (m.paybackMonth ? `Month ${m.paybackMonth}` : "Not in 36") : "—")],
-    ["Business ROI", (m) => (m.ok && m.roiBusiness != null ? `${(m.roiBusiness * 100).toFixed(0)}%` : "—")],
-    ["Investor IRR", (m) => { if (!m.ok || structure.kind === "none") return "—"; const r = investor(m, structure).irrPct; return r == null ? "—" : `${r.toFixed(1)}%`; }],
+    ["Sales in year 3", (m) => (m.ok ? dollars(m.years[2].revenue) : "—")],
+    ["Minimum funding (cash never below zero)", (m) => (m.ok ? dollars(m.requiredFunding) : "—")],
+    ["Covers its costs from", (m) => (m.ok ? (m.breakEvenMonth ? `Month ${m.breakEvenMonth}` : "Not in 36") : "—")],
+    ["Earns back the opening cost", (m) => (m.ok ? (m.paybackMonth ? `Month ${m.paybackMonth}` : "Not in 36") : "—")],
+    ["Return on the opening cost, 3 years", (m) => (m.ok && m.roiBusiness != null ? `${(m.roiBusiness * 100).toFixed(0)}%` : "—")],
+    ["Investor's annual return (IRR)", (m) => { if (!m.ok || structure.kind === "none") return "—"; const r = investor(m, structure).irrPct; return r == null ? "—" : `${r.toFixed(1)}%`; }],
   ];
   return (
     <div className="vz-cmp-wrap" role="region" aria-label="The scenarios side by side" tabIndex={0}>
-      {/* The score is the plan's, per scenario — the same rubric on each scenario's numbers. */}
+      {/* The assessed score is the plan's, per scenario — the same rubric on each scenario's numbers. */}
       <table className="vz-cmp vz-num">
         <thead><tr><th scope="col"><span className="sr-only">Measure</span></th>{SCENARIOS.map((s) => <th key={s} scope="col"><i className={SC_SWATCH[s]} />{SCENARIO_WORD[s]}</th>)}</tr></thead>
         <tbody>{rows.map(([l, f]) => <tr key={l}><th scope="row">{l}</th>{SCENARIOS.map((s) => <td key={s}>{f(models[s])}</td>)}</tr>)}
-          <tr><th scope="row">The score</th>{SCENARIOS.map((s) => <td key={s}>{scores[s].total == null ? "—" : `${scores[s].total} / 100`}</td>)}</tr></tbody>
+          <tr><th scope="row">Assessed readiness score</th>{SCENARIOS.map((s) => <td key={s}>{scores[s].total == null ? "—" : `${scores[s].total} / 100`}</td>)}</tr></tbody>
       </table>
     </div>
   );

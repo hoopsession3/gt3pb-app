@@ -22,26 +22,67 @@ export type CriterionKey =
   | "costs" | "researchDepth" | "researchFresh" | "researchReviewed";
 export type Criterion = { key: CriterionKey; label: string; weight: number; points: number | null; says: string; rubric: string; about: MetricKey | null; action: string };
 export type Assessment = { key: AssessKey; label: string; score: number | null; criteria: Criterion[]; why: string; evidence: string[]; uncertain: string[] };
-export type Readiness = "ready" | "validate" | "not_ready" | "unknown";
-export const READINESS_WORD: Record<Readiness, string> = { ready: "Ready to present", validate: "Needs validation", not_ready: "Not ready", unknown: "Not judged yet" };
-/** IP1.3 — what must be resolved, or acknowledged by an owner, before a plan is called ready to present. */
+// IP1.4 (Ryan, 2026-10-28: "Acknowledgment alone must not count as resolution… Define these classifications through
+// explicit governance criteria, not an arbitrary score threshold… Version all scoring methodologies").
+/** The method this score is worked out by. A change to the rubric, the weights or the stages gets a new version. */
+export const SCORE_METHOD = {
+  version: "2026-10-28.1",
+  summary: "Four assessments (market 25, execution 25, finances 30, evidence 20), each a set of weighted criteria on written rubrics. A criterion with nothing to judge it by is left out of the score and counted against coverage. The stage comes from the blockers and the finances, never from the score.",
+  changes: [
+    { version: "2026-10-27.1", what: "Score over judged criteria only; coverage counted criterion by criterion; critical blockers (IP1.3)." },
+    { version: "2026-10-28.1", what: "Blocker lifecycle; an owner's acknowledgement is a risk acceptance with a reason and a review date, never a resolution; stages by policy, not by score (IP1.4)." },
+  ],
+} as const;
+/** The stage a plan is at — set by policy (STAGE_POLICY), not by the score. */
+export type Readiness = "complete" | "discussion" | "internal" | "not_ready" | "unknown";
+export const READINESS_WORD: Record<Readiness, string> = {
+  complete: "Diligence complete", discussion: "Ready for investor discussion, with limitations disclosed",
+  internal: "Ready for internal review", not_ready: "Not ready", unknown: "Not judged yet" };
+export const STAGE_POLICY: Record<Exclude<Readiness, "unknown">, string> = {
+  not_ready: "The finances or the execution assess below 40 — a weakness the numbers show, whatever the evidence.",
+  internal: "At least one critical blocker is open, being worked on, waiting to be checked, or its accepted risk has lapsed.",
+  discussion: "Every critical blocker is either resolved or accepted as a risk by an owner, with a reason and a review date — and investors see each accepted risk.",
+  complete: "No critical blocker at all: demand validated, a downside case run, every startup cost priced, every input filled in, nothing waited on.",
+};
+/** IP1.3 — what must be resolved before a plan goes to investors; IP1.4 — and where each one stands. */
 export type BlockerKey = "demand_unvalidated" | "evidence_against" | "no_downside" | "costs_unpriced" | "inputs_missing" | "waiting_on";
 export type BlockerKind = "unvalidated demand" | "conflicting evidence" | "missing downside" | "incomplete assumptions" | "unfinished dependency";
-export type Acknowledgement = { key: string; note: string; at?: string | null };
-export type Blocker = { key: BlockerKey; kind: BlockerKind; says: string; effect: string; criterion: CriterionKey | null; acknowledged: Acknowledgement | null };
+export type BlockerStatus = "open" | "in_remediation" | "pending_verification" | "risk_accepted" | "acceptance_lapsed";
+export const BLOCKER_STATUS_WORD: Record<BlockerStatus, string> = {
+  open: "Open", in_remediation: "In remediation", pending_verification: "Pending verification", risk_accepted: "Risk accepted", acceptance_lapsed: "Acceptance lapsed" };
+/** An owner's risk acceptance, stored with the approved baseline (owners only — 0449's guard). A reason and a review date
+ *  are both required; without either it isn't an acceptance. Investors on a link always see it. */
+export type Acknowledgement = { key: string; note: string; at?: string | null; reviewBy?: string | null };
+/** The plan's own needs, as the remediation workflow (vision_plan_needs): a need whose note is `blocker:<key>` works on that blocker. */
+export type NeedRef = { label: string; owner: string | null; due_on: string | null; done_on: string | null; note: string | null };
+export type Remedy = { criterion: string; missing: string; section: string; action: string; acceptance: string; verifier: string };
+export type Blocker = { key: BlockerKey; kind: BlockerKind; says: string; effect: string; criterion: CriterionKey | null;
+  status: BlockerStatus; acknowledged: Acknowledgement | null; need: NeedRef | null; remedy: Remedy };
 export const BLOCKER_WORD: Record<BlockerKey, string> = {
   demand_unvalidated: "Demand isn't validated", evidence_against: "Research weighs against the plan", no_downside: "No downside case",
   costs_unpriced: "Startup costs not priced", inputs_missing: "Inputs missing", waiting_on: "Waits on another plan" };
+/** What closes each blocker, and who says it's closed. Written down here, the same for every plan. */
+export const REMEDY: Record<BlockerKey, Remedy> = {
+  demand_unvalidated: { criterion: "What the market's sources say", missing: "Accepted research on demand, competition, the location or trends, marked for or against the plan", section: "Research", action: "Add market evidence", acceptance: "At least one such finding accepted and marked for or against", verifier: "An owner or admin accepts the finding" },
+  evidence_against: { criterion: "What the market's sources say", missing: "An answer to each accepted finding against the plan", section: "Research and risks", action: "Answer the findings against", acceptance: "Each finding answered by a change to the plan, or accepted as a risk with a reason", verifier: "An owner" },
+  no_downside: { criterion: "Conservative still breaks even", missing: "A Conservative scenario", section: "Money · scenarios", action: "Create the downside case", acceptance: "The Conservative scenario filled in and approved with the baseline", verifier: "An owner approves the baseline" },
+  costs_unpriced: { criterion: "Startup costs priced and sure", missing: "A price on every startup line", section: "Money · what the money buys", action: "Price the missing startup cost", acceptance: "Every startup line priced, and approved with the baseline", verifier: "An owner approves the baseline" },
+  inputs_missing: { criterion: "All", missing: "The inputs the money needs", section: "Money", action: "Fill in the missing inputs", acceptance: "The money works out", verifier: "An owner approves the baseline" },
+  waiting_on: { criterion: "Nothing it waits on is unfinished", missing: "The plans it waits on, underway or live", section: "The plan · waits on", action: "Move what it waits on forward", acceptance: "Each plan it waits on is underway or live", verifier: "The roadmap's status" },
+};
+export const needNoteFor = (k: BlockerKey) => `blocker:${k}`;
 export type Score = {
-  /** Investment readiness score, 0–100, on what is judged (null until the money is set). IP1.3: a criterion with nothing
-   *  to judge it by is left out of the score and counted against coverage — missing evidence is not a weak business. */
+  /** Assessed readiness score, 0–100, on the criteria that can be judged (null until the money is set). Not the same as
+   *  being ready: the stage (readiness) says that, by policy. */
   total: number | null; readiness: Readiness; says: string;
   /** Evidence coverage, 0–100: the share of the score's weight (criterion by criterion) that has something to judge it by. */
   coverage: number;
-  /** Critical readiness blockers: each open one holds the plan at "Needs validation" until resolved or acknowledged. */
+  /** Critical readiness blockers, each with where it stands and what closes it. */
   blockers: Blocker[];
-  /** Blockers neither resolved nor acknowledged. */
+  /** Blockers not resolved and not under a live risk acceptance. */
   open: number;
+  /** The method version this was worked out by. */
+  method: string;
   assessments: Record<AssessKey, Assessment>;
   /** The three changes that would raise the outcome most, each with the criterion it moves. */
   actions: { text: string; criterion: CriterionKey; gain: number }[];
@@ -50,8 +91,10 @@ export type Score = {
 export type ScoreContext = { needs?: { done: number; all: number }; waitingOn?: readonly string[];
   /** The Conservative run beside a Base: null when it isn't set (a missing downside); left out where it doesn't apply. */
   conservative?: Model | null; now?: number;
-  /** Owner acknowledgements of open blockers, stored with the approved baseline (only an owner can write it — 0449's guard). */
-  acknowledged?: readonly Acknowledgement[] };
+  /** Owner risk acceptances, stored with the approved baseline (only an owner can write it — 0449's guard). */
+  acknowledged?: readonly Acknowledgement[];
+  /** The plan's needs, to see which blockers are being worked on (IP1.4). */
+  needList?: readonly NeedRef[] };
 type Finding = Pick<Research, "topic" | "status"> & { bearing?: Bearing | null; retrieved_at?: string };
 
 const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
@@ -197,7 +240,7 @@ export function score(raw: Inputs, m: Model, research: readonly Finding[] = [], 
   const weightOf = (key: CriterionKey) => { for (const k of keys) { const c = assessments[k].criteria.find((x) => x.key === key); if (c) return Math.round(ew(k, c)); } return 0; };
   // ── the blockers: each says what it is and what it does to the result ──
   const acks = ctx.acknowledged ?? [];
-  const found: Omit<Blocker, "acknowledged">[] = [];
+  const found: Omit<Blocker, "acknowledged" | "status" | "need" | "remedy">[] = [];
   const unsupported = accepted.filter((r) => MARKET.includes(r.topic) && r.bearing !== "for" && r.bearing !== "against").length;
   if (!marketFound.length) found.push({ key: "demand_unvalidated", kind: "unvalidated demand", criterion: "demandSupport",
     says: accepted.length ? `${accepted.length} accepted finding${accepted.length === 1 ? "" : "s"}, but none marked for or against the plan${unsupported ? ` (${unsupported} on the market left unmarked)` : ""} — demand is still an assumption.` : "No accepted research says whether people there want it — demand is an assumption.",
@@ -216,13 +259,22 @@ export function score(raw: Inputs, m: Model, research: readonly Finding[] = [], 
     says: `Not filled in: ${m.missing.join(", ")}.`, effect: "The money can't be worked out until they are, so nothing is scored." });
   if (ctx.waitingOn?.length) found.push({ key: "waiting_on", kind: "unfinished dependency", criterion: "noBlockers",
     says: `Waits on ${ctx.waitingOn.join(", ")}.`, effect: `"Nothing it waits on is unfinished" scores 0/100 until ${ctx.waitingOn.length === 1 ? "it's" : "they're"} underway.` });
-  const blockers: Blocker[] = found.map((b) => ({ ...b, acknowledged: acks.find((a) => a.key === b.key && a.note.trim()) ?? null }));
-  const open = blockers.filter((b) => !b.acknowledged).length;
-  // The gate: a plan isn't ready to present on a strong spreadsheet alone. Demonstrated weakness → not ready; an open
-  // blocker, thin evidence or a middling score → needs validation. Thresholds unchanged.
+  const today = new Date(now).toISOString().slice(0, 10);
+  const blockers: Blocker[] = found.map((b) => {
+    const ack = acks.find((a) => a.key === b.key && a.note.trim() && a.reviewBy) ?? null;
+    const need = (ctx.needList ?? []).find((n) => n.note === needNoteFor(b.key)) ?? null;
+    // Acknowledging is never resolving: a blocker that's still true stays listed. An acceptance holds until its review date.
+    const status: BlockerStatus = ack ? (ack.reviewBy! < today ? "acceptance_lapsed" : "risk_accepted")
+      : need ? (need.done_on ? "pending_verification" : "in_remediation") : "open";
+    return { ...b, acknowledged: ack, need, status, remedy: REMEDY[b.key] };
+  });
+  const open = blockers.filter((b) => b.status !== "risk_accepted").length;
+  // The stage, by policy (STAGE_POLICY) — not by the score. A weakness the numbers show → not ready; a blocker not
+  // resolved and not under a live acceptance → internal review; every one accepted → investor discussion, disclosed;
+  // none at all → diligence complete.
   const readiness: Readiness = total == null ? "unknown"
     : (financial.score ?? 0) < 40 || (execution.score ?? 100) < 40 ? "not_ready"
-    : open > 0 || (evidence.score ?? 0) < 50 || total < 70 ? "validate" : "ready";
+    : open > 0 ? "internal" : blockers.length > 0 ? "discussion" : "complete";
   // The three actions that would raise readiness most: each criterion's room to rise × its weight in its assessment ×
   // the assessment's weight. An unjudged market criterion counts as all room to rise — validating it is the step.
   const actions = keys.flatMap((k) => {
@@ -230,7 +282,7 @@ export function score(raw: Inputs, m: Model, research: readonly Finding[] = [], 
     return a.criteria.filter((c) => (c.points ?? (k === "market" ? 0 : null)) != null && (c.points ?? 0) < 100)
       .map((c) => ({ text: c.action, criterion: c.key, gain: Math.round(((100 - (c.points ?? 0)) * (c.weight / cw) * ASSESS_WEIGHT[k]) / 100) }));
   }).sort((a, b) => b.gain - a.gain).slice(0, 3);
-  const acked = blockers.length - open;
-  return { total, coverage, readiness, assessments, actions, blockers, open,
-    says: total == null ? "Set the money to see the assessment." : `${READINESS_WORD[readiness]} — ${total} of 100 on what's judged, with evidence for ${coverage}% of the weight. ${open ? `${open} critical blocker${open === 1 ? "" : "s"} open` : blockers.length ? "No blocker left open" : "No critical blockers"}${acked ? ` (${acked} acknowledged by an owner)` : ""}. GT3's written rubrics, not a probability of success; the returns are the money's own figures.` };
+  const acceptedN = blockers.length - open;
+  return { total, coverage, readiness, assessments, actions, blockers, open, method: SCORE_METHOD.version,
+    says: total == null ? "Set the money to see the assessment." : `${READINESS_WORD[readiness]}. Assessed score ${total} of 100 on what can be judged, with evidence for ${coverage}% of the weight — not the same as being ready. ${open ? `${open} critical blocker${open === 1 ? "" : "s"} still to close` : blockers.length ? "Every critical blocker is accepted as a risk" : "No critical blockers"}${open && acceptedN ? `; ${acceptedN} accepted as a risk` : ""}. GT3's written rubrics, not a probability of success.` };
 }

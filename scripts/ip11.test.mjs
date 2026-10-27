@@ -64,7 +64,7 @@ const i = M.toInputs(base), m = M.project(i, structure), t = M.trace(i, structur
   ok("raised = startup $30,000 + reserve $10,000 + $5,000 not yet allocated", left === 500000);
   const slide = read("components/vision/CaseSlide.tsx");
   ok("the ask slide says it in one line, from the engine's figures", /function Raising\(/.test(slide) && /isn't yet assigned/.test(slide) && /The plan needs at least/.test(slide));
-  ok("\"Funding required\" is called what it is: minimum funding, opening cost plus what the first months use", /requiredFunding: "Minimum funding"/.test(read("lib/visionPresent.ts")) && /opening cost \+ \$\{dollars\(b\.reserveNeeded\)\} to carry the first months/.test(slide));
+  ok("\"Funding required\" is called what it is: minimum funding, opening cost plus what the first months use", /requiredFunding: "Minimum funding"/.test(read("lib/visionPresent.ts")) && /opening cost \+ \$\{dollars\(b\.reserveNeeded\)\} to keep cash above zero/.test(slide));  // IP1.4: says what the minimum keeps — cash above zero, not the reserve
   ok("an unpriced line shows on the startup figure itself", /not yet priced/.test(slide) && /t\.startupSpend\.display\}\+/.test(slide));
 }
 
@@ -76,7 +76,7 @@ const i = M.toInputs(base), m = M.project(i, structure), t = M.trace(i, structur
   ok("the investor's rate says what the investor receives, and when it leans past month 36", /function investorNote\(/.test(slide) && /if year-3 sales hold/.test(slide) && /cap is met in month/.test(slide));
   ok("the investor's rate opens to its formula in Diligence", /k\(f\.inv \? "investorReturn" : null/.test(slide));
   // IP1.3: the Pitch line names the open blockers (gaps, unvalidated demand); Diligence takes each apart.
-  ok("readiness is a checklist score, not a probability; gaps and missing research are said", /a checklist, not a probability/.test(slide) && /Still open: \$\{listWords\(open\)\}/.test(slide) && /function Readiness\(/.test(slide));
+  ok("readiness is a checklist score, not a probability; gaps and missing research are said", /a checklist, not a probability/.test(slide) && /Still to close: \$\{listWords\(open\)\}/.test(slide) && /function Readiness\(/.test(slide));
 }
 
 // ── 4 · Explore, wider and still sandboxed ────────────────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ const i = M.toInputs(base), m = M.project(i, structure), t = M.trace(i, structur
   ok("the chart marks its lowest point and says when", /`Lowest \$\{dollars\(v\)\}/.test(chart) && /month \$\{m\}/.test(chart));  // IP1.3: placed by lowSpot
   ok("every month is in a table, without a pointer", /<summary>Month by month<\/summary>/.test(slide) && /aria-label="Cash, month by month"/.test(slide));
   ok("opening, lowest, month-36 cash and what the investor is paid are said beside the chart", /Cash on opening day/.test(slide) && /Lowest point/.test(slide) && /After three years/.test(slide) && /Paid to the investor/.test(slide));
-  ok("a missing downside is said, not hidden", /There's no downside case in this plan yet\./.test(slide));
+  ok("a missing downside is said, not hidden", /Downside not modeled: the approved plan has no conservative case yet\./.test(slide));  // IP1.4: the status, in the brief's words
   ok("the chart's caption reads as words (it once said \"monthapos;s\")", /plus each month&apos;s cash in and out/.test(chart) && !/apos;s net cash<\/span>|month<span>/.test(chart));
   ok("unit prices keep their cents wherever a price is shown", /money\(i\.avgOrderCents!\)/.test(read("lib/visionMoney.ts")) && /money\(l\.priceCents\)/.test(read("components/vision/Mix.tsx")));
 }

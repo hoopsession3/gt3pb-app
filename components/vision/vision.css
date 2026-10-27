@@ -113,6 +113,27 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-chart .low line{stroke:var(--cream-d);stroke-width:1}
 .vz-chart .low text{paint-order:stroke;stroke:var(--card);stroke-width:4px;stroke-linejoin:round}
 .vp .vz-chart .low text{stroke:#100e0a}
+/* IP1.4 — the cash narrative, Diligence's sections, the owner's blockers: label above value on a phone, side by side when
+   there's room; a month opened in full; every month as a list on a phone and a table where it fits — never a sideways scroll. */
+.vz-dl{display:grid;grid-template-columns:minmax(0,1fr);gap:2px 16px;margin:0;font-family:var(--sans);font-size:13px;line-height:1.45}
+.vz-dl dt{color:var(--cream-m)}
+.vz-dl dd{margin:0 0 6px;color:var(--cream);font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+@media (min-width:640px){.vz-dl:not(.vz-dl-stack){grid-template-columns:minmax(0,14em) minmax(0,1fr)}.vz-dl:not(.vz-dl-stack) dd{margin:0}}
+.vp .vz-dl dt{color:rgba(245,241,232,.6)}
+.vp .vz-dl dd{color:#f5f1e8}
+.vp-month{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-left:2px solid #c8a661;background:rgba(245,241,232,.03)}
+.vp-month-h{font-family:var(--sans);font-size:15px}
+.vp-months-list{display:flex;flex-direction:column;gap:8px;margin:8px 0 0;padding:0;list-style:none;font-family:var(--sans);font-size:13px;line-height:1.4}
+.vp-months-list li{display:flex;flex-direction:column;gap:2px;padding:6px 0;border-bottom:1px solid rgba(245,241,232,.08);min-width:0}
+.vp-months-list b{font-variant-numeric:tabular-nums}
+.vp-months-list span{color:rgba(245,241,232,.6);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+@media (max-width:759px){.vp-months-table{display:none}}
+@media (min-width:760px){ol.vp-months-list{display:none}}
+.vp-sec{border-top:1px solid rgba(245,241,232,.12);padding:6px 0}
+.vp-sec>summary{cursor:pointer;min-height:44px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;font-family:var(--sans);font-size:15px;color:#f5f1e8}
+.vp-sec>summary span{font-size:13px;color:rgba(245,241,232,.6)}
+.vp-sec>summary:focus-visible{outline:2px solid #c8a661;outline-offset:2px}
+.vp-sec[open]>summary{margin-bottom:8px}
 .vp-tap{margin:0;text-align:center;font-family:var(--sans);font-size:12px;color:rgba(245,241,232,.45)}
 
 @keyframes vzRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}

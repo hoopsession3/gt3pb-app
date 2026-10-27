@@ -65,7 +65,7 @@ const V = loadTs("lib/visionResearch.ts"), S = loadTs("lib/visionScore.ts"), M =
   ok("…stores them proposed, behind the claim guard", /status: "proposed"/.test(r) && /claimSafeDeep\(f\)/.test(r));
   ok("…and tells the model never to estimate or invent", /Never estimate, never fill a gap from what you know, never invent a number or a source/.test(r));
   ok("0450: https only, the six topics, proposed by default, admin's policy only", /source_url ~ '\^https:\/\/'/.test(sql) && /'proposed','accepted','rejected'/.test(sql) && /"vision research admin"/.test(sql) && !/to anon/.test(sql.replace(/from public, anon, authenticated/, "")));
-  ok("the score sits beside the money, per scenario, and only accepted research counts", /<ScoreCard s=\{scores\[on\]\}/.test(panel) && /The score<\/th>/.test(panel));
+  ok("the score sits beside the money, per scenario, and only accepted research counts", /<ScoreCard s=\{scores\[on\]\}/.test(panel) && /Assessed readiness score<\/th>/.test(panel));  // IP1.4: the precise name
   ok("each finding shows its source and its age; accepting says which way it bears — a person's reading; reject is a tap", /href=\{x\.source_url\}/.test(res) && /read \{a\.days\} day/.test(res) && /mark\(x\.id, "accepted", "for"\)/.test(res) && /mark\(x\.id, "accepted", "against"\)/.test(res) && /mark\(x\.id, "rejected"\)/.test(res));
   ok("before 0450, it says the research arrives with it", /arrives-with: 0450/.test(panel) && /The research arrives with the next database update \(0450\)/.test(res));
 }

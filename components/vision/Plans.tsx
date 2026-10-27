@@ -390,7 +390,8 @@ function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner
         </div>
       ) : (
         <MoneyPanel plan={p} asks={asks} canEdit={canEdit} isOwner={isOwner} view={step} room={room} onOpenRoom={room ? () => onOpenStore(room.id) : undefined}
-          progress={{ needs: { done: needsProgress(mine).done, all: mine.length }, waitingOn: waits.map((w) => w.name) }} />
+          progress={{ needs: { done: needsProgress(mine).done, all: mine.length }, waitingOn: waits.map((w) => w.name), needList: mine.map((n) => ({ label: n.label, owner: n.owner, due_on: n.due_on, done_on: n.done_on, note: n.note })) }}
+          onNeedsChanged={onSaved} />
       )}
     </div>
   );

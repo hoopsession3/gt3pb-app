@@ -45,7 +45,7 @@ const V = loadTs("lib/vision.ts"), S = loadTs("lib/visionScore.ts"), M = loadTs(
   ok("no research: the market isn't judged, and it isn't counted as a zero", unjudged.includes("market") && none.total != null && none.total > 0, { total: none.total, unjudged });
   ok("…coverage says the market's weight is missing", none.coverage <= 100 - S.ASSESS_WEIGHT.market, none.coverage);
   ok("…and unknowns can't make a plan ready: unvalidated demand is a critical blocker", none.readiness !== "ready" && none.blockers.some((b) => b.key === "demand_unvalidated" && !b.acknowledged), [none.readiness, none.blockers.map((b) => b.key)]);
-  ok("the words name the score, the coverage and the blockers", /on what's judged/.test(all.says) && /evidence for \d+% of the weight/.test(all.says) && /critical blocker/.test(none.says));
+  ok("the words name the score, the coverage and the blockers", /on what can be judged/.test(all.says) && /evidence for \d+% of the weight/.test(all.says) && /critical blocker/.test(none.says));
 }
 
 // ── 3 · wiring ────────────────────────────────────────────────────────────────────────────────────────────────────

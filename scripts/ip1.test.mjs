@@ -57,7 +57,7 @@ const c = C.toCase(stored, research);
   ok("Explore holds the what-if in React state only: no storage, no fetch, no Supabase", /useState<Edits>/.test(ex) && !/localStorage|sessionStorage|indexedDB|fetch\(|supabase|\.rpc\(|\.from\(/.test(ex));
   ok("…labelled as theirs, with the way back", /Your what-if — not GT3&apos;s plan|Your what-if — not GT3's plan/.test(ex) && /Back to the approved case/.test(ex) && /Nothing is saved or sent/.test(ex));
   ok("…and leaving Explore drops it (the slide is keyed by the mode)", /key=\{`\$\{s\.id\}:\$\{mode\}`\}/.test(read("components/vision/Present.tsx")));
-  ok("…the levers come first, under the title (Explore replaces the approved figures with its own before-and-after)", slide.indexOf('mode === "explore" && b.ok && <Explore') < slide.indexOf('b.ok && show("ask") && mode !== "explore"'));
+  ok("…the levers come first, under the title (Explore replaces the approved figures with its own before-and-after)", slide.indexOf('{mode === "explore" && b.ok && <><Explore') < slide.indexOf('{mode !== "explore" && b.ok && show("ask") && (')); // IP1.4: Explore is its own block
   ok("the cash chart's caption reads as words (it said \"monthapos;s\" on the slide)", !/apos;s net cash<\/span>|month<span>/.test(read("components/vision/MoneyCharts.tsx")) && /plus each month&apos;s cash in and out/.test(read("components/vision/MoneyCharts.tsx")));
   ok("a lever with nothing to move from says why, and shows no number (not a misleading $0)", /No fixed rent in this plan/.test(ex) && /v == null \|\| !r \? ""/.test(ex));
   ok("…each lever says its approved value beside the moved one", /approved \{say\(l, was!\)\}/.test(ex));
