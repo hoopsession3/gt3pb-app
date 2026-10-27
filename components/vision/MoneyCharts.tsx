@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MONTHS, SCENARIO_WORD, dollars, type Model, type Scenario, type Swing } from "@/lib/visionMoney";
 
 // THE MONEY, DRAWN (R54). Two pictures, one axis each (never two scales on one chart):
@@ -16,7 +16,20 @@ export const SC_SWATCH: Record<Scenario, string> = { conservative: "vz-sw sc-con
 const SC_LINE: Record<Scenario, [string, string]> = { conservative: ["line sc-cons", "line sc-cons on"], base: ["line sc-base", "line sc-base on"], upside: ["line sc-up", "line sc-up on"] };
 
 export function CashChart({ models, focus }: { models: Partial<Record<Scenario, Model>>; focus: Scenario }) {
-  const W = 640, H = 260, L = 80, R = 92, T = 16, B = 34;
+  // IP1.3 (mobile): the drawing is as wide as its box, so 12px labels stay 12px on a phone instead of shrinking with a
+  // 640-wide drawing to about 7px. Narrow boxes shorten the axis money ($20K) to keep the plot room.
+  const box = useRef<HTMLElement>(null);
+  const [w, setW] = useState(640);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => { const v = Math.round(e.contentRect.width); if (v > 0) setW(Math.max(300, Math.min(640, v))); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const narrow = w < 480;
+  const W = w, H = narrow ? 240 : 260, L = narrow ? 52 : 80, R = narrow ? 84 : 92, T = 16, B = 34;
+  const axis = (v: number) => (narrow && Math.abs(v) >= 100000 ? `${v < 0 ? "−" : ""}$${Math.round(Math.abs(v) / 10000) / 10}K` : dollars(v));
   const shown = (Object.entries(models) as [Scenario, Model][]).filter(([, m]) => m.ok);
   const [at, setAt] = useState<number | null>(null);
   if (!shown.length) return null;
@@ -35,18 +48,23 @@ export function CashChart({ models, focus }: { models: Partial<Record<Scenario, 
     setAt(Math.max(0, Math.min(MONTHS, Math.round(((px - L) / (W - L - R)) * MONTHS))));
   };
   return (
-    <figure className="vz-fig">
+    <figure className="vz-fig" ref={box}>
       <figcaption className="vz-fig-h"><b>Cash in the bank</b><span>what&apos;s left after opening, plus each month&apos;s cash in and out</span></figcaption>
       <div className="vz-legend" role="list">{series.map((s) => <span key={s.k} role="listitem"><i className={SC_CLASS[s.k]} />{SCENARIO_WORD[s.k]}</span>)}</div>
       <svg viewBox={`0 0 ${W} ${H}`} className="vz-chart" role="img" aria-label={`Cash on hand over ${MONTHS} months: ${series.map((s) => `${SCENARIO_WORD[s.k]} ends at ${dollars(s.pts[MONTHS])}, lowest ${dollars(Math.min(...s.pts))}`).join("; ")}`}
         onPointerDown={(e) => pick(e.clientX, e.currentTarget)} onPointerMove={(e) => pick(e.clientX, e.currentTarget)} onPointerLeave={(e) => { if (e.pointerType === "mouse") setAt(null); }}>
-        {ticks.map((t) => <g key={t}><line className={t === 0 ? "zero" : "gl"} x1={L} x2={W - R} y1={y(t)} y2={y(t)} /><text className="tick" x={L - 8} y={y(t) + 4} textAnchor="end">{dollars(t)}</text></g>)}
+        {ticks.map((t) => <g key={t}><line className={t === 0 ? "zero" : "gl"} x1={L} x2={W - R} y1={y(t)} y2={y(t)} /><text className="tick" x={L - 8} y={y(t) + 4} textAnchor="end">{axis(t)}</text></g>)}
         {[0, 12, 24, 36].map((m) => <text key={m} className="tick" x={x(m)} y={H - 10} textAnchor="middle">{m === 0 ? "Open" : `Mo ${m}`}</text>)}
         {series.map((s) => (
           <polyline key={s.k} className={SC_LINE[s.k][s.k === focus ? 1 : 0]} fill="none"
             points={s.pts.map((v, m) => `${x(m).toFixed(1)},${y(v).toFixed(1)}`).join(" ")} />
         ))}
-        {series.filter((s) => s.k === focus).map((s) => { const v = Math.min(...s.pts), m = s.pts.indexOf(v); return <g key={`low${s.k}`} className="low"><circle cx={x(m)} cy={y(v)} r={4} /><text className="tick" x={x(m) + 8} y={y(v) - 10}>Lowest {dollars(v)}{m ? `, month ${m}` : ", at opening"}</text></g>; })}
+        {series.filter((s) => s.k === focus).map((s) => {
+          // On a narrow chart the label stacks in two short lines, so it fits the open space above the curve.
+          const v = Math.min(...s.pts), m = s.pts.indexOf(v), rows = narrow ? [`Lowest ${dollars(v)}`, m ? `month ${m}` : "at opening"] : [`Lowest ${dollars(v)}${m ? `, month ${m}` : ", at opening"}`];
+          const spot = lowSpot(x(m), y(v), Math.max(...rows.map((r) => r.length)) * 7, rows.length * 14, series.map((q) => q.pts.map((p, k) => [x(k), y(p)] as const)), y(0), { L, R: W - R, T, B: H - B });
+          return <g key={`low${s.k}`} className="low"><circle cx={x(m)} cy={y(v)} r={4} />{spot.lead && <line x1={x(m)} y1={y(v) - 5} x2={x(m)} y2={spot.y + rows.length * 14 - 10} />}<text className="tick" x={spot.x} y={spot.y} textAnchor={spot.anchor}>{rows.map((r, k) => <tspan key={k} x={spot.x} dy={k ? 14 : 0}>{r}</tspan>)}</text></g>;
+        })}
         {series.map((s) => <text key={`l${s.k}`} className="end" x={x(MONTHS) + 6} y={y(s.pts[MONTHS]) + 4}>{SCENARIO_WORD[s.k]}</text>)}
         {at != null && (
           <g className="cross">
@@ -58,6 +76,21 @@ export function CashChart({ models, focus }: { models: Partial<Record<Scenario, 
       <p className="vz-fig-read" aria-live="off">{at == null ? "Point at or tap a month to read it." : `${at === 0 ? "Opening day" : `Month ${at}`}: ${series.map((s) => `${SCENARIO_WORD[s.k]} ${dollars(s.pts[at])}`).join(" · ")}`}</p>
     </figure>
   );
+}
+
+/** IP1.3 — where the low point's label goes: the first spot whose box no line and no zero line crosses — under the point,
+ *  beside it, then higher with a leader — turned toward the middle; the halo (vision.css) only as the last resort. */
+export function lowSpot(px: number, py: number, w: number, h: number, lines: (readonly (readonly [number, number])[])[], zeroY: number, box: { L: number; R: number; T: number; B: number }) {
+  const right = px > (box.L + box.R) / 2;
+  const at = (dy: number) => { const x0 = right ? px - 8 - w : px + 8; return { x: right ? px - 8 : px + 8, y: py + dy, x0, x1: x0 + w, top: py + dy - 11, bot: py + dy - 11 + h }; };
+  const hits = (c: ReturnType<typeof at>) => c.top < box.T || c.bot > box.B || c.x0 < box.L - 4 || c.x1 > box.R + 80
+    || (zeroY > c.top - 2 && zeroY < c.bot + 2)
+    || lines.some((pts) => pts.some(([qx, qy], k) => { if (k === 0) return false; const [ax, ay] = pts[k - 1];
+      if (qx < c.x0 || ax > c.x1) return false;
+      for (let t = 0; t <= 1; t += 0.125) { const sx = ax + (qx - ax) * t, sy = ay + (qy - ay) * t; if (sx >= c.x0 && sx <= c.x1 && sy >= c.top - 3 && sy <= c.bot + 3) return true; } return false; }));
+  for (const dy of [20, -10 - (h - 14), -30, -50, -70, -90, -110, -130, -150]) { const c = at(dy); if (!hits(c)) return { x: c.x, y: c.y, anchor: right ? "end" as const : "start" as const, lead: dy < -10 - (h - 14) }; }
+  const c = at(-10 - (h - 14));
+  return { x: c.x, y: c.y, anchor: right ? "end" as const : "start" as const, lead: false };
 }
 
 export function Tornado({ swings, pct }: { swings: Swing[]; pct: number }) {

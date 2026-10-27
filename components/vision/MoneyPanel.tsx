@@ -26,6 +26,7 @@ import { RoomView, TrafficView } from "./TrafficRoom";
 import type { Layout } from "@/lib/vision";
 import { ASSUMED_SERVE_SEC, capacity } from "@/lib/visionRoom";
 import { score } from "@/lib/visionScore";
+import { acksOf, type Acknowledgement } from "@/lib/visionCaseData";
 import type { Research } from "@/lib/visionResearch";
 import { ResearchPanel, ScoreCard } from "./Research";
 import ActualPanel from "./Actual";
@@ -41,7 +42,7 @@ import Said from "@/components/Said";
 // figure that moved says what it was; going back is one confirmed step, and only an owner approves a new baseline.
 // Owners and admins only: rent, wages and terms are the business's own.
 type Snap = { scenarios: Record<Scenario, Inputs>; structure: Structure };
-type Saved = Snap & { baseline: Snap | null; baselineAt: string | null };
+type Saved = Snap & { baseline: Snap | null; baselineAt: string | null; acks: Acknowledgement[] };
 const snapOf = (raw: { scenarios?: Record<string, unknown>; structure?: Structure } | null | undefined): Snap => ({
   scenarios: { conservative: toInputs(raw?.scenarios?.conservative as Partial<Inputs>), base: toInputs(raw?.scenarios?.base as Partial<Inputs>), upside: toInputs(raw?.scenarios?.upside as Partial<Inputs>) },
   structure: raw?.structure ?? { kind: "none" },
@@ -61,8 +62,8 @@ export default function MoneyPanel({ plan, asks, canEdit, isOwner = false, view 
     if (!supabase) throw new Error("Supabase client not configured");
     const { data, error } = await supabase.from("vision_plan_money").select("scenarios, structure, baseline, baseline_at").eq("plan_id", plan.id).maybeSingle();
     if (error) throw new Error(error.message);
-    const row = data as { scenarios?: Record<string, unknown>; structure?: Structure; baseline?: { scenarios?: Record<string, unknown>; structure?: Structure } | null; baseline_at?: string | null } | null;
-    return { ...snapOf(row), baseline: row?.baseline ? snapOf(row.baseline) : null, baselineAt: row?.baseline_at ?? null };
+    const row = data as { scenarios?: Record<string, unknown>; structure?: Structure; baseline?: { scenarios?: Record<string, unknown>; structure?: Structure; acknowledged?: unknown } | null; baseline_at?: string | null } | null;
+    return { ...snapOf(row), baseline: row?.baseline ? snapOf(row.baseline) : null, baselineAt: row?.baseline_at ?? null, acks: acksOf(row?.baseline?.acknowledged) };
   }, [plan.id]);
   const state = useAsyncData(load, [plan.id]);
   if (!canEdit) return <p className="vz-sub">A plan&apos;s money — its costs, rent, wages and terms — is the owners&apos;. Ask an owner to walk you through it.</p>;
@@ -80,6 +81,7 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }:
   const [scen, setScen] = useState<Record<Scenario, Inputs>>(saved.scenarios);
   const [structure, setStructure] = useState<Structure>(saved.structure);
   const [baseline, setBaseline] = useState<{ snap: Snap; at: string | null } | null>(saved.baseline ? { snap: saved.baseline, at: saved.baselineAt } : null);
+  const [acks, setAcks] = useState<Acknowledgement[]>(saved.acks);
   const [opened] = useState<Snap>(() => ({ scenarios: saved.scenarios, structure: saved.structure }));
   const [on, setOn] = useState<Scenario>("base");
   const [busy, setBusy] = useState(false);
@@ -113,9 +115,10 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }:
   const rs = useAsyncData(loadResearch, [plan.id]);
   const research = useMemo(() => (Array.isArray(rs.data) ? rs.data : []), [rs.data]);
   const scores = useMemo(() => {
-    const ctx = { needs: progress?.needs, waitingOn: progress?.waitingOn, conservative: models.conservative };
-    return { conservative: score(scen.conservative, models.conservative, research, { ...ctx, conservative: null }), base: score(scen.base, models.base, research, ctx), upside: score(scen.upside, models.upside, research, { ...ctx, conservative: null }) };
-  }, [scen, models, research, progress]);
+    // IP1.3: the downside is Base's question (the Conservative run beside it); the owner's acknowledgements are the baseline's.
+    const ctx = { needs: progress?.needs, waitingOn: progress?.waitingOn };
+    return { conservative: score(scen.conservative, models.conservative, research, ctx), base: score(scen.base, models.base, research, { ...ctx, conservative: models.conservative.ok ? models.conservative : null, acknowledged: acks }), upside: score(scen.upside, models.upside, research, ctx) };
+  }, [scen, models, research, progress, acks]);
   // The what-if is against the approved baseline — or, before there is one, against the numbers as this was opened.
   const ref = baseline?.snap ?? opened;
   const refWord = baseline ? "the approved baseline" : "when you opened this";
@@ -136,9 +139,16 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }:
   };
   const save = async () => { if (await write({ scenarios: scen, structure }, "Saved — the plan's working numbers.", "Couldn't save the money")) setFirst(JSON.stringify([scen, structure])); };
   const approve = async () => {
-    if (!(await confirm({ title: "Make these the approved baseline?", body: baseline ? "The baseline approved before is replaced by these numbers — all three scenarios and the structure. What-ifs are measured against it from now on." : "All three scenarios and the structure, as they stand. What-ifs are measured against it from now on.", confirmLabel: "Approve the baseline" }))) return;
+    if (!(await confirm({ title: "Make these the approved baseline?", body: baseline ? `The baseline approved before is replaced by these numbers — all three scenarios and the structure. What-ifs are measured against it from now on.${acks.length ? ` The ${acks.length} acknowledged blocker${acks.length === 1 ? " is" : "s are"} cleared: acknowledge again for the new numbers.` : ""}` : "All three scenarios and the structure, as they stand. What-ifs are measured against it from now on.", confirmLabel: "Approve the baseline" }))) return;
     const snap = { scenarios: scen, structure };
-    if (await write({ scenarios: scen, structure, baseline: snap }, "Approved — this is the baseline now.", "Couldn't approve the baseline")) { setBaseline({ snap, at: new Date().toISOString() }); setFirst(JSON.stringify([scen, structure])); }
+    if (await write({ scenarios: scen, structure, baseline: snap }, "Approved — this is the baseline now.", "Couldn't approve the baseline")) { setBaseline({ snap, at: new Date().toISOString() }); setAcks([]); setFirst(JSON.stringify([scen, structure])); }
+  };
+  // IP1.3: an owner acknowledges an open blocker with a written reason. It's stored in the approved baseline itself, which
+  // only an owner can write (0449's guard stamps who and when) — so an investor link carries the acknowledgement with it.
+  const acknowledge = async (key: string, note: string) => {
+    if (!baseline || offBaseline) return;
+    const next = [...acks.filter((a) => a.key !== key), { key, note: note.trim(), at: new Date().toISOString() }];
+    if (await write({ baseline: { ...baseline.snap, acknowledged: next } }, "Acknowledged — it's recorded with the approved baseline.", "Couldn't record the acknowledgement")) { setAcks(next); setBaseline({ ...baseline, at: new Date().toISOString() }); }
   };
   const restore = async () => {
     if (!baseline) return;
@@ -196,7 +206,8 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress }:
           <ActualPanel plan={plan} model={baselineBase ?? models.base} against={baseline ? "the approved baseline's Base" : "the working Base (no baseline approved yet)"} />
         </div>
         <div className="flex flex-col gap-3 min-w-0">
-          <ScoreCard s={scores[on]} onOpen={setDrill} />
+          <ScoreCard s={scores[on]} onOpen={setDrill} onAcknowledge={on === "base" && isOwner && baseline && !offBaseline ? acknowledge : undefined}
+            ackWhy={on !== "base" ? "Blockers are acknowledged on Base." : !isOwner ? "Only an owner can acknowledge a blocker." : !baseline ? "Approve a baseline first — an acknowledgement is recorded with it." : offBaseline ? "The working numbers have moved from the baseline — approve them, or go back, to acknowledge." : null} />
           <div className="vz-kpis grid gap-2 grid-cols-2 min-[700px]:grid-cols-3">
             {KPIS.filter((k) => m.ok || !NEEDS_MODEL.has(k)).map((k) => <Kpi key={k} t={traces[k]} was={moved.get(k)?.before ?? null} onOpen={setDrill} />)}
           </div>

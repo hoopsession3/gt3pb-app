@@ -38,18 +38,14 @@ const V = loadTs("lib/vision.ts"), S = loadTs("lib/visionScore.ts"), M = loadTs(
   const ctx = { needs: { done: 3, all: 6 }, waitingOn: [], conservative: { ok: true, breakEvenMonth: 9 }, now: NOW };
   const all = S.score(i, m, [{ topic: "demand", status: "accepted", bearing: "for", retrieved_at: FRESH }, { topic: "demand", status: "accepted", bearing: "for", retrieved_at: FRESH }, { topic: "competition", status: "accepted", bearing: "against", retrieved_at: FRESH }, { topic: "costs", status: "proposed", retrieved_at: FRESH }], ctx);
   const none = S.score(i, m, [], ctx);
-  ok("all four judged: the total as before (73), coverage 100%", all.total === 73 && all.coverage === 100, [all.total, all.coverage]);
+  // IP1.3 supersedes S1.1c's zero (Ryan, 2026-10-27: "without conflating missing evidence with demonstrated business
+  // weakness"): the score is over what's judged, coverage is the weight that is, and the blockers hold the gate.
+  ok("all four judged: the total as before (73); coverage counts criteria — the channels and the room aren't judged (86%)", all.total === 73 && all.coverage === 86, [all.total, all.coverage]);
   const unjudged = Object.keys(none.assessments).filter((k) => none.assessments[k].score == null);
-  if (unjudged.length) {
-    const judged = Object.keys(none.assessments).filter((k) => none.assessments[k].score != null);
-    const expect = Math.round(judged.reduce((n, k) => n + none.assessments[k].score * S.ASSESS_WEIGHT[k], 0) / 100);
-    ok("an unjudged assessment counts as zero — the total is over all 100 points, not the judged ones", none.total === expect, { total: none.total, expect, unjudged });
-    ok("…and the coverage says how much of the weight is judged", none.coverage === 100 - unjudged.reduce((n, k) => n + S.ASSESS_WEIGHT[k], 0), none.coverage);
-    ok("…so unknowns can't make a plan look readier than proof does", none.total <= all.total);
-  } else {
-    ok("with no research the market can still be judged — the zero rule is shown by the source", /what isn't judged counts as zero/.test(read("lib/visionScore.ts")));
-  }
-  ok("the words say what isn't judged counts as zero", /what isn't judged counts as zero/.test(all.says));
+  ok("no research: the market isn't judged, and it isn't counted as a zero", unjudged.includes("market") && none.total != null && none.total > 0, { total: none.total, unjudged });
+  ok("…coverage says the market's weight is missing", none.coverage <= 100 - S.ASSESS_WEIGHT.market, none.coverage);
+  ok("…and unknowns can't make a plan ready: unvalidated demand is a critical blocker", none.readiness !== "ready" && none.blockers.some((b) => b.key === "demand_unvalidated" && !b.acknowledged), [none.readiness, none.blockers.map((b) => b.key)]);
+  ok("the words name the score, the coverage and the blockers", /on what's judged/.test(all.says) && /evidence for \d+% of the weight/.test(all.says) && /critical blocker/.test(none.says));
 }
 
 // ── 3 · wiring ────────────────────────────────────────────────────────────────────────────────────────────────────

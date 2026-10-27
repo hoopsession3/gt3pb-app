@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { INPUT_KEYS, INPUT_WORD, SCENARIOS, SCENARIO_WORD, STRUCTURE_WORD, dollars, type Kind, type MetricKey, type Model, type NodeKey, type Trace } from "@/lib/visionMoney";
 import { figuresOf, type PlanCase } from "@/lib/visionCase";
-import { READINESS_WORD } from "@/lib/visionScore";
+import { BLOCKER_WORD, READINESS_WORD, type Score } from "@/lib/visionScore";
 import { LEVEL_WORD, keyRisks } from "@/lib/visionRisks";
 import { TOPIC_WORD, domainOf } from "@/lib/visionResearch";
 import { EXPLORE_FIGURES, LEVERS, LEVER_WORD, PRESENT_LABEL, approvedOf, isEdited, leverRange, whatIf, type CasePart, type Edits, type Lever, type PresentMode } from "@/lib/visionPresent";
@@ -54,7 +54,7 @@ export default function CaseSlide({ plan, c, room, part = "all", mode = "pitch" 
           {k("payback", PRESENT_LABEL.payback!, t.payback.display, after(t.paybackAfter.display, c))}
           {k("roiBusiness", PRESENT_LABEL.roiBusiness!, t.roiBusiness.display, c.structure.kind === "none" ? "before tax" : `before tax and the investor · ${t.roiAfter.display} after`)}
           {k(f.inv ? "investorReturn" : null, PRESENT_LABEL.investorReturn!, f.irrPct == null ? (c.structure.kind === "safe" ? "Converts later" : "—") : `${f.irrPct.toFixed(1)}% a year`, investorNote(c, f))}
-          {part === "all" && k(null, "Investment readiness", sc.total == null ? "—" : `${sc.total} / 100`, `${READINESS_WORD[sc.readiness]} · a checklist score, not a probability`)}
+          {part === "all" && k(null, "Investment readiness", sc.total == null ? "—" : `${sc.total} / 100`, `${READINESS_WORD[sc.readiness]} · ${sc.coverage}% evidence coverage · ${sc.open ? `${sc.open} blocker${sc.open === 1 ? "" : "s"} open` : "no blocker open"}`)}
           {part === "all" && k("revenue", PRESENT_LABEL.revenue!, t.revenue.display)}
         </div>
       )}
@@ -64,7 +64,7 @@ export default function CaseSlide({ plan, c, room, part = "all", mode = "pitch" 
         <>
           <CashChart models={f.models} focus="base" />
           <CashFacts f={f} />
-          <div className="vz-cmp-wrap" role="region" aria-label="The three scenarios" tabIndex={0}>
+          {(part === "all" || SCENARIOS.filter((s) => f.models[s].ok).length > 1) && <div className="vz-cmp-wrap" role="region" aria-label="The three scenarios" tabIndex={0}>
             <table className="vz-cmp vz-num">
               <thead><tr><th scope="col"><span className="sr-only">Measure</span></th>{SCENARIOS.map((s) => <th key={s} scope="col"><i className={SC_SWATCH[s]} />{SCENARIO_WORD[s]}</th>)}</tr></thead>
               <tbody>
@@ -74,10 +74,11 @@ export default function CaseSlide({ plan, c, room, part = "all", mode = "pitch" 
                 <tr><th scope="row">Readiness score</th>{SCENARIOS.map((s) => <td key={s}>{f.scores[s].total == null ? "—" : f.scores[s].total}</td>)}</tr>
               </tbody>
             </table>
-          </div>
-          {part === "cash" && <p className="vz-card-s">Investment readiness: {sc.total == null ? "—" : `${sc.total} out of 100`}, {READINESS_WORD[sc.readiness].toLowerCase()}. It&apos;s a checklist score, not a probability of success. {b.missing.length || b.unpriced ? `The plan still has gaps: ${[...b.missing, b.unpriced ? `${b.unpriced} cost${b.unpriced === 1 ? "" : "s"} not yet priced` : null].filter(Boolean).join(", ")}.` : "Every input is filled in."}{c.research.length ? "" : " No market research has been accepted yet, so demand is an assumption, not a finding."}</p>}
+          </div>}
+          {part === "cash" && <p className="vz-card-s">{readinessLine(sc)}</p>}
         </>
       )}
+      {drill && b.ok && <><Readiness s={sc} /><Terms c={c} f={f} /></>}
       {show("risks") && risks.length > 0 && (
         <div className="flex flex-col gap-1">
           <p className="vp-eyebrow">The risks we watch</p>
@@ -218,3 +219,63 @@ function CashFacts({ f }: { f: ReturnType<typeof figuresOf> }) {
 }
 
 const listMonths = (ms: number[]) => (ms.length <= 2 ? ms.join(" and ") : `${ms.slice(0, -1).join(", ")} and ${ms.at(-1)}`);
+
+/** Pitch (IP1.3): readiness in one line — the score, its coverage and what's still open; the method waits in Diligence. */
+function readinessLine(sc: Score): string {
+  if (sc.total == null) return "Investment readiness isn't judged yet.";
+  const open = sc.blockers.filter((x) => !x.acknowledged).map((x) => BLOCKER_WORD[x.key].toLowerCase());
+  return `Investment readiness ${sc.total} out of 100 on what's judged, with evidence for ${sc.coverage}% of it — a checklist, not a probability. ${open.length ? `Still open: ${listWords(open)}.` : "Nothing critical is open."}${sc.open < sc.blockers.length ? ` ${sc.blockers.length - sc.open} acknowledged by the owner.` : ""}`;
+}
+const listWords = (w: string[]) => (w.length <= 2 ? w.join(" and ") : `${w.slice(0, -1).join(", ")} and ${w.at(-1)}`);
+
+/** Diligence (IP1.3): the readiness score taken apart — the score, the coverage, every blocker with what it does to the
+ *  result, and any owner's acknowledgement with its reason. Missing evidence is shown as missing, not as a weak business. */
+function Readiness({ s }: { s: Score }) {
+  return (
+    <section className="flex flex-col gap-2" aria-label="Investment readiness, taken apart">
+      <p className="vp-eyebrow">Investment readiness · {READINESS_WORD[s.readiness]}</p>
+      <div className="vz-kpis grid gap-2 grid-cols-3">
+        <div className="vz-kpi"><span>Readiness score</span><b>{s.total == null ? "—" : `${s.total} / 100`}</b><em>on what&apos;s judged</em></div>
+        <div className="vz-kpi"><span>Evidence coverage</span><b>{s.coverage}%</b><em>of the score&apos;s weight</em></div>
+        <div className="vz-kpi"><span>Critical blockers</span><b>{s.open} open</b><em>{s.blockers.length - s.open ? `${s.blockers.length - s.open} acknowledged` : "none acknowledged"}</em></div>
+      </div>
+      <p className="vz-card-s">How it&apos;s worked out: four assessments (market 25, execution 25, finances 30, evidence 20), each a set of weighted criteria on written rubrics. A criterion with nothing to judge it by is left out of the score and counted against coverage, so missing evidence lowers coverage, not the score. A plan is called ready only with no critical blocker open — each one resolved, or acknowledged in writing by an owner.</p>
+      {s.blockers.length > 0 && (
+        <ol className="vz-path" aria-label="Critical blockers">
+          {s.blockers.map((x) => (
+            <li key={x.key} className="flex-col">
+              <div className="flex justify-between gap-3"><span>{BLOCKER_WORD[x.key]}</span><span className={x.acknowledged ? "k-tag gold" : "k-tag warn"}>{x.acknowledged ? "Acknowledged" : "Open"}</span></div>
+              <span className="vz-card-s">{x.says} {x.effect}</span>
+              {x.acknowledged && <span className="vz-card-s">The owner&apos;s reason: {x.acknowledged.note}</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+/** Diligence (IP1.3): the investor's terms in plain numbers — what the contract says, what's paid in the plan's three years,
+ *  what's still owed and when it's projected to be met, and what the modelled annual return means. All from the engine. */
+function Terms({ c, f }: { c: PlanCase; f: ReturnType<typeof figuresOf> }) {
+  const s = c.structure, inv = f.inv, b = f.models.base;
+  if (!inv || s.kind === "none") return null;
+  const rate = f.irrPct == null ? null : `${f.irrPct.toFixed(1)}% a year`;
+  const monthly = f.irrPct == null ? null : ((Math.pow(1 + f.irrPct / 100, 1 / 12) - 1) * 100).toFixed(2);
+  const capAt = inv.says.map((w) => /cap is met in month (\d+)/.exec(w)?.[1]).find(Boolean);
+  const lastSales = b.months[b.months.length - 1]?.revenue ?? 0;
+  const rows: [string, string][] = s.kind === "rev_share" ? [
+    ["What the investor puts in", dollars(s.amountCents)],
+    ["What the contract says", `${s.sharePct}% of each month's sales until ${dollars(s.amountCents * s.capMultiple)} (${s.capMultiple}× the investment) is repaid. A revenue share — no ownership of the business.`],
+    ["Paid in the plan's three years", `${dollars(inv.returned)} (${(inv.returned / s.amountCents).toFixed(2)}× so far)`],
+    ["Still owed after month 36", dollars(inv.stillOwed ?? 0)],
+    ["When the cap is projected to be met", capAt ? `Month ${capAt}, if sales hold at month 36's ${dollars(lastSales)} — about ${dollars((lastSales * s.sharePct) / 100)} a month to the investor. The plan's growth isn't extended past month 36.` : "Within the plan's three years."],
+  ] : [["What the investor puts in", dollars(s.amountCents)], ["What the contract says", inv.says[0]], ...(inv.ownershipPct != null ? [["Ownership", `${inv.ownershipPct.toFixed(1)}%`] as [string, string]] : []), ["Paid in the plan's three years", dollars(inv.returned)]];
+  return (
+    <section className="flex flex-col gap-2" aria-label="The investor's terms">
+      <p className="vp-eyebrow">The investor&apos;s terms, in plain numbers</p>
+      <ol className="vz-path">{rows.map(([l, v]) => <li key={l}><span>{l}</span><b>{v}</b></li>)}</ol>
+      {rate && <p className="vz-card-s">The modelled return, {rate}, is the investor&apos;s internal rate of return: the yearly rate at which every payment back{capAt ? ` through month ${capAt}` : ""}, discounted to opening day, adds up to the {dollars(s.amountCents)} put in. It works out to {monthly}% a month, compounded to a year. It&apos;s a projection from the plan&apos;s sales, not a promised rate — the contract promises only the {s.kind === "rev_share" ? "share and the cap" : "terms above"}.</p>}
+    </section>
+  );
+}

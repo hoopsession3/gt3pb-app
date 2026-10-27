@@ -75,7 +75,8 @@ const i = M.toInputs(base), m = M.project(i, structure), t = M.trace(i, structur
   ok("ROI says before tax and the investor, and gives the after figure", /before tax and the investor · \$\{t\.roiAfter\.display\} after/.test(slide));
   ok("the investor's rate says what the investor receives, and when it leans past month 36", /function investorNote\(/.test(slide) && /if year-3 sales hold/.test(slide) && /cap is met in month/.test(slide));
   ok("the investor's rate opens to its formula in Diligence", /k\(f\.inv \? "investorReturn" : null/.test(slide));
-  ok("readiness is a checklist score, not a probability; gaps and missing research are said", /not a probability of success/.test(slide) && /The plan still has gaps/.test(slide) && /No market research has been accepted yet/.test(slide));
+  // IP1.3: the Pitch line names the open blockers (gaps, unvalidated demand); Diligence takes each apart.
+  ok("readiness is a checklist score, not a probability; gaps and missing research are said", /a checklist, not a probability/.test(slide) && /Still open: \$\{listWords\(open\)\}/.test(slide) && /function Readiness\(/.test(slide));
 }
 
 // ── 4 · Explore, wider and still sandboxed ────────────────────────────────────────────────────────────────────────
@@ -102,7 +103,7 @@ const i = M.toInputs(base), m = M.project(i, structure), t = M.trace(i, structur
   const chart = read("components/vision/MoneyCharts.tsx"), pres = read("components/vision/Present.tsx"), slide = read("components/vision/CaseSlide.tsx");
   ok("the chart answers a tap, not only a hover", /onPointerDown=\{\(e\) => pick\(/.test(chart) && /e\.pointerType === "mouse"/.test(chart));
   ok("…and a tap on it, or on the table, never turns the slide", /\.vz-chart, \.vz-cmp-wrap/.test(pres) && /summary/.test(pres));
-  ok("the chart marks its lowest point and says when", /Lowest \{dollars\(v\)\}/.test(chart));
+  ok("the chart marks its lowest point and says when", /`Lowest \$\{dollars\(v\)\}/.test(chart) && /month \$\{m\}/.test(chart));  // IP1.3: placed by lowSpot
   ok("every month is in a table, without a pointer", /<summary>Month by month<\/summary>/.test(slide) && /aria-label="Cash, month by month"/.test(slide));
   ok("opening, lowest, month-36 cash and what the investor is paid are said beside the chart", /Cash on opening day/.test(slide) && /Lowest point/.test(slide) && /After three years/.test(slide) && /Paid to the investor/.test(slide));
   ok("a missing downside is said, not hidden", /There's no downside case in this plan yet\./.test(slide));

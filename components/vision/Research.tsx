@@ -8,7 +8,7 @@ import { failureOr, failureWords } from "@/lib/failureWords";
 import { haptic } from "@/lib/haptics";
 import Said from "@/components/Said";
 import type { MetricKey } from "@/lib/visionMoney";
-import { ASSESS_WEIGHT, READINESS_WORD, type AssessKey, type Readiness, type Score } from "@/lib/visionScore";
+import { ASSESS_WEIGHT, BLOCKER_WORD, READINESS_WORD, type AssessKey, type Blocker, type Readiness, type Score } from "@/lib/visionScore";
 import { BEARING_WORD, EVERY, EVERY_WORD, STALE_DAYS, TOPICS, TOPIC_WORD, age, domainOf, type Bearing, type Research } from "@/lib/visionResearch";
 
 // THE SCORE AND THE RESEARCH (R56, phase D). The score: out of 100, every factor its points, its weight, its rubric and
@@ -21,12 +21,18 @@ const TONE = (p: number | null) => (p == null ? "k-tag" : p >= 70 ? "k-tag ok" :
 const STATUS_TAG = { proposed: "k-tag", accepted: "k-tag ok", rejected: "k-tag warn" } as const;
 const STATUS_WORD = { proposed: "Proposed", accepted: "Accepted", rejected: "Rejected" } as const;
 
-export function ScoreCard({ s, onOpen }: { s: Score; onOpen: (k: MetricKey) => void }) {
+export function ScoreCard({ s, onOpen, onAcknowledge, ackWhy = null }: { s: Score; onOpen: (k: MetricKey) => void; onAcknowledge?: (key: string, note: string) => Promise<void>; ackWhy?: string | null }) {
   const [open, setOpen] = useState<AssessKey | null>(null);
   return (
     <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
       <div className="vz-drill-v"><b>{s.total == null ? "—" : s.total}<span className="vz-card-s"> / 100</span></b><span className={READY_TAG[s.readiness]}>{READINESS_WORD[s.readiness]}</span></div>
+      <div className="vz-kpis grid gap-2 grid-cols-3">
+        <div className="vz-kpi"><span>Readiness score</span><b>{s.total == null ? "—" : s.total}</b><em>on what&apos;s judged</em></div>
+        <div className="vz-kpi"><span>Evidence coverage</span><b>{s.coverage}%</b><em>of the weight judged</em></div>
+        <div className="vz-kpi"><span>Critical blockers</span><b>{s.open}</b><em>{s.blockers.length - s.open ? `open · ${s.blockers.length - s.open} acknowledged` : "open"}</em></div>
+      </div>
       <p className="vz-card-s">{s.says}</p>
+      {s.blockers.length > 0 && <Blockers list={s.blockers} onAcknowledge={onAcknowledge} why={ackWhy} />}
       <div className="vz-kpis grid gap-2 grid-cols-2 min-[700px]:grid-cols-4">
         {(Object.keys(s.assessments) as AssessKey[]).map((k) => { const a = s.assessments[k]; return (
           <button key={k} type="button" className={open === k ? "vz-kpi vz-kpi-btn moved" : "vz-kpi vz-kpi-btn"} aria-expanded={open === k} onClick={() => setOpen((v) => (v === k ? null : k))}>
@@ -55,6 +61,34 @@ export function ScoreCard({ s, onOpen }: { s: Score; onOpen: (k: MetricKey) => v
           <ol className="vz-path">{s.actions.map((x) => <li key={x.criterion}><span>{x.text}</span><b>up to +{x.gain}</b></li>)}</ol>
         </div>
       )}
+    </div>
+  );
+}
+
+/** IP1.3 — the critical blockers: what each is, what it does to the result, and an owner's acknowledgement with its reason. */
+function Blockers({ list, onAcknowledge, why }: { list: Blocker[]; onAcknowledge?: (key: string, note: string) => Promise<void>; why: string | null }) {
+  const [writing, setWriting] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  return (
+    <div className="flex flex-col gap-1">
+      <b className="font-sans">Critical blockers — resolve each, or an owner acknowledges it, before the plan is called ready</b>
+      <ol className="vz-path" aria-label="Critical blockers">
+        {list.map((b) => (
+          <li key={b.key} className="flex-col">
+            <div className="flex justify-between gap-3"><span>{BLOCKER_WORD[b.key]} · {b.kind}</span><span className={b.acknowledged ? "k-tag gold" : "k-tag warn"}>{b.acknowledged ? "Acknowledged" : "Open"}</span></div>
+            <span className="vz-card-s">{b.says}</span>
+            <span className="vz-card-s">What it does to the result: {b.effect}</span>
+            {b.acknowledged && <span className="vz-card-s">Owner&apos;s reason{b.acknowledged.at ? ` (${b.acknowledged.at.slice(0, 10)})` : ""}: {b.acknowledged.note}</span>}
+            {!b.acknowledged && onAcknowledge && (writing === b.key ? (
+              <form className="flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); if (note.trim()) void onAcknowledge(b.key, note).then(() => { setWriting(null); setNote(""); }); }}>
+                <label className="prod-f"><span>Why it&apos;s acceptable to present with this open — investors on a link see this reason</span><textarea rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} /></label>
+                <div className="flex gap-2"><button type="submit" className="btn-sec btn-sm" disabled={!note.trim()}>Acknowledge</button><button type="button" className="btn-ter" onClick={() => { setWriting(null); setNote(""); }}>Cancel</button></div>
+              </form>
+            ) : <button type="button" className="btn-ter self-start" onClick={() => { setWriting(b.key); setNote(""); }}>Acknowledge with a reason</button>)}
+          </li>
+        ))}
+      </ol>
+      {!onAcknowledge && why && list.some((b) => !b.acknowledged) && <p className="vz-card-s">{why}</p>}
     </div>
   );
 }

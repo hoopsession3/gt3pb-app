@@ -110,6 +110,9 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vp-table summary{cursor:pointer;min-height:32px;display:flex;align-items:center;font-family:var(--sans);font-weight:700;font-size:15px;color:#c8a661}
 .vp-table summary:focus-visible{outline:2px solid #c8a661;outline-offset:2px}
 .vz-chart .low circle{fill:none;stroke:currentColor;stroke-width:1.5}
+.vz-chart .low line{stroke:var(--cream-d);stroke-width:1}
+.vz-chart .low text{paint-order:stroke;stroke:var(--card);stroke-width:4px;stroke-linejoin:round}
+.vp .vz-chart .low text{stroke:#100e0a}
 .vp-tap{margin:0;text-align:center;font-family:var(--sans);font-size:12px;color:rgba(245,241,232,.45)}
 
 @keyframes vzRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}

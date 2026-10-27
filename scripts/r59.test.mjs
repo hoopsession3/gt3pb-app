@@ -34,7 +34,11 @@ const ctx = { needs: { done: 3, all: 6 }, waitingOn: [], conservative: { ok: tru
   ok("execution: half the needs (50·30) + nothing waited on (100·25) + staffed every hour (100·20) ÷ 75 → 80; the room not judged", a.execution.score === 80, a.execution.criteria.map((c) => [c.key, c.points]));
   ok("financial: payback month 21 → 50, break-even month 1 → 100, ROI 100% → 50, Conservative holds → 100 → 73", a.financial.score === 73, a.financial.criteria.map((c) => [c.key, c.points]));
   ok("evidence: costs 60, three accepted → 75, all fresh → 100, three of four reviewed → 75 → 74", a.evidence.score === 74, a.evidence.criteria.map((c) => [c.key, c.points]));
-  ok("readiness: (67·25 + 80·25 + 73·30 + 74·20) ÷ 100 → 73, and the gate passes: ready to present", s.total === 73 && s.readiness === "ready", [s.total, s.readiness]);
+  ok("readiness: 73 on what's judged (IP1.3 — each criterion at its share of its assessment's weight, the same weights)", s.total === 73, s.total);
+  // IP1.3: one accepted finding against the plan is a critical blocker — answered, or acknowledged by an owner, before "ready".
+  ok("…a finding against the plan holds it at needs validation until it's answered", s.readiness === "validate" && s.blockers.map((x) => x.key).join() === "evidence_against", [s.readiness, s.blockers.map((x) => x.key)]);
+  const ack = S.score(i, m, research, { ...ctx, acknowledged: [{ key: "evidence_against", note: "The nearest competitor serves a different crowd; see the site visit." }] });
+  ok("…and with an owner's written acknowledgement, the gate passes: ready to present", ack.readiness === "ready" && ack.open === 0 && ack.total === 73, [ack.readiness, ack.open]);
   ok("each assessment says why, the evidence and what's uncertain", Object.values(a).every((x) => x.why.length > 10 && Array.isArray(x.evidence) && Array.isArray(x.uncertain)));
   ok("every criterion writes down its rubric and an action", Object.values(a).every((x) => x.criteria.every((c) => c.rubric.length > 20 && c.action.length > 10)));
   ok("the assessments' weights add to 100, and each one's criteria are weighted", Object.values(S.ASSESS_WEIGHT).reduce((n, w) => n + w, 0) === 100);

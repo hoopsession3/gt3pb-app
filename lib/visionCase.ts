@@ -21,7 +21,7 @@ export function figuresOf(raw: PlanCase, room: Pick<Layout, "items"> | null = nu
   const ctx = (x: Inputs): Context => (room ? { counterPerHour: capacity(room, x.serveSec ?? ASSUMED_SERVE_SEC).counterPerHour } : NO_ROOM);
   const models = Object.fromEntries(SCENARIOS.map((s) => [s, project(c.scenarios[s], c.structure, ctx(c.scenarios[s]))])) as Record<Scenario, Model>;
   const accepted = c.research.map((r) => ({ topic: r.topic, status: "accepted" as const, bearing: r.bearing, retrieved_at: r.retrieved_at }));
-  const scores = Object.fromEntries(SCENARIOS.map((s) => [s, score(c.scenarios[s], models[s], accepted, { conservative: s === "base" ? models.conservative : null })])) as Record<Scenario, Score>;
+  const scores = Object.fromEntries(SCENARIOS.map((s) => [s, score(c.scenarios[s], models[s], accepted, s === "base" ? { conservative: models.conservative.ok ? models.conservative : null, acknowledged: c.acknowledged } : {})])) as Record<Scenario, Score>;
   const inv = models.base.ok && c.structure.kind !== "none" ? investor(models.base, c.structure) : null;
   return { models, base: trace(c.scenarios.base, c.structure, models.base), scores, irrPct: inv?.irrPct ?? null, inv };
 }

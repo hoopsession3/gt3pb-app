@@ -24,17 +24,34 @@ export type Criterion = { key: CriterionKey; label: string; weight: number; poin
 export type Assessment = { key: AssessKey; label: string; score: number | null; criteria: Criterion[]; why: string; evidence: string[]; uncertain: string[] };
 export type Readiness = "ready" | "validate" | "not_ready" | "unknown";
 export const READINESS_WORD: Record<Readiness, string> = { ready: "Ready to present", validate: "Needs validation", not_ready: "Not ready", unknown: "Not judged yet" };
+/** IP1.3 — what must be resolved, or acknowledged by an owner, before a plan is called ready to present. */
+export type BlockerKey = "demand_unvalidated" | "evidence_against" | "no_downside" | "costs_unpriced" | "inputs_missing" | "waiting_on";
+export type BlockerKind = "unvalidated demand" | "conflicting evidence" | "missing downside" | "incomplete assumptions" | "unfinished dependency";
+export type Acknowledgement = { key: string; note: string; at?: string | null };
+export type Blocker = { key: BlockerKey; kind: BlockerKind; says: string; effect: string; criterion: CriterionKey | null; acknowledged: Acknowledgement | null };
+export const BLOCKER_WORD: Record<BlockerKey, string> = {
+  demand_unvalidated: "Demand isn't validated", evidence_against: "Research weighs against the plan", no_downside: "No downside case",
+  costs_unpriced: "Startup costs not priced", inputs_missing: "Inputs missing", waiting_on: "Waits on another plan" };
 export type Score = {
-  /** Overall investment readiness, 0–100 (null until the money is set). */
+  /** Investment readiness score, 0–100, on what is judged (null until the money is set). IP1.3: a criterion with nothing
+   *  to judge it by is left out of the score and counted against coverage — missing evidence is not a weak business. */
   total: number | null; readiness: Readiness; says: string;
-  /** How much of the weight is judged, 0–100: the total counts the rest as zero (S1.1c). */
+  /** Evidence coverage, 0–100: the share of the score's weight (criterion by criterion) that has something to judge it by. */
   coverage: number;
+  /** Critical readiness blockers: each open one holds the plan at "Needs validation" until resolved or acknowledged. */
+  blockers: Blocker[];
+  /** Blockers neither resolved nor acknowledged. */
+  open: number;
   assessments: Record<AssessKey, Assessment>;
   /** The three changes that would raise the outcome most, each with the criterion it moves. */
   actions: { text: string; criterion: CriterionKey; gain: number }[];
 };
 /** What the plan's money alone can't say: its needs, what it waits on, its Conservative run. */
-export type ScoreContext = { needs?: { done: number; all: number }; waitingOn?: readonly string[]; conservative?: Model | null; now?: number };
+export type ScoreContext = { needs?: { done: number; all: number }; waitingOn?: readonly string[];
+  /** The Conservative run beside a Base: null when it isn't set (a missing downside); left out where it doesn't apply. */
+  conservative?: Model | null; now?: number;
+  /** Owner acknowledgements of open blockers, stored with the approved baseline (only an owner can write it — 0449's guard). */
+  acknowledged?: readonly Acknowledgement[] };
 type Finding = Pick<Research, "topic" | "status"> & { bearing?: Bearing | null; retrieved_at?: string };
 
 const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
@@ -165,23 +182,55 @@ export function score(raw: Inputs, m: Model, research: readonly Finding[] = [], 
     [lines.length - priced.length > 0 ? `${lines.length - priced.length} startup line${lines.length - priced.length === 1 ? "" : "s"} not priced.` : ""].filter(Boolean));
 
   const assessments = { market, execution, financial, evidence };
-  const scored = (Object.keys(assessments) as AssessKey[]).filter((k) => assessments[k].score != null);
-  // An assessment not judged yet counts as zero, not as absent (S1.1c — the audit's H1: dividing by the judged weight
-  // alone let one strong assessment and three unknowns read as ready). Coverage says how much of the total is judged.
-  const allW = (Object.keys(assessments) as AssessKey[]).reduce((n, k) => n + ASSESS_WEIGHT[k], 0);
-  const coverage = Math.round((scored.reduce((n, k) => n + ASSESS_WEIGHT[k], 0) / allW) * 100);
-  const total = m.ok && scored.length > 0 ? clamp(scored.reduce((n, k) => n + assessments[k].score! * ASSESS_WEIGHT[k], 0) / allW) : null;
-  // The gate: a plan isn't ready to present on a strong spreadsheet alone.
+  const keys = Object.keys(assessments) as AssessKey[];
+  // IP1.3 (Ryan, 2026-10-27: "without conflating missing evidence with demonstrated business weakness… Do not arbitrarily
+  // change scoring weights"). Each criterion carries its share of its assessment's weight — the same weights as before.
+  // The score is the weighted mean of the criteria that are judged; coverage is the weight that is. S1.1c counted an
+  // unjudged assessment as zero, which read missing research as a weak business; what it guarded against (one strong
+  // assessment and three unknowns reading as ready) is held now by coverage and the blockers, not by a zero.
+  const ew = (k: AssessKey, c: Criterion) => (c.weight / assessments[k].criteria.reduce((n, x) => n + x.weight, 0)) * ASSESS_WEIGHT[k];
+  const allW = keys.reduce((n, k) => n + ASSESS_WEIGHT[k], 0);
+  const judged = keys.flatMap((k) => assessments[k].criteria.filter((c) => c.points != null).map((c) => ({ w: ew(k, c), p: c.points! })));
+  const judgedW = judged.reduce((n, x) => n + x.w, 0);
+  const coverage = Math.round((judgedW / allW) * 100);
+  const total = m.ok && judgedW > 0 ? clamp(judged.reduce((n, x) => n + x.p * x.w, 0) / judgedW) : null;
+  const weightOf = (key: CriterionKey) => { for (const k of keys) { const c = assessments[k].criteria.find((x) => x.key === key); if (c) return Math.round(ew(k, c)); } return 0; };
+  // ── the blockers: each says what it is and what it does to the result ──
+  const acks = ctx.acknowledged ?? [];
+  const found: Omit<Blocker, "acknowledged">[] = [];
+  const unsupported = accepted.filter((r) => MARKET.includes(r.topic) && r.bearing !== "for" && r.bearing !== "against").length;
+  if (!marketFound.length) found.push({ key: "demand_unvalidated", kind: "unvalidated demand", criterion: "demandSupport",
+    says: accepted.length ? `${accepted.length} accepted finding${accepted.length === 1 ? "" : "s"}, but none marked for or against the plan${unsupported ? ` (${unsupported} on the market left unmarked)` : ""} — demand is still an assumption.` : "No accepted research says whether people there want it — demand is an assumption.",
+    effect: `"What the market's sources say" isn't judged: ${weightOf("demandSupport")} of 100 points of weight wait on it, so coverage can't pass ${100 - weightOf("demandSupport")}%.` });
+  if (againstN > 0) found.push({ key: "evidence_against", kind: "conflicting evidence", criterion: "demandSupport",
+    says: `${againstN} accepted finding${againstN === 1 ? "" : "s"} weigh${againstN === 1 ? "s" : ""} against the plan, ${forN} for it.`,
+    effect: `What the market's sources say scores ${market.criteria[0].points}/100. Answer each one against — or change the plan where it's right.` });
+  if (ctx.conservative !== undefined && !ctx.conservative?.ok) found.push({ key: "no_downside", kind: "missing downside", criterion: "conservativeHolds",
+    says: "The plan hasn't been run with lower sales — there's no Conservative case.",
+    effect: `"Conservative still breaks even" isn't judged: ${weightOf("conservativeHolds")} of 100 points of weight wait on it.` });
+  const unpriced = lines.length - priced.length;
+  if (unpriced > 0) found.push({ key: "costs_unpriced", kind: "incomplete assumptions", criterion: "costs",
+    says: `${unpriced} startup line${unpriced === 1 ? "" : "s"} not priced — the opening cost is understated by whatever ${unpriced === 1 ? "it costs" : "they cost"}.`,
+    effect: `Counted in the score: "Startup costs priced and sure" is ${evidence.criteria[0].points}/100, and every figure built on the opening cost leaves ${unpriced === 1 ? "it" : "them"} out.` });
+  if (m.missing?.length) found.push({ key: "inputs_missing", kind: "incomplete assumptions", criterion: null,
+    says: `Not filled in: ${m.missing.join(", ")}.`, effect: "The money can't be worked out until they are, so nothing is scored." });
+  if (ctx.waitingOn?.length) found.push({ key: "waiting_on", kind: "unfinished dependency", criterion: "noBlockers",
+    says: `Waits on ${ctx.waitingOn.join(", ")}.`, effect: `"Nothing it waits on is unfinished" scores 0/100 until ${ctx.waitingOn.length === 1 ? "it's" : "they're"} underway.` });
+  const blockers: Blocker[] = found.map((b) => ({ ...b, acknowledged: acks.find((a) => a.key === b.key && a.note.trim()) ?? null }));
+  const open = blockers.filter((b) => !b.acknowledged).length;
+  // The gate: a plan isn't ready to present on a strong spreadsheet alone. Demonstrated weakness → not ready; an open
+  // blocker, thin evidence or a middling score → needs validation. Thresholds unchanged.
   const readiness: Readiness = total == null ? "unknown"
     : (financial.score ?? 0) < 40 || (execution.score ?? 100) < 40 ? "not_ready"
-    : market.score == null || (evidence.score ?? 0) < 50 || total < 70 ? "validate" : "ready";
+    : open > 0 || (evidence.score ?? 0) < 50 || total < 70 ? "validate" : "ready";
   // The three actions that would raise readiness most: each criterion's room to rise × its weight in its assessment ×
   // the assessment's weight. An unjudged market criterion counts as all room to rise — validating it is the step.
-  const actions = (Object.keys(assessments) as AssessKey[]).flatMap((k) => {
+  const actions = keys.flatMap((k) => {
     const a = assessments[k], cw = a.criteria.reduce((n, c) => n + c.weight, 0);
     return a.criteria.filter((c) => (c.points ?? (k === "market" ? 0 : null)) != null && (c.points ?? 0) < 100)
       .map((c) => ({ text: c.action, criterion: c.key, gain: Math.round(((100 - (c.points ?? 0)) * (c.weight / cw) * ASSESS_WEIGHT[k]) / 100) }));
   }).sort((a, b) => b.gain - a.gain).slice(0, 3);
-  return { total, coverage, readiness, assessments, actions,
-    says: total == null ? "Set the money to see the assessment." : `${READINESS_WORD[readiness]} — ${total} of 100, with ${scored.length} of 4 assessments judged (${coverage}% of the weight); what isn't judged counts as zero. GT3's written rubrics, not a probability of success; the returns are the money's own figures.` };
+  const acked = blockers.length - open;
+  return { total, coverage, readiness, assessments, actions, blockers, open,
+    says: total == null ? "Set the money to see the assessment." : `${READINESS_WORD[readiness]} — ${total} of 100 on what's judged, with evidence for ${coverage}% of the weight. ${open ? `${open} critical blocker${open === 1 ? "" : "s"} open` : blockers.length ? "No blocker left open" : "No critical blockers"}${acked ? ` (${acked} acknowledged by an owner)` : ""}. GT3's written rubrics, not a probability of success; the returns are the money's own figures.` };
 }
