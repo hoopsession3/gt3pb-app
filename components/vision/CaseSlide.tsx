@@ -9,6 +9,7 @@ import { TOPIC_WORD, domainOf } from "@/lib/visionResearch";
 import { EXPLORE_FIGURES, LEVERS, LEVER_WORD, isEdited, leverRange, whatIf, type CasePart, type Edits, type Lever, type PresentMode } from "@/lib/visionPresent";
 import type { Layout } from "@/lib/vision";
 import type { Plan } from "@/lib/visionPlans";
+import { money } from "@/lib/money";
 import { CashChart, SC_SWATCH } from "./MoneyCharts";
 
 // A PLAN'S CASE, PRESENTED (R57, phase E). What it takes and what it returns — from the owner-approved baseline, through
@@ -100,7 +101,7 @@ function Explore({ c, room, base }: { c: PlanCase; room: Layout | null; base: Re
   const [edits, setEdits] = useState<Edits>({});
   const mine = useMemo(() => figuresOf(whatIf(c, edits), room), [c, edits, room]);
   const edited = isEdited(edits);
-  const say = (l: Lever, v: number) => (l === "cogsPct" ? `${v}%` : l === "ordersPerDay" ? `${v}` : l === "avgOrderCents" ? `$${(v / 100).toFixed(2)}` : dollars(v));
+  const say = (l: Lever, v: number) => (l === "cogsPct" ? `${v}%` : l === "ordersPerDay" ? `${v}` : l === "avgOrderCents" ? money(v) : dollars(v));
   return (
     <section className="vp-explore" aria-label="Your what-if">
       <div className="vp-explore-head">
