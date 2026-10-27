@@ -6,7 +6,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { raiseAlertClient } from "@/lib/clientAlerts";
 import { useAppStable } from "./AppProvider";
 import { useAuth } from "./AuthProvider";
-import { GTM_PLAYS, type GtmPlay } from "@/lib/strategy";
+import type { GtmPlay } from "@/lib/strategy";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import { failureWords, plainFailure } from "@/lib/failureWords";
@@ -270,4 +270,3 @@ export function useDrafts() {
   }, [load]);
   return { drafts, reload: load, retire, state };
 }
-export { GTM_PLAYS };

@@ -16,7 +16,7 @@ import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
   moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta, expectationsFor,
   readinessGap, renewalLeft, assignmentDone, teamMemberRow, toAcademyRole,
-  type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike,
+  type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike, type Cookbook,
 } from "@/lib/academy";
 import { staffAccess } from "@/lib/access";
 import { useBackStep } from "@/components/useBackStep";
@@ -24,6 +24,8 @@ import Button from "@/components/Button";
 import Said from "@/components/Said";
 import { useMinute } from "@/lib/useMinute";
 import { useLatestRead } from "@/lib/useLatestRead";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { authedFetch } from "@/lib/authedFetch";
 import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
@@ -543,11 +545,36 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
       <SectionHeader label="FAQs" />
       {p.faqs.map((f, i) => <div key={i} className="ac-faq"><b>{f.q}</b><span>{f.a}</span></div>)}
 
-      {p.cookbook && (
+      <CookbookPanel productKey={p.key} />
+    </section>
+  );
+}
+
+// ── the cookbook, read from the server (IP0 containment, 2026-10-27) ──
+// The recipes and specs no longer ship in this page's JavaScript: they come from /api/academy/cookbook, which answers only
+// a signed-in caller the database lets read them, and are kept in memory for the visit — never in storage.
+let cookbookCache: Record<string, Cookbook> | null = null;
+async function loadCookbook(): Promise<Record<string, Cookbook>> {
+  if (cookbookCache) return cookbookCache;
+  const r = await authedFetch("/api/academy/cookbook");
+  if (r.status === 401) throw new Error("The cookbook is for the team — sign in with a staff account to read it.");
+  const j = (await r.json().catch(() => null)) as { ok?: boolean; cookbook?: Record<string, Cookbook> } | null;
+  if (!r.ok || !j?.ok || !j.cookbook) throw new Error("Couldn't read the cookbook just now.");
+  cookbookCache = j.cookbook;
+  return j.cookbook;
+}
+function CookbookPanel({ productKey }: { productKey: string }) {
+  const state = useAsyncData(loadCookbook, []);
+  if (state.status === "error") return <><SectionHeader label="Cookbook · operating spec" /><p className="load-failed">{failureWords(state.error as Error, "Couldn't read the cookbook")}</p></>;
+  if (!state.data) return <><SectionHeader label="Cookbook · operating spec" /><Skeleton variant="row" count={3} /></>;
+  const cb = state.data[productKey];
+  if (!cb) return null;
+  return (
+    <>
         <>
           <SectionHeader label="Cookbook · operating spec" />
-          {p.cookbook.batch && <div className="ac-faq"><b>Batch</b><span>{p.cookbook.batch}</span></div>}
-          {p.cookbook.brew && (
+          {cb.batch && <div className="ac-faq"><b>Batch</b><span>{cb.batch}</span></div>}
+          {cb.brew && (
             <div>
               <div className="ac-mini-h">Procedure</div>
               {/* 2026-10-01. A new operator is joining who will be cooking, and the Cookbook is
@@ -555,7 +582,7 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
                   searching these sentences for the word "weigh" — see the note on that field in
                   lib/academy.ts. It appears on the procedures that weigh and nowhere else, for the
                   same reason BrewSteps only shows it on weighed lines. */}
-              {p.cookbook.weighs && (
+              {cb.weighs && (
                 <CookEnforcement label="Scale">
                   Anything weighed here goes on a scale on a <b>hard, flat, level surface</b> — a
                   counter, not a cutting board, towel, tray, or the lip of a sink. Empty container
@@ -564,16 +591,15 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
                   scale — or one zeroed with something already on it — carries into the whole batch.
                 </CookEnforcement>
               )}
-              <ol className="ac-ol">{p.cookbook.brew.map((x) => <li key={x}>{x}</li>)}</ol>
+              <ol className="ac-ol">{cb.brew.map((x) => <li key={x}>{x}</li>)}</ol>
             </div>
           )}
-          {p.cookbook.serve && <div><div className="ac-mini-h">Serve</div><ul className="ac-ul">{p.cookbook.serve.map((x) => <li key={x}>{x}</li>)}</ul></div>}
-          {p.cookbook.storage && <div className="ac-faq"><b>Storage</b><span>{p.cookbook.storage}</span></div>}
-          {p.cookbook.quality && <div className="ac-faq"><b>Quality standard</b><span>{p.cookbook.quality}</span></div>}
-          {p.cookbook.troubleshoot && <div><div className="ac-mini-h">Troubleshooting</div>{p.cookbook.troubleshoot.map((t, i) => <div key={i} className="ac-faq"><b>{t.issue}</b><span>{t.fix}</span></div>)}</div>}
+          {cb.serve && <div><div className="ac-mini-h">Serve</div><ul className="ac-ul">{cb.serve.map((x) => <li key={x}>{x}</li>)}</ul></div>}
+          {cb.storage && <div className="ac-faq"><b>Storage</b><span>{cb.storage}</span></div>}
+          {cb.quality && <div className="ac-faq"><b>Quality standard</b><span>{cb.quality}</span></div>}
+          {cb.troubleshoot && <div><div className="ac-mini-h">Troubleshooting</div>{cb.troubleshoot.map((t, i) => <div key={i} className="ac-faq"><b>{t.issue}</b><span>{t.fix}</span></div>)}</div>}
         </>
-      )}
-    </section>
+    </>
   );
 }
 

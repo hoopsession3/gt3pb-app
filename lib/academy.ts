@@ -771,7 +771,11 @@ export interface Product {
   customer: string; talking: string[]; faqs: { q: string; a: string }[];
   // Three voices to explain it — match the guest: Simple (rushed), GT3 (curious), Founders (the deeper why).
   voices?: { simple: string; gt3: string; founder: string };
-  cookbook?: {
+}
+
+/** A product's cookbook — its operating spec. The data is confidential and lives server-side in lib/academyCookbook
+ *  (IP0); this is only its shape, so the Academy page can draw what the authed route returns. */
+export interface Cookbook {
     batch?: string; brew?: string[]; serve?: string[]; storage?: string; quality?: string;
     troubleshoot?: { issue: string; fix: string }[];
     // ── DOES THIS PROCEDURE PUT SOMETHING ON A SCALE? (2026-10-01) ────────────────────────────
@@ -794,7 +798,6 @@ export interface Product {
     // every amount is written and none is weighed; lib/operatorKb.ts tells the assistant, and smoke
     // holds the flag to that.
     byVolume?: boolean;
-  };
 }
 
 export const PRODUCTS: Product[] = [
@@ -815,7 +818,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Rise is our morning bottle — single-origin coffee cold-extracted over ~18 hours so it comes out rounder and less bitter than hot coffee, then finished with organic coconut water for a light, clean lift.",
       founder: "We cold-extract instead of brewing hot out of respect for the coffee — heat rips out bitterness and acid in minutes; cold draws it gently over hours. The coconut water isn't a gimmick, it's GT3's whole-coconut hydration thread carried into the first cup of the day. Rise is the handshake: real coffee, no burnt bite, nothing to hide.",
     },
-    cookbook: { weighs: true, batch: "Standard Batch — GT3 (1:13, ~18-hr cold extraction).", brew: ["Weigh beans 1:13 to mineral water", "Cold-extract ~18 hrs", "Filter, log batch + signal score (target 8+)"], serve: ["Pour over ice", "Top with organic coconut water", "Serve in glass, made to order"], storage: "Keep cold; use within the standard hold window.", quality: "Signal Score 8+ (Energy/Clarity/Flavor/Smoothness).", troubleshoot: [{ issue: "Too bitter", fix: "Check grind/time — over-extraction; pull back toward spec." }, { issue: "Weak", fix: "Verify 1:13 ratio and full 18-hr extraction." }] },
   },
   {
     key: "flow", name: "Flow", line: "Activation", price: "$10",
@@ -834,7 +836,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Flow takes the same cold-extracted base as Rise and infuses whole organic cacao nibs — so you get a richer, longer-feeling cup without a sweetened chocolate syrup. Same caffeine as the rest of the line.",
       founder: "Flow is the deep-work bottle. The cacao note isn't dessert — it's whole nibs steeped into the brew, the bitterness reading as depth instead of sugar. It's the same coffee as Rise; the difference is the ride. When someone's locking in for hours, this is the one to point them to.",
     },
-    cookbook: { batch: "Standard Batch — GT3 with cacao-nib infusion.", brew: ["Brew base to spec", "Infuse organic cacao nibs", "Filter and log batch"], serve: ["Pour over ice in glass"], storage: "Keep cold; standard hold window.", quality: "Signal Score 8+; cacao aroma present, not muddy.", troubleshoot: [{ issue: "Muddy/silty", fix: "Improve filtration after nib infusion." }] },
   },
   {
     key: "dusk", name: "Dusk", line: "Activation", price: "$10",
@@ -853,7 +854,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Dusk is the same clean cold-brew base spiced with Ceylon cinnamon and green cardamom. It reads warm and cozy for the back half of the day — but it's not a decaf or wind-down; the lift is identical to Rise and Flow.",
       founder: "People assume 'evening spice' means less caffeine — it doesn't, and that's the one thing we'll always correct. Dusk is the same coffee, same lift, just dressed in baking spice instead of cacao. The cinnamon and cardamom are real, infused, never gritty. It's comfort without a single gram of added sugar.",
     },
-    cookbook: { batch: "Standard Batch — GT3 with cinnamon + cardamom.", brew: ["Brew base to spec", "Add Ceylon cinnamon + green cardamom", "Filter and log batch"], serve: ["Pour over ice; garnish per spec"], storage: "Keep cold; standard hold window.", quality: "Spice aromatic, balanced — not gritty.", troubleshoot: [{ issue: "Gritty", fix: "Use infusion, not loose ground spice in the bottle." }] },
   },
   {
     key: "nature_aid", name: "Nature's Aide", line: "Hydration", price: "$10",
@@ -873,7 +873,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Nature's Aide is our light hydration — coconut water and lime juice with organic maple syrup and a pinch of sea salt. The maple and salt balance each other; it's real ingredients, not a powdered sports drink.",
       founder: "Hydration doesn't need a lab. Coconut water and lime carry what the body's after, organic maple gives it just enough, and sea salt rounds it out. The maple is the sweetener and we always name it — we disclose, we never hide behind 'no added sugar.' Simple, real, and it goes down easy in the middle of the work.",
     },
-    cookbook: { batch: "Mix to order (no long batch).", brew: ["Combine coconut water + lime juice", "Add organic maple syrup + sea salt to spec", "Stir until fully dissolved"], serve: ["Serve cold, in glass"], storage: "Make to order; keep cold.", quality: "Balanced sweet-and-salt, never cloying.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce maple to spec." }, { issue: "Tastes flat", fix: "A pinch more sea salt lifts it." }] },
   },
   {
     key: "tide", name: "Tide", line: "Hydration", price: "$12",
@@ -892,7 +891,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Tide is whole-coconut hydration — young coconut water blended with young organic Thai coconut meat and finished with organic local honey. Blended to order from real coconut, not mixed from a powder or concentrate.",
       founder: "Tide is the whole coconut, not an electrolyte isolate — the water and the meat blended together, the way the body actually wants it. The honey is local and it's the one sweetener; we always name it, allergen and all. We disclose, we never hide behind 'no added sugar.'",
     },
-    cookbook: { batch: "Blend to order (no long batch).", brew: ["Combine young coconut water + young organic Thai coconut meat", "Add measured organic local honey per spec", "Blend until smooth"], serve: ["Serve cold, in glass, immediately"], storage: "Make to order; do not hold blended.", quality: "Smooth, no separation at serve.", troubleshoot: [{ issue: "Too sweet", fix: "Reduce honey to spec; honey is the only added sweetener." }, { issue: "Separating", fix: "Serve immediately after blend." }] },
   },
   {
     key: "nitro", name: "King Me (Nitro)", line: "Activation", price: "$14",
@@ -911,7 +909,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Nitro is our cold-brew charged with pure nitrogen and poured from a stout faucet — the nitrogen breaks into tiny bubbles that cascade and settle into a silky, creamy head. No dairy, no sugar, just the same clean coffee with a texture that turns heads at events.",
       founder: "The cascade is half the product — people drink with their eyes first. We charge with pure N₂ around 35 PSI, keep the keg cold at 34–40°F, and let it rest before it ever pours, because a rushed keg pours flat and a flat nitro isn't GT3. When it's done right and that creamy head settles tight, you've sold the next three before you've said a word.",
     },
-    cookbook: { batch: "Keg the Standard Batch cold brew (Torpedo keg + pure N₂).", brew: ["Chill the cold brew to 34–40°F first", "Fill the keg leaving headspace (don't top off)", "Hook up PURE nitrogen; set the regulator to 35 PSI (range 30–45 — not 10)", "Gently shake/roll the keg 2–5 min at 35 PSI to dissolve nitrogen", "Rest cold 30–60 min minimum — overnight is better"], serve: ["Open the stout/nitro faucet fully, pour straight, no ice", "Let it cascade and settle into a creamy head"], storage: "Keep the keg cold and pressurized at ~35 PSI.", quality: "Tight cascade + fine, creamy microfoam.", troubleshoot: [{ issue: "Flat pour", fix: "Flush the restrictor disc; confirm ~35 PSI, keg cold + rested. Just charged → needs more rest." }, { issue: "Foamy/wild", fix: "Keg too warm or over-pressured — cool fully, ease toward 35 PSI." }] },
   },
   {
     key: "cold_extract", name: "Cold Extracted Coffee", line: "Foundation", price: "—",
@@ -929,7 +926,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Cold extraction is the foundation of the whole Activation line: single-origin beans at 1:13 to mineral water, drawn cold over ~18 hours, then filtered. Heat rips bitterness out in minutes; cold draws the coffee gently, so what's left is round and smooth — extracted, not sweetened.",
       founder: "We built the entire base on cold extraction for one reason: when you taste the difference, you stop needing anyone to sell it. One great base under Rise, Flow, Dusk and Nitro means the cup is the same in every city. That's not a shortcut — it's the whole point.",
     },
-    cookbook: { weighs: true, batch: "Standard Batch — GT3: 1:13 beans to mineral water, ~18-hr extraction.", brew: ["Weigh to 1:13", "Cold-extract ~18 hrs", "Filter; log batch + signal score"], serve: ["Use as the base for Rise/Flow/Dusk/Nitro"], storage: "Keep cold; honor the hold window.", quality: "Signal Score 8+; smoothness is the watch metric.", troubleshoot: [{ issue: "Low smoothness signal", fix: "Adjust grind/time toward spec; re-profile." }] },
   },
   {
     key: "salted_maple", name: "Salted Maple Latte", line: "Specialty", price: "$14",
@@ -950,23 +946,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Salted Maple Latte is built on the cold-brew base with organic A2 grass-fed goat milk, real organic maple, and a pinch of sea salt. The salt balances the maple so it reads rich and smooth — maple-forward, never cloying. Maple's the sweetener and we name it.",
       founder: "This is the one that proves 'treat' and 'clean' aren't opposites. Real maple instead of flavored syrup, A2 goat milk instead of a mystery barista blend, a pinch of salt to keep it honest — indulgent without a single ingredient we'd have to hide.",
     },
-    cookbook: {
-      byVolume: true,
-      batch: "10 oz bottle: 6.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp Salted Maple Syrup. 32 oz bottle: 20 fl oz DUSK, 6 fl oz goat milk, 9 tbsp syrup (½ cup + 1 tbsp). More bottles: multiply the 10 oz amounts. One batch of syrup makes 8 × 10 oz bottles.",
-      brew: [
-        "Syrup (makes 8 bottles): warm 12 fl oz organic maple syrup in a pan on low heat.",
-        "Stir in 2 tbsp sea salt until it dissolves.",
-        "Take it off the heat as soon as it starts to bubble — don't let it bubble over.",
-        "Cool, then store in a glass container.",
-        "To build a bottle, shake or stir the syrup first.",
-        "Into a 10 oz bottle: 6.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp syrup (a 32 oz bottle: 20 fl oz, 6 fl oz, 9 tbsp).",
-        "Cap and shake. No extra salt — it's all in the syrup.",
-      ],
-      serve: ["Over ice, or served warm per build", "Made to order"],
-      storage: "Make to order. Syrup: glass container; shake or stir before each use.",
-      quality: "Sweet-salty balance; maple-forward, not cloying.",
-      troubleshoot: [{ issue: "Too sweet or too salty", fix: "Check the build: 3 tbsp syrup per 10 oz bottle and no added salt." }],
-    },
   },
   {
     key: "bone_broth", name: "Bone Broth", line: "Fuel", price: "$10",
@@ -984,7 +963,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Bone Broth is cooked for hours from pasture-raised bones (beef, bison, or ostrich), strained and seasoned — no bouillon, no additives. Served hot as a savory, protein-forward option for the rebuild after the work.",
       founder: "Broth is the oldest 'functional' food there is, and it needs no marketing — just hours on the stove and real bones. We call it warm, savory fuel and stop there; we won't promise your joints anything. The honesty is the product.",
     },
-    cookbook: { batch: "Cook a batch per broth spec.", brew: ["Cook pasture-raised bones for hours per spec", "Strain, season to spec", "Cool and hold safely"], serve: ["Serve hot in cup", "Hold hot at safe temp"], storage: "Hold hot; discard outside safe hold window.", quality: "Clear, rich, well-seasoned; no off-notes.", troubleshoot: [{ issue: "Greasy", fix: "Skim fat; strain again." }, { issue: "Flat", fix: "Season to spec; check cook time." }] },
   },
   {
     key: "coconut_shake", name: "Coconut Shake", line: "Hydration", price: "$8",
@@ -1003,7 +981,6 @@ export const PRODUCTS: Product[] = [
       gt3: "Coconut Shake is our richer take on whole-coconut hydration — young coconut water blended with extra coconut meat for body, lightly sweetened with organic local honey. Creamy with zero dairy; the honey's the sweetener and we disclose it.",
       founder: "Same idea as Tide, just fuller — the coconut meat does what dairy would, so it's creamy without any milk. The honey is local and named, always. Proof you can make something that feels like a shake out of nothing but real food.",
     },
-    cookbook: { batch: "Blend to order.", brew: ["Blend coconut water + extra coconut meat for body", "Add honey to spec"], serve: ["Serve cold immediately"], storage: "Make to order.", quality: "Creamy, smooth, no separation.", troubleshoot: [{ issue: "Too thin", fix: "Add coconut meat for body." }] },
   },
 ];
 

@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { useAuth, roleOf } from "@/components/AuthProvider";
 import AccountPill from "@/components/AccountPill";
-import { STRATEGY_CORE, GTM_PLAYS, GOVERNANCE, FLYWHEEL, STRATEGY_REV, type GtmPlay } from "@/lib/strategy";
+import type { GtmPlay, Playbook } from "@/lib/strategy";
+import { authedFetch } from "@/lib/authedFetch";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { failureWords } from "@/lib/failureWords";
+import Skeleton from "@/components/Skeleton";
 import { StrategyThread, DecisionLog, PlayBuilder, useDrafts } from "@/components/StrategyCollab";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import dynamic from "next/dynamic";
@@ -17,19 +21,14 @@ const SignIn = dynamic(() => import("@/components/SignIn"));
 // THE PLAYBOOK — the whole strategy on one owner screen, and now a working document: every block
 // and play carries a live discussion thread (owners get pinged), the guided builder walks you
 // through building or overhauling a play, and governance is enforced by shape — an append-only
-// decision log and locked who-changes-what rules. Content renders from lib/strategy (traced to
+// decision log and locked who-changes-what rules. Content renders from /api/playbook (lib/strategyContent, traced to
 // the locked strategy doc); collaboration state lives in Supabase (0140). Owner/admin only.
 
 const STATUS_LABEL = { active: "ACTIVE", planning: "PLANNING", "phase-2": "PHASE 2" } as const;
 const keyFor = (name: string) => "gtm:" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 export default function PlaybookPage() {
-  const confirm = useConfirm();
-  const { toast } = useAppStable();
   const { profile, enabled, user, ready } = useAuth();
-  const [open, setOpen] = useState<string | null>(null); // which thread is open
-  const [builder, setBuilder] = useState<null | { prefill: GtmPlay | null }>(null);
-  const { drafts, reload, retire } = useDrafts();
   if (!enabled) return null;
   // Signed out, the page names itself and signs in (2026-10-09, round 2) — it said "Owners only" with no way in.
   if (ready && !user) return <SignIn context={{ title: "The Playbook.", sub: "Sign in with an owner or admin account." }} />;
@@ -43,6 +42,29 @@ export default function PlaybookPage() {
       </section>
     );
   }
+  return <PlaybookScreen role={role} />;
+}
+
+// The playbook itself comes from /api/playbook (IP0 containment, 2026-10-27): it no longer ships in this page's JavaScript,
+// and the route answers owners and admins only. Kept in memory for the visit, never in storage.
+async function loadPlaybook(): Promise<Playbook> {
+  const r = await authedFetch("/api/playbook");
+  if (r.status === 401) throw new Error("The playbook is for owners and admins — sign in with one of those accounts.");
+  const j = (await r.json().catch(() => null)) as { ok?: boolean; playbook?: Playbook } | null;
+  if (!r.ok || !j?.ok || !j.playbook) throw new Error("Couldn't read the playbook just now.");
+  return j.playbook;
+}
+
+function PlaybookScreen({ role }: { role: string }) {
+  const confirm = useConfirm();
+  const { toast } = useAppStable();
+  const [open, setOpen] = useState<string | null>(null); // which thread is open
+  const [builder, setBuilder] = useState<null | { prefill: GtmPlay | null }>(null);
+  const { drafts, reload, retire } = useDrafts();
+  const state = useAsyncData(loadPlaybook, []);
+  if (state.status === "error") return <section className="screen" id="s-playbook"><Masthead eyebrow="The Playbook" right={<AccountPill />} /><p className="load-failed">{failureWords(state.error as Error, "Couldn't read the playbook")}</p></section>;
+  if (!state.data) return <section className="screen" id="s-playbook"><Masthead eyebrow="The Playbook" right={<AccountPill />} /><Skeleton variant="row" count={5} /></section>;
+  const { rev: STRATEGY_REV, core: STRATEGY_CORE, plays: GTM_PLAYS, governance: GOVERNANCE, flywheel: FLYWHEEL } = state.data;
   // A render function, not a component (R13 — F13): declared inside the screen, a component is a new type every render,
   // so pressing Discuss rebuilt the button it was pressed on — focus fell to the page and the open thread's draft went.
   const discuss = (k: string, label: string) => (

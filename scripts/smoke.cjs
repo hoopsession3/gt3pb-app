@@ -1359,7 +1359,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // cookbook said "add measured real maple + pinch of salt" and "milk per build", with no amount anywhere.
   // Ryan's recipe card is the build now — per bottle, in fluid ounces and tablespoons, the salt only in the syrup.
   const latte = A.PRODUCTS.find((p) => p.key === "salted_maple");
-  const lb = latte?.cookbook ?? {};
+  // IP0 (2026-10-27): the cookbook lives server-side now, in lib/academyCookbook, keyed by product.
+  const CB = require("../.smoke/academyCookbook.js").COOKBOOK;
+  const lb = (latte && CB[latte.key]) ?? {};
   ok("cookbook: the Salted Maple Latte's build is written down — 6.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp Salted Maple Syrup per 10 oz bottle; 20 / 6 / 9 tbsp per 32 oz",
     /^10 oz bottle: 6\.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp Salted Maple Syrup\. 32 oz bottle: 20 fl oz DUSK, 6 fl oz goat milk, 9 tbsp syrup/.test(lb.batch ?? "")
     && (lb.brew ?? []).some((x) => /^Into a 10 oz bottle: 6\.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp syrup \(a 32 oz bottle: 20 fl oz, 6 fl oz, 9 tbsp\)\.$/.test(x)), JSON.stringify(lb.batch));
@@ -1377,8 +1379,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("cookbook: the latte is measured by volume and Ask GT3 is told so — a cup and spoons, no scale rules, no grams; a weighed batch still gets the scale rules",
     lb.byVolume === true && /MEASURED BY VOLUME — every amount is fluid ounces or spoons/.test(kbOf(latte?.name))
     && !/WEIGHS INGREDIENTS/.test(kbOf(latte?.name))
-    && A.PRODUCTS.filter((p) => p.cookbook?.weighs).length >= 2
-    && A.PRODUCTS.filter((p) => p.cookbook?.weighs).every((p) => /WEIGHS INGREDIENTS/.test(kbOf(p.name)) && !/MEASURED BY VOLUME/.test(kbOf(p.name))),
+    && A.PRODUCTS.filter((p) => CB[p.key]?.weighs).length >= 2
+    && A.PRODUCTS.filter((p) => CB[p.key]?.weighs).every((p) => /WEIGHS INGREDIENTS/.test(kbOf(p.name)) && !/MEASURED BY VOLUME/.test(kbOf(p.name))),
     kbOf(latte?.name).slice(0, 80));
 
   const none = new Set();
@@ -4402,7 +4404,9 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // disappears when somebody rewrites "Weigh beans" as "Measure out beans" is that bug with worse
   // consequences. But the flag can then fall out of step with the prose, so the PROSE IS SNIFFED
   // HERE: a test fails loudly at build time, where a render path would fail silently in a kitchen.
-  const academy = read("lib/academy.ts");
+  // IP0 (2026-10-27): the cookbook moved to lib/academyCookbook (server-only), one `"key": { … }` per product. Read
+  // as `cookbook: { … }` so the brace-matching gate below polices every entry exactly as it did in lib/academy.
+  const academy = read("lib/academyCookbook.ts").replace(/^  "[a-z0-9_]+": \{/gm, "cookbook: {");
   // Each `cookbook: { … }` object, by BRACE MATCHING and not by a regex over indentation. The first
   // cut of this used `[\s\S]*?\n\s{4}\},` and found 9 of 10 — it ran off the end of one cookbook
   // into the product object containing it, so one pair of entries was read as a single entry. A
@@ -4454,8 +4458,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length >= 2,
     cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length);
   ok("cookbooks: the page shows the band from the FLAG and never from the prose",
-    /p\.cookbook\.weighs\s*&&/.test(read("app/academy/page.tsx"))
-    && !WEIGH_WORDS.test((read("app/academy/page.tsx").match(/cookbook\.brew\.(?:some|filter|find)\([\s\S]{0,200}/) ?? [""])[0]));
+    /\bcb\.weighs\s*&&/.test(read("app/academy/page.tsx"))   // IP0: the panel reads the served cookbook as `cb`
+    && !WEIGH_WORDS.test((read("app/academy/page.tsx").match(/\bcb\.brew\.(?:some|filter|find)\([\s\S]{0,200}/) ?? [""])[0]));
   ok("measuring: a fluid ounce is a volume and a 10 oz bottle a size — neither calls for the scale band; \"12 oz\" and \"ounces\" of beans still do",
     !WEIGH_WORDS.test('"Into a 10 oz bottle: 6.5 fl oz DUSK cold brew, 2 fl oz goat milk", "8 × 10 oz bottles"')
     && WEIGH_WORDS.test('"12 oz beans"') && WEIGH_WORDS.test('"ounces of beans"') && !WEIGH_WORDS.test('"2 fluid ounces"'));

@@ -1,4 +1,5 @@
 import { MODULES, PRODUCTS } from "./academy";
+import { COOKBOOK } from "./academyCookbook";
 
 // BRAND IDENTITY — the house style, stated plainly so the crew AI can answer "what's our font?",
 // "what red is that?", "how do we use the logo?" directly. These are the ACTUAL values the app
@@ -28,7 +29,7 @@ Taglines: "Only the best for you" · "Pure Signal, No Noise."`;
 // traces back to written, claim-checked content (no model freelancing on nutrition).
 export function academyKnowledge(): string {
   const prods = PRODUCTS.map((p) => {
-    const cb = p.cookbook;
+    const cb = COOKBOOK[p.key];
     // `weighs` is carried through so the assistant knows which procedures put something on a scale
     // without having to find the word "weigh" in the prose — the same reason the Cookbook page keys
     // its scale band on the flag rather than on the sentence (see lib/academy.ts).

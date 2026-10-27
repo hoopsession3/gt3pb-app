@@ -8,7 +8,7 @@ import { useRealtimeTable } from "@/lib/realtime";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { uploadToBucket } from "@/lib/uploads";
 import { raiseAlertClient } from "@/lib/clientAlerts";
-import { GTM_PLAYS } from "@/lib/strategy";
+import { GTM_PLAY_NAMES } from "@/lib/strategy";
 import { useOperatorSection } from "@/components/OperatorNav";
 import Sheet, { CloseButton } from "@/components/Sheet";
 import { usePagerLevel } from "@/components/SwipePager";
@@ -770,7 +770,7 @@ function StudioEditor({ id, me, place, onClose }: { id: string; me: { id: string
           <option value="">🔗 ＋ Link to…</option>
           {evs.length > 0 && <optgroup label="Events">{evs.map((ev) => <option key={ev.id} value={`e:${ev.id}`}>🎪 {ev.day_label || ev.day || ""} · {ev.title || "Event"}</option>)}</optgroup>}
           {stops.length > 0 && <optgroup label="Truck stops">{stops.map((s) => <option key={s.id} value={`s:${s.id}`}>🚚 {stopWhen(s)} · {s.name || "Stop"}</option>)}</optgroup>}
-          <optgroup label="Strategy plays">{GTM_PLAYS.map((pl) => <option key={pl.name} value={`p:${pl.name}`}>🎯 {pl.name}</option>)}</optgroup>
+          <optgroup label="Strategy plays">{GTM_PLAY_NAMES.map((n) => <option key={n} value={`p:${n}`}>🎯 {n}</option>)}</optgroup>
         </select>
       </div>
 

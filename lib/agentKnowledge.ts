@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { recipeFactLine, type RecipeFacts, type RecipeMethod } from "@/lib/brewMath";
 import { PRODUCTS } from "@/lib/academy";
+import { COOKBOOK } from "@/lib/academyCookbook";
 
 // AGENT GROUNDING — assembles the owner's corrections (0143) into an AUTHORITATIVE block that goes
 // at the TOP of an agent's system prompt, so a correction wins over anything in the static
@@ -45,7 +46,7 @@ function methodFor(row: { product_slug?: string | null; name?: string | null }):
     byKey(slug) ??
     byKey(name) ??
     (name ? PRODUCTS.find((p) => new RegExp(`\\b${p.key.toLowerCase()}\\b`).test(name)) : undefined);
-  return hit?.cookbook ?? null;
+  return hit ? COOKBOOK[hit.key] ?? null : null;
 }
 
 // The brewing kit, from the asset register. Tagged by brand rather than guessed from names: the

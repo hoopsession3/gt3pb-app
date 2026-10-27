@@ -30,7 +30,7 @@ function ingredientNeeds(lines: { key: string; units: number }[]): IngredientNee
   const coconut = sum(["nature_aid", "coconut_shake"]);
   const broth = sum(["broth"]);
   const bottles = sum(["bottles"]);
-  if (coffee > 0) out.push({ name: "Coffee beans", qty: `~${(coffee * 0.045).toFixed(1)} lb · 1:13 cold extract` });
+  if (coffee > 0) out.push({ name: "Coffee beans", qty: `~${(coffee * 0.045).toFixed(1)} lb · cold extract to the Cookbook's spec` });
   if (coconut > 0) { out.push({ name: "Coconut water + meat", qty: `~${Math.ceil(coconut * 0.9)} servings` }); out.push({ name: "Raw honey", qty: `~${Math.max(1, Math.round(coconut * 0.3))} oz` }); }
   if (broth > 0) out.push({ name: "Bone broth", qty: `~${(broth * 8 / 128).toFixed(1)} gal` });
   if (bottles > 0) out.push({ name: "Empty bottles + caps", qty: `${Math.ceil(bottles * 1.1)} ea` });
