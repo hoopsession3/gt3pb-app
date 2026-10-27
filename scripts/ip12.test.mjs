@@ -13,7 +13,7 @@ let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)?.slice(0, 400)}` : "")); } };
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
-const M = loadTs("lib/visionMoney.ts"), P = loadTs("lib/visionPresent.ts");
+const M = loadTs("lib/visionMoney.ts"), P = { ...loadTs("lib/visionPresent.ts"), ...loadTs("lib/visionHeadline.ts") };
 
 const base = { uses: [{ id: "a", label: "Bar", category: "equipment", qty: 1, unitCents: 1800000 }, { id: "b", label: "Taps", category: "equipment", qty: 2, unitCents: 150000 },
   { id: "c", label: "Build-out", category: "buildout", qty: 1, unitCents: 900000 }, { id: "d", label: "Sign", category: "launch", qty: 1, unitCents: null }, { id: "e", label: "Reserve", category: "reserve", qty: 1, unitCents: 1000000 }],
@@ -40,10 +40,10 @@ ok("business ROI → return on the opening cost, 3 years (before tax and the inv
 ok("the investor's rate → investor's annual return (an IRR, said in Diligence with its formula)", L.investorReturn === "Investor's annual return");
 const slide = read("components/vision/CaseSlide.tsx");
 ok("a revenue share is said as its terms, not dressed as ownership", /% of sales until \$\{dollars\(s\.amountCents \* s\.capMultiple\)\} is repaid/.test(slide));
-ok("the money-back headline reads the after-investor month, never the flattering one", /const n = inv \? m\.paybackAfterMonth : m\.paybackMonth/.test(read("lib/visionPresent.ts")));
+ok("the money-back headline reads the after-investor month, never the flattering one", /const n = inv \? m\.paybackAfterMonth : m\.paybackMonth/.test(read("lib/visionHeadline.ts")));
 
 // ── 3 · the dashboard voice, gone from the investor's screens ─────────────────────────────────────────────────────
-const words = [slide, read("components/vision/Present.tsx"), read("lib/visionPresent.ts")].join("\n").split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*\*)/.test(l)).join("\n"); // what a viewer reads, not the comments
+const words = [slide, read("components/vision/Present.tsx"), read("lib/visionPresent.ts"), read("lib/visionHeadline.ts")].join("\n").split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*\*)/.test(l)).join("\n"); // what a viewer reads, not the comments
 for (const phrase of ["What it takes, and what it returns", "The model's minimum need", "this plan is alive", "Computed by the engine", "owner-approved baseline", "not a forecast of what will happen", "Held on this screen only", "Working out the case"])
   ok(`no "${phrase}"`, !words.includes(phrase));
 ok("the presenter's figures speak in the presenter's words (Explore and Diligence use PRESENT_LABEL)", (slide.match(/PRESENT_LABEL\[/g) ?? []).length >= 3);

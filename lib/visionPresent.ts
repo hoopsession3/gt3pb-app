@@ -8,8 +8,7 @@
 //     storage, no network, no write — and it's labelled as theirs, never as GT3's plan. Leaving it returns the approved case.
 //   · Diligence: the whole case on one slide, every figure opens to its formula, its worked numbers, what it's made of,
 //     and the accepted research behind the case, each with its source.
-import type { MetricKey, Model } from "./visionMoney";
-import { dollars } from "./finance";
+import type { MetricKey } from "./visionMoney";
 import type { PlanCase } from "./visionCaseData";
 
 export const PRESENT_MODES = ["pitch", "explore", "diligence"] as const;
@@ -97,21 +96,4 @@ export const EXPLORE_FIGURES: MetricKey[] = ["revenue", "requiredFunding", "brea
 /** The figures a guest can open on the case slide, in the order they're shown. */
 export const DILIGENCE_FIGURES: MetricKey[] = ["startupSpend", "requiredFunding", "breakEven", "payback", "roiBusiness", "revenue"];
 
-// ── Headlines (IP1.2, the editorial pass): a slide's title says what its numbers mean, from the engine's own figures. ──
-/** The ask's headline: the plan's bottom line, after the investor is paid. */
-export function askHeadline(m: Model, structure: string): string {
-  const inv = structure !== "none";
-  const n = inv ? m.paybackAfterMonth : m.paybackMonth;
-  if (m.startupSpend <= 0) return "Nothing to earn back — the plan opens without startup costs.";
-  if (n) return `Earns back its opening cost by month ${n}${inv ? ", after paying the investor" : ""}.`;
-  return `Doesn't earn back its opening cost within three years${inv ? " once the investor is paid" : ""}.`;
-}
-
-/** The cash headline: the low point, said plainly. */
-export function cashHeadline(m: Model): string {
-  const open = m.months[0].cumulative - m.months[0].net;
-  let low = open, at = 0;
-  m.months.forEach((x, i) => { if (x.cumulative < low) { low = x.cumulative; at = i + 1; } });
-  return low >= 0 ? `In the plan, cash never falls below ${dollars(low)}.` : `In the plan, cash runs ${dollars(-low)} short in month ${at}.`;
-}
 
