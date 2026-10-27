@@ -1397,7 +1397,10 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // because the pronoun was capitalised at the head of a sentence. A guard that cannot catch the
   // thing it was written for is worse than none: it reports green and nobody looks again.
   const singularVoice = /\b(i|me|my|mine)\b/i;
-  const singularNotes = A.MODULES
+  // IP0b (2026-10-28): a lesson's content is server-side now, in lib/academyLessons; the outline stays in lib/academy.
+  const LS = require("../.smoke/academyLessons.js").LESSONS;
+  const full = A.MODULES.map((m) => ({ ...m, ...LS[m.slug] }));
+  const singularNotes = full
     .filter((m) => m.founderInsight && singularVoice.test(m.founderInsight))
     .map((m) => m.slug);
   ok("academy: no founders' note speaks as a single operator", singularNotes.length === 0, singularNotes);
@@ -1406,8 +1409,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     .map((p) => p.key);
   ok("academy: and neither does a product's founders' voice", singularProducts.length === 0, singularProducts);
   ok("academy: the notes are still there to be checked",
-    A.MODULES.filter((m) => m.founderInsight).length >= 25,
-    A.MODULES.filter((m) => m.founderInsight).length);
+    full.filter((m) => m.founderInsight).length >= 25,
+    full.filter((m) => m.founderInsight).length);
 
   ok("academy: an operator's path is the union of its certs' modules",
     op.certsTotal === 8 && op.modulesTotal > 0, `${op.certsEarned}/${op.certsTotal}, ${op.modulesTotal} modules`);

@@ -16,7 +16,7 @@ import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
   moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta, expectationsFor,
   readinessGap, renewalLeft, assignmentDone, teamMemberRow, toAcademyRole,
-  type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike, type Cookbook,
+  type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike, type Cookbook, type Lesson,
 } from "@/lib/academy";
 import { staffAccess } from "@/lib/access";
 import { useBackStep } from "@/components/useBackStep";
@@ -398,9 +398,15 @@ function Ring({ pct }: { pct: number }) {
 }
 
 // ── module reader + quiz ──
-function ModuleReader({ m, done, onBack, onComplete }: { m: Module; done: boolean; onBack: () => void; onComplete: (score: number | null) => void }) {
+function ModuleReader({ m: outline, done, onBack, onComplete }: { m: Module; done: boolean; onBack: () => void; onComplete: (score: number | null) => void }) {
   useBackStep("Academy", onBack);
   const [quiz, setQuiz] = useState(false);
+  // IP0b: the lesson comes from /api/academy/lesson — staff only, held in memory for the visit, never in the page's code.
+  const load = useCallback(() => loadLesson(outline.slug), [outline.slug]);
+  const state = useAsyncData(load, [outline.slug]);
+  if (state.status === "error") return <section className="screen academy"><h1 className="h-title">{outline.title}</h1><p className="load-failed">{failureWords(state.error as Error, "Couldn't open the lesson")}</p></section>;
+  if (!state.data) return <section className="screen academy"><h1 className="h-title">{outline.title}</h1><Skeleton variant="row" count={4} /></section>;
+  const m = { ...outline, ...state.data };
   return (
     <section className="screen academy">
       <div className="toprow"><div className="eyb">{sectionMeta(m.section).label}</div></div>
@@ -548,6 +554,19 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
       <CookbookPanel productKey={p.key} />
     </section>
   );
+}
+
+// ── a lesson, read from the server (IP0b containment, 2026-10-28) ──
+const lessonCache = new Map<string, Lesson>();
+async function loadLesson(slug: string): Promise<Lesson> {
+  const hit = lessonCache.get(slug);
+  if (hit) return hit;
+  const r = await authedFetch(`/api/academy/lesson?slug=${encodeURIComponent(slug)}`);
+  if (r.status === 401) throw new Error("Lessons are for the team — sign in with a staff account to read them.");
+  const j = (await r.json().catch(() => null)) as { ok?: boolean; lesson?: Lesson } | null;
+  if (!r.ok || !j?.ok || !j.lesson) throw new Error("Couldn't open the lesson just now.");
+  lessonCache.set(slug, j.lesson);
+  return j.lesson;
 }
 
 // ── the cookbook, read from the server (IP0 containment, 2026-10-27) ──

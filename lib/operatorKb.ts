@@ -1,5 +1,6 @@
 import { MODULES, PRODUCTS } from "./academy";
 import { COOKBOOK } from "./academyCookbook";
+import { LESSONS } from "./academyLessons";
 
 // BRAND IDENTITY — the house style, stated plainly so the crew AI can answer "what's our font?",
 // "what red is that?", "how do we use the logo?" directly. These are the ACTUAL values the app
@@ -46,7 +47,8 @@ export function academyKnowledge(): string {
     return `## ${p.name} (${p.line}${p.price ? `, ${p.price}` : ""})\n  What: ${p.what}\n  Why: ${p.why}\n  Ingredients: ${p.ingredients.join(", ")}\n  Benefits: ${p.benefits.join(", ")}\n  Talking points: ${p.talking.join(" | ")}${voices}\n  FAQs: ${p.faqs.map((f) => `${f.q} — ${f.a}`).join(" | ")}${recipe}`;
   }).join("\n\n");
 
-  const mods = MODULES.map((m) => {
+  const mods = MODULES.map((outline) => {
+    const m = { ...outline, ...LESSONS[outline.slug] };   // IP0b: the lesson's content is server-side
     const why = m.whyItMatters ? `\n  WHY IT MATTERS: ${m.whyItMatters}` : "";
     const mist = m.mistakes?.length ? `\n  COMMON MISTAKES: ${m.mistakes.join("; ")}` : "";
     const ins = m.founderInsight ? `\n  FOUNDERS: ${m.founderInsight}` : "";

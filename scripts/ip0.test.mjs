@@ -20,7 +20,7 @@ let pass = 0, fail = 0;
 const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n}` + (got !== undefined ? ` → got ${JSON.stringify(got)?.slice(0, 400)}` : "")); } };
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
-const SECRET = ["lib/academyCookbook.ts", "lib/strategyContent.ts"];
+const SECRET = ["lib/academyCookbook.ts", "lib/strategyContent.ts", "lib/academyLessons.ts"];  // IP0b: the lessons too
 
 // ── the import graph ────────────────────────────────────────────────────────────────────────────────────────────────
 const walk = (dir, out = []) => { for (const f of readdirSync(join(ROOT, dir))) { const p = join(dir, f); const st = statSync(join(ROOT, p));
@@ -54,6 +54,7 @@ for (const e of entries) {
   for (const s of SECRET) ok(`no browser-loaded module reaches ${s}`, !reach.has(s), reach.get(s));
   const importers = (s) => files.filter((f) => importsOf(f).includes(s));
   ok("the cookbook is read only on the server: the agents' knowledge and its route", importers("lib/academyCookbook.ts").every((f) => f.startsWith("app/api/") || ["lib/operatorKb.ts", "lib/agentKnowledge.ts"].includes(f)), importers("lib/academyCookbook.ts"));
+  ok("the lessons are read only on the server: the agents' knowledge and their route", importers("lib/academyLessons.ts").every((f) => f.startsWith("app/api/") || f === "lib/operatorKb.ts"), importers("lib/academyLessons.ts"));
   ok("the playbook is read only by its route", importers("lib/strategyContent.ts").every((f) => f.startsWith("app/api/")), importers("lib/strategyContent.ts"));
   ok("…and the agents' knowledge modules are themselves never loaded by a browser", !reach.has("lib/operatorKb.ts") && !reach.has("lib/agentKnowledge.ts") && !reach.has("lib/brandVoice.ts"), [reach.get("lib/operatorKb.ts"), reach.get("lib/agentKnowledge.ts")]);
 }
@@ -62,6 +63,10 @@ for (const e of entries) {
 const passages = (v, out = []) => { if (typeof v === "string") { if (v.length >= 24) out.push(v.slice(0, 40)); } else if (Array.isArray(v)) v.forEach((x) => passages(x, out)); else if (v && typeof v === "object") Object.values(v).forEach((x) => passages(x, out)); return out; };
 const COOK = passages(loadTs("lib/academyCookbook.ts").COOKBOOK);
 const SC = loadTs("lib/strategyContent.ts");
+// A lesson may quote a public line on purpose (the menu's tagline lives in lib/copy, the public copy registry): those
+// are public by definition and left out of the lesson fingerprints.
+const PUBLIC_COPY = read("lib/copy.ts");
+const LESSON = passages(loadTs("lib/academyLessons.ts").LESSONS).filter((x) => !PUBLIC_COPY.includes(x));
 const PLAY = passages({ core: SC.STRATEGY_CORE, plays: SC.GTM_PLAYS.map((p) => Object.fromEntries(Object.entries(p).filter(([k]) => k !== "name"))), governance: SC.GOVERNANCE, flywheel: SC.FLYWHEEL });
 {
   ok("there is something to protect (a cookbook of 70+ passages, a playbook of 70+)", COOK.length >= 70 && PLAY.length >= 70, [COOK.length, PLAY.length]);
@@ -69,6 +74,8 @@ const PLAY = passages({ core: SC.STRATEGY_CORE, plays: SC.GTM_PLAYS.map((p) => O
   const holds = (list) => shipped.filter((f) => { const t = read(f); return list.some((x) => t.includes(x)); });
   ok("no browser-reachable source holds a cookbook passage", holds(COOK).length === 0, holds(COOK));
   ok("no browser-reachable source holds a playbook passage", holds(PLAY).length === 0, holds(PLAY));
+  ok("there are lessons to protect (300+ passages)", LESSON.length >= 300, LESSON.length);
+  ok("no browser-reachable source holds a lesson passage, a quiz answer or a founders' note", holds(LESSON).length === 0, holds(LESSON));
 }
 
 // ── the routes ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -84,6 +91,18 @@ const PLAY = passages({ core: SC.STRATEGY_CORE, plays: SC.GTM_PLAYS.map((p) => O
   ok("the Playbook reads the playbook from the route, after the owner/admin gate", /authedFetch\("\/api\/playbook"\)/.test(pbp) && pbp.indexOf("return <PlaybookScreen role={role} />") > pbp.indexOf('role !== "owner" && role !== "admin"'));
 }
 
+// ── the lessons (IP0b) ──────────────────────────────────────────────────────────────────────────────────────────────
+{
+  const A = loadTs("lib/academy.ts"), L = loadTs("lib/academyLessons.ts").LESSONS, K = loadTs("lib/academyClass.ts");
+  ok("every module's outline has a lesson, and the outline carries no content", A.MODULES.length === 30 && A.MODULES.every((m) => L[m.slug] && !("body" in m) && !("quiz" in m) && !("founderInsight" in m)));
+  ok("the outline still knows how many questions each check has", A.MODULES.every((m) => m.quizCount === (L[m.slug].quiz?.length ?? 0)) && A.MODULES.some((m) => m.quizCount > 0));
+  const r = read("app/api/academy/lesson/route.ts"), page = read("app/academy/page.tsx");
+  ok("the lesson route answers staff with a tenant, one lesson, never cached; a restricted lesson can narrow to owners and admins", /if \(!\(await staffFromRequest\(req\)\)\) return NextResponse\.json\(\{ ok: false, error: "unauthorized" \}, \{ status: 401/.test(r) && /tenantFromRequest\(req\)/.test(r) && /status: 404/.test(r) && /private, no-store, max-age=0/.test(r) && /lessonClass\(slug\) === "restricted" && RESTRICTED_AUDIENCE === "admin" && !\(await adminFromRequest\(req\)\)/.test(r));
+  ok("an unknown slug can't reach a property of the object (own keys only)", /Object\.prototype\.hasOwnProperty\.call\(LESSONS, slug\)/.test(r));
+  ok("the reader opens a lesson from the route, held in memory", /authedFetch\(`\/api\/academy\/lesson\?slug=\$\{encodeURIComponent\(slug\)\}`\)/.test(page) && /const lessonCache = new Map/.test(page));
+  ok("classed: three restricted (process specifics), the rest internal, none public", K.RESTRICTED_LESSONS.length === 3 && A.MODULES.filter((m) => K.lessonClass(m.slug) === "internal").length === 27);
+}
+
 // ── names, the brief ───────────────────────────────────────────────────────────────────────────────────────────────
 {
   const S = loadTs("lib/strategy.ts");
@@ -97,7 +116,7 @@ const PLAY = passages({ core: SC.STRATEGY_CORE, plays: SC.GTM_PLAYS.map((p) => O
   const js = dirs.flatMap((d) => { const all = []; const w = (p) => { for (const f of readdirSync(join(ROOT, p))) { const q = join(p, f); if (statSync(join(ROOT, q)).isDirectory()) w(q); else if (f.endsWith(".js")) all.push(q); } }; w(d); return all; });
   const fresh = js.filter((f) => statSync(join(ROOT, f)).mtimeMs >= statSync(join(ROOT, "lib/academyCookbook.ts")).mtimeMs);
   if (fresh.length) {
-    const leak = fresh.filter((f) => { const t = read(f); return COOK.some((x) => t.includes(x) || t.includes(JSON.stringify(x).slice(1, -1))) || PLAY.some((x) => t.includes(x) || t.includes(JSON.stringify(x).slice(1, -1))); });
+    const leak = fresh.filter((f) => { const t = read(f); return COOK.some((x) => t.includes(x) || t.includes(JSON.stringify(x).slice(1, -1))) || PLAY.some((x) => t.includes(x) || t.includes(JSON.stringify(x).slice(1, -1))) || LESSON.some((x) => t.includes(x) || t.includes(JSON.stringify(x).slice(1, -1))); });
     ok(`no shipped JavaScript holds a passage (${fresh.length} files from the latest build)`, leak.length === 0, leak.map((f) => relative(ROOT, join(ROOT, f))));
   }
 }
