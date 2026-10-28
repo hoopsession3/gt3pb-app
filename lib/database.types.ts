@@ -4958,6 +4958,236 @@ export type Database = {
           },
         ]
       }
+      food_items: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          name: string
+          category: string
+          status: string
+          summary: string | null
+          serving: string | null
+          allergens: string[]
+          packaging: string | null
+          target_price_cents: number | null
+          price_source: string | null
+          plan_id: string | null
+          product_id: string | null
+          approved_by: string | null
+          approved_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          name: string
+          category?: string
+          status?: string
+          summary?: string | null
+          serving?: string | null
+          allergens?: string[]
+          packaging?: string | null
+          target_price_cents?: number | null
+          price_source?: string | null
+          plan_id?: string | null
+          product_id?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          name?: string
+          category?: string
+          status?: string
+          summary?: string | null
+          serving?: string | null
+          allergens?: string[]
+          packaging?: string | null
+          target_price_cents?: number | null
+          price_source?: string | null
+          plan_id?: string | null
+          product_id?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "vision_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      food_recipes: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          food_item_id: string
+          version: number
+          status: string
+          portion_g: number
+          cook_loss_pct: number
+          components: Json
+          method: string | null
+          cook_rule: string | null
+          hold_rule: string | null
+          rule_source: string | null
+          shelf_life_hours: number | null
+          discard_rule: string | null
+          approved_by: string | null
+          approved_at: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          food_item_id: string
+          version: number
+          status?: string
+          portion_g: number
+          cook_loss_pct?: number
+          components?: Json
+          method?: string | null
+          cook_rule?: string | null
+          hold_rule?: string | null
+          rule_source?: string | null
+          shelf_life_hours?: number | null
+          discard_rule?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          food_item_id?: string
+          version?: number
+          status?: string
+          portion_g?: number
+          cook_loss_pct?: number
+          components?: Json
+          method?: string | null
+          cook_rule?: string | null
+          hold_rule?: string | null
+          rule_source?: string | null
+          shelf_life_hours?: number | null
+          discard_rule?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_recipes_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_recipes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      food_temp_logs: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          kind: string
+          reading_f: number
+          what: string
+          lot_id: string | null
+          food_item_id: string | null
+          place: string | null
+          within_rule: boolean | null
+          corrective_action: string | null
+          taken_at: string
+          logged_by: string | null
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          kind: string
+          reading_f: number
+          what: string
+          lot_id?: string | null
+          food_item_id?: string | null
+          place?: string | null
+          within_rule?: boolean | null
+          corrective_action?: string | null
+          taken_at?: string
+          logged_by?: string | null
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          kind?: string
+          reading_f?: number
+          what?: string
+          lot_id?: string | null
+          food_item_id?: string | null
+          place?: string | null
+          within_rule?: boolean | null
+          corrective_action?: string | null
+          taken_at?: string
+          logged_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_temp_logs_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_temp_logs_lot_id_fkey"
+            columns: ["lot_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_lots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "food_temp_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnel_events: {
         Row: {
           id: number
@@ -5747,6 +5977,8 @@ export type Database = {
           created_by: string | null
           created_at: string
           price_basis: string | null
+          use_by: string | null
+          allergens: string[]
         }
         Insert: {
           id?: string
@@ -5764,6 +5996,8 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           price_basis?: string | null
+          use_by?: string | null
+          allergens?: string[]
         }
         Update: {
           id?: string
@@ -5781,6 +6015,8 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           price_basis?: string | null
+          use_by?: string | null
+          allergens?: string[]
         }
         Relationships: [
           {
@@ -11272,6 +11508,10 @@ export type Database = {
           market: string
           kind: string | null
           price_basis: string | null
+          approval_status: string
+          approval_note: string | null
+          approved_by: string | null
+          approved_at: string | null
         }
         Insert: {
           id?: string
@@ -11295,6 +11535,10 @@ export type Database = {
           market?: string
           kind?: string | null
           price_basis?: string | null
+          approval_status?: string
+          approval_note?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
         }
         Update: {
           id?: string
@@ -11318,6 +11562,10 @@ export type Database = {
           market?: string
           kind?: string | null
           price_basis?: string | null
+          approval_status?: string
+          approval_note?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
         }
         Relationships: [
           {

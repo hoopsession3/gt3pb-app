@@ -11,7 +11,6 @@ import { InfoRow } from "@/components/kit";
 import { publicOrigin } from "@/lib/native";
 import { ageLabel } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
-import { isMissingColumn } from "@/lib/schemaSkew";
 import type { Plan } from "@/lib/visionPlans";
 import type { Layout, Program } from "@/lib/vision";
 
@@ -49,14 +48,10 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
   const [pickRooms, setPickRooms] = useState<string[]>(() => [...new Set(shownPlans.map((p) => p.layout_id).filter((x): x is string => !!x))]);
   const loader = useCallback(async (): Promise<Share[]> => {
     if (!supabase) return [];
-    // arrives-with: 0458 — pinned_at: the moment a link's case is fixed at. Before 0458 the read asks as before.
     const withPin = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids, pinned_at`).order("created_at", { ascending: false });
-    if (!withPin.error) { setCanCase(true); setCanChoose(true); return (withPin.data as Share[]) ?? []; }
-    if (!isMissingColumn(withPin.error)) throw new Error(withPin.error.message);
-    const withShows = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids`).order("created_at", { ascending: false });
-    if (withShows.error) throw new Error(withShows.error.message);
+    if (withPin.error) throw new Error(withPin.error.message);
     setCanCase(true); setCanChoose(true);
-    return (withShows.data as Share[]) ?? [];
+    return (withPin.data as Share[]) ?? [];
   }, []);
   const state = useAsyncData(loader, []);
 

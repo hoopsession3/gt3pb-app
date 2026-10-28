@@ -87,6 +87,8 @@ const VISITS = [
   { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "Add a fixture"], drawn: ".vz-library .vz-lib-row", long: false },
   { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
   { key: "vision-evaluate", path: "/vision", ready: ".vz-board", clicks: ["The store", "Evaluate"], drawn: "[aria-label=\"Evaluate — the most serious first\"]", long: false },
+  // PF1 — Primal Food, planned: the Food tab (owners and admins), on every phone.
+  { key: "vision-food", path: "/vision", ready: ".vz-board", clicks: ["Food"], drawn: "#vz-food", long: false },
   { key: "vision-standard", path: "/vision", ready: ".vz-board", clicks: ["Standard"], drawn: "[role=radiogroup][aria-label=\"The Standard\"]", long: false },
   { key: "vision-present", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], drawn: ".vp-slide", long: false },
   { key: "vision-ways", path: "/vision", ready: ".vz-board", clicks: ["▶ Present"], until: { click: "Next", sel: ".vp-steps" }, drawn: ".vp-steps .vp-chip", long: false },

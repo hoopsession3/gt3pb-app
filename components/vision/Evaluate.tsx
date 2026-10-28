@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
-import { isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
 import { kindOf, type Issue, type Layout } from "@/lib/vision";
 import { roomDiff } from "@/lib/visionRoom";
 import { summaryWords, type Summary } from "@/lib/standard";
@@ -21,23 +20,22 @@ import { SOURCE_WORD, pillarFacts } from "@/lib/pillarFacts";
 //   3 · What the change does to the plans that read this room — the money engine's own roomDiff (registers, seats, the
 //       counter's orders an hour) against the room as saved. Nothing is guessed from shape alone, and an approved
 //       baseline never moves: the plans' working numbers recompute when the room is saved.
-type Std = (Summary & { subject_type: string; subject_id: string })[] | "missing";
+type Std = (Summary & { subject_type: string; subject_id: string })[];
 
 export default function Evaluate({ draft, saved, found, plans, onLook, checkedAs }: { draft: Layout; saved: Layout | null; found: Issue[]; plans: Plan[]; onLook: (id: string) => void; checkedAs?: { name: string; basis: string } }) {
   const ids = useMemo(() => [draft.id, ...draft.items.map((i) => i.id)], [draft.id, draft.items]);
   const key = ids.join(",");
   const loader = useCallback(async (): Promise<Std> => {
     if (!supabase) return [];
-    // arrives-with: 0456 — std_subject_summary: before 0456 the lens says the Standard isn't there yet
     const { data, error } = await supabase.from("std_subject_summary").select("*").in("subject_id", key.split(","));
-    if (error) { if (isMissingTable(error) || isMissingRelation(error)) return "missing"; throw new Error(error.message); }
+    if (error) throw new Error(error.message);
     return (data ?? []).map((x) => ({ ...x, passes: Number(x.passes), conditionals: Number(x.conditionals), fails: Number(x.fails), unknowns: Number(x.unknowns), stale: Number(x.stale) })) as Std;
   }, [key]);
   const std = useAsyncData(loader, [loader]);
   const [aside, setAside] = useState<Set<string>>(() => new Set());
   const nameOf = (id: string) => (id === draft.id ? draft.name : (() => { const it = draft.items.find((i) => i.id === id); return it ? it.label || kindOf(it.kind).name : "A thing"; })());
-  const serious = std.data && std.data !== "missing" ? std.data.filter((s) => s.critical_fail || s.fails > 0 || s.serious_unknown) : [];
-  const stale = std.data && std.data !== "missing" ? std.data.filter((s) => s.stale > 0) : [];
+  const serious = std.data ? std.data.filter((s) => s.critical_fail || s.fails > 0 || s.serious_unknown) : [];
+  const stale = std.data ? std.data.filter((s) => s.stale > 0) : [];
   const shown = found.filter((f) => !aside.has(f.words));
   const readers = plans.filter((p) => p.layout_id === draft.id);
   const diff = saved ? roomDiff(saved, draft) : null;
@@ -74,9 +72,8 @@ export default function Evaluate({ draft, saved, found, plans, onLook, checkedAs
           </div>
         ))}
       </details>
-      {std.data === "missing" && <p className="vz-card-s">The Primal Standard arrives with the next database update (0456).</p>}
       {std.error && <p className="vz-issue warn">Couldn&apos;t read the Standard just now — this isn&apos;t an all-clear.</p>}
-      {!serious.length && !shown.length && !(diff && diff.says.length) && !stale.length && std.data && std.data !== "missing" && (
+      {!serious.length && !shown.length && !(diff && diff.says.length) && !stale.length && std.data && (
         <p className="vz-card-s">Nothing found. The plan reviewer checks overlaps, walls and aisles; the Standard shows only what an owner has judged — unjudged isn&apos;t passed.</p>
       )}
       {checkedAs && <p className="vz-card-s">Checked as a {checkedAs.name.toLowerCase()} — its dimensions are a {checkedAs.basis.charAt(0).toLowerCase()}{checkedAs.basis.slice(1)}.</p>}

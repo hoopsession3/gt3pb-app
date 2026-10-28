@@ -9,7 +9,6 @@ import { Segmented } from "@/components/controls";
 import Said from "@/components/Said";
 import { failureWords } from "@/lib/failureWords";
 import { haptic } from "@/lib/haptics";
-import { isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
 import type { Layout } from "@/lib/vision";
 import { FORMAT, FORMATS, type Plan } from "@/lib/visionPlans";
 import { METHOD, primalScore, type PrimalScore } from "@/lib/primalScore";
@@ -29,9 +28,8 @@ import {
 type Data = { me: string | null; versions: Version[]; criteria: Criterion[]; materials: Material[]; links: ItemMaterial[]; evidence: Evidence[]; assessments: Assessment[]; claims: Claim[]; reviews: Review[]; summary: (Summary & { subject_type: Subject; subject_id: string })[] };
 type Section = "attention" | "evidence" | "materials" | "claims" | "criteria" | "score";
 
-async function readStandard(): Promise<Data | "missing"> {
+async function readStandard(): Promise<Data> {
   if (!supabase) throw new Error("Supabase client not configured");
-  // arrives-with: 0456 — std_*: before 0456 the screen says so
   const [me, v, c, m, l, e, a, cl, r, s] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("std_versions").select("*").order("created_at", { ascending: false }),
@@ -45,7 +43,6 @@ async function readStandard(): Promise<Data | "missing"> {
     supabase.from("std_subject_summary").select("*"),
   ]);
   const errs = [v, c, m, l, e, a, cl, r, s].map((x) => x.error).filter(Boolean);
-  if (errs.some((x) => isMissingTable(x) || isMissingRelation(x))) return "missing";
   if (errs[0]) throw new Error(errs[0]!.message);
   return { me: me.data.user?.id ?? null, versions: v.data as Version[], criteria: c.data as Criterion[], materials: m.data as Material[], links: l.data as ItemMaterial[], evidence: e.data as Evidence[], assessments: a.data as Assessment[], claims: cl.data as Claim[], reviews: r.data as Review[], summary: (s.data ?? []).map((x) => ({ ...x, passes: Number(x.passes), conditionals: Number(x.conditionals), fails: Number(x.fails), unknowns: Number(x.unknowns), stale: Number(x.stale) })) as Data["summary"] };
 }
@@ -60,9 +57,7 @@ export default function Standard({ layouts, plans = [], isOwner }: { layouts: La
       <Segmented label="The Standard" kind="choice" value={section} onChange={setSection}
         options={[{ key: "attention", label: "Needs attention" }, { key: "evidence", label: "Evidence" }, { key: "materials", label: "Materials" }, { key: "claims", label: "Claims" }, { key: "criteria", label: "Criteria" }, ...(isOwner ? [{ key: "score" as const, label: "Score" }] : [])]} />
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="Nothing yet" loadingLabel="Loading the Standard…" errorTitle="Couldn't load the Standard" errorSub="This is not an empty Standard — we couldn't read it just now.">
-        {(d) => d === "missing"
-          ? <p className="vz-sub">The Standard arrives with the next database update (0456).</p>
-          : <Body d={d} section={section} layouts={layouts} plans={plans} isOwner={isOwner} reload={state.reload} />}
+        {(d) => <Body d={d} section={section} layouts={layouts} plans={plans} isOwner={isOwner} reload={state.reload} />}
       </AsyncSection>
     </div>
   );

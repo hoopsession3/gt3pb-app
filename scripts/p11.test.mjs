@@ -61,7 +61,8 @@ ok("the words every view uses", /VERIFY_WORD: Record<Verification, string> = \{ 
 ok("the score is owners' and labelled a draft method, not approved", /\.\.\.\(isOwner \? \[\{ key: "score" as const, label: "Score" \}\] : \[\]\)/.test(std) && /Draft method \$\{METHOD\.version\} — not approved, owners only/.test(std) && /if \(section === "score" && isOwner\)/.test(std));
 ok("a criterion's weight, mandatory flag and operating models are set when it's written", /Mandatory — not met means not certifiable/.test(std) && /weight: Number\(f\.weight\), mandatory: f\.mandatory, models: f\.models/.test(std));
 const held = JSON.parse(read("supabase/held.json")).held.map((h) => h.file);
-ok("0456 is no longer held: it arrives with 0457, in one paste", !held.some((f) => f.startsWith("0456")) && /0456_the_primal_standard_engine\.sql/.test(read("supabase/APPLY_ALL_PENDING.sql")) && /0457_assessed_then_verified\.sql/.test(read("supabase/APPLY_ALL_PENDING.sql")));
+// 0456 and 0457 applied together (2026-10-28): neither is held, neither is pending.
+ok("0456 and 0457 went live together: neither held nor still in the paste file", !held.some((f) => f.startsWith("0456") || f.startsWith("0457")) && !/0456_the_primal_standard_engine\.sql — /.test(read("supabase/APPLY_ALL_PENDING.sql")) && !/^-- 0457_assessed_then_verified\.sql\s*$/m.test(read("supabase/APPLY_ALL_PENDING.sql")));
 const pkg = JSON.parse(read("package.json"));
 ok("this file runs with every test, and its database half with the database's", /node scripts\/p11\.test\.mjs/.test(pkg.scripts.test) && /node scripts\/db\.p11\.test\.mjs/.test(pkg.scripts["db:test"]));
 

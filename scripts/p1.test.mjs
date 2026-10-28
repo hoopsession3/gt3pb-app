@@ -54,7 +54,8 @@ ok("nothing assessed says so", S.summaryWords(null).word === "Not assessed");
 // ── wiring ────────────────────────────────────────────────────────────────────────────────────────────────────────
 const app = read("components/vision/VisionApp.tsx"), screen = read("components/vision/Standard.tsx");
 ok("the Standard tab is owners' and admins' only", /canEdit \? \[[^\]]*key: "standard"/.test(app) && /tab === "standard" && canEdit && <Standard/.test(app));
-ok("before 0456 the screen says so (arrives-with)", /arrives-with: 0456/.test(screen) && /arrives with the next database update \(0456\)/.test(screen));
+// 0456 applied (2026-10-28): the Standard is read plainly; no path is kept for before it.
+ok("0456 is in: the Standard reads plainly — no path kept for before it", !/arrives-with: 0456/.test(screen) && !/arrives with the next database update \(0456\)/.test(screen));
 ok("nobody is offered a review of their own evidence", /e\.submitted_by === d\.me/.test(screen));
 // P1.1: and not applicable only with its reason.
 ok("a pass is offered only when nothing blocks it", /disabled=\{!about \|\| blockers\.length > 0 \|\| \(outcome === "not_applicable" && !naReason\.trim\(\)\)\}/.test(screen));
