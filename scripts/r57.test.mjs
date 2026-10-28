@@ -61,7 +61,8 @@ const research = [{ topic: "demand", claim: "The gym has 2,400 members.", figure
   ok("the owner chooses per link; adding the money asks first", /isOwner && canCase && <CaseChooser/.test(shares) && /await confirm\(\{ title: `Show \$\{added\.join/.test(shares));
   ok("…a plan without an approved baseline can't be given", /disabled=\{!has\}/.test(shares));
   ok("in the room, the owners and admins present the cases", /readCases\(supabase\)/.test(app) && /withCases=\{canEdit\}/.test(app));
-  ok("before 0451 the link shows no case and the chooser hides", /arrives-with: 0451/.test(shares) && /setCanCase\(false\)/.test(shares) && /toCase\(r\.money/.test(rd));
+  // 0451 is applied (2026-10-28): the link's case columns are read plainly; no path is kept for before it.
+  ok("0451 is in: a link reads its case choices plainly — no path kept for before it", !/arrives-with: 0451/.test(shares) && !/setCanCase\(false\)/.test(shares) && /toCase\(r\.money/.test(rd));
 }
 
 console.log(`R57 — THE INVESTOR CASE: ${pass} passed, ${fail} failed`);
