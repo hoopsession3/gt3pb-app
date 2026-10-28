@@ -1,8 +1,8 @@
 -- ── 0457 — ASSESSED, THEN VERIFIED (P1.1) ───────────────────────────────────────────────────────────────────────────
 -- 2026-10-28. Primal Standard P1.1 (Ryan, 2026-10-26: "only owners verify, approve criteria and publish standards"; the
 -- Primal Significance Score approved as a draft — "provisional, owners-only, unpublished until you approve the method
--- version"). Paste into Supabase → SQL Editor → Run, together with 0456 — never 0456 alone. A second run changes nothing.
--- Needs 0456.
+-- version"). A second run changes nothing. Needs 0456.
+-- Paste it with 0456, in the same paste, after the deploy that carries P1.1's screen — never 0456 alone.
 --
 -- WHAT.
 --   A judgement is PROPOSED, then VERIFIED. An owner or an admin proposes one (std_assessments, verification
