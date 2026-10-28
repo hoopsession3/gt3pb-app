@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-26T16:38:10.682Z",
+    "pulled_at": "2026-10-28T13:40:10.162Z",
     "project": "unrecorded — rerun with --project=<ref> to name it",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 241,
-    "columns": 3043
+    "relations": 243,
+    "columns": 3084
   },
   "academy_acknowledgements": [
     "user_id",
@@ -3426,6 +3426,21 @@
     "created_at",
     "updated_at"
   ],
+  "vision_plan_risks": [
+    "id",
+    "tenant_id",
+    "plan_id",
+    "kind",
+    "words",
+    "likelihood",
+    "impact",
+    "mitigation",
+    "evidence",
+    "status",
+    "sort",
+    "created_at",
+    "updated_at"
+  ],
   "vision_plans": [
     "id",
     "tenant_id",
@@ -3445,7 +3460,15 @@
     "sort",
     "created_by",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "opened_on",
+    "actual_channel",
+    "research_every_days",
+    "research_last_at",
+    "research_by",
+    "customer",
+    "market",
+    "positioning"
   ],
   "vision_programs": [
     "id",
@@ -3466,6 +3489,24 @@
     "created_at",
     "updated_at"
   ],
+  "vision_research": [
+    "id",
+    "tenant_id",
+    "plan_id",
+    "run_id",
+    "topic",
+    "claim",
+    "figure",
+    "source_url",
+    "source_title",
+    "published",
+    "retrieved_at",
+    "status",
+    "bearing",
+    "reviewed_by",
+    "reviewed_at",
+    "created_at"
+  ],
   "vision_shares": [
     "id",
     "tenant_id",
@@ -3477,7 +3518,11 @@
     "revoked_at",
     "last_opened_at",
     "opens",
-    "expires_at"
+    "expires_at",
+    "money_plans",
+    "research_plans",
+    "program_ids",
+    "layout_ids"
   ],
   "webhook_events": [
     "id",
