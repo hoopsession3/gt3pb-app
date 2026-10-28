@@ -56,7 +56,8 @@ const app = read("components/vision/VisionApp.tsx"), screen = read("components/v
 ok("the Standard tab is owners' and admins' only", /canEdit \? \[[^\]]*key: "standard"/.test(app) && /tab === "standard" && canEdit && <Standard/.test(app));
 ok("before 0456 the screen says so (arrives-with)", /arrives-with: 0456/.test(screen) && /arrives with the next database update \(0456\)/.test(screen));
 ok("nobody is offered a review of their own evidence", /e\.submitted_by === d\.me/.test(screen));
-ok("a pass is offered only when nothing blocks it", /disabled=\{!about \|\| blockers\.length > 0\}/.test(screen));
+// P1.1: and not applicable only with its reason.
+ok("a pass is offered only when nothing blocks it", /disabled=\{!about \|\| blockers\.length > 0 \|\| \(outcome === "not_applicable" && !naReason\.trim\(\)\)\}/.test(screen));
 ok("only owners see publish, assess and claim support", (screen.match(/isOwner &&/g) ?? []).length >= 6);
 ok("illustrative is labelled as not evidence", /Illustrative — not evidence/.test(read("lib/standard.ts")));
 

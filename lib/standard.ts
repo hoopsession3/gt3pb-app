@@ -18,16 +18,24 @@ export type EvidenceKind = "observed" | "measured" | "declared" | "inferred" | "
 export const EVIDENCE_KINDS: EvidenceKind[] = ["measured", "observed", "declared", "inferred", "illustrative"];
 export const EVIDENCE_KIND_WORD: Record<EvidenceKind, string> = { observed: "Observed", measured: "Measured", declared: "Declared by the maker", inferred: "Inferred", illustrative: "Illustrative" };
 
-export type Outcome = "pass" | "conditional" | "fail" | "unknown";
-export const OUTCOME_WORD: Record<Outcome, string> = { pass: "Meets it", conditional: "Meets it with conditions", fail: "Doesn't meet it", unknown: "Unknown" };
-export const OUTCOME_TAG: Record<Outcome, string> = { pass: "k-tag ok", conditional: "k-tag gold", fail: "k-tag warn", unknown: "k-tag" };
+export type Outcome = "pass" | "conditional" | "fail" | "unknown" | "not_applicable";
+export const OUTCOME_WORD: Record<Outcome, string> = { pass: "Meets it", conditional: "Meets it with conditions", fail: "Doesn't meet it", unknown: "Unknown", not_applicable: "Not applicable" };
+export const OUTCOME_TAG: Record<Outcome, string> = { pass: "k-tag ok", conditional: "k-tag gold", fail: "k-tag warn", unknown: "k-tag", not_applicable: "k-tag" };
+
+/** P1.1 (0457): a judgement is proposed, then verified by an owner — independently, or by the owner who proposed it (said). */
+export type Verification = "proposed" | "independent" | "self";
+export const VERIFY_WORD: Record<Verification, string> = { proposed: "Proposed — waiting for an owner", independent: "Verified", self: "Self-verified" };
+export const VERIFY_TAG: Record<Verification, string> = { proposed: "k-tag gold", independent: "k-tag ok", self: "k-tag" };
 
 export type Version = { id: string; label: string; summary: string | null; status: "draft" | "published" | "retired"; published_at: string | null; created_at: string };
-export type Criterion = { id: string; version_id: string; pillar: StdPillar; code: string; title: string; requirement: string; applies_to: Subject; severity: Severity; evidence_needed: string | null; required_measures: string[]; needs_task_population: boolean; sort: number };
+export type Criterion = { id: string; version_id: string; pillar: StdPillar; code: string; title: string; requirement: string; applies_to: Subject; severity: Severity; evidence_needed: string | null; required_measures: string[]; needs_task_population: boolean; sort: number;
+  /** P1.1 (0457): weight within its pillar (1 = equal), mandatory, and the operating models it applies to (empty = all). */
+  weight?: number; mandatory?: boolean; models?: string[] };
 export type Material = { id: string; name: string; category: string; maker: string | null; product_ref: string | null; composition: string | null; watch_list: string[]; notes: string | null; archived_at: string | null };
 export type ItemMaterial = { id: string; item_id: string; material_id: string; role: string | null };
 export type Evidence = { id: string; subject_type: Subject; subject_id: string; criterion_id: string | null; bearing: "supports" | "contradicts" | "neutral"; kind: EvidenceKind; summary: string; source_title: string | null; source_url: string | null; source_date: string | null; method: string | null; coverage: string | null; limitations: string | null; confidence: "low" | "medium" | "high"; measures: Record<string, unknown>; expires_on: string | null; review_status: "submitted" | "accepted" | "rejected"; review_note: string | null; submitted_by: string | null; reviewed_by: string | null; reviewed_at: string | null; created_at: string };
-export type Assessment = { id: string; version_id: string; criterion_id: string; subject_type: Subject; subject_id: string; outcome: Outcome; hazard: string | null; exposure: string | null; risk: "low" | "medium" | "high" | "unknown"; task: string | null; population: string | null; evidence_ids: string[]; notes: string | null; assessed_by: string | null; assessed_at: string; stale_at: string | null; stale_reason: string | null; superseded_by: string | null };
+export type Assessment = { id: string; version_id: string; criterion_id: string; subject_type: Subject; subject_id: string; outcome: Outcome; hazard: string | null; exposure: string | null; risk: "low" | "medium" | "high" | "unknown"; task: string | null; population: string | null; evidence_ids: string[]; notes: string | null; assessed_by: string | null; assessed_at: string; stale_at: string | null; stale_reason: string | null; superseded_by: string | null;
+  verification?: Verification; verified_by?: string | null; verified_at?: string | null; na_reason?: string | null; na_approved_by?: string | null; confidence?: "low" | "medium" | "high" | null };
 export type Claim = { id: string; subject_type: string | null; subject_id: string | null; text: string; kind: "aspiration" | "marketing" | "scientific" | "medical"; status: "unverified" | "supported" | "not_supported"; evidence_ids: string[]; created_at: string };
 export type Review = { id: string; subject_type: string; subject_id: string; reason: string; status: "open" | "closed"; created_at: string };
 
@@ -76,7 +84,7 @@ export function parseMeasures(text: string): { measures: Record<string, number |
 }
 
 /** The summary for one subject — the worst first, so a total can't hide a safety-critical fail or a serious unknown. */
-export type Summary = { passes: number; conditionals: number; fails: number; unknowns: number; stale: number; critical_fail: boolean; serious_unknown: boolean };
+export type Summary = { passes: number; conditionals: number; fails: number; unknowns: number; stale: number; critical_fail: boolean; serious_unknown: boolean; not_applicable?: number; unverified?: number };
 export function summaryWords(s: Summary | null | undefined): { tag: string; word: string } {
   if (!s) return { tag: "k-tag", word: "Not assessed" };
   if (s.critical_fail) return { tag: "k-tag warn", word: "Safety-critical failure" };

@@ -1,10 +1,4 @@
 {
   "_why": "Migrations written and shipped but held back ON PURPOSE until something outside the database is true. scripts/migrations.pending.mjs leaves them out of the count and out of APPLY_ALL_PENDING.sql; scripts/verify.prod.mjs names them instead of failing the production gate on them. Each entry names its file and what it waits for. Take the entry out in the same change that applies it.",
-  "held": [
-    {
-      "file": "0456_the_primal_standard_engine.sql",
-      "until": "P1.1 (0457) is written and tested with it; then pasted together with their own yes",
-      "since": "2026-10-27"
-    }
-  ]
+  "held": []
 }

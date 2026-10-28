@@ -9794,6 +9794,12 @@ export type Database = {
           stale_reason: string | null
           superseded_by: string | null
           created_at: string
+          verification: string
+          verified_by: string | null
+          verified_at: string | null
+          na_reason: string | null
+          na_approved_by: string | null
+          confidence: string | null
         }
         Insert: {
           id?: string
@@ -9816,6 +9822,12 @@ export type Database = {
           stale_reason?: string | null
           superseded_by?: string | null
           created_at?: string
+          verification?: string
+          verified_by?: string | null
+          verified_at?: string | null
+          na_reason?: string | null
+          na_approved_by?: string | null
+          confidence?: string | null
         }
         Update: {
           id?: string
@@ -9838,6 +9850,12 @@ export type Database = {
           stale_reason?: string | null
           superseded_by?: string | null
           created_at?: string
+          verification?: string
+          verified_by?: string | null
+          verified_at?: string | null
+          na_reason?: string | null
+          na_approved_by?: string | null
+          confidence?: string | null
         }
         Relationships: [
           {
@@ -9939,6 +9957,9 @@ export type Database = {
           needs_task_population: boolean
           sort: number
           created_at: string
+          weight: number
+          mandatory: boolean
+          models: string[]
         }
         Insert: {
           id?: string
@@ -9955,6 +9976,9 @@ export type Database = {
           needs_task_population?: boolean
           sort?: number
           created_at?: string
+          weight?: number
+          mandatory?: boolean
+          models?: string[]
         }
         Update: {
           id?: string
@@ -9971,6 +9995,9 @@ export type Database = {
           needs_task_population?: boolean
           sort?: number
           created_at?: string
+          weight?: number
+          mandatory?: boolean
+          models?: string[]
         }
         Relationships: [
           {
@@ -12346,6 +12373,8 @@ export type Database = {
           critical_fail: boolean | null
           serious_unknown: boolean | null
           last_assessed_at: string | null
+          not_applicable: number | null
+          unverified: number | null
         }
         Relationships: []
       }

@@ -11,9 +11,12 @@ import { failureWords } from "@/lib/failureWords";
 import { haptic } from "@/lib/haptics";
 import { isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
 import type { Layout } from "@/lib/vision";
+import { FORMAT, FORMATS, type Plan } from "@/lib/visionPlans";
+import { METHOD, primalScore, type PrimalScore } from "@/lib/primalScore";
+import { roomDeterminations, toScoreCriteria } from "@/lib/primalRoom";
 import {
   EVIDENCE_KINDS, EVIDENCE_KIND_WORD, OUTCOME_TAG, OUTCOME_WORD, PILLARS, PILLAR_WORD, SEVERITY_WORD, STATE_WORD, SUBJECT_WORD,
-  canCarryPass, evidenceState, isProhibited, parseMeasures, passBlockers, summaryWords,
+  VERIFY_TAG, VERIFY_WORD, canCarryPass, evidenceState, isProhibited, parseMeasures, passBlockers, summaryWords,
   type Assessment, type Claim, type Criterion, type Evidence, type ItemMaterial, type Material, type Outcome, type Review, type Severity,
   type StdPillar, type Subject, type Summary, type Version,
 } from "@/lib/standard";
@@ -24,7 +27,7 @@ import {
 // published version never changes; a prohibited claim is never supported. This screen says why before you press.
 
 type Data = { me: string | null; versions: Version[]; criteria: Criterion[]; materials: Material[]; links: ItemMaterial[]; evidence: Evidence[]; assessments: Assessment[]; claims: Claim[]; reviews: Review[]; summary: (Summary & { subject_type: Subject; subject_id: string })[] };
-type Section = "attention" | "evidence" | "materials" | "claims" | "criteria";
+type Section = "attention" | "evidence" | "materials" | "claims" | "criteria" | "score";
 
 async function readStandard(): Promise<Data | "missing"> {
   if (!supabase) throw new Error("Supabase client not configured");
@@ -47,7 +50,7 @@ async function readStandard(): Promise<Data | "missing"> {
   return { me: me.data.user?.id ?? null, versions: v.data as Version[], criteria: c.data as Criterion[], materials: m.data as Material[], links: l.data as ItemMaterial[], evidence: e.data as Evidence[], assessments: a.data as Assessment[], claims: cl.data as Claim[], reviews: r.data as Review[], summary: (s.data ?? []).map((x) => ({ ...x, passes: Number(x.passes), conditionals: Number(x.conditionals), fails: Number(x.fails), unknowns: Number(x.unknowns), stale: Number(x.stale) })) as Data["summary"] };
 }
 
-export default function Standard({ layouts, isOwner }: { layouts: Layout[]; isOwner: boolean }) {
+export default function Standard({ layouts, plans = [], isOwner }: { layouts: Layout[]; plans?: Plan[]; isOwner: boolean }) {
   const loader = useCallback(() => readStandard(), []);
   const state = useAsyncData(loader, []);
   const [section, setSection] = useState<Section>("attention");
@@ -55,17 +58,17 @@ export default function Standard({ layouts, isOwner }: { layouts: Layout[]; isOw
     <div className="flex flex-col gap-3">
       <p className="vz-sub">The Primal Standard, inside: what a room, an object or a material is judged against, the evidence, and the judgement. Unknown is never safe, and missing evidence never passes.</p>
       <Segmented label="The Standard" kind="choice" value={section} onChange={setSection}
-        options={[{ key: "attention", label: "Needs attention" }, { key: "evidence", label: "Evidence" }, { key: "materials", label: "Materials" }, { key: "claims", label: "Claims" }, { key: "criteria", label: "Criteria" }]} />
+        options={[{ key: "attention", label: "Needs attention" }, { key: "evidence", label: "Evidence" }, { key: "materials", label: "Materials" }, { key: "claims", label: "Claims" }, { key: "criteria", label: "Criteria" }, ...(isOwner ? [{ key: "score" as const, label: "Score" }] : [])]} />
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="Nothing yet" loadingLabel="Loading the Standard…" errorTitle="Couldn't load the Standard" errorSub="This is not an empty Standard — we couldn't read it just now.">
         {(d) => d === "missing"
           ? <p className="vz-sub">The Standard arrives with the next database update (0456).</p>
-          : <Body d={d} section={section} layouts={layouts} isOwner={isOwner} reload={state.reload} />}
+          : <Body d={d} section={section} layouts={layouts} plans={plans} isOwner={isOwner} reload={state.reload} />}
       </AsyncSection>
     </div>
   );
 }
 
-function Body({ d, section, layouts, isOwner, reload }: { d: Data; section: Section; layouts: Layout[]; isOwner: boolean; reload: () => void }) {
+function Body({ d, section, layouts, plans, isOwner, reload }: { d: Data; section: Section; layouts: Layout[]; plans: Plan[]; isOwner: boolean; reload: () => void }) {
   const { toast } = useAppStable();
   const items = useMemo(() => layouts.flatMap((l) => l.items.map((i) => ({ ...i, layoutId: l.id, layoutName: l.name }))), [layouts]);
   const nameOf = useCallback((t: string, id: string) => {
@@ -86,6 +89,7 @@ function Body({ d, section, layouts, isOwner, reload }: { d: Data; section: Sect
   };
   const sb = supabase!;
   if (section === "attention") return <Attention d={d} nameOf={nameOf} isOwner={isOwner} run={run} />;
+  if (section === "score" && isOwner) return <Score d={d} layouts={layouts} plans={plans} />;
   if (section === "evidence") return <EvidencePanel d={d} subjects={subjects} nameOf={nameOf} isOwner={isOwner} run={run} sb={sb} />;
   if (section === "materials") return <Materials d={d} items={items} run={run} sb={sb} />;
   if (section === "claims") return <Claims d={d} isOwner={isOwner} run={run} sb={sb} />;
@@ -101,11 +105,18 @@ function Attention({ d, nameOf, isOwner, run }: { d: Data; nameOf: (t: string, i
   const waiting = d.evidence.filter((e) => e.review_status === "submitted");
   const worst = d.summary.filter((s) => s.critical_fail || s.fails > 0 || s.serious_unknown);
   const crit = (id: string) => d.criteria.find((c) => c.id === id);
-  if (!stale.length && !waiting.length && !worst.length && !d.reviews.length) return <p className="vz-sub">Nothing needs attention. Every judgement is current and every piece of evidence is reviewed.</p>;
+  // P1.1: proposed judgements, waiting for an owner. The database says whose verification it is when it's made.
+  const proposed = d.assessments.filter((a) => a.verification === "proposed" && !a.stale_at);
+  if (!stale.length && !waiting.length && !worst.length && !d.reviews.length && !proposed.length) return <p className="vz-sub">Nothing needs attention. Every judgement is current and every piece of evidence is reviewed.</p>;
   return (
     <div className="flex flex-col gap-3">
       {worst.length > 0 && <Group title="Not met, or a serious unknown" note="Shown first and never folded into a total.">
         {worst.map((s) => { const w = summaryWords(s); return <div key={s.subject_type + s.subject_id} className="vz-obs"><span>{nameOf(s.subject_type, s.subject_id)}</span><span className={w.tag}>{w.word}</span></div>; })}
+      </Group>}
+      {proposed.length > 0 && <Group title={`Waiting for an owner to verify — ${proposed.length}`} note="A judgement counts as provisional until an owner verifies it. Verifying your own proposal is allowed, and it says self-verified.">
+        {proposed.map((a) => <div key={a.id} className="vz-obs"><span>{crit(a.criterion_id)?.code} {crit(a.criterion_id)?.title} · {nameOf(a.subject_type, a.subject_id)}</span>
+          <span className="vz-card-s"><span className={OUTCOME_TAG[a.outcome]}>{OUTCOME_WORD[a.outcome]}</span>{a.outcome === "not_applicable" && a.na_reason ? ` — ${a.na_reason}` : ""}{a.confidence ? ` · confidence ${a.confidence}` : ""}</span>
+          {isOwner && <button type="button" className="btn-ter self-start" onClick={() => void run("verify the judgement", supabase!.from("std_assessments").update({ verification: "independent" }).eq("id", a.id), a.assessed_by === d.me ? "Self-verified — it says so." : "Verified.")}>{a.assessed_by === d.me ? "Verify my own — it will say self-verified" : a.outcome === "not_applicable" ? "Verify — and approve not applicable" : "Verify"}</button>}</div>)}
       </Group>}
       {stale.length > 0 && <Group title={`Stale — ${stale.length}`} note="Something it depended on changed. The judgement stands as history until an owner reassesses it.">
         {stale.map((a) => <div key={a.id} className="vz-obs"><span>{crit(a.criterion_id)?.code} {crit(a.criterion_id)?.title} · {nameOf(a.subject_type, a.subject_id)}</span><span className="vz-card-s">{a.stale_reason}</span></div>)}
@@ -280,7 +291,8 @@ function Criteria({ d, subjects, isOwner, run, sb }: { d: Data; subjects: Subjec
   const v = d.versions.find((x) => x.id === vid) ?? null;
   const crits = d.criteria.filter((c) => c.version_id === v?.id);
   const [label, setLabel] = useState("");
-  const [f, setF] = useState({ pillar: "light" as StdPillar, code: "", title: "", requirement: "", applies_to: "room" as Subject, severity: "medium" as Severity, measures: "", tp: false, evidence_needed: "" });
+  const [f, setF] = useState({ pillar: "light" as StdPillar, code: "", title: "", requirement: "", applies_to: "room" as Subject, severity: "medium" as Severity, measures: "", tp: false, evidence_needed: "", weight: "1", mandatory: false, models: [] as string[] });
+  const weightOk = Number(f.weight) > 0 && Number(f.weight) <= 10;
   const [assess, setAssess] = useState<Criterion | null>(null);
   return (
     <div className="flex flex-col gap-3">
@@ -307,9 +319,14 @@ function Criteria({ d, subjects, isOwner, run, sb }: { d: Data; subjects: Subjec
         {f.pillar === "light" && /^\s*(lumens|lm)?\s*$/i.test(f.measures) && f.measures.trim() !== "" && <Said as="p" className="vz-issue warn">Light can&apos;t be judged on lumens alone — add the other measurements.</Said>}
         <label className="prod-f"><span>Evidence it needs</span><input value={f.evidence_needed} maxLength={1000} onChange={(e) => setF({ ...f, evidence_needed: e.target.value })} /></label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={f.tp} onChange={(e) => setF({ ...f, tp: e.target.checked })} /><span>Judged for a named task and population (ergonomics)</span></label>
-        <button type="button" className="btn-sec btn-sm self-start" disabled={!f.code.trim() || !f.title.trim() || !f.requirement.trim()} onClick={async () => {
-          const ok = await run("add the criterion", sb.from("std_criteria").insert({ version_id: v.id, pillar: f.pillar, code: f.code.trim(), title: f.title.trim(), requirement: f.requirement.trim(), applies_to: f.applies_to, severity: f.severity, required_measures: f.measures.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean), needs_task_population: f.tp, evidence_needed: f.evidence_needed.trim() || null, sort: crits.length + 1 }), "Criterion added.");
-          if (ok) setF({ ...f, code: "", title: "", requirement: "", measures: "", evidence_needed: "" });
+        <label className="prod-f"><span>Weight within {PILLAR_WORD[f.pillar]} (1 = equal, up to 10)</span><input value={f.weight} inputMode="decimal" onChange={(e) => setF({ ...f, weight: e.target.value })} /></label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={f.mandatory} onChange={(e) => setF({ ...f, mandatory: e.target.checked })} /><span>Mandatory — not met means not certifiable, whatever the score</span></label>
+        <fieldset className="flex flex-col gap-1 border-0 p-0 m-0"><legend className="vz-card-s mb-1">Operating models it applies to (none ticked: every one)</legend>
+          {FORMATS.filter((m) => FORMAT[m].room).map((m) => <label key={m} className="flex items-center gap-2"><input type="checkbox" checked={f.models.includes(m)} onChange={(e) => setF({ ...f, models: e.target.checked ? [...f.models, m] : f.models.filter((x) => x !== m) })} /><span>{FORMAT[m].name}</span></label>)}
+        </fieldset>
+        <button type="button" className="btn-sec btn-sm self-start" disabled={!f.code.trim() || !f.title.trim() || !f.requirement.trim() || !weightOk} onClick={async () => {
+          const ok = await run("add the criterion", sb.from("std_criteria").insert({ version_id: v.id, pillar: f.pillar, code: f.code.trim(), title: f.title.trim(), requirement: f.requirement.trim(), applies_to: f.applies_to, severity: f.severity, required_measures: f.measures.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean), needs_task_population: f.tp, evidence_needed: f.evidence_needed.trim() || null, sort: crits.length + 1, weight: Number(f.weight), mandatory: f.mandatory, models: f.models }), "Criterion added.");
+          if (ok) setF({ ...f, code: "", title: "", requirement: "", measures: "", evidence_needed: "", weight: "1", mandatory: false, models: [] });
         }}>Add criterion</button>
       </Group>}
       {PILLARS.map((p) => { const rows = crits.filter((c) => c.pillar === p); if (!rows.length) return null; return (
@@ -318,8 +335,8 @@ function Criteria({ d, subjects, isOwner, run, sb }: { d: Data; subjects: Subjec
             <div key={c.id} className="vz-obs">
               <span><b>{c.code}</b> {c.title}</span>
               <span className="vz-card-s">{c.requirement}</span>
-              <span className="vz-card-s">{SUBJECT_WORD[c.applies_to]} · {SEVERITY_WORD[c.severity]}{c.required_measures.length ? ` · needs ${c.required_measures.join(", ")}` : ""}{c.needs_task_population ? " · task and population named" : ""}</span>
-              {isOwner && v?.status === "published" && <button type="button" className="btn-ter self-start" onClick={() => setAssess(c)}>Assess against {c.code}</button>}
+              <span className="vz-card-s">{SUBJECT_WORD[c.applies_to]} · {SEVERITY_WORD[c.severity]}{c.required_measures.length ? ` · needs ${c.required_measures.join(", ")}` : ""}{c.needs_task_population ? " · task and population named" : ""}{c.mandatory ? " · mandatory" : ""}{Number(c.weight ?? 1) !== 1 ? ` · weight ${Number(c.weight)}` : ""}{c.models?.length ? ` · ${c.models.map((m) => FORMAT[m as keyof typeof FORMAT]?.name ?? m).join(", ")}` : ""}</span>
+              {v?.status === "published" && <button type="button" className="btn-ter self-start" onClick={() => setAssess(c)}>Propose a judgement on {c.code}</button>}
             </div>))}
         </Group>); })}
       {assess && v && <Assess c={assess} version={v} d={d} subjects={subjects} run={run} sb={sb} onDone={() => setAssess(null)} />}
@@ -336,6 +353,8 @@ function Assess({ c, version, d, subjects, run, sb, onDone }: { c: Criterion; ve
   const [task, setTask] = useState("");
   const [population, setPopulation] = useState("");
   const [chosen, setChosen] = useState<string[]>([]);
+  const [naReason, setNaReason] = useState("");
+  const [confidence, setConfidence] = useState<"" | "low" | "medium" | "high">("");
   const [t, id] = about ? about.split(":") as [Subject, string] : [null, null];
   const pool = d.evidence.filter((e) => e.subject_type === t && e.subject_id === id);
   const against = pool.filter((e) => e.review_status === "accepted" && e.bearing === "contradicts" && (!e.criterion_id || e.criterion_id === c.id) && evidenceState(e) !== "expired").length;
@@ -344,8 +363,10 @@ function Assess({ c, version, d, subjects, run, sb, onDone }: { c: Criterion; ve
   return (
     <Group title={`Assess ${c.code} — ${c.title}`} note={`Against ${version.label}. Hazard, exposure and risk are separate: a hazard without exposure isn't a risk, and unknown isn't safe.`}>
       <SubjectPick value={about} onChange={(v) => { setAbout(v); setChosen([]); }} subjects={subjects} only={c.applies_to} />
-      {current && <p className="vz-card-s">Now: <span className={OUTCOME_TAG[current.outcome]}>{OUTCOME_WORD[current.outcome]}</span>{current.stale_at ? ` · stale — ${current.stale_reason}` : ""}. A new judgement replaces it; the old one stays in history.</p>}
+      {current && <p className="vz-card-s">Now: <span className={OUTCOME_TAG[current.outcome]}>{OUTCOME_WORD[current.outcome]}</span> <span className={VERIFY_TAG[current.verification ?? "proposed"]}>{VERIFY_WORD[current.verification ?? "proposed"]}</span>{current.stale_at ? ` · stale — ${current.stale_reason}` : ""}. A new judgement replaces it; the old one stays in history.</p>}
       <label className="prod-f"><span>Outcome</span><select value={outcome} onChange={(e) => setOutcome(e.target.value as Outcome)}>{(Object.keys(OUTCOME_WORD) as Outcome[]).map((o) => <option key={o} value={o}>{OUTCOME_WORD[o]}</option>)}</select></label>
+      {outcome === "not_applicable" && <label className="prod-f"><span>Why it doesn&apos;t apply (an owner approves it)</span><textarea value={naReason} rows={2} maxLength={600} onChange={(e) => setNaReason(e.target.value)} /></label>}
+      <label className="prod-f"><span>Confidence in this judgement</span><select value={confidence} onChange={(e) => setConfidence(e.target.value as typeof confidence)}><option value="">Not said</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
       <fieldset className="flex flex-col gap-1 border-0 p-0 m-0"><legend className="vz-card-s mb-1">Evidence about it</legend>
         {pool.length === 0 && <span className="vz-card-s">None yet — submit evidence first, or record unknown.</span>}
         {pool.map((e) => { const st = evidenceState(e); return (
@@ -360,11 +381,56 @@ function Assess({ c, version, d, subjects, run, sb, onDone }: { c: Criterion; ve
       </>}
       {blockers.length > 0 && <Said as="p" className="vz-issue warn">{blockers.join(" ")}</Said>}
       <div className="flex gap-2">
-        <button type="button" className="btn-sec btn-sm" disabled={!about || blockers.length > 0} onClick={async () => {
-          if (await run("record the judgement", sb.from("std_assessments").insert({ version_id: version.id, criterion_id: c.id, subject_type: t!, subject_id: id!, outcome, hazard: hazard.trim() || null, exposure: exposure.trim() || null, risk, task: task.trim() || null, population: population.trim() || null, evidence_ids: chosen }), "Recorded.")) onDone();
-        }}>Record</button>
+        <button type="button" className="btn-sec btn-sm" disabled={!about || blockers.length > 0 || (outcome === "not_applicable" && !naReason.trim())} onClick={async () => {
+          if (await run("propose the judgement", sb.from("std_assessments").insert({ version_id: version.id, criterion_id: c.id, subject_type: t!, subject_id: id!, outcome, hazard: hazard.trim() || null, exposure: exposure.trim() || null, risk, task: task.trim() || null, population: population.trim() || null, evidence_ids: outcome === "not_applicable" ? [] : chosen, na_reason: outcome === "not_applicable" ? naReason.trim() : null, confidence: confidence || null }), "Proposed — it counts once an owner verifies it.")) onDone();
+        }}>Propose</button>
         <button type="button" className="btn-ter" onClick={onDone}>Cancel</button>
       </div>
     </Group>
+  );
+}
+
+// THE PRIMAL SIGNIFICANCE SCORE (P1.1) — owners only, a draft method: a room's judgements added up, with what holds it
+// back said first. The gates beat the number; coverage, confidence and both versions sit beside it, never inside it.
+function Score({ d, layouts, plans }: { d: Data; layouts: Layout[]; plans: Plan[] }) {
+  const rooms = layouts;
+  const [roomId, setRoomId] = useState(rooms[0]?.id ?? "");
+  const room = rooms.find((l) => l.id === roomId) ?? null;
+  const roomPlans = plans.filter((p) => p.layout_id === roomId);
+  const [modelPick, setModelPick] = useState<string>("");
+  const model = modelPick || roomPlans[0]?.format || "other";
+  const version = d.versions.find((v) => v.status === "published") ?? null;
+  const crits = version ? d.criteria.filter((c) => c.version_id === version.id) : [];
+  const result: PrimalScore | null = version && room
+    ? primalScore(toScoreCriteria(crits), roomDeterminations(crits, d.assessments, room.id, room.items.map((i) => i.id), d.links), model, version.label)
+    : null;
+  if (!rooms.length) return <p className="vz-sub">Draw a room under The store first — the score is a room&apos;s.</p>;
+  if (!version) return <p className="vz-sub">Publish a version of the Standard first — the score reads its criteria.</p>;
+  const STATUS: Record<PrimalScore["status"], { tag: string; word: string }> = {
+    verified: { tag: "k-tag ok", word: "Verified" }, provisional: { tag: "k-tag gold", word: "Provisional" },
+    not_certifiable: { tag: "k-tag warn", word: "Not certifiable" }, not_assessed: { tag: "k-tag", word: "Not assessed" },
+  };
+  return (
+    <div className="flex flex-col gap-3">
+      <Group title="The Primal Significance Score" note={`Draft method ${METHOD.version} — not approved, owners only, not for anyone outside. Unknown, unevidenced, stale or unverified counts as zero; with conditions is half.`}>
+        <label className="prod-f"><span>Room</span><select value={roomId} onChange={(e) => { setRoomId(e.target.value); setModelPick(""); }}>{rooms.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
+        <label className="prod-f"><span>Operating model</span><select value={model} onChange={(e) => setModelPick(e.target.value)}>{FORMATS.filter((m) => FORMAT[m].room).map((m) => <option key={m} value={m}>{FORMAT[m].name}{roomPlans.some((p) => p.format === m) ? " — a plan uses this room" : ""}</option>)}</select></label>
+        {result && <>
+          <div className="flex flex-wrap items-baseline gap-2"><b className="font-sans text-title2">{result.overall == null ? "—" : result.overall}</b><span className="vz-card-s">of 100</span><span className={STATUS[result.status].tag}>{STATUS[result.status].word}</span></div>
+          {result.gates.length > 0 && <Said as="p" className="vz-issue warn">{result.gates.join(" ")}</Said>}
+          <p className="vz-card-s">Evidence behind it: {result.coverage}% of the criteria that count · confidence {result.confidence ?? "not said"}{result.selfVerified ? " · some of it self-verified" : ""} · against {result.standardVersion}.</p>
+        </>}
+      </Group>
+      {result && <Group title="By pillar">
+        {result.pillars.map((p) => <div key={p.pillar} className="vz-obs"><span><b>{PILLAR_WORD[p.pillar]}</b> {p.score == null ? "— no criteria" : `${p.score} of 100`}</span>
+          <span className="vz-card-s">{p.criteria.map((c) => `${c.criterion.code}: ${c.why}`).join(" ")}</span></div>)}
+      </Group>}
+      {result && result.next.length > 0 && <Group title="What would raise it most">
+        {result.next.map((n) => <div key={n.code} className="vz-obs"><span><b>{n.code}</b> {n.title}</span><span className="vz-card-s">Up to {n.gain} points · {n.action}</span></div>)}
+      </Group>}
+      {result && result.excluded.length > 0 && <Group title="Left out — not applicable, approved">
+        {result.excluded.map((x) => <div key={x.code} className="vz-obs"><span><b>{x.code}</b></span><span className="vz-card-s">{x.reason}</span></div>)}
+      </Group>}
+    </div>
   );
 }
