@@ -208,7 +208,7 @@ async function standIn(answers) {
   });
   ok("…and `npm run release:plan` runs on this tree: the paste file's by name and count, what is held, the push function, the snapshot, then the steps",
     plan.code === 0 && new RegExp(`written as of ${paste.from}\\): ${paste.count}\\n  · ${paste.files[0].replace(/\./g, "\\.")}`).test(plan.out)
-      && new RegExp(`Held on purpose \\(supabase\\/held\\.json\\): ${JSON.parse(read("supabase/held.json")).held.length}\\n  · 0376_`).test(plan.out)
+      && new RegExp(`Held on purpose \\(supabase\\/held\\.json\\): ${JSON.parse(read("supabase/held.json")).held.length}\\n  · ${JSON.parse(read("supabase/held.json")).held[0].file.slice(0, 5)}`).test(plan.out)
       && /The push function this tree carries: \d{4}-\d{2}-\d{2} R\d+/.test(plan.out) && /The security snapshot: pulled /.test(plan.out) && /\n  1\. On the patch's tree: npm ci && npm run release/.test(plan.out), plan.out.slice(0, 900));
   const rel = read("RELEASE.md");
   ok("RELEASE.md: the gate, the push, the database after the deploy, the push function, what is held, the iPhone app, what each red line means, and the way back",

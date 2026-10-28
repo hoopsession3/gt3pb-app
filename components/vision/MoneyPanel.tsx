@@ -9,7 +9,6 @@ import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import { useConfirm } from "@/components/ConfirmSheet";
 import { Segmented } from "@/components/controls";
 import { failureWords } from "@/lib/failureWords";
-import { isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
 import { haptic } from "@/lib/haptics";
 import { readLedger, CHANNEL_WORD, type Channel } from "@/lib/orderLedger";
 import { askTotals, type Ask } from "@/lib/vision";
@@ -110,11 +109,9 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress, o
   const found = flags(i, m, structure, asked || null, on === "base" ? models : undefined);
   const traces = useMemo(() => trace(i, structure, m), [i, structure, m]);
   // The plan's research (0450): what the market says; only accepted findings count in the score.
-  const loadResearch = useCallback(async (): Promise<Research[] | "not-yet"> => {
+  const loadResearch = useCallback(async (): Promise<Research[]> => {
     if (!supabase) return [];
-    // arrives-with: 0450
     const { data, error } = await supabase.from("vision_research").select("id, plan_id, topic, claim, figure, source_url, source_title, published, status, bearing, retrieved_at").eq("plan_id", plan.id).order("retrieved_at", { ascending: false }).limit(200);
-    if (error && (isMissingTable(error) || isMissingRelation(error))) return "not-yet";
     if (error) throw new Error(error.message);
     return (data ?? []) as Research[];
   }, [plan.id]);
@@ -223,7 +220,7 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress, o
           {on === "base" && <div id="vz-derive" className="contents"><Derive base={scen.base} onMake={(c, u) => void makeBoth(c, u)} /></div>}
           <StructureForm s={structure} set={setStructure} raised={asked} i={i} setI={set} />
           <Evidence onUse={(cents) => { set({ avgOrderCents: cents }); setFromSales(cents); }} />
-          <div id="vz-research" className="contents"><ResearchPanel planId={plan.id} items={research} ready={rs.data !== "not-yet"} onChanged={rs.reload} every={plan.research_every_days ?? 0} lastAt={plan.research_last_at ?? null} /></div>
+          <div id="vz-research" className="contents"><ResearchPanel planId={plan.id} items={research} onChanged={rs.reload} every={plan.research_every_days ?? 0} lastAt={plan.research_last_at ?? null} /></div>
           <ActualPanel plan={plan} model={baselineBase ?? models.base} against={baseline ? "the approved baseline's Base" : "the working Base (no baseline approved yet)"} />
         </div>
         <div className="flex flex-col gap-3 min-w-0">

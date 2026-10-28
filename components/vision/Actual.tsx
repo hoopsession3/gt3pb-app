@@ -31,7 +31,6 @@ export default function ActualPanel({ plan, model, against }: { plan: Plan; mode
   const save = async () => {
     if (!supabase || busy) return;
     setBusy(true);
-    // arrives-with: 0452
     const { error } = await supabase.from("vision_plans").update({ opened_on: opened || null, actual_channel: channel || null }).eq("id", plan.id);
     setBusy(false);
     if (error) { toast(failureWords(error, "Couldn't save when it opened"), "error"); return; }

@@ -4,7 +4,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { allowedKind, type Ask, type Item, type Layout, type Pillar, type Program } from "./vision";
 import { DEALS, FORMATS, NEED_KINDS, PLAN_STATUSES, type Dep, type Need, type Plan } from "./visionPlans";
-import { isMissingColumn, isMissingRelation, isMissingTable } from "./schemaSkew";
 import { toCase, type PlanCase } from "./visionCaseData";
 
 /** `plansReady`: 0448 is in (R53). Until it is, the plans read is absent, not failed — the roadmap and the room still
@@ -55,9 +54,6 @@ export const toNeed = (r: Row, planId?: string): Need => ({
   id: r.id ? String(r.id) : undefined, plan_id: planId ?? String(r.plan_id), label: String(r.label ?? ""), kind: oneOf(NEED_KINDS, r.kind, "other"),
   owner: (r.owner as string) ?? null, due_on: (r.due_on as string) ?? null, done_on: (r.done_on as string) ?? null, note: (r.note as string) ?? null, sort: n(r.sort),
 });
-/** Absent because 0448 isn't in yet — not a failure (lib/schemaSkew). */
-const notYet = (e: { code?: string | null; message?: string | null } | null) => !!e && (isMissingTable(e) || isMissingRelation(e) || isMissingColumn(e));
-
 /** The console's read: everything, as staff see it. A refused read is an error, never an empty plan. */
 export async function readVision(sb: SupabaseClient): Promise<Vision> {
   const [p, a, l, i] = await Promise.all([
@@ -133,17 +129,16 @@ export async function saveLayout(sb: SupabaseClient, layout: Layout, before: rea
 }
 
 /** The investor cases the owners and admins can present in the room (R57): every plan with an approved baseline, and
- *  its accepted research. Before 0449/0450 there are none — the presenter shows the plan as before. */
+ *  its accepted research and its risks. */
 export async function readCases(sb: SupabaseClient): Promise<Record<string, PlanCase>> {
   const m = await sb.from("vision_plan_money").select("plan_id, baseline, baseline_at").not("baseline", "is", null);
   if (m.error) throw new Error(m.error.message);
-  // arrives-with: 0450
   const r = await sb.from("vision_research").select("plan_id, topic, claim, figure, source_url, source_title, published, bearing, retrieved_at").eq("status", "accepted");
-  if (r.error && !notYet(r.error)) throw new Error(r.error.message);
-  const found = ((r.error ? [] : r.data) ?? []) as Row[];
-  // arrives-with: 0454
+  if (r.error) throw new Error(r.error.message);
+  const found = (r.data ?? []) as Row[];
   const k = await sb.from("vision_plan_risks").select("*");
-  const risks = ((k.error ? [] : k.data) ?? []) as Row[];
+  if (k.error) throw new Error(k.error.message);
+  const risks = (k.data ?? []) as Row[];
   const out: Record<string, PlanCase> = {};
   for (const row of (m.data ?? []) as Row[]) {
     const id = String(row.plan_id);

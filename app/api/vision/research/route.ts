@@ -7,7 +7,6 @@ import { isJsonObject, route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
 import { TOPICS, isDue, novel, searchedUrls, verify } from "@/lib/visionResearch";
 import { raiseAlert } from "@/lib/serverAlerts";
-import { isMissingColumn } from "@/lib/schemaSkew";
 import { FORMAT } from "@/lib/visionPlans";
 
 export const runtime = "nodejs";
@@ -61,10 +60,9 @@ async function post(req: Request) {
   const { data: plan, error: pe } = await supabaseAdmin.from("vision_plans").select("id, name, format, place, summary, sqft").eq("id", planId).eq("tenant_id", tenant).maybeSingle();
   if (pe) return NextResponse.json({ ok: false, error: pe.message }, { status: 500 });
   if (!plan) return NextResponse.json({ ok: false, error: "No such plan." }, { status: 404 });
-  // arrives-with: 0453  — the schedule: before 0453 the plan has none (never due), and a run doesn't stamp when it ran
+  // The schedule (0453).
   const sch = await supabaseAdmin.from("vision_plans").select("research_every_days, research_last_at, research_by").eq("id", planId).eq("tenant_id", tenant).maybeSingle();
-  const hasSchedule = !sch.error;
-  if (sch.error && !isMissingColumn(sch.error)) return NextResponse.json({ ok: false, error: sch.error.message }, { status: 500 });
+  if (sch.error) return NextResponse.json({ ok: false, error: sch.error.message }, { status: 500 });
   const p = { ...(plan as { id: string; name: string; format: keyof typeof FORMAT; place: string | null; summary: string | null; sqft: number | null }),
     research_every_days: 0, research_last_at: null as string | null, research_by: null as string | null, ...((sch.data as object | null) ?? {}) };
   // A scheduled check (R60, 0453) runs only when due — a second open of the vision the same day spends nothing.
@@ -72,7 +70,6 @@ async function post(req: Request) {
   if (scheduled && !isDue(p)) return NextResponse.json({ ok: true, kept: 0, dropped: 0, notDue: true, says: "Not due yet." });
   // The stamp is read: a stamp that didn't land leaves the check due, and the next visit runs it again — said in the log.
   const ran = async () => {
-    if (!hasSchedule) return;
     const { error } = await supabaseAdmin!.from("vision_plans").update({ research_last_at: new Date().toISOString() }).eq("id", p.id).eq("tenant_id", tenant);
     if (error) console.warn(`[vision-research] couldn't stamp when it ran — ${error.message}`);
   };
@@ -124,7 +121,6 @@ async function post(req: Request) {
   const safe = kept.filter((f) => { const g = claimSafeDeep(f); if (!g.ok) console.warn(`[vision-research] claim-guard dropped a finding on "${g.hit}"`); return g.ok; });
   if (!safe.length) { await ran(); return NextResponse.json({ ok: true, kept: 0, dropped: dropped.length + kept.length, says: "Nothing found that a source backs — nothing was stored." }); }
   // Change detection (R60): only what's new — a source and claim already stored for this plan, in any state, isn't again.
-  // arrives-with: 0450
   const { data: known, error: ke } = await supabaseAdmin.from("vision_research").select("source_url, claim").eq("plan_id", p.id).eq("tenant_id", tenant);
   if (ke) return NextResponse.json({ ok: false, error: ke.message }, { status: 500 });
   const fresh = novel(safe, (known ?? []) as { source_url: string; claim: string }[]);

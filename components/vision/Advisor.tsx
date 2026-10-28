@@ -23,11 +23,11 @@ export default function Advisor({ plans, needs, deps, layouts, onOpen }: { plans
     if (!supabase) return "not-yet";
     const m = await supabase.from("vision_plan_money").select("plan_id, scenarios, structure, baseline");
     if (m.error) throw new Error(m.error.message);
-    // arrives-with: 0450
     const r = await supabase.from("vision_research").select("plan_id, topic, status, bearing, retrieved_at");
-    // arrives-with: 0454
+    if (r.error) throw new Error(r.error.message);
     const k = await supabase.from("vision_plan_risks").select("*");
-    return { money: (m.data ?? []) as unknown as Row[], research: r.error ? [] : ((r.data ?? []) as unknown as RRow[]), risks: k.error ? [] : ((k.data ?? []) as Record<string, unknown>[]).map((x) => toRisk(x)) };
+    if (k.error) throw new Error(k.error.message);
+    return { money: (m.data ?? []) as unknown as Row[], research: (r.data ?? []) as unknown as RRow[], risks: ((k.data ?? []) as Record<string, unknown>[]).map((x) => toRisk(x)) };
   }, []);
   const state = useAsyncData(load, []);
   const [all, setAll] = useState(false);

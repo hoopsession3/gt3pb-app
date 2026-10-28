@@ -494,16 +494,16 @@ const markOf = async (id) => (await q1(`select password_taken_at is not null m f
   ok("0423: recorded in the ledger", (await n(`select count(*) n from public.schema_migrations where version like '0423_%'`)) === 1);
 }
 
-// ── 0424 (held): a password set before the proof waits for it, on every account ─────────────────────────────────────
+// ── 0424 (applied 2026-10-28): a password set before the proof waits for it, on every account ─────────────────────────────────────
 {
   const M424 = readFileSync(join(ROOT, "supabase/migrations/0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql"), "utf8");
   const held = JSON.parse(readFileSync(join(ROOT, "supabase/held.json"), "utf8")).held.map((h) => h.file);
   // The paste file as generated: 0424 named among its held files and absent from what it runs. (It once also had to carry
   // 0423 — pending then; applied 2026-10-18, so the file now starts after it.)
   const pasteFile = readFileSync(join(ROOT, "supabase/APPLY_ALL_PENDING.sql"), "utf8"), paste = pasteFile.replace(/^--.*$/gm, "");
-  ok("0424 is held (supabase/held.json) and is not in the paste file — it waits for R18's iPhone build to be on the phones",
-    held.includes("0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql") && !/0424_a_password_set_before_the_proof/.test(paste)
-      && /^-- held: 0424_a_password_set_before_the_proof_waits_for_it_everywhere\.sql — NOT in this file/m.test(pasteFile), held);
+  // Applied 2026-10-28 once R18's iPhone build was on the phones: out of held.json, and not in the paste file.
+  ok("0424 is applied — out of supabase/held.json and not in the paste file",
+    !held.includes("0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql") && !/0424_a_password_set_before_the_proof/.test(paste), held);
   await db.exec(M424);
   await db.exec(M424);   // a second run changes nothing
   ok("0424: the rule reaches every account", (await q1(`select public.password_scope_everywhere() v`)).v === true);

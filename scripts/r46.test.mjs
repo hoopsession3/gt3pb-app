@@ -81,8 +81,8 @@ const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").map((l) => l.
       && /^set lock_timeout = '5s';$/m.test(m) && /select public\.record_migration\('0443_gt3_nutrition_is_for_sale'\);/.test(m));
   const held = JSON.parse(read("supabase/held.json")).held;
   const paste = read("supabase/APPLY_ALL_PENDING.sql");
-  ok("0443 is in the paste file; 0442 is still held — locked only once the course can be bought",
-    (/begin;   -- 0443,/.test(paste) || !/pending-from: 04[0-3]\d/.test(paste)) && !/begin;   -- 0442,/.test(paste) && held.some((h) => h.file.startsWith("0442_")));
+  ok("0443 went first; 0442 followed once the course could be bought (applied 2026-10-28) — neither is in the paste file or held",
+    (/begin;   -- 0443,/.test(paste) || !/pending-from: 04[0-3]\d/.test(paste)) && !/begin;   -- 0442,/.test(paste) && !held.some((h) => h.file.startsWith("0442_")));
   const pkg = JSON.parse(read("package.json"));
   ok("this file runs with every test, and its database half with the database's", /node scripts\/r45\.test\.mjs && node scripts\/r46\.test\.mjs/.test(pkg.scripts.test) && /node scripts\/db\.r46\.test\.mjs/.test(pkg.scripts["db:test"]));
 }

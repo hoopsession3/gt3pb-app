@@ -131,7 +131,7 @@ function Blockers({ list, actions }: { list: Blocker[]; actions: BlockerActions 
   );
 }
 
-export function ResearchPanel({ planId, items, ready, onChanged, every = 0, lastAt = null }: { planId: string; items: Research[]; ready: boolean; onChanged: () => void; every?: number; lastAt?: string | null }) {
+export function ResearchPanel({ planId, items, onChanged, every = 0, lastAt = null }: { planId: string; items: Research[]; onChanged: () => void; every?: number; lastAt?: string | null }) {
   const { toast } = useAppStable();
   const [often, setOften] = useState<number>(every);
   const schedule = async (days: number) => {
@@ -139,7 +139,6 @@ export function ResearchPanel({ planId, items, ready, onChanged, every = 0, last
     const was = often;
     setOften(days);
     const me = (await supabase.auth.getUser()).data.user?.id ?? null;
-    // arrives-with: 0453
     const { error } = await supabase.from("vision_plans").update({ research_every_days: days, research_by: me }).eq("id", planId);
     if (error) { setOften(was); toast(failureWords(error, "Couldn't set the schedule"), "error"); return; }
     haptic("selection"); toast(days ? `Checked again ${EVERY_WORD[days as keyof typeof EVERY_WORD].toLowerCase()} — you'll be told when it finds something new.` : "Research runs only when asked.");
@@ -163,12 +162,10 @@ export function ResearchPanel({ planId, items, ready, onChanged, every = 0, last
   };
   const mark = async (id: string, status: Research["status"], bearing: Bearing | null = null) => {
     if (!supabase) return;
-    // arrives-with: 0450
     const { error } = await supabase.from("vision_research").update({ status, bearing: status === "accepted" ? bearing : null, reviewed_at: new Date().toISOString() }).eq("id", id);
     if (error) { toast(failureWords(error, "Couldn't mark it"), "error"); return; }
     haptic("selection"); onChanged();
   };
-  if (!ready) return <p className="vz-sub">The research arrives with the next database update (0450).</p>;
   const shown = items.filter((x) => showRejected || x.status !== "rejected");
   const newest = items.reduce<string | null>((a, x) => (!a || x.retrieved_at > a ? x.retrieved_at : a), null);
   return (

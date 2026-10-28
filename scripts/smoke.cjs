@@ -16083,14 +16083,14 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // phones — 0424, held, turns 0423's switch; 0423 takes it where a crew role is at stake, however the address was proven
   // (an owner's hand included), never marks a code sign-up, and takes a sign-up password still on an account as it becomes crew.
   const m24p = rd("supabase/migrations/0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql");
-  ok("R18 review: 0423 takes a password where a crew role is at stake, by the claim's own proof test with the owner's hand counted — every account is 0424's switch, held for the iPhone build, and kept by a second paste of 0423",
+  ok("R18 review: 0423 takes a password where a crew role is at stake, by the claim's own proof test with the owner's hand counted — every account is 0424's switch (applied 2026-10-28, out of held.json), and kept by a second paste of 0423",
     /and \(public\.address_proved_itself\(old\.confirmation_sent_at, new\.raw_app_meta_data\) or public\.vouched_by_hand\(\)\)\s+and \(public\.password_scope_everywhere\(\)\s+or exists \(select 1 from public\.team_invites i/.test(m23p)
       && /or exists \(select 1 from public\.profiles p where p\.id = new\.id and coalesce\(p\.role, 'member'\) <> 'member'\)\) then/.test(m23p)
       && !/and not public\.vouched_by_hand\(\)/.test(m23p)
       && /if to_regprocedure\('public\.password_scope_everywhere\(\)'\) is null then/.test(m23p) && /as 'select false'/.test(m23p)
       && /create or replace function public\.password_scope_everywhere\(\) returns boolean\s+language sql stable set search_path = public as 'select true';/.test(m24p)
       && !/create or replace function public\.password_waits_for_proof/.test(m24p)
-      && JSON.parse(rd("supabase/held.json")).held.some((h) => h.file === "0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql"));
+      && !JSON.parse(rd("supabase/held.json")).held.some((h) => h.file === "0424_a_password_set_before_the_proof_waits_for_it_everywhere.sql"));
   const at23 = strip(rd("components/AddTeammate.tsx")), wl23 = strip(rd("app/api/team/welcome/route.ts")), cw23 = strip(rd("lib/crewWelcome.ts"));
   ok("R18 review (fifth pass): a sign-up password taken as an account becomes crew ends every session it had, and is said — in Add teammate and the welcome letter; an owner whose person's mail never comes sets one by hand; the paste first checks it may write auth.users",
     /delete from auth\.sessions where user_id = p_user;/.test(m23p) && /update auth\.refresh_tokens set revoked = true where user_id = p_user::text and coalesce\(revoked, false\) = false;/.test(m23p)

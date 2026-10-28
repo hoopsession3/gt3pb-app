@@ -127,8 +127,9 @@ const N = loadTs("lib/nutrition.ts");
       /^set lock_timeout = '5s';$/m.test(m) && m.includes(`select public.record_migration('${n}');`) && /^reset lock_timeout;/m.test(m)));
   const held = JSON.parse(read("supabase/held.json")).held;
   const paste = read("supabase/APPLY_ALL_PENDING.sql");
-  ok("0442 is held until GT3 Nutrition is for sale — out of the paste file — and 0441 goes now",
-    held.some((h) => h.file === "0442_the_course_is_bought_and_the_pillars_are_given.sql" && /for sale in the Shop/.test(h.until))
+  // 0442 was held until GT3 Nutrition was for sale; applied 2026-10-28 (the course published, checkout grants access).
+  ok("0442 is applied once GT3 Nutrition is for sale — out of held.json and out of the paste file — and 0441 before it",
+    !held.some((h) => h.file === "0442_the_course_is_bought_and_the_pillars_are_given.sql")
       && !/begin;   -- 0442,/.test(paste) && (/begin;   -- 0441,/.test(paste) || !/pending-from: 04[0-3]\d/.test(paste)));
   const pkg = JSON.parse(read("package.json"));
   ok("this file runs with every test, and its database half with the database's", /node scripts\/r44\.test\.mjs && node scripts\/r45\.test\.mjs/.test(pkg.scripts.test)

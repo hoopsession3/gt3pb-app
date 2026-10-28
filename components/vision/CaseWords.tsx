@@ -7,7 +7,6 @@ import { useAppStable } from "@/components/AppProvider";
 import { useUnsaved } from "@/components/Sheet";
 import { failureWords } from "@/lib/failureWords";
 import { haptic } from "@/lib/haptics";
-import { isMissingColumn, isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
 import { LEVELS, LEVEL_WORD, RISK_STATUS, keyRisks, toRisk, weight, type Level, type Risk, type RiskStatus } from "@/lib/visionRisks";
 import type { Plan } from "@/lib/visionPlans";
 
@@ -20,16 +19,13 @@ const toDraft = (r: Risk): Draft & { id?: string } => ({ id: r.id, kind: r.kind,
 const blank = (kind: Risk["kind"]): Draft => ({ kind, words: "", likelihood: null, impact: null, mitigation: null, evidence: null, status: "open" });
 
 export default function CaseWords({ plan, canEdit, onSaved }: { plan: Plan; canEdit: boolean; onSaved: () => void }) {
-  const load = useCallback(async (): Promise<Risk[] | "not-yet"> => {
+  const load = useCallback(async (): Promise<Risk[]> => {
     if (!supabase) return [];
-    // arrives-with: 0454  — until 0454 the risks table is absent: the case says it arrives with it; the rest of the plan reads as before
     const { data, error } = await supabase.from("vision_plan_risks").select("*").eq("plan_id", plan.id).order("sort").order("created_at");
-    if (error && (isMissingTable(error) || isMissingRelation(error))) return "not-yet";
     if (error) throw new Error(error.message);
     return ((data ?? []) as Record<string, unknown>[]).map((r) => toRisk(r));
   }, [plan.id]);
   const state = useAsyncData(load, [plan.id]);
-  if (state.data === "not-yet") return <p className="vz-card-s">Who it&apos;s for, the market and its risks arrive with the next database update (0454).</p>;
   if (!state.data) return state.status === "error" ? <p className="load-failed">{failureWords(state.error as Error, "Couldn't read the case")}</p> : <p className="vz-card-s">Reading the case…</p>;
   return <Words key={plan.id} plan={plan} risks={state.data} canEdit={canEdit} onSaved={() => { state.reload(); onSaved(); }} />;
 }
@@ -51,7 +47,6 @@ function Words({ plan, risks, canEdit, onSaved }: { plan: Plan; risks: Risk[]; c
     if (!supabase || busy) return;
     setBusy(true);
     try {
-      // arrives-with: 0454
       const p = await supabase.from("vision_plans").update({ customer: customer.trim() || null, market: market.trim() || null, positioning: positioning.trim() || null }).eq("id", plan.id);
       if (p.error) throw p.error;
       const keep = rows.filter((r) => r.words.trim());
@@ -65,7 +60,7 @@ function Words({ plan, risks, canEdit, onSaved }: { plan: Plan; risks: Risk[]; c
       haptic("success"); toast("Saved — the plan's case."); setEditing(false); onSaved();
     } catch (e) {
       const err = e as { message?: string; code?: string };
-      toast(isMissingColumn(err) ? "The case arrives with the next database update (0454)." : failureWords(err, "Couldn't save the case"), "error");
+      toast(failureWords(err, "Couldn't save the case"), "error");
     } finally { setBusy(false); }
   };
 

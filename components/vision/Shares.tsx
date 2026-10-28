@@ -53,19 +53,10 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
     const withPin = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids, pinned_at`).order("created_at", { ascending: false });
     if (!withPin.error) { setCanCase(true); setCanChoose(true); return (withPin.data as Share[]) ?? []; }
     if (!isMissingColumn(withPin.error)) throw new Error(withPin.error.message);
-    // arrives-with: 0455 — program_ids, layout_ids: before 0455 the read asks as before, and the choosers hide
     const withShows = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids`).order("created_at", { ascending: false });
-    if (!withShows.error) { setCanCase(true); setCanChoose(true); return (withShows.data as Share[]) ?? []; }
-    if (!isMissingColumn(withShows.error)) throw new Error(withShows.error.message);
-    setCanChoose(false);
-    // arrives-with: 0451  — money_plans, research_plans: before 0451 the read asks as before, and the case chooser hides
-    const withCase = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans`).order("created_at", { ascending: false });
-    if (!withCase.error) { setCanCase(true); return (withCase.data as Share[]) ?? []; }
-    if (!isMissingColumn(withCase.error)) throw new Error(withCase.error.message);
-    setCanCase(false);
-    const first = await supabase.from("vision_shares").select(`${COLS}, expires_at`).order("created_at", { ascending: false });
-    if (first.error) throw new Error(first.error.message);
-    return (first.data as Share[]) ?? [];
+    if (withShows.error) throw new Error(withShows.error.message);
+    setCanCase(true); setCanChoose(true);
+    return (withShows.data as Share[]) ?? [];
   }, []);
   const state = useAsyncData(loader, []);
 
