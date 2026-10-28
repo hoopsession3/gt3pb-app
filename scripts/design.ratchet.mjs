@@ -787,7 +787,7 @@ export const WEIGHT = {
   "/3mpire":                   { js: 279, css: 90, chunks: 17 },
   "/craft":                    { js: 264, css: 90, chunks: 16 },
   "/book":                     { js: 265, css: 90, chunks: 16 },
-  "/academy":                  { js: 317, css: 90, chunks: 18 },
+  "/academy":                  { js: 284, css: 90, chunks: 17 },  // IP0b: the lessons are served to staff, not shipped (317 → 284 KB, 18 → 17 chunks)
   "/office":                   { js: 273, css: 90, chunks: 17 },
   "/scan":                     { js: 265, css: 90, chunks: 16 },
   "/architecture":             { js: 274, css: 90, chunks: 17 },
