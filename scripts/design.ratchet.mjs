@@ -798,7 +798,7 @@ export const WEIGHT = {
   "/built/gt3-built-k7m9x4q2": { js: 262, css: 90, chunks: 16 },
   "/display":                  { js: 263, css: 90, chunks: 16 },
   "/vision":                   { js: 266, css: 90, chunks: 16 },
-  "/present":                  { js: 286, css: 93, chunks: 17 },  // IP1: +1 KB — the Pitch · Explore · Diligence control and Pitch's parts (the engine stays lazy). IP1.4: +1 chunk, 0 KB — Turbopack now ships the page module as its own 2.6 KB chunk; script weight unchanged at 287 KB BP2a: back to 17 chunks, 286 KB.
+  "/present":                  { js: 287, css: 93, chunks: 17 },  // IMS4b: +1 KB — the 3D framing (centred, pitch chosen for a tall pane) the presenter's tour draws with too. IP1: +1 KB — the Pitch · Explore · Diligence control and Pitch's parts (the engine stays lazy). IP1.4: +1 chunk, 0 KB — Turbopack now ships the page module as its own 2.6 KB chunk; script weight unchanged at 287 KB BP2a: back to 17 chunks, 286 KB.
   "/shop":                     { js: 294, css: 90, chunks: 19 },
   "/primal":                   { js: 269, css: 94, chunks: 17 },
   "/privacy":                  { js: 260, css: 90, chunks: 15 },

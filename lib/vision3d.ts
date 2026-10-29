@@ -183,14 +183,46 @@ export function fitCamera(room: { width_in: number; depth_in: number; ceiling_in
   const top = Math.min(room.ceiling_in ?? 108, 108);
   const corners: V3[] = [];
   for (const x of [0, room.width_in]) for (const z of [0, room.depth_in]) for (const y of [0, top]) corners.push([x, y, z]);
-  const fits = (dist: number) => {
-    const pr = projector({ ...base, dist }, w, h);
-    return corners.every((c) => { const p = pr(c); return !!p && p[0] >= w * margin && p[0] <= w * (1 - margin) && p[1] >= h * margin && p[1] <= h * (1 - margin); });
+  const boxOf = (c: Camera) => {
+    const pr = projector(c, w, h);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const k of corners) { const p = pr(k); if (!p) return null; x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+    return { x0, y0, x1, y1 };
   };
-  let lo = 40, hi = Math.max(base.dist, 200);
-  for (let k = 0; k < 20 && !fits(hi); k++) hi *= 1.5;
-  for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
-  return { ...base, dist: hi };
+  const fits = (c: Camera) => { const b = boxOf(c); return !!b && b.x0 >= w * margin && b.x1 <= w * (1 - margin) && b.y0 >= h * margin && b.y1 <= h * (1 - margin); };
+  const closest = (c: Camera) => {
+    let lo = 40, hi = Math.max(c.dist, 200);
+    for (let k = 0; k < 20 && !fits({ ...c, dist: hi }); k++) hi *= 1.5;
+    for (let k = 0; k < 40; k++) { const mid = (lo + hi) / 2; if (fits({ ...c, dist: mid })) hi = mid; else lo = mid; }
+    return { ...c, dist: hi };
+  };
+  // THE ROOM CENTRED IN WHAT IT'S DRAWN IN (IMS4b — measured: the camera aimed at the room's middle, but the picture of a
+  // room seen from a corner isn't centred on its middle; it sat 24–46px off, so one edge bound while the other side was
+  // slack). The aim moves along the floor until the picture's middle is the pane's, then the distance is found again.
+  const centred = (c0: Camera) => {
+    let c = closest(c0);
+    for (let k = 0; k < 4; k++) {
+      const b = boxOf(c); if (!b) break;
+      const ex = (b.x0 + b.x1) / 2 - w / 2, ey = (b.y0 + b.y1) / 2 - h / 2;
+      if (Math.abs(ex) < 1 && Math.abs(ey) < 1) break;
+      // How the picture moves for an inch of aim along x and along z (on the floor): solved for the shift that centres it.
+      const at = (dx: number, dz: number) => { const bb = boxOf({ ...c, target: [c.target[0] + dx, c.target[1], c.target[2] + dz] }); return bb ? [(bb.x0 + bb.x1) / 2, (bb.y0 + bb.y1) / 2] : [0, 0]; };
+      const o = at(0, 0), ax = at(1, 0), az = at(0, 1);
+      const a = ax[0] - o[0], b2 = az[0] - o[0], cc = ax[1] - o[1], d = az[1] - o[1], det = a * d - b2 * cc;
+      if (Math.abs(det) < 1e-9) break;
+      const sx = (-ex * d + ey * b2) / det, sz = (-ey * a + ex * cc) / det;
+      c = closest({ ...c, target: [c.target[0] + sx, c.target[1], c.target[2] + sz] });
+    }
+    return c;
+  };
+  const area = (c: Camera) => { const b = boxOf(c); return b ? ((b.x1 - b.x0) * (b.y1 - b.y0)) / (w * h) : 0; };
+  // A TALL PANE LOOKS A LITTLE MORE FROM ABOVE (IMS4b — measured: in a Split's 3D column, 283 × 1100, the room filled 14% of
+  // it — a corner view of a room is a wide picture). The angle that fills the pane most is chosen, never past 60°, so the
+  // walls still read as walls; a wide pane keeps the corner view it has always had.
+  const pitches = w / h < 0.9 ? [base.pitch, 0.78, 0.92, 1.05] : [base.pitch];
+  let best = centred(base), most = area(best);
+  for (const pitch of pitches.slice(1)) { const c = centred({ ...base, pitch }); const m = area(c); if (m > most * 1.05) { best = c; most = m; } }
+  return best;
 }
 
 /** Which item a tap at (x, y) lands on: the nearest face that contains the point (faces are sorted far → near). */

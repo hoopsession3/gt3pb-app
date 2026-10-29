@@ -74,11 +74,12 @@
 .vz-studio.side .vz-tbar-r{flex-wrap:nowrap}
 .vz-float-view{position:absolute;left:10px;top:10px;z-index:3}
 .vz-studio.full .vz-stage.docked{position:relative}
-.vz-studio.full .vz-dock.over{position:absolute;right:10px;top:10px;z-index:4;width:min(340px,46%);max-height:calc(100% - 20px)}
-.vz-studio.short.full .vz-dock.over{width:min(280px,40%)}
 .vz-room-sum{display:inline-block}
 .vz-room-sum summary{cursor:pointer;color:var(--cream-d);min-height:28px;display:inline-flex;align-items:center}
 .vz-room-sum-body{display:flex;flex-wrap:wrap;gap:6px 14px;padding-top:6px}
+.vz-tools-3d{position:absolute;right:10px;top:10px;z-index:3;display:flex;flex-direction:column;gap:8px}
+.vz-help summary{cursor:pointer;color:var(--cream-d);min-height:32px;display:inline-flex;align-items:center;font-size:15px}
+.vz-help ul{margin:4px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
 .vz-insp-foot{border-top:1px solid color-mix(in srgb,var(--cream) 12%,transparent);padding-top:10px;margin-top:2px}
 .vz-studio.upright .vz-tbar{flex-wrap:nowrap}
 .vz-studio.upright .vz-tbar-l{flex:1 1 auto;min-width:0;justify-content:flex-start}
@@ -100,6 +101,12 @@
 .vz-studio.narrow .vz-dock{min-height:68px;justify-content:center}
 .vz-dock-peek{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;justify-content:space-between}
 .vz-dock-peek>div{flex:1 1 auto}
+/* the floating and in-3D cards (IMS2/IMS4b) — after the docked column's width, which they replace */
+.vz-studio.full .vz-dock.over{position:absolute;right:10px;top:10px;z-index:4;width:min(340px,46%);max-height:calc(100% - 20px)}
+.vz-studio.short.full .vz-dock.over{width:min(280px,40%)}
+.vz-studio.full .vz-dock.in3d{position:absolute;left:10px;right:10px;bottom:10px;z-index:4;max-height:min(46%,420px);width:auto;overflow-y:auto}
+.vz-dock.in3d .vz-insp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:8px 16px;align-items:start}
+.vz-dock.in3d .vz-insp>:first-child,.vz-dock.in3d .vz-insp>.vz-insp-foot{grid-column:1/-1}
 .vz-pill-issue{position:absolute;left:10px;bottom:10px;z-index:3;color:var(--warn)}
 .vz-pill-issue.error{color:var(--red-h,#dd5651)}
 /* full screen: the whole display, safe areas kept */

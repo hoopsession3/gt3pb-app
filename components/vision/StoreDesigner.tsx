@@ -97,17 +97,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [split, setSplit] = useState(() => { try { const v = Number(sessionStorage.getItem("gt3.studio.split")); return v >= 0.25 && v <= 0.75 ? v : 0.55; } catch { return 0.55; } });
   const storeEl = useRef<HTMLDivElement | null>(null);
   const splitDrag = useRef<{ x0: number; w: number; s0: number } | null>(null);
-  // The plan's column in pixels, as last laid out — held while a wide inspector stands beside the canvas (IMS4).
-  const planPx = useRef(0);
-  useLayoutEffect(() => {
-    const el = storeEl.current; if (!el) return;
-    // Held when, laid out, a wide full-screen Split has its inspector standing beside it (read from the page as drawn).
-    const holdPlan = el.classList.contains("both") && !!el.closest(".vz-studio.full.wide") && !!el.parentElement?.querySelector(":scope > .vz-dock:not(.over)");
-    if (holdPlan && planPx.current > 0) { el.style.setProperty("--sa", `${planPx.current}px`); el.style.setProperty("--sb", "1fr"); return; }
-    el.style.setProperty("--sa", `${split}fr`); el.style.setProperty("--sb", `${1 - split}fr`);
-    const first = el.firstElementChild as HTMLElement | null;
-    if (first) planPx.current = first.getBoundingClientRect().width;
-  });
+  useLayoutEffect(() => { storeEl.current?.style.setProperty("--sa", `${split}fr`); storeEl.current?.style.setProperty("--sb", `${1 - split}fr`); });
   const setSplitKept = useCallback((v: number) => {
     const n = Math.round(Math.min(0.75, Math.max(0.25, v)) * 100) / 100;
     setSplit(n);
@@ -140,6 +130,14 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [addOpen, setAddOpen] = useState(false);
   const [dock, setDock] = useState(false);
   const [roomOpen, setRoomOpen] = useState(false);
+  // The details card at the foot of the 3D, measured as it's drawn: its height is what the 3D frames the room above.
+  const [cardH, setCardH] = useState(0);
+  const cardRef = useCallback((el: HTMLDivElement | null) => {
+    if (!el || typeof ResizeObserver === "undefined") { setCardH(0); return; }
+    const ro = new ResizeObserver(() => setCardH(Math.round(el.getBoundingClientRect().height) + 12));
+    ro.observe(el);
+    return () => { ro.disconnect(); setCardH(0); };
+  }, []);
   // BACK CLOSES THE STUDIO (IMS1). Full screen is a place, so it is a step in the browser's history: Back (a swipe from the
   // edge, Android's back, the browser's arrow) leaves the studio for the vision — never the vision itself — and Done takes
   // the same step back, so no stale step is left behind. Next.js keeps its own state on the step (its patched pushState),
@@ -397,17 +395,18 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const uprightRow = (
     <div className="vz-dock-row">
       {viewControl}
-      <button type="button" className={`k-chip${flowOn ? " on" : ""}`} aria-pressed={flowOn} aria-label="Experience — guests through the room" onClick={() => { haptic("selection"); setLens(flowOn ? "design" : "experience"); }}>Flow</button>
+      <button type="button" className={`k-chip${flowOn ? " on" : ""}`} aria-pressed={flowOn} aria-label="Experience — guests through the room" title="Flow: guests moving through the room on assumed timings — a preview of DayFlow, part of the Experience workspace" onClick={() => { haptic("selection"); setLens(flowOn ? "design" : "experience"); }}>Flow</button>
       {findingsMark}
       {canEdit && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>+</button>}
     </div>
   );
-  // WIDE, SPLIT (IMS4 — measured: the floating inspector covered the right third of the 3D room): the inspector stands
-  // beside the canvas, and the plan keeps the width it had (in pixels) — the 3D gives up the room, so nothing under the
-  // finger moves. Plan or 3D alone, it floats over the right edge, and the plan is told how much of it is covered.
-  const besideWide = contextual && size === "wide" && view === "both" && !!item;
-  const dockShown = docked && !(contextual && !item && lens !== "evaluate" && !(roomOpen && !narrow));
-  const overlaid = contextual && !besideWide && dockShown;
+  // THE DETAILS AT THE FOOT OF THE 3D (IMS4b — measured: beside a wide Split they squeezed the 3D to a 283px column, where
+  // the room filled 14% of it; floating, they covered a third of the 3D room). Wider full screen, with the 3D on screen, a
+  // thing's details open as a card across the foot of the 3D pane, and the 3D frames the room in the space above it. The
+  // plan isn't touched (nothing moves under the finger); the plan alone, they float over its right edge as before.
+  const in3d = contextual && !narrow && view !== "plan" && !!item;
+  const dockShown = docked && !in3d && !(contextual && !item && lens !== "evaluate" && !(roomOpen && !narrow));
+  const overlaid = contextual && dockShown;
   const cover = overlaid && view === "plan" ? Math.round(Math.min(side ? 280 : 340, width * (side ? 0.4 : 0.46))) + 20 : 0;
   const doneButton = <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Done — back to the vision" : "Full screen"} title={full ? "Done (Esc)" : "Full screen"} onClick={() => { if (full) leave(); else { setDock(false); setFull(true); } }}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>;
   const studio = (
@@ -507,8 +506,9 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
             )}
             {view !== "plan" && (
               <div className={`vz-pane mpanel mb-0 relative min-w-0${view === "both" && activePane === "3d" ? " active" : ""}`} onPointerDownCapture={() => setActivePane("3d")}>
-                <Store3D layout={draft} keep={draft.id} selected={sel} onPick={pick} figures={figures} heat={flow?.heat} label={`${draft.name}, in 3D — drag to turn, pinch to come closer`} />
+                <Store3D layout={draft} keep={draft.id} tools inset={in3d ? cardH : 0} selected={sel} onPick={pick} figures={figures} heat={flow?.heat} label={`${draft.name}, in 3D — drag to turn, pinch to come closer`} />
                 <p className="vz-hint">Drag to turn · pinch or scroll to zoom · double-tap: corner view</p>
+                {in3d && inspector && <div ref={cardRef} className="vz-dock mpanel mb-0 in3d" aria-label="What's picked">{inspector}</div>}
               </div>
             )}
           </div>
@@ -665,7 +665,17 @@ function Inspector({ item, canEdit, room, target, onPatch, onTurn, onCopy, onRem
         <label className="prod-f"><span>Depth</span><input inputMode="text" value={d} onChange={(e) => setD(e.target.value)} onBlur={() => size("d_in", d, setD)} aria-label="Depth, in feet and inches" /></label>
         <label className="prod-f"><span>Height</span><input inputMode="text" value={h} onChange={(e) => setH(e.target.value)} onBlur={() => size("h_in", h, setH)} aria-label="Height, in feet and inches" /></label>
       </div>
-      <p className="vz-card-s">Type 6′ 2″, 6 2 or 74. The lines on the plan are its distance to each wall, not walking clearance; walking routes are checked against a {ftIn(target.routeIn)} design target — GT3&apos;s working default for a {target.name.toLowerCase()}, not a code check.</p>
+      {/* MEASUREMENT HELP, SHORT (IMS4b): the one line that matters stays; how it's measured opens on asking. */}
+      <p className="vz-card-s">Distances shown are to walls, not verified walking clearances.</p>
+      <details className="vz-help">
+        <summary aria-label="How sizes and distances work">ⓘ How these are measured</summary>
+        <ul className="vz-card-s">
+          <li>Type a size as 6′ 2″, 6 2 or 74 (inches).</li>
+          <li>The lines on the plan run from this thing&apos;s footprint, as drawn and turned, to each wall.</li>
+          <li>Walking routes are checked separately, on the room&apos;s 2D footprints, against a {ftIn(target.routeIn)} design target — GT3&apos;s working default for a {target.name.toLowerCase()}. Door swings are counted; chairs pulled out, people and heights are not.</li>
+          <li>This is a design check, not a code check. Accessibility, egress and local building rules need a qualified review.</li>
+        </ul>
+      </details>
       <div className="vz-row">
         <button type="button" className="btn-sec btn-sm" onClick={onTurn}>↻ Rotate</button>
         <button type="button" className="btn-sec btn-sm" onClick={onCopy}>Duplicate</button>

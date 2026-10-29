@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { fitCamera, homeCamera, pick, sceneFaces, type Camera, type Figure, type FloorMark } from "@/lib/vision3d";
+import { fitCamera, homeCamera, pick, projector, sceneFaces, type Camera, type Figure, type FloorMark } from "@/lib/vision3d";
 import { kindOf, type Layout } from "@/lib/vision";
 
 // THE STORE, IN 3D (R52). The room and everything in it, drawn as shaded boxes on a canvas (lib/vision3d — no 3D
@@ -11,7 +11,7 @@ import { kindOf, type Layout } from "@/lib/vision";
 // deliberate angle shouldn't be lost to a switch. Never written to storage; a room never opened in 3D starts at its corner.
 const KEPT = new Map<string, Camera>();
 
-export default function Store3D({ layout, selected, onPick, spin = false, focus, figures, heat, label, keep }: {
+export default function Store3D({ layout, selected, onPick, spin = false, focus, figures, heat, label, keep, inset = 0, tools = false }: {
   layout: Pick<Layout, "width_in" | "depth_in" | "ceiling_in" | "items">;
   selected?: string | null;
   onPick?: (id: string | null) => void;
@@ -24,6 +24,10 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
   label: string;
   /** The room's id, to keep a hand-set view across switches (the studio); the presenter passes none. */
   keep?: string;
+  /** Pixels at the foot of the canvas a panel covers (IMS4b): the room is framed and drawn in the part above it. */
+  inset?: number;
+  /** The studio's own Fit room and Focus selection buttons (IMS4b); the presenter has none. */
+  tools?: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const cam = useRef<Camera>(keep && KEPT.has(keep) ? { ...KEPT.get(keep)! } : homeCamera(layout));
@@ -40,6 +44,8 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
   const cost = useRef(0);
   const drewAt = useRef(0);
   const dirty = useRef(true);
+  const insetRef = useRef(inset);
+  useEffect(() => { insetRef.current = inset; dirty.current = true; }, [inset]);
 
   // A new room size, a moved thing or a new pick is a new frame.
   useEffect(() => { scene.current = { layout, selected: selected ?? null, spin, figures, heat }; dirty.current = true; }, [layout, selected, spin, figures, heat]);
@@ -76,8 +82,9 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
         dirty.current = true;
       }
       const dpr = Math.min(2, window.devicePixelRatio || 1);
-      const w = el.clientWidth, h = el.clientHeight;
-      if (el.width !== Math.round(w * dpr) || el.height !== Math.round(h * dpr)) { el.width = Math.round(w * dpr); el.height = Math.round(h * dpr); dirty.current = true; }
+      // The drawing's height: the canvas less what a panel covers at its foot (never under half of it).
+      const w = el.clientWidth, H = el.clientHeight, h = Math.max(Math.round(H / 2), H - insetRef.current);
+      if (el.width !== Math.round(w * dpr) || el.height !== Math.round(H * dpr)) { el.width = Math.round(w * dpr); el.height = Math.round(H * dpr); dirty.current = true; }
       // A new size frames the room for it (a phone upright stands farther back than a laptop) — until a hand has moved it.
       const size = `${w}x${h}`;
       if (framed.current !== size && w > 0 && h > 0 && !touched.current && !goal.current) { framed.current = size; cam.current = fitCamera(scene.current.layout, cam.current.yaw, w, h); dirty.current = true; }
@@ -95,7 +102,7 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
         const f = sceneFaces(L, L.items, cam.current, w, h, sel, { figures: people, heat: warm });
         faces.current = f;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, w, h);
+        ctx.clearRect(0, 0, w, H);
         ctx.lineJoin = "round";
         for (const face of f) {
           ctx.globalAlpha = face.alpha;
@@ -106,6 +113,16 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
           ctx.strokeStyle = face.stroke; ctx.lineWidth = 1; ctx.stroke();
         }
         ctx.globalAlpha = 1;
+        // THE PICKED THING OUTLINED (IMS4b — the name over it was the only mark, and a gold thing picked turned gold): every
+        // face of it traced last, dark under gold, so it reads on a light floor, a dark wall and through what stands in front.
+        if (sel) {
+          const mine = f.filter((x) => x.id === sel);
+          for (const [width, colour] of [[3.5, "rgba(26,22,16,.85)"], [1.75, "#e2b44a"]] as const) {
+            ctx.lineWidth = width; ctx.strokeStyle = colour;
+            for (const face of mine) { ctx.beginPath(); face.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.stroke(); }
+          }
+          ctx.lineWidth = 1;
+        }
         // The picked thing's name, over its top.
         const it = sel ? L.items.find((i) => i.id === sel) : null;
         const top = it ? f.filter((x) => x.id === it.id).sort((a, b) => Math.min(...a.pts.map((p) => p[1])) - Math.min(...b.pts.map((p) => p[1])))[0] : null;
@@ -117,6 +134,13 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
           ctx.fillStyle = "rgba(26,22,16,.88)";
           ctx.beginPath(); ctx.roundRect?.(x - tw / 2, y - 24, tw, 22, 11); ctx.fill();
           ctx.fillStyle = "#f5f1e8"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(words, x, y - 13);
+        }
+        // What share of the drawing the room fills (IMS4b): read by the phone check, so framing is measured, not judged.
+        const pr = projector(cam.current, w, h), top3 = Math.min(L.ceiling_in ?? 108, 108);
+        const ps = [0, L.width_in].flatMap((x) => [0, L.depth_in].flatMap((z) => [0, top3].map((y) => pr([x, y, z])))).filter((p): p is [number, number, number] => !!p);
+        if (ps.length === 8) {
+          const xs = ps.map((p) => Math.max(0, Math.min(w, p[0]))), ys = ps.map((p) => Math.max(0, Math.min(h, p[1])));
+          el.dataset.fill = String(Math.round((100 * (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys))) / (w * H)));
         }
         cost.current = performance.now() - t0;
       }
@@ -150,7 +174,7 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
         if (moved < 6) {
           const r = el.getBoundingClientRect();
           const now = Date.now();
-          if (now - lastTap < 320) { cam.current = fitCamera(scene.current.layout, cam.current.yaw, el.clientWidth, el.clientHeight); dirty.current = true; }
+          if (now - lastTap < 320) { cam.current = fitCamera(scene.current.layout, cam.current.yaw, el.clientWidth, Math.max(Math.round(el.clientHeight / 2), el.clientHeight - insetRef.current)); dirty.current = true; }
           lastTap = now;
           onPick?.(pick(faces.current, e.clientX - r.left, e.clientY - r.top));
         }
@@ -162,5 +186,26 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
     return () => { el.removeEventListener("pointerdown", down); el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); el.removeEventListener("wheel", wheel); };
   }, [onPick]);
 
-  return <canvas ref={canvas} className="vz-3d" role="img" aria-label={label} />;
+  // FIT ROOM AND FOCUS SELECTION (IMS4b): the 3D's own two buttons, beside the plan's — the room framed again (forgetting a
+  // hand-set view), or the picked thing brought close from where the camera already looks.
+  const fitRoom = () => { touched.current = false; goal.current = null; framed.current = ""; if (keep) KEPT.delete(keep); dirty.current = true; };
+  const focusSel = () => {
+    const it = selected ? layout.items.find((i) => i.id === selected) : null;
+    if (!it) return;
+    touched.current = true;
+    const c = cam.current;
+    goal.current = { ...c, dist: Math.max(160, Math.max(it.w_in, it.d_in, it.h_in) * 3.2), target: [it.x_in, Math.min(it.h_in, 60) / 2, it.y_in] };
+    dirty.current = true;
+  };
+  const drawing = <canvas ref={canvas} className="vz-3d" role="img" aria-label={label} />;
+  if (!tools) return drawing;
+  return (
+    <>
+      {drawing}
+      <div className="vz-tools vz-tools-3d" role="toolbar" aria-label="The 3D view">
+        <button type="button" className="k-icon-btn glass" onClick={fitRoom} title="Fit the whole room" aria-label="Fit the whole room in 3D">⤢</button>
+        {selected && <button type="button" className="k-icon-btn glass" onClick={focusSel} title="Focus the picked thing" aria-label="Focus the picked thing in 3D">⌖</button>}
+      </div>
+    </>
+  );
 }
