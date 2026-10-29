@@ -73,6 +73,10 @@
 .vz-studio.side .vz-tbar-l{display:none}
 .vz-studio.side .vz-tbar-r{flex-wrap:nowrap}
 .vz-float-view{position:absolute;left:10px;top:10px;z-index:3}
+.vz-studio.full .vz-stage.docked{position:relative}
+.vz-studio.full .vz-dock.over{position:absolute;right:10px;top:10px;z-index:4;width:min(340px,46%);max-height:calc(100% - 20px)}
+.vz-studio.short.full .vz-dock.over{width:min(280px,40%)}
+.vz-dock.over .vz-insp{padding:2px 6px}
 /* the dock sits beside the drawing, never over it (S1.1 — "contextual panels do not obscure essential design content") */
 .vz-dock{animation:vzDockUp .22s cubic-bezier(.2,.9,.2,1) both;position:relative;flex:none;display:flex;flex-direction:column;gap:6px;padding:10px 12px;max-height:40%;overflow-y:auto}
 .vz-studio.full:not(.narrow) .vz-dock{width:340px;max-height:100%}

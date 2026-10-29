@@ -77,15 +77,22 @@ const STUDIO_FITS = () => {
   return out.length ? out.join("; ") : null;
 };
 
-// IMS1 — a phone on its side, full screen: the bar on one line, and no dock beside the plan until something is picked.
-const SIDE_CLEAN = () => {
+// IMS1/IMS2 — CANVAS FIRST, full screen with nothing picked: the app behind is inert (not reachable, not read out); the bar
+// is one line wherever there's width for it; and no panel stands beside the plan unless asked for — on an upright phone the
+// dock under the plan holds only the lens (one row).
+const CANVAS_FIRST = () => {
   const st = document.querySelector(".vz-studio.full");
-  if (!st || window.innerHeight >= 520) return null;
+  if (!st) return "not full screen";
   const out = [];
-  const bar = document.querySelector(".vz-studio.full .vz-tbar")?.getBoundingClientRect();
-  if (bar && bar.height > 64) out.push(`the bar is ${Math.round(bar.height)}px tall — more than one line`);
-  if (document.querySelector(".vz-studio.full .vz-dock")) out.push("a dock stands beside the plan with nothing picked");
-  if (!document.querySelector(".vz-studio.full .vz-float-view")) out.push("no view control on the canvas");
+  const behind = [...document.querySelectorAll(".app > main, .app > nav")];
+  if (!behind.length || behind.some((el) => !el.hasAttribute("inert"))) out.push("the app behind the studio is still reachable");
+  const portrait = st.getBoundingClientRect().width < 1000 && window.innerHeight >= 520;
+  const bar = st.querySelector(".vz-tbar")?.getBoundingClientRect();
+  if (bar && !portrait && bar.height > 64) out.push(`the bar is ${Math.round(bar.height)}px tall — more than one line`);
+  const dock = st.querySelector(".vz-dock")?.getBoundingClientRect();
+  if (dock && !portrait) out.push(`a ${Math.round(dock.width)}px panel stands beside the plan with nothing picked`);
+  if (dock && portrait && dock.height > 80) out.push(`the dock under the plan is ${Math.round(dock.height)}px tall with nothing picked`);
+  if (window.innerHeight < 520 && !st.querySelector(".vz-float-view")) out.push("no view control on the canvas");
   return out.length ? out.join("; ") : null;
 };
 
@@ -95,7 +102,10 @@ const VISITS = [
   { key: "vision-store", path: "/vision", ready: ".vz-board", clicks: ["The store"], drawn: ".vz-plan .it", long: true, check: STUDIO_FITS },
   { key: "vision-flow", path: "/vision", ready: ".vz-board", clicks: ["The store", "Experience"], drawn: ".vz-plan .guest", long: true },
   // S1, the studio: the canvas full screen, and the library (a sheet on a phone and an iPad upright, beside the canvas wide).
-  { key: "vision-store-full", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], drawn: ".vz-studio.full .vz-plan .it", long: false, check: STUDIO_FITS, also: SIDE_CLEAN },
+  { key: "vision-store-full", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], drawn: ".vz-studio.full .vz-plan .it", long: false, check: STUDIO_FITS, also: CANVAS_FIRST },
+  // IMS2 — touch on the plan, full screen: tap picks a thing, a drag moves it, Undo puts it back, and a drag on the empty
+  // canvas pans without moving anything; then the plan still fits with the thing picked.
+  { key: "vision-store-touch", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], act: "touch", drawn: ".vz-studio.full .vz-plan .it.sel", long: false, check: STUDIO_FITS },
   // IMS1 — Back leaves the studio for the vision, never the vision itself: the plan is still drawn, on /vision, not full screen.
   { key: "vision-store-back", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], back: true, drawn: ".vz-studio:not(.full) .vz-plan .it", long: false },
   { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "Add a fixture"], drawn: ".vz-library .vz-lib-row", long: false },
@@ -421,6 +431,44 @@ try {
       // A slide found by stepping to it (the presenter's slides shift as the plan grows): Next until it's there.
       if (v.until) for (let k = 0; k < 20 && !(await page.$(v.until.sel)); k++) await tap(v.until.click);
       for (const c of v.then ?? []) await tap(c);
+      if (v.act === "touch") {
+        const desk = d.kind === "desktop";
+        const boxOf = async (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; }, sel);
+        const target = await page.evaluate(() => { const its = [...document.querySelectorAll(".vz-studio.full .vz-plan .it")]; const t = its.find((g) => /Community table/.test(g.textContent ?? "")) ?? its.sort((a, b) => b.getBoundingClientRect().width * b.getBoundingClientRect().height - a.getBoundingClientRect().width * a.getBoundingClientRect().height)[0]; return t ? t.getAttribute("data-id") : null; });
+        const sel = `.vz-studio.full .vz-plan .it[data-id="${target}"]`;
+        const a0 = target ? await boxOf(sel) : null;
+        if (a0) {
+          const roomA = await boxOf(".vz-studio.full .vz-plan .room");
+          const cx = a0.x + a0.w / 2, cy = a0.y + a0.h / 2;
+          if (desk) await page.mouse.click(cx, cy); else await page.touchscreen.tap(cx, cy);
+          await page.waitForTimeout(500);
+          ok(`${d.key} · touch · a tap picks the thing`, !!(await page.$(`${sel}.sel`)), target);
+          const roomB = await boxOf(".vz-studio.full .vz-plan .room");
+          ok(`${d.key} · touch · picking moves nothing under the finger (the inspector comes in over the edge)`, !!roomA && !!roomB && Math.abs(roomB.x - roomA.x) < 2 && Math.abs(roomB.y - roomA.y) < 2 && Math.abs(roomB.w - roomA.w) < 2, roomA && roomB && [Math.round(roomB.x - roomA.x), Math.round(roomB.y - roomA.y), Math.round(roomB.w - roomA.w)]);
+          const b0 = await boxOf(sel);   // measured picked (its outline drawn), so Undo is compared like with like
+          await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + 30, cy, { steps: 6 }); await page.mouse.move(cx + 60, cy, { steps: 6 }); await page.mouse.up();
+          await page.waitForTimeout(400);
+          const b1 = await boxOf(sel);
+          ok(`${d.key} · touch · a drag moves it`, !!b1 && b1.x - b0.x > 15, b1 && Math.round(b1.x - b0.x));
+          await page.getByRole("button", { name: "Undo", exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+          await page.waitForTimeout(400);
+          const b2 = await boxOf(sel);
+          ok(`${d.key} · touch · Undo puts it back`, !!b2 && Math.abs(b2.x - b0.x) < 3 && Math.abs(b2.y - b0.y) < 3, b2 && [Math.round(b2.x - b0.x), Math.round(b2.y - b0.y)]);
+          // A drag on the empty canvas (the margin left of the room) pans the drawing: everything moves together, nothing alone.
+          const room0 = await boxOf(".vz-studio.full .vz-plan .room"), pane = await boxOf(".vz-studio.full .vz-planbox");
+          if (room0 && pane && room0.x - pane.x > 24) {
+            const px = pane.x + (room0.x - pane.x) / 2, py = pane.y + pane.h / 2;
+            await page.mouse.move(px, py); await page.mouse.down(); await page.mouse.move(px + 20, py + 10, { steps: 5 }); await page.mouse.move(px + 40, py + 20, { steps: 5 }); await page.mouse.up();
+            await page.waitForTimeout(400);
+            const room1 = await boxOf(".vz-studio.full .vz-plan .room"), b3 = await boxOf(sel);
+            const dr = room1 ? [room1.x - room0.x, room1.y - room0.y] : [0, 0], di = b3 ? [b3.x - b2.x, b3.y - b2.y] : [0, 0];
+            ok(`${d.key} · touch · a drag on the empty canvas pans, and moves nothing on its own`, Math.abs(dr[0] - di[0]) < 3 && Math.abs(dr[1] - di[1]) < 3 && Math.hypot(dr[0], dr[1]) > 10, { room: dr.map(Math.round), thing: di.map(Math.round) });
+            // …and back, so the screen is measured as it opened.
+            await page.mouse.move(px + 40, py + 20); await page.mouse.down(); await page.mouse.move(px + 20, py + 10, { steps: 5 }); await page.mouse.move(px, py, { steps: 5 }); await page.mouse.up();
+            await page.waitForTimeout(400);
+          }
+        } else ok(`${d.key} · touch · a thing to pick`, false, "none on the plan");
+      }
       if (v.back) { await page.waitForSelector(".vz-studio.full", { timeout: 5000 }).catch(() => {}); await page.goBack().catch(() => {}); await page.waitForTimeout(800); ok(`${d.key} · ${v.key} · Back stays on the vision`, new URL(page.url()).pathname === "/vision" && !(await page.$(".vz-studio.full")), page.url()); }
       for (let t = Date.now(); Date.now() - t < 8000;) { await sleep(300); if (Date.now() - (fb.calls.at(-1)?.at ?? 0) > 900 && Date.now() - t > 1200) break; }
       await page.waitForTimeout(600);
@@ -431,7 +479,7 @@ try {
       const drawn = await page.evaluate((sel) => !!document.querySelector(sel), v.drawn).catch(() => false);
       ok(`${tag} · drawn`, drawn, (await page.evaluate(() => document.body.innerText.slice(0, 160)).catch(() => "")).replace(/\s+/g, " "));
       if (v.check) { const said = await page.evaluate(v.check).catch((e) => e.message); ok(`${tag} · the studio fits its screen (S1.1)`, !said, said); }
-      if (v.also) { const said = await page.evaluate(v.also).catch((e) => e.message); ok(`${tag} · on its side, the plan has the width (IMS1)`, !said, said); }
+      if (v.also) { const said = await page.evaluate(v.also).catch((e) => e.message); ok(`${tag} · canvas first, nothing beside it unasked (IMS1/IMS2)`, !said, said); }
       const m = await page.evaluate(MEASURE).catch((e) => ({ error: e.message }));
       await page.screenshot({ path: `${OUT}/${d.key}/${v.key}-screen.png` }).catch(() => {});
       if (v.long) await longShot(page, `${OUT}/${d.key}/${v.key}.png`).catch(() => {});

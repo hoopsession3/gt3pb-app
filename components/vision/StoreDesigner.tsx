@@ -129,6 +129,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const libOpen = libChoice ?? roomy;
   const [addOpen, setAddOpen] = useState(false);
   const [dock, setDock] = useState(false);
+  const [roomOpen, setRoomOpen] = useState(false);
   // BACK CLOSES THE STUDIO (IMS1). Full screen is a place, so it is a step in the browser's history: Back (a swipe from the
   // edge, Android's back, the browser's arrow) leaves the studio for the vision — never the vision itself — and Done takes
   // the same step back, so no stale step is left behind. Next.js keeps its own state on the step (its patched pushState),
@@ -143,6 +144,15 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   }, [full]);
   const leave = useCallback(() => { setDock(false); if (stepped.current) window.history.back(); else setFull(false); }, []);
   const host = useSyncExternalStore(noSubscribe, findHost, noHost);
+  // THE APP STEPS BACK BEHIND THE STUDIO (IMS2 — measured: the crew's nav was hidden by the studio but still in the tab order
+  // and read out by a screen reader). The page and its nav are made inert while full screen is on; sheets, toasts and the
+  // live regions are left as they are, since the studio's own sheets open beside it.
+  useEffect(() => {
+    if (!full || !host) return;
+    const behind = [...host.querySelectorAll<HTMLElement>(":scope > main, :scope > nav, :scope > .skip-link")].filter((el) => !el.hasAttribute("inert"));
+    behind.forEach((el) => el.setAttribute("inert", ""));
+    return () => behind.forEach((el) => el.removeAttribute("inert"));
+  }, [full, host]);
 
   // A different room, or a fresh read after a save: start from what is saved (React's "adjusting state when a prop
   // changes" — during render, guarded, not an effect).
@@ -339,7 +349,14 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const viewControl = <Segmented label="View" kind="choice" value={view} onChange={setView} options={[{ key: "plan", label: "Plan" }, { key: "3d", label: "3D" }, { key: "both", label: "Split" }]} />;
   // The dock earns its place (IMS1): on a phone on its side it comes in for a thing picked or Evaluate's list, else the plan
   // keeps the width.
-  const dockShown = docked && !(side && !item && lens !== "evaluate");
+  // Wider full screen (an iPad, a desktop) the same rule (IMS2 — measured: a 340px column of the room's lists stood beside the
+  // plan with nothing picked, a quarter of an iPad on its side). The room's details — its findings, schedule, size — open
+  // from the bar's Room button and stay open until closed; a thing picked opens its inspector there as before.
+  const contextual = full && (side || !narrow);
+  // Full screen under the widest size (a 13-inch iPad upright), the bar's words give way to their marks, so it stays one
+  // line with the Room button in it (IMS2 — measured: 80px, two lines, at 1032 wide).
+  const compactBar = full && size !== "wide";
+  const dockShown = docked && !(contextual && !item && lens !== "evaluate" && !(roomOpen && !narrow));
   const studio = (
     <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${narrow ? " narrow" : ""}${short ? " short" : ""}${side ? " side" : ""}${libOpen && canEdit && size === "wide" && !full ? " lib" : ""}`}>
       <div className="vz-tbar" role="toolbar" aria-label="The store designer">
@@ -355,14 +372,17 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           {!side && viewControl}
         </div>
         <div className="vz-tbar-r">
-          {canEdit && !(size === "wide" && libOpen && !full) && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>{narrow ? "+" : "+ Add"}</button>}
+          {full && !narrow && (
+            <button type="button" className="btn-sec btn-sm" aria-pressed={roomOpen} aria-label={roomOpen ? "Hide the room's details" : "The room's details — findings, schedule, size"} title="The room's details" onClick={() => setRoomOpen((o) => !o)}>Room</button>
+          )}
+          {canEdit && !(size === "wide" && libOpen && !full) && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>{narrow || compactBar ? "+" : "+ Add"}</button>}
           {(size !== "phone" || side) && lensControl}
           {canEdit && (
             <>
               <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (⌘Z)">↶</button>
               <button type="button" className="btn-sec btn-sm" onClick={redo} disabled={!future.length} aria-label="Redo" title="Redo (⇧⌘Z)">↷</button>
               <button type="button" className={dirty ? "btn-pri btn-sm" : "btn-sec btn-sm"} onClick={() => void save()} disabled={!dirty || busy} aria-label={busy ? "Saving" : dirty ? "Save" : "Saved"}
-                title={dirty ? "Save — until you do, your changes are kept on this device" : savedAt ? `Saved at ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Everything is saved"}>{busy ? "Saving…" : dirty ? "Save" : size === "phone" || side ? "✓" : "Saved"}</button>
+                title={dirty ? "Save — until you do, your changes are kept on this device" : savedAt ? `Saved at ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Everything is saved"}>{busy ? "Saving…" : dirty ? "Save" : size === "phone" || side || compactBar ? "✓" : "Saved"}</button>
             </>
           )}
           <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Done — back to the vision" : "Full screen"} title={full ? "Done (Esc)" : "Full screen"} onClick={() => { if (full) leave(); else { setDock(false); setFull(true); } }}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>
@@ -442,7 +462,9 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
               beside it full screen — so picking never moves the drawing under your finger. A phone shows a line (its name,
               size, why) and opens the rest as a sheet over the drawing; full screen shows the inspector in the dock. */}
           {dockShown && (
-            <div className="vz-dock mpanel mb-0" aria-label="What's picked">
+            // Contextual (IMS2): it comes in over the canvas's edge, not beside it — the plan keeps its size, so picking a thing
+            // never moves the drawing under the finger (measured: the column squeezing in shifted the thing picked 14–79px).
+            <div className={contextual ? "vz-dock mpanel mb-0 over" : "vz-dock mpanel mb-0"} aria-label="What's picked">
               {!item ? (narrow ? (
                 // A phone (S1.1b): with nothing picked, the dock holds the lens — the drawing keeps the whole height above
                 // it (measured: the lens in the bar, or on its own line, cost an iPhone SE a tenth of the plan's size).
