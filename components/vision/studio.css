@@ -77,6 +77,19 @@
 .vz-studio.full .vz-dock.over{position:absolute;right:10px;top:10px;z-index:4;width:min(340px,46%);max-height:calc(100% - 20px)}
 .vz-studio.short.full .vz-dock.over{width:min(280px,40%)}
 .vz-dock.over .vz-insp{padding:2px 6px}
+.vz-studio.upright .vz-tbar{flex-wrap:nowrap}
+.vz-studio.upright .vz-tbar-l{flex:1 1 auto;min-width:0;justify-content:flex-start}
+.vz-studio.upright .vz-tbar-r{flex:none;flex-wrap:nowrap}
+.vz-studio.upright .vz-tbar-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vz-dock-row{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;min-width:0}
+.vz-dock-row .k-seg-wrap{flex:none}
+.vz-dock-row .k-chip{padding-inline:10px}
+.vz-dock-row>:last-child{margin-left:auto}
+.vz-studio.upright .vz-dock{min-height:68px;padding-inline:8px}
+.vz-find{gap:6px;font-variant-numeric:tabular-nums}
+.vz-find-dot{background:var(--ok,#6fae7a)}
+.vz-find.warn .vz-find-dot{background:var(--warn)}
+.vz-find.error .vz-find-dot{background:var(--red-h,#dd5651)}
 /* the dock sits beside the drawing, never over it (S1.1 — "contextual panels do not obscure essential design content") */
 .vz-dock{animation:vzDockUp .22s cubic-bezier(.2,.9,.2,1) both;position:relative;flex:none;display:flex;flex-direction:column;gap:6px;padding:10px 12px;max-height:40%;overflow-y:auto}
 .vz-studio.full:not(.narrow) .vz-dock{width:340px;max-height:100%}

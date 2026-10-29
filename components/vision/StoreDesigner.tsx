@@ -356,11 +356,33 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // Full screen under the widest size (a 13-inch iPad upright), the bar's words give way to their marks, so it stays one
   // line with the Room button in it (IMS2 — measured: 80px, two lines, at 1032 wide).
   const compactBar = full && size !== "wide";
+  // AN UPRIGHT PHONE OR IPAD, full screen (IMS3 — measured: the bar took two rows, 80px, above the plan). One row on top —
+  // Done, the room, undo, redo, save — and everything else in the dock's one row under the plan: the view, the flow, the
+  // findings (one mark, its colour the most serious, its number how many) and Add.
+  const upright = full && narrow && !side;
+  const errors = found.filter((f) => f.level === "error").length;
+  const findingsMark = (
+    <button type="button" className={`k-chip vz-find${errors ? " error" : found.length ? " warn" : ""}`} aria-pressed={lens === "evaluate"}
+      aria-label={found.length ? `Evaluate · ${found.length} to look at${errors ? `, ${errors} serious` : ""}` : "Evaluate · nothing to look at"}
+      onClick={() => { haptic("selection"); setLens(lens === "evaluate" ? "design" : "evaluate"); }}>
+      <i aria-hidden="true" className="vz-find-dot inline-block w-2 h-2 rounded-full" />{found.length || "✓"}
+    </button>
+  );
+  const uprightRow = (
+    <div className="vz-dock-row">
+      {viewControl}
+      <button type="button" className={`k-chip${flowOn ? " on" : ""}`} aria-pressed={flowOn} aria-label="Experience — guests through the room" onClick={() => { haptic("selection"); setLens(flowOn ? "design" : "experience"); }}>Flow</button>
+      {findingsMark}
+      {canEdit && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>+</button>}
+    </div>
+  );
   const dockShown = docked && !(contextual && !item && lens !== "evaluate" && !(roomOpen && !narrow));
+  const doneButton = <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Done — back to the vision" : "Full screen"} title={full ? "Done (Esc)" : "Full screen"} onClick={() => { if (full) leave(); else { setDock(false); setFull(true); } }}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>;
   const studio = (
-    <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${narrow ? " narrow" : ""}${short ? " short" : ""}${side ? " side" : ""}${libOpen && canEdit && size === "wide" && !full ? " lib" : ""}`}>
+    <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${narrow ? " narrow" : ""}${short ? " short" : ""}${side ? " side" : ""}${upright ? " upright" : ""}${libOpen && canEdit && size === "wide" && !full ? " lib" : ""}`}>
       <div className="vz-tbar" role="toolbar" aria-label="The store designer">
         <div className="vz-tbar-l">
+          {upright && doneButton}
           {canEdit && size === "wide" && (
             <button type="button" className="k-icon-btn glass" aria-pressed={libOpen} aria-label={libOpen ? "Hide the library" : "Show the library"} onClick={() => setLibChoice(!libOpen)}>☰</button>
           )}
@@ -369,14 +391,14 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
               {layouts.map((l) => { const pl = plans.find((x) => x.layout_id === l.id); return <option key={l.id} value={l.id}>{l.name}{pl ? ` — phase ${pl.phase}` : ""}</option>; })}
             </select>
           ) : <b className="vz-tbar-name">{draft.name}</b>}
-          {!side && viewControl}
+          {!side && !upright && viewControl}
         </div>
         <div className="vz-tbar-r">
           {full && !narrow && (
             <button type="button" className="btn-sec btn-sm" aria-pressed={roomOpen} aria-label={roomOpen ? "Hide the room's details" : "The room's details — findings, schedule, size"} title="The room's details" onClick={() => setRoomOpen((o) => !o)}>Room</button>
           )}
-          {canEdit && !(size === "wide" && libOpen && !full) && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>{narrow || compactBar ? "+" : "+ Add"}</button>}
-          {(size !== "phone" || side) && lensControl}
+          {canEdit && !upright && !(size === "wide" && libOpen && !full) && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>{narrow || compactBar ? "+" : "+ Add"}</button>}
+          {(size !== "phone" || side) && !upright && lensControl}
           {canEdit && (
             <>
               <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (⌘Z)">↶</button>
@@ -385,7 +407,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
                 title={dirty ? "Save — until you do, your changes are kept on this device" : savedAt ? `Saved at ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Everything is saved"}>{busy ? "Saving…" : dirty ? "Save" : size === "phone" || side || compactBar ? "✓" : "Saved"}</button>
             </>
           )}
-          <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Done — back to the vision" : "Full screen"} title={full ? "Done (Esc)" : "Full screen"} onClick={() => { if (full) leave(); else { setDock(false); setFull(true); } }}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>
+          {!upright && doneButton}
         </div>
       </div>
 
@@ -469,8 +491,8 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
                 // A phone (S1.1b): with nothing picked, the dock holds the lens — the drawing keeps the whole height above
                 // it (measured: the lens in the bar, or on its own line, cost an iPhone SE a tenth of the plan's size).
                 <div className="flex flex-col gap-2">
-                  {size === "phone" && !side && lensControl}
-                  {lens === "evaluate" ? evaluate : size === "phone" ? <p className="sr-only">{canEdit ? "Pick a thing on the plan to move, size or turn it." : "Pick a thing on the plan to see why it's there."}</p> : <p className="vz-card-s">{canEdit ? "Pick a thing to move, size or turn it." : "Pick a thing to see why it's there."}</p>}
+                  {upright ? uprightRow : size === "phone" && !side && lensControl}
+                  {lens === "evaluate" ? evaluate : size === "phone" || upright ? <p className="sr-only">{canEdit ? "Pick a thing on the plan to move, size or turn it." : "Pick a thing on the plan to see why it's there."}</p> : <p className="vz-card-s">{canEdit ? "Pick a thing to move, size or turn it." : "Pick a thing to see why it's there."}</p>}
                 </div>) : roomPanels)
                 : !narrow ? inspector : (
                 <div className="vz-dock-peek">
@@ -488,7 +510,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           )}
           {/* The count of findings over the canvas — not on a phone, where the dock holds the lens and "Evaluate · n" says it
               (S1.1c, measured: the chip sat on the lens control). */}
-          {full && size !== "phone" && found.length > 0 && !item && (
+          {full && size !== "phone" && !upright && found.length > 0 && !item && (
             <button type="button" className={found.some((f) => f.level === "error") ? "k-chip vz-pill-issue error" : "k-chip vz-pill-issue"} onClick={() => look(found[0])}>
               {found.length} to look at
             </button>

@@ -55,7 +55,7 @@ const V = loadTs("lib/vision.ts"), S = loadTs("lib/visionScore.ts"), M = loadTs(
   ok("errors are a solid red outline (no longer dashed like a warning)", /\.it\.bad rect\.body\{stroke:#b82420;stroke-width:3\}/.test(css));
   ok("choosing a finding highlights its whole group, in gold", /const look = \(f: Finding\) => \{ pick\(f\.ids\[0\]\); setFocus\(f\.ids\);/.test(des) && /focus\.includes\(it\.id\) \? " focus"/.test(plan) && /\.it\.focus rect\.body\{stroke:#c8902f/.test(css));
   ok("picking something else clears the highlight", /setFocus\(\[\]\); setFocusPath\(null\); \};/.test(des));
-  ok("on a phone the findings count is the Evaluate label, not a chip over the dock", /full && size !== "phone" && found\.length > 0 && !item/.test(des));
+  ok("on a phone the findings count is the Evaluate label, not a chip over the dock (upright full screen: the findings mark in the dock row, IMS3)", /full && size !== "phone" && !upright && found\.length > 0 && !item/.test(des));
   ok("the findings come from the shared spatial engine (which groups them), as the room's operating model", /runSpatial\(settled, PROFILES\[model\]\)/.test(des) && /groupIssues\(issues\(l\)\)/.test(read("lib/spatial/evaluate.ts")));
   ok("a chosen route finding draws the way it measured", /focusPath && focusPath\.length > 1 && <polyline className="route"/.test(plan));
 }
