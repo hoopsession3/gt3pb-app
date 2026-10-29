@@ -95,7 +95,7 @@ const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n
 // ── 4 · behaviour tests ──────────────────────────────────────────────────────────────────────────────────────────────
 {
   const pkg = JSON.parse(read("package.json"));
-  const want = { "happy-dom": "20.14.5", "@testing-library/react": "16.3.3", "@testing-library/dom": "10.4.2" };
+  const want = { "happy-dom": "21.0.4", "@testing-library/react": "16.3.3", "@testing-library/dom": "10.4.2" };
   ok("the three test libraries are dev-only and pinned to an exact version (nothing here ships)",
     Object.entries(want).every(([n, v]) => pkg.devDependencies?.[n] === v && !pkg.dependencies?.[n]), Object.keys(want).map((n) => [n, pkg.devDependencies?.[n], pkg.dependencies?.[n]]));
   ok("…and the lock holds the same versions", (() => {

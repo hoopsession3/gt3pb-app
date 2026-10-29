@@ -72,13 +72,19 @@ jobs:
       # the daily schedule and a manual run are full unless asked otherwise.
       - name: Decide the form
         id: form
+        # The event's values arrive as environment variables, never pasted into the script (semgrep
+        # run-shell-injection, 29 Oct 2026). None of these three can be typed by a stranger today; this keeps it so.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          INPUT_QUICK: ${{ github.event.inputs.quick }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
+          if [ "$EVENT_NAME" = "push" ]; then
             echo "args=--wait=900" >> "$GITHUB_OUTPUT"; echo "browser=yes" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "7,37 * * * *" ]; then
+          elif [ "$EVENT_NAME" = "schedule" ] && [ "$EVENT_SCHEDULE" = "7,37 * * * *" ]; then
             # a short wait so a run that lands mid-deploy is not a false red
             echo "args=--quick --wait=240" >> "$GITHUB_OUTPUT"; echo "browser=no" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.inputs.quick }}" = "true" ]; then
+          elif [ "$INPUT_QUICK" = "true" ]; then
             echo "args=--quick" >> "$GITHUB_OUTPUT"; echo "browser=no" >> "$GITHUB_OUTPUT"
           else
             echo "args=" >> "$GITHUB_OUTPUT"; echo "browser=yes" >> "$GITHUB_OUTPUT"

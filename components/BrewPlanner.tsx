@@ -1079,7 +1079,7 @@ function BrewSheet({ recipe, events, stops, vessels, inv, initialTarget, onClose
                         const q = cookQuantity(i.qty, i.unit);
                         const unitWord = i.unit.trim().toLowerCase();
                         const endsWithUnit = unitWord && bare.toLowerCase().endsWith(unitWord);
-                        return <span key={i.name} className="bq-line">{n > 0 && <br />}<b>{endsWithUnit ? String(q.primary).replace(new RegExp(`\\s*${unitWord}$`, "i"), "") : q.display}</b> {bare}{note ? <span className="bq-dim"> · {note}</span> : null}</span>;
+                        return <span key={i.name} className="bq-line">{n > 0 && <br />}<b>{endsWithUnit ? String(q.primary).replace(new RegExp(`\\s*${unitWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), "") : q.display}</b> {bare}{note ? <span className="bq-dim"> · {note}</span> : null}</span>;
                       })}
                     </dd></div>
                   )}

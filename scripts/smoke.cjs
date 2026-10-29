@@ -4150,7 +4150,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   ok("uptime pair: the quick check is off the top of the hour (GitHub's busiest minute)",
     !!quick && !startsAtTopOfHour(quick[1]), quick && quick[1]);
   ok("uptime pair: the step that picks the quick form compares against the schedule that exists",
-    !!quick && wf.includes(`github.event.schedule }}" = "${quick[1]}"`));
+    !!quick && wf.includes("EVENT_SCHEDULE: ${{ github.event.schedule }}") && wf.includes(`"$EVENT_SCHEDULE" = "${quick[1]}"`));
   // PROVE IT BITES — 0327's numbers, and the parser on the shapes a schedule can take.
   ok("uptime pair: fed 0327's thirty minutes against a */30 schedule, the rule fails", !(30 >= 3 * periodOf("*/30 * * * *")));
   ok("uptime pair: periods are read the way cron means them",

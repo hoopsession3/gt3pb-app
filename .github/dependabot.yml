@@ -20,6 +20,9 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 1
+    # A release waits a week before it is proposed: a hijacked publish is usually caught and pulled in days (29 Oct 2026).
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
@@ -32,6 +35,8 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 1
+    cooldown:
+      default-days: 7
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
