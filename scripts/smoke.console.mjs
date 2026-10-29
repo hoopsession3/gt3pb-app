@@ -77,13 +77,27 @@ const STUDIO_FITS = () => {
   return out.length ? out.join("; ") : null;
 };
 
+// IMS1 — a phone on its side, full screen: the bar on one line, and no dock beside the plan until something is picked.
+const SIDE_CLEAN = () => {
+  const st = document.querySelector(".vz-studio.full");
+  if (!st || window.innerHeight >= 520) return null;
+  const out = [];
+  const bar = document.querySelector(".vz-studio.full .vz-tbar")?.getBoundingClientRect();
+  if (bar && bar.height > 64) out.push(`the bar is ${Math.round(bar.height)}px tall — more than one line`);
+  if (document.querySelector(".vz-studio.full .vz-dock")) out.push("a dock stands beside the plan with nothing picked");
+  if (!document.querySelector(".vz-studio.full .vz-float-view")) out.push("no view control on the canvas");
+  return out.length ? out.join("; ") : null;
+};
+
 // The crew's screens outside the console (R52): where each opens, what says it's drawn, what to tap first.
 const VISITS = [
   { key: "vision-roadmap", path: "/vision", ready: ".vz-board", drawn: ".vz-board .vz-card", long: true },
   { key: "vision-store", path: "/vision", ready: ".vz-board", clicks: ["The store"], drawn: ".vz-plan .it", long: true, check: STUDIO_FITS },
   { key: "vision-flow", path: "/vision", ready: ".vz-board", clicks: ["The store", "Experience"], drawn: ".vz-plan .guest", long: true },
   // S1, the studio: the canvas full screen, and the library (a sheet on a phone and an iPad upright, beside the canvas wide).
-  { key: "vision-store-full", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], drawn: ".vz-studio.full .vz-plan .it", long: false, check: STUDIO_FITS },
+  { key: "vision-store-full", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], drawn: ".vz-studio.full .vz-plan .it", long: false, check: STUDIO_FITS, also: SIDE_CLEAN },
+  // IMS1 — Back leaves the studio for the vision, never the vision itself: the plan is still drawn, on /vision, not full screen.
+  { key: "vision-store-back", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], back: true, drawn: ".vz-studio:not(.full) .vz-plan .it", long: false },
   { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "Add a fixture"], drawn: ".vz-library .vz-lib-row", long: false },
   { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
   { key: "vision-evaluate", path: "/vision", ready: ".vz-board", clicks: ["The store", "Evaluate"], drawn: "[aria-label=\"Evaluate — the most serious first\"]", long: false },
@@ -407,6 +421,7 @@ try {
       // A slide found by stepping to it (the presenter's slides shift as the plan grows): Next until it's there.
       if (v.until) for (let k = 0; k < 20 && !(await page.$(v.until.sel)); k++) await tap(v.until.click);
       for (const c of v.then ?? []) await tap(c);
+      if (v.back) { await page.waitForSelector(".vz-studio.full", { timeout: 5000 }).catch(() => {}); await page.goBack().catch(() => {}); await page.waitForTimeout(800); ok(`${d.key} · ${v.key} · Back stays on the vision`, new URL(page.url()).pathname === "/vision" && !(await page.$(".vz-studio.full")), page.url()); }
       for (let t = Date.now(); Date.now() - t < 8000;) { await sleep(300); if (Date.now() - (fb.calls.at(-1)?.at ?? 0) > 900 && Date.now() - t > 1200) break; }
       await page.waitForTimeout(600);
       const tag = `${d.key} · ${v.key}`;
@@ -416,6 +431,7 @@ try {
       const drawn = await page.evaluate((sel) => !!document.querySelector(sel), v.drawn).catch(() => false);
       ok(`${tag} · drawn`, drawn, (await page.evaluate(() => document.body.innerText.slice(0, 160)).catch(() => "")).replace(/\s+/g, " "));
       if (v.check) { const said = await page.evaluate(v.check).catch((e) => e.message); ok(`${tag} · the studio fits its screen (S1.1)`, !said, said); }
+      if (v.also) { const said = await page.evaluate(v.also).catch((e) => e.message); ok(`${tag} · on its side, the plan has the width (IMS1)`, !said, said); }
       const m = await page.evaluate(MEASURE).catch((e) => ({ error: e.message }));
       await page.screenshot({ path: `${OUT}/${d.key}/${v.key}-screen.png` }).catch(() => {});
       if (v.long) await longShot(page, `${OUT}/${d.key}/${v.key}.png`).catch(() => {});
