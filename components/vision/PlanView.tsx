@@ -32,7 +32,7 @@ type Mode =
   | { k: "pan"; sx: number; sy: number; cam: Cam; moved: boolean; onEmpty: boolean }
   | { k: "pinch"; d0: number; cam: Cam; at: { x: number; y: number } };
 
-export default function PlanView({ layout, selected, bad, focus = [], focusPath = null, canEdit, flow, onSelect, onMove, onResize, onBegin, onDropKind, onTurn, onCopy, onRemove, onDetails }: {
+export default function PlanView({ layout, selected, bad, focus = [], focusPath = null, canEdit, flow, onSelect, onMove, onResize, onBegin, onDropKind, onTurn, onCopy, onRemove, onDetails, cover = 0 }: {
   layout: Layout; selected: string | null; bad: Set<string>; focus?: string[]; focusPath?: { x: number; y: number }[] | null; canEdit: boolean; flow: FlowFrame | null;
   onSelect: (id: string | null) => void;
   onMove: (id: string, at: { x_in: number; y_in: number }, record: boolean) => void;
@@ -42,6 +42,9 @@ export default function PlanView({ layout, selected, bad, focus = [], focusPath 
   /** A fixture dragged in from the library, let go over the room. */
   onDropKind?: (kind: string, at: { x: number; y: number }) => void;
   onTurn: (id: string) => void; onCopy: (id: string) => void; onRemove: (id: string) => void; onDetails: (id: string) => void;
+  /** How many pixels of the pane's right edge an inspector covers (IMS4): Focus frames the picked thing in what's left, and
+   *  a picked thing that would sit under it is brought just clear — the only time the drawing moves on its own. */
+  cover?: number;
 }) {
   const box = useRef<HTMLDivElement | null>(null);
   const bar = useRef<HTMLDivElement | null>(null);
@@ -125,9 +128,29 @@ export default function PlanView({ layout, selected, bad, focus = [], focusPath 
     const it = selected ? layout.items.find((i) => i.id === selected) : null;
     if (!it || !view.w) return;
     const b = footprint(it), air = Math.max(48, Math.max(b.x1 - b.x0, b.y1 - b.y0));
-    settle(fit({ x0: b.x0 - air, y0: b.y0 - air, x1: b.x1 + air, y1: b.y1 + air }, view));
+    // Framed in the part of the pane the inspector leaves open (IMS4), then widened to the whole pane from its left edge.
+    const open = { w: Math.max(80, view.w - cover), h: view.h };
+    const c = fit({ x0: b.x0 - air, y0: b.y0 - air, x1: b.x1 + air, y1: b.y1 + air }, open);
+    settle({ ...c, w: c.w * (view.w / open.w) });
     haptic("selection");
-  }, [selected, layout.items, view, settle]);
+  }, [selected, layout.items, view, settle, cover]);
+  // A picked thing under the inspector is brought just clear of it — once per pick (IMS4); a hand-set view is otherwise kept.
+  const revealed = useRef("");
+  useEffect(() => {
+    const key = `${selected ?? ""}|${cover}`;
+    if (revealed.current === key) return;
+    revealed.current = key;
+    const it = selected ? layout.items.find((i) => i.id === selected) : null;
+    if (!it || !cover || !view.w) return;
+    const b = footprint(it), c = manual ?? home;
+    const right = toScreen(c, view, b.x1, b.y0).x, left = toScreen(c, view, b.x0, b.y0).x, limit = view.w - cover - 16;
+    if (right <= limit) return;
+    const shift = Math.min(right - limit, Math.max(0, left - 16));
+    if (shift <= 0) return;
+    // On the next frame, as a camera move (the inspector has just been drawn over it).
+    const f = requestAnimationFrame(() => settle({ ...c, x: c.x + (shift / view.w) * c.w }));
+    return () => cancelAnimationFrame(f);
+  }, [selected, cover, layout.items, view, manual, home, settle]);
 
   // The view is remembered for this room for the session (S1.1b): leave for the 3D or another tab and come back to it.
   // Only a view the hands set is kept; a fitted room stays fitted. A changed room size starts fitted again.
@@ -301,8 +324,12 @@ export default function PlanView({ layout, selected, bad, focus = [], focusPath 
       const spot = placeFirst(nameSpots(db, size, text, gap), size, text, [...others, ...obstacles], view);
       if (spot) { tag = { ...spot, text, size }; obstacles.push(spot.box); }
       for (const g of wallGaps(db, layout)) {
-        const t = ftIn(g.len), fs = 12 * u;
-        const p = placeFirst(dimSpots(g.x1, g.y1, g.x2, g.y2, fs, 4 * u), fs, t, [...others, ...obstacles, db], view);
+        // A distance from its footprint to the wall (IMS4) — said so, so it is never read as walking clearance.
+        // Where "to wall" can't fit, the length alone — a line without its number says nothing (measured: an iPhone SE lost
+        // its right-hand distance); the details say what these lines measure.
+        const fs = 12 * u, at = [...others, ...obstacles, db];
+        let t = `${ftIn(g.len)} to wall`, p = placeFirst(dimSpots(g.x1, g.y1, g.x2, g.y2, fs, 4 * u), fs, t, at, view);
+        if (!p) { t = ftIn(g.len); p = placeFirst(dimSpots(g.x1, g.y1, g.x2, g.y2, fs, 4 * u), fs, t, at, view); }
         if (p) obstacles.push(p.box);
         gaps.push({ ...g, text: p ? { x: p.x, y: p.y, t } : null });
       }
@@ -409,10 +436,10 @@ export default function PlanView({ layout, selected, bad, focus = [], focusPath 
 
       {sel && !moving && (
         <div ref={bar} className="vz-actbar" role="toolbar" aria-label={`${sel.label || kindOf(sel.kind).name} — quick moves`}>
-          {canEdit && <button type="button" className="k-icon-btn glass" title="Turn a quarter (R)" aria-label="Turn it" onClick={() => onTurn(sel.id)}>↻</button>}
-          {canEdit && <button type="button" className="k-icon-btn glass" title="Copy" aria-label="Copy it" onClick={() => onCopy(sel.id)}>⧉</button>}
-          {canEdit && <button type="button" className="k-icon-btn glass" title="Take it out (Delete)" aria-label="Take it out" onClick={() => onRemove(sel.id)}>✕</button>}
-          <button type="button" className="k-icon-btn glass" title="Details" aria-label="Details — its size and why it's there" onClick={() => onDetails(sel.id)}>ⓘ</button>
+          {canEdit && <button type="button" className="k-icon-btn glass" title="Rotate a quarter turn (R)" aria-label="Rotate a quarter turn" onClick={() => onTurn(sel.id)}>↻</button>}
+          {canEdit && <button type="button" className="k-icon-btn glass" title="Duplicate — Undo takes it back" aria-label="Duplicate" onClick={() => onCopy(sel.id)}>⧉</button>}
+          {canEdit && <button type="button" className="k-icon-btn glass" title="Remove from room (Delete) — Undo brings it back" aria-label="Remove from room" onClick={() => onRemove(sel.id)}>✕</button>}
+          <button type="button" className="k-icon-btn glass" title="Open details" aria-label="Open details — size, purpose and pillars" onClick={() => onDetails(sel.id)}>ⓘ</button>
         </div>
       )}
 

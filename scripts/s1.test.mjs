@@ -44,7 +44,7 @@ const read = (p) => readFileSync(join(ROOT, p), "utf8");
 // ── 3 · nothing lost ────────────────────────────────────────────────────────────────────────────────────────────────
 {
   const des = read("components/vision/StoreDesigner.tsx");
-  ok("saved layouts open as they did: the same save, the same layout read", /saveLayout\(supabase, draft, original\.items\)/.test(des));
+  ok("saved layouts open as they did: the same save, the same layout read", /saveLayout\(supabase, snap, original\.items\)/.test(des));
   ok("undo and redo, by button and by key", /aria-label="Undo"/.test(des) && /aria-label="Redo"/.test(des) && /e\.key\.toLowerCase\(\) === "z"/.test(des));
   ok("what a plan reviewer would circle, still listed and still heard", /What a plan reviewer would circle/.test(des) && /aria-live="polite"/.test(des));
   ok("the schedule and the room's fields", /Schedule · \{draft\.items\.length\} things/.test(des) && /<RoomFields bare/.test(des));

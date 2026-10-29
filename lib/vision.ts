@@ -119,7 +119,7 @@ export function issues(layout: Pick<Layout, "width_in" | "depth_in" | "items">):
     if (overlap(ba, bc)) { out.push({ ids: [A.id, C.id], level: "error", words: `${name(A)} and ${name(C)} overlap` }); continue; }
     if (floor.includes(A) && floor.includes(C)) {
       const g = gap(ba, bc);
-      if (g > 0.5 && g < AISLE_IN) out.push({ ids: [A.id, C.id], level: "warn", words: `${Math.round(g)} in between ${name(A)} and ${name(C)} — an aisle needs ${AISLE_IN}` });
+      if (g > 0.5 && g < AISLE_IN) out.push({ ids: [A.id, C.id], level: "warn", words: `${Math.round(g)} in between ${name(A)} and ${name(C)} (their footprints, as drawn) — under the ${AISLE_IN}-in aisle design target, GT3's working default, not a code check` });
     }
   }
   return out;
@@ -139,7 +139,7 @@ export function groupIssues(found: readonly Issue[]): Issue[] {
   const groups = new Map<string, { ids: Set<string>; pairs: Issue[] }>();
   for (const w of warns) { const r = root(w.ids[0]); const g = groups.get(r) ?? { ids: new Set<string>(), pairs: [] }; w.ids.forEach((i) => g.ids.add(i)); g.pairs.push(w); groups.set(r, g); }
   const grouped: Issue[] = [...groups.values()].map((g) => g.pairs.length === 1 ? g.pairs[0]
-    : { ids: [...g.ids], level: "warn", words: `${g.ids.size} things closer than ${AISLE_IN} in to each other in ${g.pairs.length} places — an aisle needs ${AISLE_IN}` });
+    : { ids: [...g.ids], level: "warn", words: `${g.ids.size} things closer than ${AISLE_IN} in to each other in ${g.pairs.length} places (their footprints, as drawn) — under the ${AISLE_IN}-in aisle design target, GT3's working default, not a code check` });
   return [...errors, ...grouped];
 }
 

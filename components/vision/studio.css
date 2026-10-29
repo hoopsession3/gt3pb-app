@@ -76,7 +76,10 @@
 .vz-studio.full .vz-stage.docked{position:relative}
 .vz-studio.full .vz-dock.over{position:absolute;right:10px;top:10px;z-index:4;width:min(340px,46%);max-height:calc(100% - 20px)}
 .vz-studio.short.full .vz-dock.over{width:min(280px,40%)}
-.vz-dock.over .vz-insp{padding:2px 6px}
+.vz-room-sum{display:inline-block}
+.vz-room-sum summary{cursor:pointer;color:var(--cream-d);min-height:28px;display:inline-flex;align-items:center}
+.vz-room-sum-body{display:flex;flex-wrap:wrap;gap:6px 14px;padding-top:6px}
+.vz-insp-foot{border-top:1px solid color-mix(in srgb,var(--cream) 12%,transparent);padding-top:10px;margin-top:2px}
 .vz-studio.upright .vz-tbar{flex-wrap:nowrap}
 .vz-studio.upright .vz-tbar-l{flex:1 1 auto;min-width:0;justify-content:flex-start}
 .vz-studio.upright .vz-tbar-r{flex:none;flex-wrap:nowrap}
@@ -93,7 +96,7 @@
 /* the dock sits beside the drawing, never over it (S1.1 — "contextual panels do not obscure essential design content") */
 .vz-dock{animation:vzDockUp .22s cubic-bezier(.2,.9,.2,1) both;position:relative;flex:none;display:flex;flex-direction:column;gap:6px;padding:10px 12px;max-height:40%;overflow-y:auto}
 .vz-studio.full:not(.narrow) .vz-dock{width:340px;max-height:100%}
-.vz-dock .vz-insp{border:0;padding:0;background:transparent;box-shadow:none}
+.vz-dock .vz-insp{border:0;padding:2px 6px;background:transparent;box-shadow:none}
 .vz-studio.narrow .vz-dock{min-height:68px;justify-content:center}
 .vz-dock-peek{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;justify-content:space-between}
 .vz-dock-peek>div{flex:1 1 auto}

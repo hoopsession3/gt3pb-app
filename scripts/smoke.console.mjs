@@ -106,6 +106,10 @@ const VISITS = [
   // IMS2 — touch on the plan, full screen: tap picks a thing, a drag moves it, Undo puts it back, and a drag on the empty
   // canvas pans without moving anything; then the plan still fits with the thing picked.
   { key: "vision-store-touch", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], act: "touch", drawn: ".vz-studio.full .vz-plan .it.sel", long: false, check: STUDIO_FITS },
+  // IMS4 — the save states, as the person sees them: a save that fails says Couldn't save · Retry and keeps the edit; a save
+  // slow to come back doesn't overwrite an edit made while it was on its way; Retry saves; the room is put back as it was.
+  // (Two screens — a phone and a desktop — since it writes to the stand-in room the other visits draw.)
+  { key: "vision-store-save", on: ["iphone-se", "desktop"], path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], act: "save", drawn: ".vz-studio.full .vz-plan .it", long: false },
   // IMS1 — Back leaves the studio for the vision, never the vision itself: the plan is still drawn, on /vision, not full screen.
   { key: "vision-store-back", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], back: true, drawn: ".vz-studio:not(.full) .vz-plan .it", long: false },
   { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "Add a fixture"], drawn: ".vz-library .vz-lib-row", long: false },
@@ -419,6 +423,7 @@ try {
     for (const v of VISITS) {
       if (only && !only.includes(v.key)) continue;
       if (d.visits && !d.visits.test(v.key)) continue;
+      if (v.on && !v.on.includes(d.key)) continue;
       const page = await ctx.newPage();
       const errors = [];
       page.on("pageerror", (e) => errors.push(`pageerror: ${e.message.slice(0, 200)}`));
@@ -431,6 +436,49 @@ try {
       // A slide found by stepping to it (the presenter's slides shift as the plan grows): Next until it's there.
       if (v.until) for (let k = 0; k < 20 && !(await page.$(v.until.sel)); k++) await tap(v.until.click);
       for (const c of v.then ?? []) await tap(c);
+      if (v.act === "save") {
+        const desk = d.kind === "desktop";
+        const saveBtn = () => page.locator(".vz-studio.full .vz-tbar-r button[aria-label='Save'], .vz-studio.full .vz-tbar-r button[aria-label='Saved'], .vz-studio.full .vz-tbar-r button[aria-label='Saving'], .vz-studio.full .vz-tbar-r button[aria-label=\"Couldn't save · Retry\"]").first();
+        const said = async () => (await saveBtn().getAttribute("aria-label").catch(() => null)) ?? "none";
+        const boxOf = async (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; }, sel);
+        const target = await page.evaluate(() => { const t = [...document.querySelectorAll(".vz-studio.full .vz-plan .it")].find((g) => /Community table/.test(g.textContent ?? "")); return t ? t.getAttribute("data-id") : null; });
+        const sel = `.vz-studio.full .vz-plan .it[data-id="${target}"]`;
+        const drag = async (dx) => { const b = await boxOf(sel); if (!b) return; const cx = b.x + b.w / 2, cy = b.y + b.h / 2; if (desk) await page.mouse.click(cx, cy); else await page.touchscreen.tap(cx, cy); await page.waitForTimeout(300); await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + dx / 2, cy, { steps: 5 }); await page.mouse.move(cx + dx, cy, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(400); };
+        const b0 = target ? await boxOf(sel) : null;
+        if (b0) {
+          ok(`${d.key} · save · it opens Saved`, (await said()) === "Saved", await said());
+          await drag(40);
+          const b1 = await boxOf(sel);
+          ok(`${d.key} · save · an edit says Save (unsaved)`, (await said()) === "Save", await said());
+          // 1. A save that fails: the room's write refused.
+          await page.route("**/rest/v1/store_layouts**", (r) => r.request().method() === "PATCH" ? r.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "stand-in outage" }) }) : r.continue());
+          await saveBtn().click().catch(() => {});
+          await page.waitForTimeout(1200);
+          ok(`${d.key} · save · a failed save says Couldn't save · Retry`, (await said()) === "Couldn't save · Retry", await said());
+          const b2 = await boxOf(sel);
+          ok(`${d.key} · save · …and the edit is still on screen`, !!b2 && !!b1 && Math.abs(b2.x - b1.x) < 3, b2 && b1 && Math.round(b2.x - b1.x));
+          await page.unroute("**/rest/v1/store_layouts**");
+          // 2. Retry, slow to come back; an edit made while it's on its way stays — not replaced by the copy read back.
+          await page.route("**/rest/v1/store_items**", async (r) => { if (r.request().method() === "POST") await sleep(1800); await r.continue(); });
+          await saveBtn().click().catch(() => {});
+          await page.waitForTimeout(300);
+          ok(`${d.key} · save · Retry says Saving`, (await said()) === "Saving", await said());
+          await drag(40);
+          const b3 = await boxOf(sel);
+          await page.waitForTimeout(4000);
+          await page.unroute("**/rest/v1/store_items**");
+          const b4 = await boxOf(sel);
+          ok(`${d.key} · save · an edit made while saving is not overwritten when the save comes back`, !!b3 && !!b4 && Math.abs(b4.x - b3.x) < 3, b3 && b4 && Math.round(b4.x - b3.x));
+          ok(`${d.key} · save · …and still says Save (that edit isn't saved yet)`, (await said()) === "Save", await said());
+          // 3. Put the room back as it was, and save it: Saved.
+          const undo = page.getByRole("button", { name: "Undo", exact: true }).first();
+          for (let k = 0; k < 4; k++) { const b = await boxOf(sel); if (b && Math.abs(b.x + b.w / 2 - (b0.x + b0.w / 2)) < 3) break; await undo.click({ timeout: 2000 }).catch(() => {}); await page.waitForTimeout(250); }
+          const b5 = await boxOf(sel);
+          if ((await said()) === "Save") { await saveBtn().click().catch(() => {}); await page.waitForTimeout(2500); }
+          const mid = (b) => b.x + b.w / 2;   // centres: the picked outline makes the box a few pixels larger
+          ok(`${d.key} · save · put back and saved: Saved`, (await said()) === "Saved" && !!b5 && Math.abs(mid(b5) - mid(b0)) < 3, [await said(), b5 && Math.round(mid(b5) - mid(b0))]);
+        } else ok(`${d.key} · save · a thing to move`, false, "none");
+      }
       if (v.act === "touch") {
         const desk = d.kind === "desktop";
         const boxOf = async (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; }, sel);
@@ -446,6 +494,9 @@ try {
           const roomB = await boxOf(".vz-studio.full .vz-plan .room");
           ok(`${d.key} · touch · picking moves nothing under the finger (the inspector comes in over the edge)`, !!roomA && !!roomB && Math.abs(roomB.x - roomA.x) < 2 && Math.abs(roomB.y - roomA.y) < 2 && Math.abs(roomB.w - roomA.w) < 2, roomA && roomB && [Math.round(roomB.x - roomA.x), Math.round(roomB.y - roomA.y), Math.round(roomB.w - roomA.w)]);
           const b0 = await boxOf(sel);   // measured picked (its outline drawn), so Undo is compared like with like
+          const dk = await boxOf(".vz-studio.full .vz-dock");
+          const under = !!dk && !!b0 && b0.x < dk.x + dk.w && b0.x + b0.w > dk.x && b0.y < dk.y + dk.h && b0.y + b0.h > dk.y;
+          ok(`${d.key} · touch · the picked thing stays in view, clear of its details (IMS4)`, !under, { thing: b0 && [Math.round(b0.x), Math.round(b0.y), Math.round(b0.w)], dock: dk && [Math.round(dk.x), Math.round(dk.y), Math.round(dk.w), Math.round(dk.h)] });
           await page.mouse.move(cx, cy); await page.mouse.down(); await page.mouse.move(cx + 30, cy, { steps: 6 }); await page.mouse.move(cx + 60, cy, { steps: 6 }); await page.mouse.up();
           await page.waitForTimeout(400);
           const b1 = await boxOf(sel);

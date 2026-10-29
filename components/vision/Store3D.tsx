@@ -7,7 +7,11 @@ import { kindOf, type Layout } from "@/lib/vision";
 // THE STORE, IN 3D (R52). The room and everything in it, drawn as shaded boxes on a canvas (lib/vision3d — no 3D
 // library). Drag to turn it, pinch or scroll to come closer, tap a thing to pick it, double-tap to go back to the corner
 // view. `spin` turns it slowly on its own (the presenter); a hand on it stops the spin.
-export default function Store3D({ layout, selected, onPick, spin = false, focus, figures, heat, label }: {
+// A view turned or zoomed by hand, kept per room for the session (IMS4): Plan, 3D and Split each mount the 3D afresh, and a
+// deliberate angle shouldn't be lost to a switch. Never written to storage; a room never opened in 3D starts at its corner.
+const KEPT = new Map<string, Camera>();
+
+export default function Store3D({ layout, selected, onPick, spin = false, focus, figures, heat, label, keep }: {
   layout: Pick<Layout, "width_in" | "depth_in" | "ceiling_in" | "items">;
   selected?: string | null;
   onPick?: (id: string | null) => void;
@@ -18,13 +22,19 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
   figures?: readonly Figure[];
   heat?: readonly FloorMark[];
   label: string;
+  /** The room's id, to keep a hand-set view across switches (the studio); the presenter passes none. */
+  keep?: string;
 }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
-  const cam = useRef<Camera>(homeCamera(layout));
+  const cam = useRef<Camera>(keep && KEPT.has(keep) ? { ...KEPT.get(keep)! } : homeCamera(layout));
   const framed = useRef("");
   const goal = useRef<Camera | null>(null);
   const held = useRef(false);
-  const touched = useRef(false);
+  const touched = useRef(!!keep && KEPT.has(keep));
+  useEffect(() => {
+    const c = cam, t = touched;
+    return () => { if (keep && t.current) KEPT.set(keep, { ...c.current }); };
+  }, [keep]);
   const scene = useRef({ layout, selected: selected ?? null, spin, figures, heat });
   const faces = useRef<ReturnType<typeof sceneFaces>>([]);
   const cost = useRef(0);

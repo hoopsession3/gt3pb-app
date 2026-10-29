@@ -48,7 +48,7 @@ ok("a thing against a wall draws no zero gap", L.wallGaps({ x0: 0, y0: 0, x1: 30
 const plan = read("components/vision/PlanView.tsx");
 ok("the picked thing's label says its own size", /\$\{ftIn\(di\.w_in\)\} × \$\{ftIn\(di\.d_in\)\}/.test(plan));
 ok("a gap is drawn as a gap: ticks at both ends, its own style, not the thing's colour", /className="gap"/.test(plan) && (plan.match(/className="gap"/g) ?? []).length >= 5 && /className="gapt"/.test(plan));
-ok("a gap's length is placed clear of every other thing and every word", /placeFirst\(dimSpots\([^)]*\)[^;]*\[\.\.\.others, \.\.\.obstacles, db\]/.test(plan));
+ok("a gap's length is placed clear of every other thing and every word", /at = \[\.\.\.others, \.\.\.obstacles, db\]/.test(plan) && /placeFirst\(dimSpots\([^)]*\), fs, t, at, view\)/.test(plan));
 
 // ── 3 · wiring ────────────────────────────────────────────────────────────────────────────────────────────────────
 ok("no numbers on the drawing", !/className="tag"/.test(plan) && !/tagt/.test(plan) && !/\{n \+ 1\}/.test(plan));
@@ -112,8 +112,8 @@ const P = loadTs("lib/pillarFacts.ts"), STD = loadTs("lib/standard.ts");
 ok("Evaluate shows the room by pillar, folded, after the serious findings", /The room by pillar/.test(ev) && ev.indexOf("diff.says.map") < ev.indexOf("The room by pillar") && /<details/.test(ev));
 ok("the picked thing's quick bar stands clear of its label as well as the thing", /const tb = labels\.tag\?\.box \?\? null/.test(plan) && /Math\.min\(sb\.y0, tb\.y0\)/.test(plan));
 ok("gap lengths and the picked label share one typeface (one way of writing feet and inches)", /\.gapt\{font-family:var\(--sans\)/.test(css));
-ok("a quiet save status in the tooltip: the time of the last save, and that unsaved changes are kept on the device", /title=\{dirty \? "Save — until you do, your changes are kept on this device" : savedAt \? `Saved at/.test(des));
-ok("…while the button's spoken name stays one word — Save or Saved (voice control says it)", /aria-label=\{busy \? "Saving" : dirty \? "Save" : "Saved"\}/.test(des));
+ok("a quiet save status in the tooltip: the time of the last save, and that unsaved changes are kept on the device", /title=\{busy \? "Saving…" : dirty && saveFailed \? `\$\{saveFailed\} — your changes are kept on this device\. Retry\.` : dirty \? "Unsaved changes — save\. Until you do, they're kept on this device" : savedAt \? `Saved at/.test(des));
+ok("…while the button's spoken name stays one word — Save or Saved (voice control says it)", /aria-label=\{busy \? "Saving" : dirty && saveFailed \? "Couldn't save · Retry" : dirty \? "Save" : "Saved"\}/.test(des));
 ok("a drawn count or a pointer to the Standard is never tinted as a pass; unknown carries the warning tint", /f\.source === "unknown" \? "k-tag warn" : f\.source === "simulated" \? "k-tag gold" : "k-tag"/.test(ev) && !/"k-tag ok"\}>\{SOURCE_WORD/.test(ev));
 console.log(`S1.1b — THE STUDIO, SECOND PASS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

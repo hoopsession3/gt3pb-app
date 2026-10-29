@@ -10,7 +10,7 @@ import { useConfirm } from "@/components/ConfirmSheet";
 import { Segmented } from "@/components/controls";
 import { haptic } from "@/lib/haptics";
 import {
-  AISLE_IN, CATALOG, PILLARS, PILLAR_WORD, allowedKind, clampInside, ftIn, kindOf, parseFtIn, roomStats, snap,
+  CATALOG, PILLARS, PILLAR_WORD, allowedKind, clampInside, ftIn, kindOf, parseFtIn, roomStats, snap,
   type Item, type Layout, type Pillar,
 } from "@/lib/vision";
 import { saveLayout } from "@/lib/visionRead";
@@ -97,7 +97,17 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [split, setSplit] = useState(() => { try { const v = Number(sessionStorage.getItem("gt3.studio.split")); return v >= 0.25 && v <= 0.75 ? v : 0.55; } catch { return 0.55; } });
   const storeEl = useRef<HTMLDivElement | null>(null);
   const splitDrag = useRef<{ x0: number; w: number; s0: number } | null>(null);
-  useLayoutEffect(() => { storeEl.current?.style.setProperty("--sa", `${split}fr`); storeEl.current?.style.setProperty("--sb", `${1 - split}fr`); });
+  // The plan's column in pixels, as last laid out — held while a wide inspector stands beside the canvas (IMS4).
+  const planPx = useRef(0);
+  useLayoutEffect(() => {
+    const el = storeEl.current; if (!el) return;
+    // Held when, laid out, a wide full-screen Split has its inspector standing beside it (read from the page as drawn).
+    const holdPlan = el.classList.contains("both") && !!el.closest(".vz-studio.full.wide") && !!el.parentElement?.querySelector(":scope > .vz-dock:not(.over)");
+    if (holdPlan && planPx.current > 0) { el.style.setProperty("--sa", `${planPx.current}px`); el.style.setProperty("--sb", "1fr"); return; }
+    el.style.setProperty("--sa", `${split}fr`); el.style.setProperty("--sb", `${1 - split}fr`);
+    const first = el.firstElementChild as HTMLElement | null;
+    if (first) planPx.current = first.getBoundingClientRect().width;
+  });
   const setSplitKept = useCallback((v: number) => {
     const n = Math.round(Math.min(0.75, Math.max(0.25, v)) * 100) / 100;
     setSplit(n);
@@ -165,13 +175,27 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [savedId, setSavedId] = useState<string | null>(null);
   // When this session last saved (S1.1b — a quiet save status: "Saved 3:41 PM" on the button's label, nothing permanent).
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // WHAT THE LAST SAVE SENT (IMS4 — measured: an edit made while a save was on its way was replaced by the saved copy when
+  // it was read back). When the room comes back after its own save, it takes the saved copy only if nothing was changed
+  // since the save left; a newer edit stays on screen, unsaved, and says so.
+  const [sent, setSent] = useState<Layout | null>(null);
+  // A save that didn't land (IMS4): the edits stay on screen and on this device; the button says Couldn't save · Retry.
+  const [saveFailed, setSaveFailed] = useState<string | null>(null);
   if (base !== original) {
     const same = !!original && savedId === original.id;
-    setBase(original); setDraft(original ?? null); setSavedId(null);
+    const newer = same && !!sent && !!draft && draft !== sent;
+    setBase(original); if (!newer) setDraft(original ?? null); setSavedId(null); setSent(null);
     if (!same) { setPast([]); setFuture([]); setSel(null); setKept(keptFor(original)); }
   }
 
   const dirty = !!draft && !!original && JSON.stringify(draft) !== JSON.stringify(original);
+  // Leaving the page (closing the tab, reloading) with unsaved changes asks first (IMS4); they're kept on this device too.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   useEffect(() => {
     if (!original || kept) return;   // an offer on screen isn't overwritten until it's answered
     try {
@@ -243,12 +267,13 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const save = async () => {
     if (!supabase || !draft || !original || busy) return;
     if (found.some((f) => f.level === "error") && !(await confirm({ title: "Save with problems?", body: `${found.filter((f) => f.level === "error").length} problem(s): things that overlap, sit outside the walls, or can't be reached from the door. Save anyway, or fix them first?`, confirmLabel: "Save anyway" }))) return;
-    setBusy(true);
-    const err = await saveLayout(supabase, draft, original.items);
+    const snap = draft;
+    setBusy(true); setSaveFailed(null);
+    const err = await saveLayout(supabase, snap, original.items);
     setBusy(false);
-    if (err) { toast(failureWords(err, "Couldn't save the room"), "error"); haptic("error"); return; }
+    if (err) { setSaveFailed(failureWords(err, "Couldn't save the room")); toast(failureWords(err, "Couldn't save the room — your changes are still here"), "error"); haptic("error"); return; }
     haptic("success"); toast("Saved — the room, and everything in it.");
-    setSavedId(draft.id); setSavedAt(Date.now());
+    setSavedId(snap.id); setSavedAt(Date.now()); setSent(snap);
     onSaved();
   };
   const newRoom = async () => {
@@ -290,9 +315,9 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   }
 
   const name = item ? item.label || kindOf(item.kind).name : "";
-  const takeOut = async (it: Item) => { if (await confirm({ title: `Take out ${it.label || kindOf(it.kind).name}?`, body: "Undo brings it back, until you save.", confirmLabel: "Take it out", danger: true })) remove(it.id); };
+  const takeOut = async (it: Item) => { if (await confirm({ title: `Remove ${it.label || kindOf(it.kind).name} from the room?`, body: "Undo brings it back, until you save.", confirmLabel: "Remove from room", danger: true })) remove(it.id); };
   const inspector = item && (
-    <Inspector key={item.id} item={item} canEdit={canEdit} room={draft}
+    <Inspector key={item.id} item={item} canEdit={canEdit} room={draft} target={PROFILES[model]}
       onPatch={(p) => patchItem(item.id, p)} onTurn={() => turn(item.id)} onCopy={() => copy(item.id)}
       onRemove={() => void takeOut(item)} onClose={() => { setSel(null); setDock(false); }} />
   );
@@ -302,6 +327,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
     <>
       {lens === "evaluate" && evaluate}
       {/* Heard as it changes (mounted before its words — spoken.audit); the list itself is below. */}
+      <p className="sr-only" aria-live="polite">{busy ? "Saving…" : saveFailed && dirty ? `Couldn't save. Your changes are still here — Retry.` : ""}</p>
       <p className="sr-only" aria-live="polite">{found.length ? `${found.length} ${found.length === 1 ? "thing" : "things"} a plan reviewer would circle.` : ""}</p>
       {lens !== "evaluate" && found.length > 0 && (
         <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label="What a plan reviewer would circle">
@@ -363,7 +389,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const errors = found.filter((f) => f.level === "error").length;
   const findingsMark = (
     <button type="button" className={`k-chip vz-find${errors ? " error" : found.length ? " warn" : ""}`} aria-pressed={lens === "evaluate"}
-      aria-label={found.length ? `Evaluate · ${found.length} to look at${errors ? `, ${errors} serious` : ""}` : "Evaluate · nothing to look at"}
+      aria-label={found.length ? `${found.length} — Review ${found.length} finding${found.length === 1 ? "" : "s"}${errors ? `, ${errors} serious` : ""} (Evaluate)` : "✓ — nothing to review (Evaluate)"}
       onClick={() => { haptic("selection"); setLens(lens === "evaluate" ? "design" : "evaluate"); }}>
       <i aria-hidden="true" className="vz-find-dot inline-block w-2 h-2 rounded-full" />{found.length || "✓"}
     </button>
@@ -376,7 +402,13 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       {canEdit && <button type="button" className="btn-pri btn-sm" aria-label="Add a fixture" title="Add a fixture" onClick={() => setAddOpen(true)}>+</button>}
     </div>
   );
+  // WIDE, SPLIT (IMS4 — measured: the floating inspector covered the right third of the 3D room): the inspector stands
+  // beside the canvas, and the plan keeps the width it had (in pixels) — the 3D gives up the room, so nothing under the
+  // finger moves. Plan or 3D alone, it floats over the right edge, and the plan is told how much of it is covered.
+  const besideWide = contextual && size === "wide" && view === "both" && !!item;
   const dockShown = docked && !(contextual && !item && lens !== "evaluate" && !(roomOpen && !narrow));
+  const overlaid = contextual && !besideWide && dockShown;
+  const cover = overlaid && view === "plan" ? Math.round(Math.min(side ? 280 : 340, width * (side ? 0.4 : 0.46))) + 20 : 0;
   const doneButton = <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Done — back to the vision" : "Full screen"} title={full ? "Done (Esc)" : "Full screen"} onClick={() => { if (full) leave(); else { setDock(false); setFull(true); } }}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>;
   const studio = (
     <div ref={box} className={`vz-studio ${size === "wide" ? "wide" : size === "mid" ? "mid" : "phone"}${full ? " full" : ""}${narrow ? " narrow" : ""}${short ? " short" : ""}${side ? " side" : ""}${upright ? " upright" : ""}${libOpen && canEdit && size === "wide" && !full ? " lib" : ""}`}>
@@ -403,8 +435,10 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
             <>
               <button type="button" className="btn-sec btn-sm" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (⌘Z)">↶</button>
               <button type="button" className="btn-sec btn-sm" onClick={redo} disabled={!future.length} aria-label="Redo" title="Redo (⇧⌘Z)">↷</button>
-              <button type="button" className={dirty ? "btn-pri btn-sm" : "btn-sec btn-sm"} onClick={() => void save()} disabled={!dirty || busy} aria-label={busy ? "Saving" : dirty ? "Save" : "Saved"}
-                title={dirty ? "Save — until you do, your changes are kept on this device" : savedAt ? `Saved at ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Everything is saved"}>{busy ? "Saving…" : dirty ? "Save" : size === "phone" || side || compactBar ? "✓" : "Saved"}</button>
+              <button type="button" className={dirty ? "btn-pri btn-sm" : "btn-sec btn-sm"} onClick={() => void save()} disabled={!dirty || busy}
+                aria-label={busy ? "Saving" : dirty && saveFailed ? "Couldn't save · Retry" : dirty ? "Save" : "Saved"}
+                title={busy ? "Saving…" : dirty && saveFailed ? `${saveFailed} — your changes are kept on this device. Retry.` : dirty ? "Unsaved changes — save. Until you do, they're kept on this device" : savedAt ? `Saved at ${new Date(savedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Everything is saved"}>
+                {busy ? "Saving…" : dirty && saveFailed ? (size === "phone" || side || compactBar ? "Retry" : "Couldn't save · Retry") : dirty ? "Save" : size === "phone" || side || compactBar ? "✓" : "Saved"}</button>
             </>
           )}
           {!upright && doneButton}
@@ -414,17 +448,26 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       {/* One line under the bar: the room's numbers and the plans it's drawn for (a size that disagrees with a plan's says so). */}
 
       {stats && size !== "phone" && (
-        <p className="vz-stats vz-stats-line">
+        // The room's size and seats stay in view; what's secondary — the pillars things are meant to serve (intent, not
+        // an assessment) and the plans that use this room — folds under Room summary (IMS4). A plan whose size disagrees
+        // still says so on the line.
+        <div className="vz-stats vz-stats-line">
           <span><b>{stats.sqft.toLocaleString()}</b> sq ft</span>
           <span><b>{ftIn(draft.width_in)}</b> × <b>{ftIn(draft.depth_in)}</b></span>
           <span><b>{stats.seats}</b> seats</span>
           <span><b>{stats.items}</b> things</span>
-          {PILLARS.map((p) => <span key={p}><i className={`inline-block w-2 h-2 rounded-full mr-1 pz-${p}`} />{PILLAR_WORD[p]} <b>{stats.pillars[p]}</b></span>)}
-          {plans.filter((x) => x.layout_id === draft.id).map((pl) => {
-            const off = pl.sqft != null && Math.abs(pl.sqft - stats.sqft) > pl.sqft * 0.1;
-            return <span key={pl.id} className={off ? "vz-stat-warn" : undefined}>For {FORMAT[pl.format].mark} <b>{pl.name}</b> · phase {pl.phase}{off ? ` — the plan says ${pl.sqft!.toLocaleString("en-US")} sq ft` : ""}</span>;
-          })}
-        </p>
+          {plans.filter((x) => x.layout_id === draft.id && x.sqft != null && Math.abs(x.sqft - stats.sqft) > x.sqft * 0.1).map((pl) => (
+            <span key={pl.id} className="vz-stat-warn">{FORMAT[pl.format].mark} {pl.name} says {pl.sqft!.toLocaleString("en-US")} sq ft</span>
+          ))}
+          <details className="vz-room-sum">
+            <summary>Room summary</summary>
+            <div className="vz-room-sum-body">
+              <span className="vz-card-s">Pillars things are meant to serve — intent, not an assessment:</span>
+              {PILLARS.map((p) => <span key={p}><i className={`inline-block w-2 h-2 rounded-full mr-1 pz-${p}`} />{PILLAR_WORD[p]} <b>{stats.pillars[p]}</b></span>)}
+              {plans.filter((x) => x.layout_id === draft.id).map((pl) => <span key={pl.id}>For {FORMAT[pl.format].mark} <b>{pl.name}</b> · phase {pl.phase}</span>)}
+            </div>
+          </details>
+        </div>
       )}
 
       {kept && (
@@ -450,7 +493,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
                   onBegin={() => { if (draft) setPast((p) => [...p.slice(-59), draft]); setFuture([]); }}
                   onDropKind={canEdit ? (k, at) => add(k, at) : undefined}
                   onTurn={turn} onCopy={copy} onRemove={(id) => { const it = draft.items.find((i) => i.id === id); if (it) void takeOut(it); }}
-                  onDetails={details} />
+                  onDetails={details} cover={cover} />
               </div>
             )}
             {view === "both" && size !== "phone" && (
@@ -464,7 +507,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
             )}
             {view !== "plan" && (
               <div className={`vz-pane mpanel mb-0 relative min-w-0${view === "both" && activePane === "3d" ? " active" : ""}`} onPointerDownCapture={() => setActivePane("3d")}>
-                <Store3D layout={draft} selected={sel} onPick={pick} figures={figures} heat={flow?.heat} label={`${draft.name}, in 3D — drag to turn, pinch to come closer`} />
+                <Store3D layout={draft} keep={draft.id} selected={sel} onPick={pick} figures={figures} heat={flow?.heat} label={`${draft.name}, in 3D — drag to turn, pinch to come closer`} />
                 <p className="vz-hint">Drag to turn · pinch or scroll to zoom · double-tap: corner view</p>
               </div>
             )}
@@ -486,7 +529,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           {dockShown && (
             // Contextual (IMS2): it comes in over the canvas's edge, not beside it — the plan keeps its size, so picking a thing
             // never moves the drawing under the finger (measured: the column squeezing in shifted the thing picked 14–79px).
-            <div className={contextual ? "vz-dock mpanel mb-0 over" : "vz-dock mpanel mb-0"} aria-label="What's picked">
+            <div className={overlaid ? "vz-dock mpanel mb-0 over" : "vz-dock mpanel mb-0"} aria-label="What's picked">
               {!item ? (narrow ? (
                 // A phone (S1.1b): with nothing picked, the dock holds the lens — the drawing keeps the whole height above
                 // it (measured: the lens in the bar, or on its own line, cost an iPhone SE a tenth of the plan's size).
@@ -511,8 +554,9 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
           {/* The count of findings over the canvas — not on a phone, where the dock holds the lens and "Evaluate · n" says it
               (S1.1c, measured: the chip sat on the lens control). */}
           {full && size !== "phone" && !upright && found.length > 0 && !item && (
-            <button type="button" className={found.some((f) => f.level === "error") ? "k-chip vz-pill-issue error" : "k-chip vz-pill-issue"} onClick={() => look(found[0])}>
-              {found.length} to look at
+            <button type="button" className={found.some((f) => f.level === "error") ? "k-chip vz-pill-issue error" : "k-chip vz-pill-issue"} onClick={() => { haptic("selection"); setLens("evaluate"); }}>
+              {/* The one review queue (IMS4): the same findings as Evaluate's count, opening the same list. */}
+              Review {found.length} finding{found.length === 1 ? "" : "s"}
             </button>
           )}
         </div>
@@ -580,8 +624,8 @@ const findHost = (): HTMLElement | null => (typeof document === "undefined" ? nu
 const noHost = (): HTMLElement | null => null;
 
 // ── a thing's inspector: what it is, its size, which way it faces, and why it's there ──
-function Inspector({ item, canEdit, room, onPatch, onTurn, onCopy, onRemove, onClose }: {
-  item: Item; canEdit: boolean; room: Layout; onPatch: (p: Partial<Item>) => void; onTurn: () => void; onCopy: () => void; onRemove: () => void; onClose: () => void;
+function Inspector({ item, canEdit, room, target, onPatch, onTurn, onCopy, onRemove, onClose }: {
+  item: Item; canEdit: boolean; room: Layout; target: { name: string; routeIn: number }; onPatch: (p: Partial<Item>) => void; onTurn: () => void; onCopy: () => void; onRemove: () => void; onClose: () => void;
 }) {
   const k = kindOf(item.kind);
   const [w, setW] = useState(ftIn(item.w_in)), [d, setD] = useState(ftIn(item.d_in)), [h, setH] = useState(ftIn(item.h_in));
@@ -598,9 +642,10 @@ function Inspector({ item, canEdit, room, onPatch, onTurn, onCopy, onRemove, onC
   if (!canEdit) {
     return (
       <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
-        <div className="vz-row justify-between"><b className="font-sans text-body">{name}</b><button type="button" className="btn-ter" onClick={onClose}>Close</button></div>
+        <div className="vz-row justify-between"><b className="font-sans text-body">{name}</b><button type="button" className="btn-ter" onClick={onClose}>Close details</button></div>
         <p className="vz-card-s">{ftIn(item.w_in)} × {ftIn(item.d_in)}, {ftIn(item.h_in)} tall</p>
         {item.why && <p className="vz-sub">{item.why}</p>}
+        {item.pillars.length > 0 && <p className="vz-card-s">Meant to serve — intent, not an assessment:</p>}
         {item.pillars.length > 0 && <div className="vz-pillars">{item.pillars.map((p) => <span key={p} className="vz-pill"><i className={`inline-block w-2 h-2 rounded-full pz-${p}`} />{PILLAR_WORD[p]}</span>)}</div>}
       </div>
     );
@@ -609,8 +654,10 @@ function Inspector({ item, canEdit, room, onPatch, onTurn, onCopy, onRemove, onC
     <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label={`${name} — its size and why it's there`}>
       <div className="vz-row justify-between">
         <b className="font-sans text-body">{k.name}</b>
-        <button type="button" className="btn-ter" onClick={onClose}>Done</button>
+        <button type="button" className="btn-ter" onClick={onClose}>Close details</button>
       </div>
+      {/* PROGRESSIVE DISCLOSURE (IMS4): what's changed most — its name, its size, rotate and duplicate — first; why it's here
+          and the pillars it's meant to serve folded under Purpose & experience; removing it apart, at the foot. */}
       <label className="prod-f"><span>Its name in the room</span>
         <input value={label} placeholder={k.name} maxLength={80} onChange={(e) => setLabel(e.target.value)} onBlur={() => { if ((label.trim() || null) !== item.label) onPatch({ label: label.trim() || null }); }} /></label>
       <div className="vz-dims">
@@ -618,20 +665,28 @@ function Inspector({ item, canEdit, room, onPatch, onTurn, onCopy, onRemove, onC
         <label className="prod-f"><span>Depth</span><input inputMode="text" value={d} onChange={(e) => setD(e.target.value)} onBlur={() => size("d_in", d, setD)} aria-label="Depth, in feet and inches" /></label>
         <label className="prod-f"><span>Height</span><input inputMode="text" value={h} onChange={(e) => setH(e.target.value)} onBlur={() => size("h_in", h, setH)} aria-label="Height, in feet and inches" /></label>
       </div>
-      <p className="vz-card-s">Type 6′ 2″, 6 2 or 74. An aisle between things people walk between needs {AISLE_IN} in.</p>
-      <label className="prod-f"><span>Why it&apos;s here</span>
-        <textarea rows={3} value={why} maxLength={1000} onChange={(e) => setWhy(e.target.value)} onBlur={() => { if ((why.trim() || null) !== item.why) onPatch({ why: why.trim() || null }); }} /></label>
-      <div className="vz-pillars" role="group" aria-label="The pillars it serves">
-        {PILLARS.map((p) => {
-          const on = item.pillars.includes(p);
-          return <button key={p} type="button" className={`k-chip${on ? " on" : ""}`} aria-pressed={on}
-            onClick={() => onPatch({ pillars: (on ? item.pillars.filter((x) => x !== p) : [...item.pillars, p]) as Pillar[] })}>{PILLAR_WORD[p]}</button>;
-        })}
-      </div>
+      <p className="vz-card-s">Type 6′ 2″, 6 2 or 74. The lines on the plan are its distance to each wall, not walking clearance; walking routes are checked against a {ftIn(target.routeIn)} design target — GT3&apos;s working default for a {target.name.toLowerCase()}, not a code check.</p>
       <div className="vz-row">
-        <button type="button" className="btn-sec btn-sm" onClick={onTurn}>↻ Turn</button>
-        <button type="button" className="btn-sec btn-sm" onClick={onCopy}>Copy</button>
-        <button type="button" className="btn-del" onClick={onRemove}>Take out</button>
+        <button type="button" className="btn-sec btn-sm" onClick={onTurn}>↻ Rotate</button>
+        <button type="button" className="btn-sec btn-sm" onClick={onCopy}>Duplicate</button>
+      </div>
+      <details className="vz-purpose">
+        <summary className="font-sans font-bold text-subhead cursor-pointer py-2">Purpose &amp; experience</summary>
+        <div className="flex flex-col gap-2">
+          <label className="prod-f"><span>Why it&apos;s here</span>
+            <textarea rows={3} value={why} maxLength={1000} onChange={(e) => setWhy(e.target.value)} onBlur={() => { if ((why.trim() || null) !== item.why) onPatch({ why: why.trim() || null }); }} /></label>
+          <p className="vz-card-s">The pillars it&apos;s meant to serve — design intent, not an assessment. Whether it meets the Standard is judged in The Standard, with evidence.</p>
+          <div className="vz-pillars" role="group" aria-label="The pillars it's meant to serve (intent)">
+            {PILLARS.map((p) => {
+              const on = item.pillars.includes(p);
+              return <button key={p} type="button" className={`k-chip${on ? " on" : ""}`} aria-pressed={on}
+                onClick={() => onPatch({ pillars: (on ? item.pillars.filter((x) => x !== p) : [...item.pillars, p]) as Pillar[] })}>{PILLAR_WORD[p]}</button>;
+            })}
+          </div>
+        </div>
+      </details>
+      <div className="vz-row vz-insp-foot">
+        <button type="button" className="btn-del" onClick={onRemove}>Remove from room</button>
       </div>
     </div>
   );
