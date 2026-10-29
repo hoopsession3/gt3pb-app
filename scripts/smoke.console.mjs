@@ -50,6 +50,8 @@ export const DEVICES = [
   { key: "ipad-split-half", w: 678, h: 1032, dpr: 2, kind: "ipad", visitsOnly: true },
   { key: "ipad-split-two-thirds", w: 917, h: 1032, dpr: 2, kind: "ipad", visitsOnly: true },
   { key: "desktop", w: 1440, h: 900, dpr: 2, kind: "desktop", visitsOnly: true },
+  // IMS4c: a wide desktop (1920), where a thing's details stand beside the canvas — the studio's visits only.
+  { key: "desktop-wide", w: 1920, h: 1080, dpr: 1, kind: "desktop", visitsOnly: true, visits: /^vision-store-(full|touch|details|back)$/ },
   // IP1 (Ryan: the presenter across a table, or on a wall): a 1080p projector, the presenter's slides only.
   { key: "projector", w: 1920, h: 1080, dpr: 1, kind: "desktop", visitsOnly: true, visits: /^vision-(present|ways|case|cash|explore|diligence)$/ },
 ];
@@ -110,6 +112,9 @@ const VISITS = [
   // slow to come back doesn't overwrite an edit made while it was on its way; Retry saves; the room is put back as it was.
   // (Two screens — a phone and a desktop — since it writes to the stand-in room the other visits draw.)
   { key: "vision-store-save", on: ["iphone-se", "desktop"], path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], act: "save", drawn: ".vz-studio.full .vz-plan .it", long: false },
+  // IMS4c — a thing's details, by the space there: beside a very wide screen's canvas, at the foot of the 3D otherwise, a
+  // sheet on a phone; Less makes them a line, Close details gives the canvas back and keeps the pick.
+  { key: "vision-store-details", on: ["iphone-se", "ipad-13-side", "desktop", "desktop-wide"], path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], act: "details", drawn: ".vz-studio.full .vz-plan .it.sel", long: false },
   // IMS1 — Back leaves the studio for the vision, never the vision itself: the plan is still drawn, on /vision, not full screen.
   { key: "vision-store-back", path: "/vision", ready: ".vz-board", clicks: ["The store", "Full screen"], back: true, drawn: ".vz-studio:not(.full) .vz-plan .it", long: false },
   { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "Add a fixture"], drawn: ".vz-library .vz-lib-row", long: false },
@@ -436,6 +441,43 @@ try {
       // A slide found by stepping to it (the presenter's slides shift as the plan grows): Next until it's there.
       if (v.until) for (let k = 0; k < 20 && !(await page.$(v.until.sel)); k++) await tap(v.until.click);
       for (const c of v.then ?? []) await tap(c);
+      if (v.act === "details") {
+        const desk = d.kind === "desktop";
+        const boxOf = async (q) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return b.width && b.height ? { x: b.left, y: b.top, w: b.width, h: b.height } : null; }, q);
+        const target = await page.evaluate(() => { const t = [...document.querySelectorAll(".vz-studio.full .vz-plan .it")].find((g) => /Community table/.test(g.textContent ?? "")); return t ? t.getAttribute("data-id") : null; });
+        const sel = `.vz-studio.full .vz-plan .it[data-id="${target}"]`;
+        const fill = async () => Number(await page.evaluate(() => document.querySelector(".vz-studio.full canvas.vz-3d")?.dataset.fill ?? -1));
+        const b = target ? await boxOf(sel) : null;
+        if (b) {
+          const fill0 = await fill();
+          if (desk) await page.mouse.click(b.x + b.w / 2, b.y + b.h / 2); else await page.touchscreen.tap(b.x + b.w / 2, b.y + b.h / 2);
+          await page.waitForTimeout(700);
+          if (d.key === "iphone-se") {
+            await page.getByRole("button", { name: "Edit", exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+            await page.waitForTimeout(600);
+            ok(`${d.key} · details · a phone opens them as a sheet`, !!(await page.$("[role=dialog] .vz-insp")), "no sheet");
+            await page.getByRole("button", { name: "Close details", exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+            await page.waitForTimeout(600);
+            ok(`${d.key} · details · Close details shuts the sheet and keeps the pick`, !(await page.$("[role=dialog] .vz-insp")) && !!(await page.$(`${sel}.sel`)), "");
+          } else {
+            const wide = await page.evaluate(() => innerWidth);
+            const beside = await boxOf(".vz-studio.full .vz-stage > .vz-dock:not(.over):not(.in3d)"), card = await boxOf(".vz-studio.full .vz-dock.in3d"), c3 = await boxOf(".vz-studio.full canvas.vz-3d");
+            if (wide >= 1900) ok(`${d.key} · details · a very wide screen sets them beside the canvas, the 3D keeping ≥ 480px`, !!beside && !card && !!c3 && c3.w >= 480, { beside: !!beside, card: !!card, w3d: c3 && Math.round(c3.w) });
+            else ok(`${d.key} · details · narrower, at the foot of the 3D pane`, !!card && !beside, { beside: !!beside, card: !!card });
+            const h0 = (await boxOf(".vz-studio.full .vz-dock"))?.h ?? 0;
+            await page.getByRole("button", { name: "Less", exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+            await page.waitForTimeout(600);
+            const h1 = (await boxOf(".vz-studio.full .vz-dock"))?.h ?? 0;
+            ok(`${d.key} · details · Less makes them a line`, h1 > 0 && h1 < h0 * 0.6, [Math.round(h0), Math.round(h1)]);
+            await page.getByRole("button", { name: "More", exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+            await page.waitForTimeout(400);
+            await page.getByRole("button", { name: "Close details", exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+            await page.waitForTimeout(900);
+            const gone = !(await boxOf(".vz-studio.full .vz-dock")), still = !!(await page.$(`${sel}.sel`)), fill2 = await fill();
+            ok(`${d.key} · details · Close details gives the canvas back and keeps the pick`, gone && still && fill2 >= fill0 - 3, { gone, still, fill: [fill0, fill2] });
+          }
+        } else ok(`${d.key} · details · a thing to pick`, false, "none");
+      }
       if (v.act === "save") {
         const desk = d.kind === "desktop";
         const saveBtn = () => page.locator(".vz-studio.full .vz-tbar-r button[aria-label='Save'], .vz-studio.full .vz-tbar-r button[aria-label='Saved'], .vz-studio.full .vz-tbar-r button[aria-label='Saving'], .vz-studio.full .vz-tbar-r button[aria-label=\"Couldn't save · Retry\"]").first();

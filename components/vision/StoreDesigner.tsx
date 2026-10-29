@@ -97,7 +97,17 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [split, setSplit] = useState(() => { try { const v = Number(sessionStorage.getItem("gt3.studio.split")); return v >= 0.25 && v <= 0.75 ? v : 0.55; } catch { return 0.55; } });
   const storeEl = useRef<HTMLDivElement | null>(null);
   const splitDrag = useRef<{ x0: number; w: number; s0: number } | null>(null);
-  useLayoutEffect(() => { storeEl.current?.style.setProperty("--sa", `${split}fr`); storeEl.current?.style.setProperty("--sb", `${1 - split}fr`); });
+  // The plan's column in pixels, as last laid out — held while a very wide screen's details stand beside the canvas (IMS4c),
+  // so the 3D gives up the room and nothing under the finger moves. Read from the page as drawn.
+  const planPx = useRef(0);
+  useLayoutEffect(() => {
+    const el = storeEl.current; if (!el) return;
+    const hold = el.classList.contains("both") && !!el.closest(".vz-studio.full") && !!el.parentElement?.querySelector(":scope > .vz-dock:not(.over):not(.in3d)") && !el.closest(".vz-studio.narrow");
+    if (hold && planPx.current > 0) { el.style.setProperty("--sa", `${planPx.current}px`); el.style.setProperty("--sb", "1fr"); return; }
+    el.style.setProperty("--sa", `${split}fr`); el.style.setProperty("--sb", `${1 - split}fr`);
+    const first = el.firstElementChild as HTMLElement | null;
+    if (first) planPx.current = first.getBoundingClientRect().width;
+  });
   const setSplitKept = useCallback((v: number) => {
     const n = Math.round(Math.min(0.75, Math.max(0.25, v)) * 100) / 100;
     setSplit(n);
@@ -130,6 +140,11 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [addOpen, setAddOpen] = useState(false);
   const [dock, setDock] = useState(false);
   const [roomOpen, setRoomOpen] = useState(false);
+  // CLOSE DETAILS KEEPS THE PICK (IMS4c): closing a thing's details gives the canvas back and leaves it picked (its quick
+  // moves and outline stay); a new pick, or its ⓘ, opens them again. Collapsed keeps them to a line until expanded.
+  const [detailsShut, setDetailsShut] = useState(false);
+  const [detailsMin, setDetailsMin] = useState(false);
+  const [shutFor, setShutFor] = useState<string | null>(null);
   // The details card at the foot of the 3D, measured as it's drawn: its height is what the 3D frames the room above.
   const [cardH, setCardH] = useState(0);
   const cardRef = useCallback((el: HTMLDivElement | null) => {
@@ -236,7 +251,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   /** Details for a thing (its bar's ⓘ): the dock pulled up on a phone; wider, the inspector beside the canvas, its first
    *  field ready to type in. */
   const details = (id: string) => {
-    setSel(id);
+    setSel(id); setDetailsShut(false); setShutFor(id);
     if (docked) { setDock(true); return; }
     requestAnimationFrame(() => document.querySelector<HTMLElement>(".vz-side .vz-insp input, .vz-side .vz-insp textarea")?.focus({ preventScroll: true }));
   };
@@ -312,12 +327,14 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
     );
   }
 
+  if (shutFor !== sel) { setShutFor(sel); setDetailsShut(false); }
   const name = item ? item.label || kindOf(item.kind).name : "";
   const takeOut = async (it: Item) => { if (await confirm({ title: `Remove ${it.label || kindOf(it.kind).name} from the room?`, body: "Undo brings it back, until you save.", confirmLabel: "Remove from room", danger: true })) remove(it.id); };
   const inspector = item && (
     <Inspector key={item.id} item={item} canEdit={canEdit} room={draft} target={PROFILES[model]}
+      collapsed={detailsMin} onCollapse={() => setDetailsMin((m) => !m)}
       onPatch={(p) => patchItem(item.id, p)} onTurn={() => turn(item.id)} onCopy={() => copy(item.id)}
-      onRemove={() => void takeOut(item)} onClose={() => { setSel(null); setDock(false); }} />
+      onRemove={() => void takeOut(item)} onClose={() => { setDock(false); setDetailsShut(true); }} />
   );
   // What a plan reviewer would circle, the schedule, the room itself: beside the canvas on a wide studio, under it on a phone.
   const evaluate = draft ? <Evaluate draft={draft} saved={original ?? null} found={found} plans={plans} checkedAs={PROFILES[model]} onLook={(id) => { const f = found.find((x) => x.ids.includes(id)); if (f) look(f); else pick(id); }} /> : null;
@@ -404,9 +421,16 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // the room filled 14% of it; floating, they covered a third of the 3D room). Wider full screen, with the 3D on screen, a
   // thing's details open as a card across the foot of the 3D pane, and the 3D frames the room in the space above it. The
   // plan isn't touched (nothing moves under the finger); the plan alone, they float over its right edge as before.
-  const in3d = contextual && !narrow && view !== "plan" && !!item;
-  const dockShown = docked && !in3d && !(contextual && !item && lens !== "evaluate" && !(roomOpen && !narrow));
-  const overlaid = contextual && dockShown;
+  // WHERE THE DETAILS GO, BY THE SPACE ACTUALLY THERE (IMS4c): beside the canvas only if the 3D keeps a useful width
+  // (480px) after them — a very wide screen; otherwise across the foot of the 3D pane. The plan alone, they float over its
+  // edge; on a phone, a sheet. Shut, they take nothing.
+  const shown = !!item && !detailsShut;
+  const threeW = view === "both" ? Math.round((width - 38) * (1 - split)) : width - 24;
+  const roomBeside = threeW - 352 >= 480;
+  const inSide = contextual && !narrow && view !== "plan" && shown && roomBeside;
+  const in3d = contextual && !narrow && view !== "plan" && shown && !roomBeside;
+  const dockShown = docked && !in3d && !(contextual && !shown && lens !== "evaluate" && !(roomOpen && !narrow));
+  const overlaid = contextual && dockShown && !inSide;
   const cover = overlaid && view === "plan" ? Math.round(Math.min(side ? 280 : 340, width * (side ? 0.4 : 0.46))) + 20 : 0;
   const doneButton = <button type="button" className="btn-sec btn-sm" aria-pressed={full} aria-label={full ? "Done — back to the vision" : "Full screen"} title={full ? "Done (Esc)" : "Full screen"} onClick={() => { if (full) leave(); else { setDock(false); setFull(true); } }}>{full ? "Done" : size === "phone" ? "⤢" : "⤢ Full screen"}</button>;
   const studio = (
@@ -537,7 +561,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
                   {upright ? uprightRow : size === "phone" && !side && lensControl}
                   {lens === "evaluate" ? evaluate : size === "phone" || upright ? <p className="sr-only">{canEdit ? "Pick a thing on the plan to move, size or turn it." : "Pick a thing on the plan to see why it's there."}</p> : <p className="vz-card-s">{canEdit ? "Pick a thing to move, size or turn it." : "Pick a thing to see why it's there."}</p>}
                 </div>) : roomPanels)
-                : !narrow ? inspector : (
+                : !narrow ? (shown ? inspector : roomPanels) : (
                 <div className="vz-dock-peek">
                   <div className="min-w-0">
                     <b className="font-sans text-body">{name}</b>
@@ -624,8 +648,8 @@ const findHost = (): HTMLElement | null => (typeof document === "undefined" ? nu
 const noHost = (): HTMLElement | null => null;
 
 // ── a thing's inspector: what it is, its size, which way it faces, and why it's there ──
-function Inspector({ item, canEdit, room, target, onPatch, onTurn, onCopy, onRemove, onClose }: {
-  item: Item; canEdit: boolean; room: Layout; target: { name: string; routeIn: number }; onPatch: (p: Partial<Item>) => void; onTurn: () => void; onCopy: () => void; onRemove: () => void; onClose: () => void;
+function Inspector({ item, canEdit, room, target, collapsed = false, onCollapse, onPatch, onTurn, onCopy, onRemove, onClose }: {
+  item: Item; canEdit: boolean; room: Layout; target: { name: string; routeIn: number }; collapsed?: boolean; onCollapse?: () => void; onPatch: (p: Partial<Item>) => void; onTurn: () => void; onCopy: () => void; onRemove: () => void; onClose: () => void;
 }) {
   const k = kindOf(item.kind);
   const [w, setW] = useState(ftIn(item.w_in)), [d, setD] = useState(ftIn(item.d_in)), [h, setH] = useState(ftIn(item.h_in));
@@ -651,11 +675,15 @@ function Inspector({ item, canEdit, room, target, onPatch, onTurn, onCopy, onRem
     );
   }
   return (
-    <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5" aria-label={`${name} — its size and why it's there`}>
+    <div className={collapsed ? "vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5 min" : "vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5"} aria-label={`${name} — its size and why it's there`}>
       <div className="vz-row justify-between">
-        <b className="font-sans text-body">{k.name}</b>
-        <button type="button" className="btn-ter" onClick={onClose}>Close details</button>
+        <b className="font-sans text-body">{k.name}{collapsed && <span className="vz-card-s"> · {ftIn(item.w_in)} × {ftIn(item.d_in)} × {ftIn(item.h_in)}</span>}</b>
+        <span className="vz-row">
+          {onCollapse && <button type="button" className="btn-ter" aria-expanded={!collapsed} onClick={onCollapse}>{collapsed ? "More" : "Less"}</button>}
+          <button type="button" className="btn-ter" onClick={onClose}>Close details</button>
+        </span>
       </div>
+      {!collapsed && <>
       {/* PROGRESSIVE DISCLOSURE (IMS4): what's changed most — its name, its size, rotate and duplicate — first; why it's here
           and the pillars it's meant to serve folded under Purpose & experience; removing it apart, at the foot. */}
       <label className="prod-f"><span>Its name in the room</span>
@@ -698,6 +726,7 @@ function Inspector({ item, canEdit, room, target, onPatch, onTurn, onCopy, onRem
       <div className="vz-row vz-insp-foot">
         <button type="button" className="btn-del" onClick={onRemove}>Remove from room</button>
       </div>
+      </>}
     </div>
   );
 }

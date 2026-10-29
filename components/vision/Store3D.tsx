@@ -189,6 +189,8 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
   // FIT ROOM AND FOCUS SELECTION (IMS4b): the 3D's own two buttons, beside the plan's — the room framed again (forgetting a
   // hand-set view), or the picked thing brought close from where the camera already looks.
   const fitRoom = () => { touched.current = false; goal.current = null; framed.current = ""; if (keep) KEPT.delete(keep); dirty.current = true; };
+  // Reset: the corner the room opens on, framed again (Fit keeps the angle you turned to).
+  const resetView = () => { cam.current = { ...cam.current, yaw: homeCamera(layout).yaw }; fitRoom(); };
   const focusSel = () => {
     const it = selected ? layout.items.find((i) => i.id === selected) : null;
     if (!it) return;
@@ -203,7 +205,8 @@ export default function Store3D({ layout, selected, onPick, spin = false, focus,
     <>
       {drawing}
       <div className="vz-tools vz-tools-3d" role="toolbar" aria-label="The 3D view">
-        <button type="button" className="k-icon-btn glass" onClick={fitRoom} title="Fit the whole room" aria-label="Fit the whole room in 3D">⤢</button>
+        <button type="button" className="k-icon-btn glass" onClick={fitRoom} title="Fit the whole room (keeps the angle)" aria-label="Fit the whole room in 3D">⤢</button>
+        <button type="button" className="k-icon-btn glass" onClick={resetView} title="Reset to the corner view" aria-label="Reset the 3D view to the corner">⟲</button>
         {selected && <button type="button" className="k-icon-btn glass" onClick={focusSel} title="Focus the picked thing" aria-label="Focus the picked thing in 3D">⌖</button>}
       </div>
     </>

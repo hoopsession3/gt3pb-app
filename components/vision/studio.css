@@ -101,6 +101,8 @@
 .vz-studio.narrow .vz-dock{min-height:68px;justify-content:center}
 .vz-dock-peek{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;justify-content:space-between}
 .vz-dock-peek>div{flex:1 1 auto}
+/* beside a very wide canvas (IMS4c): a card at the top, as tall as what it holds, not a full-height column */
+.vz-studio.full:not(.narrow) .vz-stage.docked>.vz-dock:not(.over):not(.in3d){align-self:flex-start}
 /* the floating and in-3D cards (IMS2/IMS4b) — after the docked column's width, which they replace */
 .vz-studio.full .vz-dock.over{position:absolute;right:10px;top:10px;z-index:4;width:min(340px,46%);max-height:calc(100% - 20px)}
 .vz-studio.short.full .vz-dock.over{width:min(280px,40%)}
