@@ -98,6 +98,8 @@
 .vz-dock{animation:vzDockUp .22s cubic-bezier(.2,.9,.2,1) both;position:relative;flex:none;display:flex;flex-direction:column;gap:6px;padding:10px 12px;max-height:40%;overflow-y:auto}
 .vz-studio.full:not(.narrow) .vz-dock{width:340px;max-height:100%}
 .vz-dock .vz-insp{border:0;padding:2px 6px;background:transparent;box-shadow:none}
+/* the details' small print, readable (IMS4d): 13px → 15px, a step of the scale; the help stays one line */
+.vz-dock .vz-insp .vz-card-s{font-size:15px}
 .vz-studio.narrow .vz-dock{min-height:68px;justify-content:center}
 .vz-dock-peek{display:flex;flex-wrap:nowrap;gap:8px;align-items:center;justify-content:space-between}
 .vz-dock-peek>div{flex:1 1 auto}

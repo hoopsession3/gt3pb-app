@@ -15,6 +15,7 @@ import {
 } from "@/lib/vision";
 import { saveLayout } from "@/lib/visionRead";
 import Store3D from "./Store3D";
+import { fitCamera, homeCamera, projector } from "@/lib/vision3d";
 import PlanView, { KIND_MIME } from "./PlanView";
 import { SPLIT_AT, defaultView } from "@/lib/visionStudio";
 import { FORMAT, type Plan } from "@/lib/visionPlans";
@@ -92,6 +93,14 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // The canvas's height: the space actually left under it (S1.1 — the gate's question 1). Measured from where the stage
   // sits in its scrolling page to that page's bottom, again when anything resizes; never shorter than a usable canvas.
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
+  // The stage's height as laid out (IMS4d): with the width, it is what the 3D has to draw the room in.
+  const [stageH, setStageH] = useState(0);
+  useEffect(() => {
+    if (!stage || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setStageH(Math.round(stage.getBoundingClientRect().height)));
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, [stage]);
   // THE SPLIT (S1.1b): side by side on an iPad or a desktop, the line between the plan and the 3D is dragged (or moved
   // with the arrow keys) — a quarter to three quarters for the plan — and kept for the session. A phone stacks them.
   const [split, setSplit] = useState(() => { try { const v = Number(sessionStorage.getItem("gt3.studio.split")); return v >= 0.25 && v <= 0.75 ? v : 0.55; } catch { return 0.55; } });
@@ -426,7 +435,14 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // edge; on a phone, a sheet. Shut, they take nothing.
   const shown = !!item && !detailsShut;
   const threeW = view === "both" ? Math.round((width - 38) * (1 - split)) : width - 24;
-  const roomBeside = threeW - 352 >= 480;
+  // BESIDE OR BELOW, BY THE ROOM IT LEAVES (IMS4d — measured: at 1920 the column beside cut the 3D room to 32% of what the
+  // card at the foot left it). Both are worked out with the 3D's own framing (lib/vision3d), in pixels of room drawn: the
+  // details stand beside the canvas only if the room drawn there is at least as large as with them at the foot.
+  // Worked out only while a thing's details are open over a 3D on a wide screen (it's two framings, not free).
+  const weighing = contextual && !narrow && view !== "plan" && shown && stageH > 0 && threeW - 352 >= 320;
+  // The card at the foot is weighed at a fixed height (the two-column card measured 256px, plus its margin), never at its
+  // measured one: that height exists only once it's placed there, and a decision that read it could flip back and forth.
+  const roomBeside = weighing && roomPixels(draft, threeW - 352, stageH) >= roomPixels(draft, threeW, Math.max(stageH / 2, stageH - CARD_AT_FOOT));
   const inSide = contextual && !narrow && view !== "plan" && shown && roomBeside;
   const in3d = contextual && !narrow && view !== "plan" && shown && !roomBeside;
   const dockShown = docked && !in3d && !(contextual && !shown && lens !== "evaluate" && !(roomOpen && !narrow));
@@ -753,4 +769,15 @@ function RoomFields({ layout, onChange, bare = false }: { layout: Layout; onChan
       <label className="prod-f"><span>Notes</span><textarea rows={2} defaultValue={layout.notes ?? ""} maxLength={2000} onBlur={(e) => { if ((e.target.value.trim() || null) !== layout.notes) onChange({ notes: e.target.value.trim() || null }); }} /></label>
     </div>
   );
+}
+
+const CARD_AT_FOOT = 278;
+/** How many pixels the room covers in a 3D pane of w × h, framed as the 3D frames it from its corner (IMS4d). */
+function roomPixels(room: Pick<Layout, "width_in" | "depth_in" | "ceiling_in">, w: number, h: number): number {
+  if (w <= 0 || h <= 0) return 0;
+  const cam = fitCamera(room, homeCamera(room).yaw, w, h), pr = projector(cam, w, h), top = Math.min(room.ceiling_in ?? 108, 108);
+  const ps = [0, room.width_in].flatMap((x) => [0, room.depth_in].flatMap((z) => [0, top].map((y) => pr([x, y, z])))).filter((p): p is [number, number, number] => !!p);
+  if (ps.length < 8) return 0;
+  const xs = ps.map((p) => p[0]), ys = ps.map((p) => p[1]);
+  return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
 }

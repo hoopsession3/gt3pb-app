@@ -450,6 +450,7 @@ try {
         const b = target ? await boxOf(sel) : null;
         if (b) {
           const fill0 = await fill();
+          const c30 = await boxOf(".vz-studio.full canvas.vz-3d"); const roomPx0 = fill0 > 0 && c30 ? (fill0 / 100) * c30.w * c30.h : 0;
           if (desk) await page.mouse.click(b.x + b.w / 2, b.y + b.h / 2); else await page.touchscreen.tap(b.x + b.w / 2, b.y + b.h / 2);
           await page.waitForTimeout(700);
           if (d.key === "iphone-se") {
@@ -460,10 +461,13 @@ try {
             await page.waitForTimeout(600);
             ok(`${d.key} · details · Close details shuts the sheet and keeps the pick`, !(await page.$("[role=dialog] .vz-insp")) && !!(await page.$(`${sel}.sel`)), "");
           } else {
-            const wide = await page.evaluate(() => innerWidth);
             const beside = await boxOf(".vz-studio.full .vz-stage > .vz-dock:not(.over):not(.in3d)"), card = await boxOf(".vz-studio.full .vz-dock.in3d"), c3 = await boxOf(".vz-studio.full canvas.vz-3d");
-            if (wide >= 1900) ok(`${d.key} · details · a very wide screen sets them beside the canvas, the 3D keeping ≥ 480px`, !!beside && !card && !!c3 && c3.w >= 480, { beside: !!beside, card: !!card, w3d: c3 && Math.round(c3.w) });
-            else ok(`${d.key} · details · narrower, at the foot of the 3D pane`, !!card && !beside, { beside: !!beside, card: !!card });
+            // IMS4d — the details go where they leave the 3D room largest: the room drawn with them open is measured, in
+            // pixels, against the room drawn with nothing picked (measured: 1920's column beside left it 36%).
+            const roomPx = async () => { const f = await fill(); const c = await boxOf(".vz-studio.full canvas.vz-3d"); return f > 0 && c ? (f / 100) * c.w * c.h : 0; };
+            ok(`${d.key} · details · placed beside the canvas or at the foot of the 3D`, (!!beside) !== (!!card), { beside: !!beside, card: !!card });
+            const withDetails = await roomPx();
+            ok(`${d.key} · details · the 3D room keeps at least 70% of its size with them open`, !!c3 && withDetails >= 0.7 * roomPx0, { withDetails: Math.round(withDetails / 1000), without: Math.round(roomPx0 / 1000) });
             const h0 = (await boxOf(".vz-studio.full .vz-dock"))?.h ?? 0;
             await page.getByRole("button", { name: "Less", exact: true }).first().click({ timeout: 3000 }).catch(() => {});
             await page.waitForTimeout(600);
