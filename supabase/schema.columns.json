@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-28T20:50:25.714Z",
+    "pulled_at": "2026-10-30T18:40:05.633Z",
     "project": "unrecorded — rerun with --project=<ref> to name it",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 253,
-    "columns": 3223
+    "relations": 259,
+    "columns": 3313
   },
   "academy_acknowledgements": [
     "user_id",
@@ -1240,6 +1240,60 @@
     "public_title",
     "market"
   ],
+  "food_items": [
+    "id",
+    "tenant_id",
+    "name",
+    "category",
+    "status",
+    "summary",
+    "serving",
+    "allergens",
+    "packaging",
+    "target_price_cents",
+    "price_source",
+    "plan_id",
+    "product_id",
+    "approved_by",
+    "approved_at",
+    "created_by",
+    "created_at",
+    "updated_at"
+  ],
+  "food_recipes": [
+    "id",
+    "tenant_id",
+    "food_item_id",
+    "version",
+    "status",
+    "portion_g",
+    "cook_loss_pct",
+    "components",
+    "method",
+    "cook_rule",
+    "hold_rule",
+    "rule_source",
+    "shelf_life_hours",
+    "discard_rule",
+    "approved_by",
+    "approved_at",
+    "created_by",
+    "created_at"
+  ],
+  "food_temp_logs": [
+    "id",
+    "tenant_id",
+    "kind",
+    "reading_f",
+    "what",
+    "lot_id",
+    "food_item_id",
+    "place",
+    "within_rule",
+    "corrective_action",
+    "taken_at",
+    "logged_by"
+  ],
   "funnel_events": [
     "id",
     "tenant_id",
@@ -1427,7 +1481,9 @@
     "notes",
     "created_by",
     "created_at",
-    "price_basis"
+    "price_basis",
+    "use_by",
+    "allergens"
   ],
   "inventory_on_hand": [
     "item",
@@ -1546,6 +1602,18 @@
     "office_min_gallons",
     "digest_cadence",
     "live_since"
+  ],
+  "location_assortments": [
+    "id",
+    "tenant_id",
+    "plan_id",
+    "product_id",
+    "state",
+    "reason",
+    "decided_by",
+    "decided_at",
+    "created_at",
+    "updated_at"
   ],
   "loop_txns": [
     "id",
@@ -2059,6 +2127,34 @@
     "price_live",
     "cost_live"
   ],
+  "product_requirements": [
+    "id",
+    "tenant_id",
+    "product_id",
+    "capability",
+    "note",
+    "created_at"
+  ],
+  "product_unit_assumptions": [
+    "product_id",
+    "tenant_id",
+    "packaging_cents",
+    "packaging_basis",
+    "vessel",
+    "reusable",
+    "return_pct",
+    "loss_pct",
+    "wash_cents",
+    "vessel_cents",
+    "waste_pct",
+    "waste_basis",
+    "service_seconds",
+    "service_basis",
+    "source",
+    "as_of",
+    "updated_by",
+    "updated_at"
+  ],
   "products": [
     "id",
     "tenant_id",
@@ -2090,7 +2186,9 @@
     "caffeine",
     "contains",
     "tag",
-    "when_text"
+    "when_text",
+    "serving_oz",
+    "serving_basis"
   ],
   "profiles": [
     "id",
@@ -3509,7 +3607,11 @@
     "confirmed_distinct",
     "market",
     "kind",
-    "price_basis"
+    "price_basis",
+    "approval_status",
+    "approval_note",
+    "approved_by",
+    "approved_at"
   ],
   "vip_verifications": [
     "id",

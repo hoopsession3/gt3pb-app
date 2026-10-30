@@ -10,7 +10,6 @@ import { Segmented } from "@/components/controls";
 import { failureWords } from "@/lib/failureWords";
 import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
-import { isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
 import { drinkCogs, type Component, type InvCost } from "@/lib/cogs";
 import { toInputs } from "@/lib/visionMoney";
 import { FORMAT, type Plan } from "@/lib/visionPlans";
@@ -32,14 +31,14 @@ type Assort = { id: string; plan_id: string; product_id: string; state: AssortSt
 type Data = {
   products: Product[]; comps: Component[]; inv: InvCost[]; ua: Map<string, Assumptions>; req: { product_id: string; capability: Capability }[];
   assort: Assort[]; version: { id: string; label: string } | null; criteria: Crit[]; assess: Assess[]; money: Map<string, { cardFeePct: number | null; labourPerHour: number | null }>; recipes: Set<string>;
-} | "missing";
+};
 
 const OUTCOME_WORD: Record<Outcome, string> = { pass: "Meets", conditional: "Conditional", fail: "Does not meet", unknown: "Unknown", not_applicable: "Not applicable" };
 
 async function readMenu(): Promise<Data> {
   if (!supabase) throw new Error("Supabase client not configured");
   const sb = supabase;
-  // arrives-with: 0460 — product_unit_assumptions, product_requirements, location_assortments: before 0460 the screen says so
+  // 0460 is applied (2026-10-30): the menu's tables are always there.
   const [p, c, i, u, r, a, v, m, rec] = await Promise.all([
     sb.from("products").select("id, slug, name, line, price_cents, active, sold_out, image_url, what, why, caffeine, contains, serving_oz, serving_basis").order("sort"),
     sb.from("product_components").select("product_id, inventory_item_id, qty_per_serving, unit"),
@@ -52,7 +51,6 @@ async function readMenu(): Promise<Data> {
     sb.from("brew_recipes").select("product_slug").is("archived_at", null),
   ]);
   const err = p.error ?? u.error ?? r.error ?? a.error;
-  if (err && (isMissingTable(err) || isMissingRelation(err) || /serving_oz/.test(err.message))) return "missing";
   if (err) throw new Error(err.message);
   const version = (v.data?.[0] as { id: string; label: string } | undefined) ?? null;
   let criteria: Crit[] = [], assess: Assess[] = [];
@@ -86,13 +84,13 @@ export default function MenuStudio({ plans, layouts, isOwner }: { plans: Plan[];
     <div className="flex flex-col gap-3">
       <p id="vz-menu" className="vz-sub">What GT3 sells, why each belongs, what a serving earns and where it can be served. Unknowns stay unknown; contribution isn&apos;t profit.</p>
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="Nothing yet" loadingLabel="Loading the menu…" errorTitle="Couldn't load the menu" errorSub="This is not an empty menu — we couldn't read it just now.">
-        {(d) => d === "missing" ? <p className="vz-sub">Menu &amp; economics arrives with the next database update (0460).</p> : <Body d={d} plans={plans} layouts={layouts} isOwner={isOwner} reload={state.reload} />}
+        {(d) => <Body d={d} plans={plans} layouts={layouts} isOwner={isOwner} reload={state.reload} />}
       </AsyncSection>
     </div>
   );
 }
 
-function Body({ d, plans, layouts, isOwner, reload }: { d: Exclude<Data, "missing">; plans: Plan[]; layouts: Layout[]; isOwner: boolean; reload: () => void }) {
+function Body({ d, plans, layouts, isOwner, reload }: { d: Data; plans: Plan[]; layouts: Layout[]; isOwner: boolean; reload: () => void }) {
   const { toast } = useAppStable();
   const [view, setView] = useState<View>("menu");
   const [pick, setPick] = useState<string | null>(null);
@@ -164,7 +162,7 @@ function Body({ d, plans, layouts, isOwner, reload }: { d: Exclude<Data, "missin
 
 type Facts = { a: Assumptions; econ: ReturnType<typeof contribution>; std: ReturnType<typeof standardStatus>; need: Capability[]; ready: ReturnType<typeof readiness> };
 
-function ProductView({ p, f, d, plan, room, kinds, fees }: { p: Product; f: Facts; d: Exclude<Data, "missing">; plan: Plan | null; room: Layout | null; kinds: string[]; fees: { cardFeePct: number | null; labourPerHour: number | null } }) {
+function ProductView({ p, f, d, plan, room, kinds, fees }: { p: Product; f: Facts; d: Data; plan: Plan | null; room: Layout | null; kinds: string[]; fees: { cardFeePct: number | null; labourPerHour: number | null } }) {
   const mine = d.assess.filter((x) => x.subject_id === p.id);
   const by = new Map(mine.map((x) => [x.criterion_id, x]));
   const pour = (c: number | null) => (p.serving_oz && p.serving_oz !== POUR_OZ ? perPour(c, p.serving_oz) : null);
@@ -224,7 +222,7 @@ function ProductView({ p, f, d, plan, room, kinds, fees }: { p: Product; f: Fact
 }
 
 type Run = (what: string, p: PromiseLike<{ error: { message: string; code?: string } | null }>, done?: string) => Promise<boolean>;
-function Locations({ d, plan, room, facts, isOwner, run, onOpen }: { d: Exclude<Data, "missing">; plan: Plan | null; room: Layout | null; facts: Map<string, Facts>; isOwner: boolean; run: Run; onOpen: (id: string) => void }) {
+function Locations({ d, plan, room, facts, isOwner, run, onOpen }: { d: Data; plan: Plan | null; room: Layout | null; facts: Map<string, Facts>; isOwner: boolean; run: Run; onOpen: (id: string) => void }) {
   const [add, setAdd] = useState("");
   if (!plan) return <p className="vz-sub">No location plans yet — add one under Plans.</p>;
   const rows = d.assort.filter((a) => a.plan_id === plan.id);

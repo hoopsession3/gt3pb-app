@@ -122,6 +122,9 @@ const VISITS = [
   { key: "vision-evaluate", path: "/vision", ready: ".vz-board", clicks: ["The store", "Evaluate"], drawn: "[aria-label=\"Evaluate — the most serious first\"]", long: false },
   // MEN1 — Menu & economics: the menu, a product's evidence and economics, and a location's assortment, on every phone.
   { key: "vision-menu", path: "/vision", ready: ".vz-board", clicks: ["Menu"], drawn: ".vz-menu-card", long: true },
+  // IMS5b: the library — the list, and a row opened (its status, judgement, cost with its basis, record).
+  { key: "vision-library", path: "/vision", ready: ".vz-board", clicks: ["Library"], drawn: ".xl-list .xl-row", long: true },
+  { key: "vision-library-open", path: "/vision", ready: ".vz-board", clicks: ["Library", "Fixture bench"], drawn: ".xl-detail .xl-cost", long: true },
   { key: "vision-menu-product", path: "/vision", ready: ".vz-board", clicks: ["Menu", "RISE,"], drawn: "[aria-label='RISE — evidence and economics']", long: true },
   { key: "vision-menu-locations", path: "/vision", ready: ".vz-board", clicks: ["Menu", "Locations"], drawn: "[aria-label$='— its assortment']", long: false },
   // PF1 — Primal Food, planned: the Food tab (owners and admins), on every phone.

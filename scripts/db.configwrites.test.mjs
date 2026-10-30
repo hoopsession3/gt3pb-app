@@ -183,8 +183,8 @@ const snap = JSON.parse(readFileSync(join(ROOT, "supabase/schema.columns.json"),
 const colsOf = async (t) => (await rows(`select attname from pg_attribute where attrelid = ('public.' || $1)::regclass
   and attnum > 0 and not attisdropped order by attnum`, [t])).map((r) => r.attname);
 // The snapshot is production NOW; these tables are built as production had them before 0351. Columns production
-// gained after 0351 are set aside from it, by name — 0393 appended the Catalog's cup facts to products (2026-10-13).
-const AFTER_0351 = { products: ["cup_orderable", "caffeine", "contains", "tag", "when_text"] };
+// gained after 0351 are set aside from it, by name — 0393 appended the Catalog's cup facts to products (2026-10-13), 0460 its selling size.
+const AFTER_0351 = { products: ["cup_orderable", "caffeine", "contains", "tag", "when_text", "serving_oz", "serving_basis"] };
 for (const t of ["products", "member_benefits", "subscription_plans", "broadcasts", "markets"]) {
   const have = await colsOf(t);
   const prod = snap[t].filter((c) => !(AFTER_0351[t] ?? []).includes(c));

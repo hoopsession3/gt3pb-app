@@ -1,0 +1,18 @@
+/* THE EXPERIENCE LIBRARY (IMS5b): a list, a detail under its row, side by side when asked. */
+.xl-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px}
+.xl-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.xl-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.xl-row>.xl-detail{grid-column:1/-1}
+.xl-pick{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px}
+.xl-open{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;min-height:44px;min-width:0;background:none;border:0;color:inherit;padding:0}
+.xl-open .vz-card-s{overflow-wrap:anywhere}
+.xl-st-approved{border-color:var(--gold)}
+.xl-st-restricted,.xl-st-rejected{opacity:.8}
+.xl-warn{font-size:15px;color:var(--warn,#c9822b)}
+.xl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px}
+.xl-cost,.xl-pillars{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.xl-cost legend,.xl-pillars legend{margin-bottom:6px;font-size:15px}
+.xl-compare{overflow-x:auto}
+.xl-compare table{border-collapse:collapse;min-width:100%;font-size:15px}
+.xl-compare th,.xl-compare td{text-align:left;vertical-align:top;padding:6px 8px;border-bottom:1px solid var(--line)}
+.xl-hist{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:15px}

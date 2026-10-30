@@ -33,6 +33,8 @@ export type Ask = { id?: string; program_id: string; plan_id?: string | null; la
 export type Item = {
   id: string; kind: string; label: string | null; x_in: number; y_in: number; rot: 0 | 90 | 180 | 270;
   w_in: number; d_in: number; h_in: number; why: string | null; pillars: Pillar[]; sort: number;
+  /** The library asset it is (IMS5b, 0461) — absent where the column isn't there yet, null when it names none. */
+  library_id?: string | null;
 };
 export type Layout = { id: string; name: string; width_in: number; depth_in: number; ceiling_in: number; notes: string | null; items: Item[] };
 

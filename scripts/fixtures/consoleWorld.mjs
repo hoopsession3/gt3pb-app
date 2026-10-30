@@ -89,5 +89,11 @@ export async function seedConsoleWorld(db) {
   // R55: the gym bar draws in the store's room, so The room shows its counter against the plan's hours.
   await run("plan room", `update public.vision_plans set layout_id = (select id from public.store_layouts order by created_at limit 1) where format = 'gym_bar' and layout_id is null`);
   await run("plan money", `insert into public.vision_plan_money (plan_id, scenarios, structure, baseline) select id, $1::jsonb, '{"kind":"rev_share","amountCents":4000000,"sharePct":6,"capMultiple":1.5}'::jsonb, jsonb_build_object('scenarios', $1::jsonb, 'structure', '{"kind":"rev_share","amountCents":4000000,"sharePct":6,"capMultiple":1.5}'::jsonb) from public.vision_plans where format = 'gym_bar' limit 1`, [JSON.stringify(money)]);
+  // IMS5b: a few library assets (0461), so the phone check draws the list, a row's detail and side by side. A test
+  // world's — fixture names, no real product or supplier.
+  await run("library", `insert into public.std_materials (tenant_id, name, category, studio_kind, w_in, d_in, h_in, pillars, cost_cents, cost_unit, cost_basis, cost_source, maker, supplier)
+    values ($1, 'Fixture bench', 'seating', 'bench', 60, 18, 18, '{stillness}', 42000, 'each', 'estimated', 'Fixture quote', 'Fixture maker', 'Fixture supplier'),
+           ($1, 'Fixture floor lamp', 'lighting', null, 18, 18, 60, '{light}', null, null, null, null, null, null),
+           ($1, 'Fixture surface cleaner', 'cleaning', null, null, null, null, '{}', null, null, null, null, null, null)`, [T1]);
   return notes;
 }

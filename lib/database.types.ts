@@ -10581,6 +10581,54 @@ export type Database = {
           },
         ]
       }
+      std_material_status: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          material_id: string
+          from_status: string | null
+          to_status: string
+          reason: string | null
+          changed_by: string | null
+          changed_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          material_id: string
+          from_status?: string | null
+          to_status: string
+          reason?: string | null
+          changed_by?: string | null
+          changed_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          material_id?: string
+          from_status?: string | null
+          to_status?: string
+          reason?: string | null
+          changed_by?: string | null
+          changed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_material_status_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "std_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_material_status_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       std_materials: {
         Row: {
           id: string
@@ -10596,6 +10644,26 @@ export type Database = {
           created_by: string | null
           created_at: string
           updated_at: string
+          status: string
+          status_reason: string | null
+          status_by: string | null
+          status_at: string | null
+          studio_kind: string | null
+          w_in: number | null
+          d_in: number | null
+          h_in: number | null
+          finishes: string | null
+          supplier: string | null
+          supplier_url: string | null
+          cost_cents: number | null
+          cost_unit: string | null
+          cost_basis: string | null
+          cost_source: string | null
+          cost_as_of: string | null
+          install_notes: string | null
+          maintenance_notes: string | null
+          pillars: string[]
+          image_url: string | null
         }
         Insert: {
           id?: string
@@ -10611,6 +10679,26 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           updated_at?: string
+          status?: string
+          status_reason?: string | null
+          status_by?: string | null
+          status_at?: string | null
+          studio_kind?: string | null
+          w_in?: number | null
+          d_in?: number | null
+          h_in?: number | null
+          finishes?: string | null
+          supplier?: string | null
+          supplier_url?: string | null
+          cost_cents?: number | null
+          cost_unit?: string | null
+          cost_basis?: string | null
+          cost_source?: string | null
+          cost_as_of?: string | null
+          install_notes?: string | null
+          maintenance_notes?: string | null
+          pillars?: string[]
+          image_url?: string | null
         }
         Update: {
           id?: string
@@ -10626,6 +10714,26 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           updated_at?: string
+          status?: string
+          status_reason?: string | null
+          status_by?: string | null
+          status_at?: string | null
+          studio_kind?: string | null
+          w_in?: number | null
+          d_in?: number | null
+          h_in?: number | null
+          finishes?: string | null
+          supplier?: string | null
+          supplier_url?: string | null
+          cost_cents?: number | null
+          cost_unit?: string | null
+          cost_basis?: string | null
+          cost_source?: string | null
+          cost_as_of?: string | null
+          install_notes?: string | null
+          maintenance_notes?: string | null
+          pillars?: string[]
+          image_url?: string | null
         }
         Relationships: [
           {
@@ -10674,6 +10782,108 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "std_reviews_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_spec_items: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          spec_id: string
+          material_id: string
+          qty: number | null
+          unit: string | null
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          spec_id: string
+          material_id: string
+          qty?: number | null
+          unit?: string | null
+          note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          spec_id?: string
+          material_id?: string
+          qty?: number | null
+          unit?: string | null
+          note?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_spec_items_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "std_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_spec_items_spec_id_fkey"
+            columns: ["spec_id"]
+            isOneToOne: false
+            referencedRelation: "std_specs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_spec_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_specs: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          name: string
+          notes: string | null
+          status: string
+          decided_by: string | null
+          decided_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          name: string
+          notes?: string | null
+          status?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          name?: string
+          notes?: string | null
+          status?: string
+          decided_by?: string | null
+          decided_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_specs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -10930,6 +11140,7 @@ export type Database = {
           sort: number
           created_at: string
           updated_at: string
+          library_id: string | null
         }
         Insert: {
           id?: string
@@ -10948,6 +11159,7 @@ export type Database = {
           sort?: number
           created_at?: string
           updated_at?: string
+          library_id?: string | null
         }
         Update: {
           id?: string
@@ -10966,6 +11178,7 @@ export type Database = {
           sort?: number
           created_at?: string
           updated_at?: string
+          library_id?: string | null
         }
         Relationships: [
           {
@@ -10973,6 +11186,13 @@ export type Database = {
             columns: ["layout_id"]
             isOneToOne: false
             referencedRelation: "store_layouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_items_library_id_fkey"
+            columns: ["library_id"]
+            isOneToOne: false
+            referencedRelation: "std_materials"
             referencedColumns: ["id"]
           },
           {
@@ -14085,6 +14305,8 @@ export type Database = {
         { Args: Record<PropertyKey, never>; Returns: number }
       std_mark_stale:
         { Args: { p_type: string | null; p_ids: string[] | null; p_reason: string | null }; Returns: undefined }
+      std_material_blockers:
+        { Args: { p_id: string | null }; Returns: string[] }
       std_owner_only:
         { Args: { p_what: string | null }; Returns: undefined }
       std_prohibited_claim:

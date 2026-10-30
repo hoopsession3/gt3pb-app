@@ -20,6 +20,7 @@ import PlanView, { KIND_MIME } from "./PlanView";
 import { SPLIT_AT, defaultView } from "@/lib/visionStudio";
 import { FORMAT, type Plan } from "@/lib/visionPlans";
 import Evaluate from "./Evaluate";
+import LibraryLink from "./LibraryLink";
 import { evaluate as runSpatial, type Finding } from "@/lib/spatial/evaluate";
 import { PROFILES, modelOf } from "@/lib/spatial/profiles";
 import FlowBar, { figuresOf } from "./FlowBar";
@@ -732,6 +733,8 @@ function Inspector({ item, canEdit, room, target, collapsed = false, onCollapse,
         <button type="button" className="btn-sec btn-sm" onClick={onTurn}>↻ Rotate</button>
         <button type="button" className="btn-sec btn-sm" onClick={onCopy}>Duplicate</button>
       </div>
+      {/* IMS5b — which library asset it is: offered once the room is read with the column (0461). */}
+      {item.library_id !== undefined && <LibraryLink kind={item.kind} libraryId={item.library_id} onPick={(id) => onPatch({ library_id: id })} />}
       <details className="vz-purpose">
         <summary className="font-sans font-bold text-subhead cursor-pointer py-2">Purpose &amp; experience</summary>
         <div className="flex flex-col gap-2">
