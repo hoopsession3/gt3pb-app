@@ -181,7 +181,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   // live regions are left as they are, since the studio's own sheets open beside it.
   useEffect(() => {
     if (!full || !host) return;
-    const behind = [...host.querySelectorAll<HTMLElement>(":scope > main, :scope > nav, :scope > .skip-link")].filter((el) => !el.hasAttribute("inert"));
+    const behind = [...host.querySelectorAll<HTMLElement>(":scope > main, :scope > nav, :scope > .skip-link, :scope > .rail")].filter((el) => !el.hasAttribute("inert"));
     behind.forEach((el) => el.setAttribute("inert", ""));
     return () => behind.forEach((el) => el.removeAttribute("inert"));
   }, [full, host]);
@@ -671,9 +671,17 @@ function Inspector({ item, canEdit, room, target, collapsed = false, onCollapse,
   const [w, setW] = useState(ftIn(item.w_in)), [d, setD] = useState(ftIn(item.d_in)), [h, setH] = useState(ftIn(item.h_in));
   const [why, setWhy] = useState(item.why ?? "");
   const [label, setLabel] = useState(item.label ?? "");
+  // IMS5a (the walk, measured): an Undo reaches the fields — they show the size the thing has, not the last one typed —
+  // and leaving a field unchanged is not an edit (it pushed a no-op step, so the next Undo seemed to do nothing).
+  const [shown, setShown] = useState([item.w_in, item.d_in, item.h_in, item.label, item.why]);
+  if (shown[0] !== item.w_in || shown[1] !== item.d_in || shown[2] !== item.h_in || shown[3] !== item.label || shown[4] !== item.why) {
+    setShown([item.w_in, item.d_in, item.h_in, item.label, item.why]);
+    setW(ftIn(item.w_in)); setD(ftIn(item.d_in)); setH(ftIn(item.h_in)); setLabel(item.label ?? ""); setWhy(item.why ?? "");
+  }
   const size = (which: "w_in" | "d_in" | "h_in", raw: string, reset: (v: string) => void) => {
     const v = parseFtIn(raw);
     if (v == null || v <= 0 || v > 2400) { reset(ftIn(item[which])); return; }
+    if (v === item[which]) { reset(ftIn(v)); return; }
     const next = { ...item, [which]: v };
     onPatch({ [which]: v, ...clampInside(next, room) });
     reset(ftIn(v));

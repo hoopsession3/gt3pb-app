@@ -25,6 +25,7 @@
     "audit": "LINT_OUT=.lint.json node scripts/lint.ratchet.mjs && LINT_JSON=.lint.json node scripts/render.audit.mjs && node scripts/falseempty.audit.mjs && node scripts/spoken.audit.mjs && node scripts/words.audit.mjs && node scripts/fields.audit.mjs && node scripts/gate.audit.mjs && node scripts/affordance.audit.mjs && node scripts/gesture.audit.mjs && node scripts/haptics.audit.mjs && node scripts/css.audit.mjs && node scripts/vocab.audit.mjs && node scripts/dupe.audit.mjs && node scripts/columns.audit.mjs && node scripts/env.audit.mjs && node scripts/design.ratchet.mjs && node scripts/api.audit.mjs && node scripts/security.audit.mjs && node scripts/secrets.audit.mjs && node scripts/console.audit.mjs",
     "smoke:authed": "node scripts/smoke.authed.mjs",
     "smoke:console": "node scripts/smoke.console.mjs",
+    "studio:walk": "CONSOLE_ONLY=vision-store-full CONSOLE_DEVICES=desktop,desktop-wide,ipad-11,ipad-13-side,iphone-17,iphone-17-side CONSOLE_AFTER=./studio.walk.mjs node scripts/smoke.console.mjs",
     "verify:prod": "node scripts/verify.prod.mjs",
     "migrations:pending": "node scripts/migrations.pending.mjs",
     "build:app": "node scripts/build.app.mjs",

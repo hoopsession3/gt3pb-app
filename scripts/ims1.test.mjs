@@ -20,7 +20,7 @@ ok("the phone check measures it, and walks Back", /const CANVAS_FIRST = \(\) =>/
 
 ok("IMS2 — wider full screen too: the room's details only from the bar's Room button", /const contextual = full && \(side \|\| !narrow\)/.test(des) && /aria-pressed=\{roomOpen\}/.test(des));
 ok("IMS2 — contextual, the inspector comes in over the canvas's edge, so picking moves nothing under the finger", /overlaid \? "vz-dock mpanel mb-0 over"/.test(des) && /const overlaid = contextual && dockShown && !inSide;/.test(des) && /\.vz-studio\.full \.vz-dock\.over\{position:absolute;right:10px/.test(css));
-ok("IMS2 — the app behind the studio is inert while it's full screen (not reachable, not read out)", /:scope > main, :scope > nav, :scope > \.skip-link/.test(des) && /setAttribute\("inert", ""\)/.test(des) && /removeAttribute\("inert"\)/.test(des));
+ok("IMS2 — the app behind the studio is inert while it's full screen (not reachable, not read out)", /:scope > main, :scope > nav, :scope > \.skip-link, :scope > \.rail/.test(des) && /setAttribute\("inert", ""\)/.test(des) && /removeAttribute\("inert"\)/.test(des));
 ok("IMS2 — the phone check walks touch on every device: tap picks, picking moves nothing, drag moves, Undo restores, an empty drag pans", /picking moves nothing under the finger/.test(smoke) && /a drag on the empty canvas pans/.test(smoke) && /Undo puts it back/.test(smoke));
 ok("IMS4 — an edit made while a save is on its way is kept when the room is read back (newer than what was sent)", /const newer = same && !!sent && !!draft && draft !== sent;/.test(des) && /if \(!newer\) setDraft\(original \?\? null\)/.test(des) && /setSent\(snap\)/.test(des));
 ok("IMS4 — the save states as they are: Saving, Couldn't save · Retry (edits kept), Save, Saved; leaving unsaved asks", /dirty && saveFailed \? "Couldn't save · Retry"/.test(des) && /setSaveFailed\(failureWords/.test(des) && /addEventListener\("beforeunload", warn\)/.test(des));
@@ -43,5 +43,10 @@ ok("IMS4c — the 3D's Reset view (the corner) beside Fit room (keeps the angle)
 ok("IMS4c — the phone check walks the details on a phone, a wide iPad, a desktop and a 1920 desktop", /key: "vision-store-details", on: \["iphone-se", "ipad-13-side", "desktop", "desktop-wide"\]/.test(smoke) && /key: "desktop-wide", w: 1920/.test(smoke));
 ok("IMS4d — the phone check measures the 3D room with the details open against it with nothing picked (≥ 70%)", /the 3D room keeps at least 70% of its size with them open/.test(smoke));
 ok("IMS4d — the details' small print is a readable 15px", /\.vz-dock \.vz-insp \.vz-card-s\{font-size:15px\}/.test(css));
+const walk = read("scripts/studio.walk.mjs"), pkg = read("package.json");
+ok("IMS5a — leaving a size unchanged is not an edit (it pushed a no-op step and the next Undo seemed to do nothing)", /if \(v === item\[which\]\) \{ reset\(ftIn\(v\)\); return; \}/.test(des));
+ok("IMS5a — an Undo reaches the details' fields (they show the size the thing has, not the last one typed)", /if \(shown\[0\] !== item\.w_in \|\| shown\[1\] !== item\.d_in/.test(des) && /setW\(ftIn\(item\.w_in\)\); setD\(ftIn\(item\.d_in\)\)/.test(des));
+ok("IMS5a — the quick-actions rail steps back behind the studio too (an iPad reached it by Tab)", /:scope > \.rail"/.test(des));
+ok("IMS5a — the studio walked on six screens: pick, 3D sync, camera, move, keys, rotate, size, findings, duplicate, remove, undo/redo, details, names, tab order, ends as it opened", /"studio:walk": "CONSOLE_ONLY=vision-store-full CONSOLE_DEVICES=desktop,desktop-wide,ipad-11,ipad-13-side,iphone-17,iphone-17-side CONSOLE_AFTER=\.\/studio\.walk\.mjs/.test(pkg) && (walk.match(/check\(/g) ?? []).length >= 30 && /never stale/.test(walk) && /notYet\(/.test(walk));
 console.log(`IMS1 — THE IMMERSIVE STUDIO, FIRST SLICE: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
