@@ -17,233 +17,173 @@
 -- the others back with it. Each section below is wrapped in its own begin … commit: its locks end with it, and if one
 -- stops (a busy table's lock wait ran out), the ones above it stay applied and nothing below it runs — paste the file
 -- again a moment later; a migration already applied changes nothing the second time.
--- pending-from: 0459
--- generated-at: 2026-10-28
+-- pending-from: 0460
+-- generated-at: 2026-10-30
 -- pending-count: 1
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- ============================================================
--- 0459_food_is_planned_before_it_is_sold.sql
+-- 0460_what_we_sell_and_what_it_earns.sql
 -- ============================================================
-begin;   -- 0459, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
--- ── 0459 — FOOD IS PLANNED BEFORE IT IS SOLD (PF1) ──────────────────────────────────────────────────────────────────
--- 2026-10-28. Primal Food, step 1 (Ryan, 2026-10-28: "GT3 will open with its existing approved offerings. Primal Food is
--- a planned future expansion targeted for Q2–Q3 2027… Plan it, model it, and make it interoperable" — "do not implement
--- food as an active menu item"). A second run changes nothing. Needs 0458.
--- Paste it after the deploy that carries the Food screen.
+begin;   -- 0460, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again
+-- ── 0460 — WHAT WE SELL AND WHAT IT EARNS (MEN1) ────────────────────────────────────────────────────────────────────
+-- 2026-10-30. Menu & economics in the Studio (Ryan, 2026-10-30: "one master product catalog… connecting the interactive
+-- menu, Primal Health Standard, location capabilities and business economics"). A second run changes nothing. Needs 0459.
+-- Paste it after the deploy that carries the Menu screen.
 --
 -- WHAT.
---   food_items — a food idea on its way: concept → proposed → approved → live → retired. It is NOT a menu product: the
---   menu, the Shop and Square read public.products, and a food item reaches products only when an owner takes it live
---   (product_id set then). Its allergens are named from the nine major allergens; its target price says where it came
---   from. Owners and admins write it; only an owner approves it or takes it live.
---   food_recipes — a food item's recipe, versioned: its portion in grams, the cook loss, the components (name, raw grams,
---   cost per kg and where that cost came from, allergens), the method, how it's cooked, held, kept and discarded. The
---   recipe is GT3's own: owners and admins read it, nobody else, and it never ships in a page. An approved version is
---   never changed — a new version replaces it. Only an owner approves one. Temperatures are written as the governing
---   rule says, with its source; this file sets none.
---   inventory_lots — a use-by date and the allergens a lot carries.
---   food_temp_logs — a temperature taken (receiving, cold holding, hot holding, cooking, cooling, reheating): the
---   reading, what it was taken of, by whom, and what was done if it was out. Kept as taken: no edit, no delete. The crew
---   write and read them.
---   vendors — an approval status for a supplier (unreviewed, approved, conditional, rejected), with who decided and why.
---   Only an owner decides.
+--   products — the one catalog stays public.products. It gains the size it is sold in (serving_oz) and whether that size
+--   is the actual one or an estimate. Nothing about cost goes here: the menu is read by anyone.
+--   product_unit_assumptions — per product, what a serving costs beyond its ingredients (packaging and the vessel, the
+--   share wasted) and how long it takes to make and hand over, each with its basis (actual / estimated / scenario; the
+--   service time measured / estimated / unvalidated), its source and the date it was true. Owners and admins only.
+--   Ingredient cost is never stored here: it is worked out from product_components and inventory (lib/cogs).
+--   product_requirements — what a product needs from a place, as explicit capabilities (cold dispensing, cold storage,
+--   hot holding…), never matched by an object's name. The Studio maps its objects to the same capabilities in code.
+--   location_assortments — which products a plan's location offers, and how far each is: planned → approved to offer
+--   → operationally ready, or temporarily unavailable / retired, with the reason. Only an owner approves or calls a
+--   product ready; a planned assortment is a scenario until then.
+--   The Standard can judge a product: 'product' joins room, object and material as a subject (criteria, evidence,
+--   claims, assessments, reviews). A product's assessment is an internal Primal qualification — never a food-safety
+--   approval, never a health claim.
 --
--- set lock_timeout (database F16): three tables made; columns added to two (nullable or a constant default — no rewrite);
--- guards and policies.
--- existing rows: none changed (vendors start unreviewed; lots have no use-by until one is written).
--- rollback: drop table food_temp_logs, food_recipes, food_items cascade; drop the columns named here.
+-- set lock_timeout (database F16): three tables made; one column pair added to products (nullable — no rewrite); five
+-- check constraints widened (each re-made with the same name, the old values still allowed); one function replaced.
+-- existing rows: none changed.
+-- rollback: drop table location_assortments, product_requirements, product_unit_assumptions; drop products.serving_oz,
+-- serving_basis; re-make the five checks without 'product'.
 -- changelog: none — the owners' planning screen.
 
 set lock_timeout = '5s';
 
-create table if not exists public.food_items (
-  id                uuid primary key default gen_random_uuid(),
+alter table public.products add column if not exists serving_oz numeric(5,2);
+alter table public.products add column if not exists serving_basis text;
+alter table public.products drop constraint if exists products_serving_oz;
+alter table public.products add constraint products_serving_oz check (serving_oz is null or (serving_oz >= 1 and serving_oz <= 64));
+alter table public.products drop constraint if exists products_serving_basis;
+alter table public.products add constraint products_serving_basis check (serving_basis is null or serving_basis in ('actual','estimated','scenario'));
+
+create table if not exists public.product_unit_assumptions (
+  product_id        uuid primary key references public.products(id) on delete cascade,
   tenant_id         uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  name              text not null check (length(btrim(name)) between 1 and 120),
-  category          text not null default 'bowl' check (category in ('bowl','plate','handheld','snack','side','other')),
-  status            text not null default 'concept' check (status in ('concept','proposed','approved','live','retired')),
-  summary           text check (summary is null or length(summary) <= 1000),
-  serving           text check (serving is null or length(serving) <= 300),
-  allergens         text[] not null default '{}',
-  packaging         text check (packaging is null or length(packaging) <= 300),
-  target_price_cents int check (target_price_cents is null or target_price_cents between 1 and 100000),
-  price_source      text check (price_source is null or length(price_source) <= 300),
-  plan_id           uuid references public.vision_plans(id) on delete set null,
-  product_id        uuid references public.products(id) on delete set null,
-  approved_by       uuid,
-  approved_at       timestamptz,
-  created_by        uuid default auth.uid(),
-  created_at        timestamptz not null default now(),
+  packaging_cents   int check (packaging_cents is null or packaging_cents between 0 and 10000),
+  packaging_basis   text check (packaging_basis is null or packaging_basis in ('actual','estimated','scenario')),
+  vessel            text check (vessel is null or length(vessel) <= 200),
+  reusable          boolean not null default false,
+  return_pct        numeric(5,2) check (return_pct is null or return_pct between 0 and 100),
+  loss_pct          numeric(5,2) check (loss_pct is null or loss_pct between 0 and 100),
+  wash_cents        int check (wash_cents is null or wash_cents between 0 and 10000),
+  vessel_cents      int check (vessel_cents is null or vessel_cents between 0 and 100000),
+  waste_pct         numeric(5,2) check (waste_pct is null or waste_pct between 0 and 90),
+  waste_basis       text check (waste_basis is null or waste_basis in ('actual','estimated','scenario')),
+  service_seconds   int check (service_seconds is null or service_seconds between 1 and 3600),
+  service_basis     text check (service_basis is null or service_basis in ('measured','estimated','unvalidated')),
+  source            text check (source is null or length(source) <= 300),
+  as_of             date,
+  updated_by        uuid default auth.uid(),
   updated_at        timestamptz not null default now(),
-  constraint food_items_allergens check (allergens <@ array['milk','eggs','fish','shellfish','tree_nuts','peanuts','wheat','soy','sesame']::text[]),
-  constraint food_items_price_said check (target_price_cents is null or length(btrim(coalesce(price_source, ''))) > 0),
-  constraint food_items_live check (status <> 'live' or product_id is not null)
+  -- a basis is said whenever a number is
+  constraint pua_packaging_said check (packaging_cents is null or packaging_basis is not null),
+  constraint pua_waste_said check (waste_pct is null or waste_basis is not null),
+  constraint pua_service_said check (service_seconds is null or service_basis is not null),
+  constraint pua_source_said check ((packaging_cents is null and waste_pct is null and service_seconds is null) or length(btrim(coalesce(source, ''))) > 0)
 );
+alter table public.product_unit_assumptions enable row level security;
 
-create table if not exists public.food_recipes (
-  id               uuid primary key default gen_random_uuid(),
-  tenant_id        uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  food_item_id     uuid not null references public.food_items(id) on delete cascade,
-  version          int not null check (version >= 1),
-  status           text not null default 'draft' check (status in ('draft','approved','retired')),
-  portion_g        numeric(8,1) not null check (portion_g > 0 and portion_g <= 5000),
-  cook_loss_pct    numeric(5,2) not null default 0 check (cook_loss_pct >= 0 and cook_loss_pct < 95),
-  components       jsonb not null default '[]' check (jsonb_typeof(components) = 'array'),
-  method           text check (method is null or length(method) <= 4000),
-  cook_rule        text check (cook_rule is null or length(cook_rule) <= 600),
-  hold_rule        text check (hold_rule is null or length(hold_rule) <= 600),
-  rule_source      text check (rule_source is null or length(rule_source) <= 600),
-  shelf_life_hours int check (shelf_life_hours is null or shelf_life_hours between 1 and 2160),
-  discard_rule     text check (discard_rule is null or length(discard_rule) <= 600),
-  approved_by      uuid,
-  approved_at      timestamptz,
-  created_by       uuid default auth.uid(),
-  created_at       timestamptz not null default now(),
-  unique (food_item_id, version)
+create table if not exists public.product_requirements (
+  id          uuid primary key default gen_random_uuid(),
+  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
+  product_id  uuid not null references public.products(id) on delete cascade,
+  capability  text not null check (capability in ('cold_dispense','nitro_dispense','cold_storage','cold_hold_bottles','hot_hold','batch_brew','prep_surface','ice','dish_wash','hand_wash','dry_storage','order_point','pickup_point')),
+  note        text check (note is null or length(note) <= 300),
+  created_at  timestamptz not null default now(),
+  unique (product_id, capability)
 );
-create index if not exists food_recipes_item on public.food_recipes (food_item_id, version desc);
+alter table public.product_requirements enable row level security;
 
-alter table public.inventory_lots add column if not exists use_by date;
-alter table public.inventory_lots add column if not exists allergens text[] not null default '{}';
-alter table public.inventory_lots drop constraint if exists inventory_lots_allergens;
-alter table public.inventory_lots add constraint inventory_lots_allergens check (allergens <@ array['milk','eggs','fish','shellfish','tree_nuts','peanuts','wheat','soy','sesame']::text[]);
-
-create table if not exists public.food_temp_logs (
-  id                uuid primary key default gen_random_uuid(),
-  tenant_id         uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
-  kind              text not null check (kind in ('receiving','cold_hold','hot_hold','cooking','cooling','reheating')),
-  reading_f         numeric(5,1) not null check (reading_f between -40 and 500),
-  what              text not null check (length(btrim(what)) between 1 and 200),
-  lot_id            uuid references public.inventory_lots(id) on delete set null,
-  food_item_id      uuid references public.food_items(id) on delete set null,
-  place             text check (place is null or length(place) <= 200),
-  within_rule       boolean,
-  corrective_action text check (corrective_action is null or length(corrective_action) <= 600),
-  taken_at          timestamptz not null default now(),
-  logged_by         uuid default auth.uid(),
-  constraint food_temp_logs_out_said check (within_rule is distinct from false or length(btrim(coalesce(corrective_action, ''))) > 0)
+create table if not exists public.location_assortments (
+  id          uuid primary key default gen_random_uuid(),
+  tenant_id   uuid references public.tenants(id) default '00000000-0000-0000-0000-000000000001',
+  plan_id     uuid not null references public.vision_plans(id) on delete cascade,
+  product_id  uuid not null references public.products(id) on delete cascade,
+  state       text not null default 'planned' check (state in ('planned','approved','ready','unavailable','retired')),
+  reason      text check (reason is null or length(reason) <= 500),
+  decided_by  uuid,
+  decided_at  timestamptz,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  unique (plan_id, product_id),
+  constraint la_unavailable_said check (state not in ('unavailable','retired') or length(btrim(coalesce(reason, ''))) > 0)
 );
-create index if not exists food_temp_logs_taken on public.food_temp_logs (taken_at desc);
-create index if not exists food_temp_logs_food_item on public.food_temp_logs (food_item_id);
-create index if not exists food_temp_logs_lot on public.food_temp_logs (lot_id);
-create index if not exists food_items_plan on public.food_items (plan_id);
-create index if not exists food_items_product on public.food_items (product_id);
-
-alter table public.vendors add column if not exists approval_status text not null default 'unreviewed';
-alter table public.vendors add column if not exists approval_note text;
-alter table public.vendors add column if not exists approved_by uuid;
-alter table public.vendors add column if not exists approved_at timestamptz;
-alter table public.vendors drop constraint if exists vendors_approval_status;
-alter table public.vendors add constraint vendors_approval_status check (approval_status in ('unreviewed','approved','conditional','rejected'));
+alter table public.location_assortments enable row level security;
+create index if not exists product_requirements_product on public.product_requirements (product_id);
+create index if not exists location_assortments_plan on public.location_assortments (plan_id);
+create index if not exists location_assortments_product on public.location_assortments (product_id);
 
 -- ── guards ──────────────────────────────────────────────────────────────────────────────────────────────────────────
-create or replace function public.food_item_guard()
+-- An assortment starts planned. Approving it, or calling it ready, is an owner's word, stamped with who and when.
+create or replace function public.location_assortment_guard()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  if tg_op = 'DELETE' then
-    if old.status in ('approved','live') then raise exception 'An approved or live food item is kept; retire it instead.' using errcode = 'PT409'; end if;
-    return old;
-  end if;
   if tg_op = 'INSERT' then
-    if new.status not in ('concept','proposed') then raise exception 'A food item starts as a concept or a proposal.' using errcode = 'PT409'; end if;
-    new.approved_by := null; new.approved_at := null; new.product_id := null;
-    if auth.uid() is not null then new.created_by := auth.uid(); end if;
+    if new.state in ('approved','ready') then perform public.std_owner_only('approve a product for a location'); end if;
+    if new.state <> 'planned' then new.decided_by := auth.uid(); new.decided_at := now(); else new.decided_by := null; new.decided_at := null; end if;
     return new;
   end if;
   new.updated_at := now();
-  if new.status is distinct from old.status and new.status in ('approved','live') then
-    perform public.std_owner_only('approve food or take it live');
-    if new.status = 'approved' then new.approved_by := auth.uid(); new.approved_at := now(); end if;
-  elsif (new.approved_by, new.approved_at) is distinct from (old.approved_by, old.approved_at) then
-    raise exception 'Only an approval records an approver.' using errcode = 'PT409';
-  end if;
-  if new.product_id is distinct from old.product_id then
-    perform public.std_owner_only('put food on the menu');
+  if new.state is distinct from old.state then
+    if new.state in ('approved','ready') then perform public.std_owner_only('approve a product for a location'); end if;
+    new.decided_by := auth.uid(); new.decided_at := now();
+  elsif (new.decided_by, new.decided_at) is distinct from (old.decided_by, old.decided_at) then
+    raise exception 'Only a decision records who decided.' using errcode = 'PT409';
   end if;
   return new;
 end $$;
-revoke all on function public.food_item_guard() from public, anon, authenticated;
-drop trigger if exists food_item_guard_tg on public.food_items;
-create trigger food_item_guard_tg before insert or update or delete on public.food_items for each row execute function public.food_item_guard();
+revoke all on function public.location_assortment_guard() from public, anon, authenticated;
+drop trigger if exists location_assortment_guard_tg on public.location_assortments;
+create trigger location_assortment_guard_tg before insert or update on public.location_assortments for each row execute function public.location_assortment_guard();
 
-create or replace function public.food_recipe_guard()
+-- Who changed a serving's assumptions, and when — stamped by the database.
+create or replace function public.product_unit_assumptions_stamp()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  if tg_op = 'DELETE' then
-    if old.status <> 'draft' then raise exception 'An approved recipe is kept as approved.' using errcode = 'PT409'; end if;
-    return old;
-  end if;
-  if tg_op = 'INSERT' then
-    if new.status <> 'draft' then raise exception 'A recipe starts as a draft.' using errcode = 'PT409'; end if;
-    new.approved_by := null; new.approved_at := null;
-    if auth.uid() is not null then new.created_by := auth.uid(); end if;
-    return new;
-  end if;
-  if old.status = 'retired' then raise exception 'A retired recipe is kept as it was.' using errcode = 'PT409'; end if;
-  if old.status = 'approved' then
-    if new.status = 'retired' and (new.portion_g, new.cook_loss_pct, new.components, new.method, new.cook_rule, new.hold_rule,
-        new.rule_source, new.shelf_life_hours, new.discard_rule, new.version, new.food_item_id)
-        is not distinct from (old.portion_g, old.cook_loss_pct, old.components, old.method, old.cook_rule, old.hold_rule,
-        old.rule_source, old.shelf_life_hours, old.discard_rule, old.version, old.food_item_id) then
-      perform public.std_owner_only('retire an approved recipe');
-      return new;
-    end if;
-    raise exception 'An approved recipe is never changed — write a new version.' using errcode = 'PT409';
-  end if;
-  if new.status = 'approved' then
-    perform public.std_owner_only('approve a recipe');
-    if jsonb_array_length(new.components) = 0 then raise exception 'A recipe needs its components before it is approved.' using errcode = 'PT422'; end if;
-    new.approved_by := auth.uid(); new.approved_at := now();
-  elsif new.status = 'retired' then
-    raise exception 'Only an approved recipe is retired; delete a draft instead.' using errcode = 'PT409';
-  end if;
+  new.updated_at := now();
+  if auth.uid() is not null then new.updated_by := auth.uid(); end if;
   return new;
 end $$;
-revoke all on function public.food_recipe_guard() from public, anon, authenticated;
-drop trigger if exists food_recipe_guard_tg on public.food_recipes;
-create trigger food_recipe_guard_tg before insert or update or delete on public.food_recipes for each row execute function public.food_recipe_guard();
+revoke all on function public.product_unit_assumptions_stamp() from public, anon, authenticated;
+drop trigger if exists product_unit_assumptions_stamp_tg on public.product_unit_assumptions;
+create trigger product_unit_assumptions_stamp_tg before insert or update on public.product_unit_assumptions for each row execute function public.product_unit_assumptions_stamp();
 
-create or replace function public.food_temp_guard()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  if tg_op = 'INSERT' then
-    if auth.uid() is not null then new.logged_by := auth.uid(); end if;
-    return new;
-  end if;
-  raise exception 'A temperature is kept as it was taken; log a new reading instead.' using errcode = 'PT409';
-end $$;
-revoke all on function public.food_temp_guard() from public, anon, authenticated;
-drop trigger if exists food_temp_guard_tg on public.food_temp_logs;
-create trigger food_temp_guard_tg before insert or update or delete on public.food_temp_logs for each row execute function public.food_temp_guard();
+-- ── the Standard can judge a product ────────────────────────────────────────────────────────────────────────────────
+alter table public.std_criteria drop constraint if exists std_criteria_applies_to_check;
+alter table public.std_criteria add constraint std_criteria_applies_to_check check (applies_to in ('room','object','material','product'));
+alter table public.std_evidence drop constraint if exists std_evidence_subject_type_check;
+alter table public.std_evidence add constraint std_evidence_subject_type_check check (subject_type in ('room','object','material','product'));
+alter table public.std_claims drop constraint if exists std_claims_subject_type_check;
+alter table public.std_claims add constraint std_claims_subject_type_check check (subject_type is null or subject_type in ('room','object','material','product','gt3'));
+alter table public.std_assessments drop constraint if exists std_assessments_subject_type_check;
+alter table public.std_assessments add constraint std_assessments_subject_type_check check (subject_type in ('room','object','material','product'));
+alter table public.std_reviews drop constraint if exists std_reviews_subject_type_check;
+alter table public.std_reviews add constraint std_reviews_subject_type_check check (subject_type in ('room','object','material','product','evidence','assessment'));
 
-create or replace function public.vendor_approval_guard()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  if tg_op = 'INSERT' then
-    if new.approval_status <> 'unreviewed' then perform public.std_owner_only('approve a supplier'); new.approved_by := auth.uid(); new.approved_at := now(); end if;
-    return new;
-  end if;
-  if (new.approval_status, new.approval_note) is distinct from (old.approval_status, old.approval_note) then
-    perform public.std_owner_only('approve a supplier');
-    new.approved_by := auth.uid(); new.approved_at := now();
-  elsif (new.approved_by, new.approved_at) is distinct from (old.approved_by, old.approved_at) then
-    raise exception 'Only an approval records an approver.' using errcode = 'PT409';
-  end if;
-  return new;
-end $$;
-revoke all on function public.vendor_approval_guard() from public, anon, authenticated;
-drop trigger if exists vendor_approval_guard_tg on public.vendors;
-create trigger vendor_approval_guard_tg before insert or update on public.vendors for each row execute function public.vendor_approval_guard();
+create or replace function public.std_subject_ok(p_type text, p_id uuid, p_tenant uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case p_type
+    when 'room'     then exists (select 1 from public.store_layouts where id = p_id and tenant_id is not distinct from p_tenant)
+    when 'object'   then exists (select 1 from public.store_items  where id = p_id and tenant_id is not distinct from p_tenant)
+    when 'material' then exists (select 1 from public.std_materials where id = p_id and tenant_id is not distinct from p_tenant)
+    when 'product'  then exists (select 1 from public.products     where id = p_id and tenant_id is not distinct from p_tenant)
+    else false end
+$$;
+revoke all on function public.std_subject_ok(text, uuid, uuid) from public, anon, authenticated;
 
 -- ── access ──────────────────────────────────────────────────────────────────────────────────────────────────────────
--- The plan and the recipe: owners and admins. The thermometer: the crew.
-alter table public.food_items enable row level security;
-alter table public.food_recipes enable row level security;
-alter table public.food_temp_logs enable row level security;
+-- The assumptions and the assortments: owners and admins. What a product needs: owners and admins write it, the crew
+-- read it (it says what a station must have).
 do $$
 declare t text;
 begin
-  foreach t in array array['food_items','food_recipes','food_temp_logs'] loop
+  foreach t in array array['product_unit_assumptions','product_requirements','location_assortments'] loop
     execute format('drop trigger if exists stamp_tenant_tg on public.%I', t);
     execute format('create trigger stamp_tenant_tg before insert on public.%I for each row execute function public.stamp_tenant()', t);
     execute format('drop policy if exists "tenant isolation" on public.%I', t);
@@ -253,21 +193,21 @@ begin
     execute format('create trigger admin_audit_%s after insert or update or delete on public.%I for each row execute function public.log_admin_audit()', t, t);
   end loop;
 end $$;
-drop policy if exists "food admin" on public.food_items;
-create policy "food admin" on public.food_items for all using ((select public.is_admin())) with check ((select public.is_admin()));
-grant select, insert, update, delete on public.food_items to authenticated;
-drop policy if exists "food recipes admin" on public.food_recipes;
-create policy "food recipes admin" on public.food_recipes for all using ((select public.is_admin())) with check ((select public.is_admin()));
-grant select, insert, update, delete on public.food_recipes to authenticated;
-drop policy if exists "food temps staff read" on public.food_temp_logs;
-create policy "food temps staff read" on public.food_temp_logs for select using ((select public.is_staff()));
-drop policy if exists "food temps staff write" on public.food_temp_logs;
-create policy "food temps staff write" on public.food_temp_logs for insert with check ((select public.is_staff()));
-grant select, insert on public.food_temp_logs to authenticated;
+drop policy if exists "unit assumptions admin" on public.product_unit_assumptions;
+create policy "unit assumptions admin" on public.product_unit_assumptions for all using ((select public.is_admin())) with check ((select public.is_admin()));
+grant select, insert, update, delete on public.product_unit_assumptions to authenticated;
+drop policy if exists "requirements admin" on public.product_requirements;
+create policy "requirements admin" on public.product_requirements for all using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "requirements staff read" on public.product_requirements;
+create policy "requirements staff read" on public.product_requirements for select using ((select public.is_staff()));
+grant select, insert, update, delete on public.product_requirements to authenticated;
+drop policy if exists "assortments admin" on public.location_assortments;
+create policy "assortments admin" on public.location_assortments for all using ((select public.is_admin())) with check ((select public.is_admin()));
+grant select, insert, update, delete on public.location_assortments to authenticated;
 
 -- verify (numbers only):
---   select count(*) from public.food_items;                                  -- 0 (first run)
---   select count(*) from public.vendors where approval_status <> 'unreviewed'; -- 0 (first run)
-select public.record_migration('0459_food_is_planned_before_it_is_sold');
+--   select count(*) from public.location_assortments;    -- 0 (first run)
+--   select count(*) from public.products where serving_oz is not null;  -- 0 (first run: sizes unknown until said)
+select public.record_migration('0460_what_we_sell_and_what_it_earns');
 reset lock_timeout;   -- the paste's own wait, not the next query's in this editor
-commit;  -- 0459
+commit;  -- 0460

@@ -6410,6 +6410,67 @@ export type Database = {
           },
         ]
       }
+      location_assortments: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          plan_id: string
+          product_id: string
+          state: string
+          reason: string | null
+          decided_by: string | null
+          decided_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          plan_id: string
+          product_id: string
+          state?: string
+          reason?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          plan_id?: string
+          product_id?: string
+          state?: string
+          reason?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_assortments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "vision_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "location_assortments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "location_assortments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loop_txns: {
         Row: {
           id: string
@@ -8461,6 +8522,126 @@ export type Database = {
           },
         ]
       }
+      product_requirements: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          product_id: string
+          capability: string
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          product_id: string
+          capability: string
+          note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          product_id?: string
+          capability?: string
+          note?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_requirements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requirements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_unit_assumptions: {
+        Row: {
+          product_id: string
+          tenant_id: string | null
+          packaging_cents: number | null
+          packaging_basis: string | null
+          vessel: string | null
+          reusable: boolean
+          return_pct: number | null
+          loss_pct: number | null
+          wash_cents: number | null
+          vessel_cents: number | null
+          waste_pct: number | null
+          waste_basis: string | null
+          service_seconds: number | null
+          service_basis: string | null
+          source: string | null
+          as_of: string | null
+          updated_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          product_id: string
+          tenant_id?: string | null
+          packaging_cents?: number | null
+          packaging_basis?: string | null
+          vessel?: string | null
+          reusable?: boolean
+          return_pct?: number | null
+          loss_pct?: number | null
+          wash_cents?: number | null
+          vessel_cents?: number | null
+          waste_pct?: number | null
+          waste_basis?: string | null
+          service_seconds?: number | null
+          service_basis?: string | null
+          source?: string | null
+          as_of?: string | null
+          updated_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          product_id?: string
+          tenant_id?: string | null
+          packaging_cents?: number | null
+          packaging_basis?: string | null
+          vessel?: string | null
+          reusable?: boolean
+          return_pct?: number | null
+          loss_pct?: number | null
+          wash_cents?: number | null
+          vessel_cents?: number | null
+          waste_pct?: number | null
+          waste_basis?: string | null
+          service_seconds?: number | null
+          service_basis?: string | null
+          source?: string | null
+          as_of?: string | null
+          updated_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_unit_assumptions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_unit_assumptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           id: string
@@ -8494,6 +8675,8 @@ export type Database = {
           contains: string[] | null
           tag: string | null
           when_text: string | null
+          serving_oz: number | null
+          serving_basis: string | null
         }
         Insert: {
           id?: string
@@ -8527,6 +8710,8 @@ export type Database = {
           contains?: string[] | null
           tag?: string | null
           when_text?: string | null
+          serving_oz?: number | null
+          serving_basis?: string | null
         }
         Update: {
           id?: string
@@ -8560,6 +8745,8 @@ export type Database = {
           contains?: string[] | null
           tag?: string | null
           when_text?: string | null
+          serving_oz?: number | null
+          serving_basis?: string | null
         }
         Relationships: [
           {

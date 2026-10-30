@@ -120,6 +120,10 @@ const VISITS = [
   { key: "vision-store-add", path: "/vision", ready: ".vz-board", clicks: ["The store", "Add a fixture"], drawn: ".vz-library .vz-lib-row", long: false },
   { key: "vision-links", path: "/vision", ready: ".vz-board", clicks: ["Links"], drawn: ".vz-insp", long: false },
   { key: "vision-evaluate", path: "/vision", ready: ".vz-board", clicks: ["The store", "Evaluate"], drawn: "[aria-label=\"Evaluate — the most serious first\"]", long: false },
+  // MEN1 — Menu & economics: the menu, a product's evidence and economics, and a location's assortment, on every phone.
+  { key: "vision-menu", path: "/vision", ready: ".vz-board", clicks: ["Menu"], drawn: ".vz-menu-card", long: true },
+  { key: "vision-menu-product", path: "/vision", ready: ".vz-board", clicks: ["Menu", "RISE,"], drawn: "[aria-label='RISE — evidence and economics']", long: true },
+  { key: "vision-menu-locations", path: "/vision", ready: ".vz-board", clicks: ["Menu", "Locations"], drawn: "[aria-label$='— its assortment']", long: false },
   // PF1 — Primal Food, planned: the Food tab (owners and admins), on every phone.
   { key: "vision-food", path: "/vision", ready: ".vz-board", clicks: ["Food"], drawn: "#vz-food", long: false },
   { key: "vision-standard", path: "/vision", ready: ".vz-board", clicks: ["Standard"], drawn: "[role=radiogroup][aria-label=\"The Standard\"]", long: false },

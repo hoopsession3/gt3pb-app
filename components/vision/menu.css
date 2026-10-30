@@ -1,0 +1,9 @@
+/* MEN1 — Menu & economics: the products as cards (their own photo, or plainly none), a serving's contribution as a table. */
+.vz-menu-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.vz-menu-card{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:left}
+.vz-menu-img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r-md)}
+.vz-menu-noimg{display:flex;align-items:center;justify-content:center;min-height:44px;color:var(--cream-d);font-size:13px;border:1px dashed color-mix(in srgb,var(--cream) 22%,transparent)}
+.vz-econ{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.vz-econ th,.vz-econ td{padding:6px 4px;text-align:left;vertical-align:top;border-bottom:1px solid color-mix(in srgb,var(--cream) 10%,transparent)}
+.vz-econ td:nth-child(2){text-align:right;white-space:nowrap}
+.vz-econ-total th,.vz-econ-total td{font-weight:700}

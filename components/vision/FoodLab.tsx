@@ -9,7 +9,6 @@ import Said from "@/components/Said";
 import { failureWords } from "@/lib/failureWords";
 import { haptic } from "@/lib/haptics";
 import { money } from "@/lib/money";
-import { isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
 import {
   ALLERGENS, ALLERGEN_WORD, FOOD_STATUS_TAG, FOOD_STATUS_WORD, ingredientMargin, portionCost, undeclared,
   type Allergen, type Component, type FoodItem, type FoodRecipe,
@@ -19,17 +18,15 @@ import {
 // on the menu: the menu reads products, and food reaches it only when an owner takes an approved item live. Every price
 // and cost is entered with where it came from, and every figure is a conditional projection.
 
-type Data = { items: FoodItem[]; recipes: FoodRecipe[] } | "missing";
+type Data = { items: FoodItem[]; recipes: FoodRecipe[] };
 
 async function readFood(): Promise<Data> {
   if (!supabase) throw new Error("Supabase client not configured");
-  // arrives-with: 0459 — food_items, food_recipes: before 0459 the screen says so
   const [i, r] = await Promise.all([
     supabase.from("food_items").select("*").order("created_at"),
     supabase.from("food_recipes").select("*").order("version", { ascending: false }),
   ]);
   const err = i.error ?? r.error;
-  if (err && (isMissingTable(err) || isMissingRelation(err))) return "missing";
   if (err) throw new Error(err.message);
   return { items: (i.data ?? []) as FoodItem[], recipes: (r.data ?? []) as unknown as FoodRecipe[] };
 }
@@ -41,13 +38,13 @@ export default function FoodLab({ isOwner }: { isOwner: boolean }) {
     <div className="flex flex-col gap-3">
       <p id="vz-food" className="vz-sub">Primal Food — a planned expansion, not on the menu. GT3 opens with its drinks; food is weighed here first: what it is, what goes in it, what a portion costs. Every figure is a projection until an owner approves it.</p>
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="Nothing yet" loadingLabel="Loading the food plan…" errorTitle="Couldn't load the food plan" errorSub="This is not an empty plan — we couldn't read it just now.">
-        {(d) => d === "missing" ? <p className="vz-sub">Food planning arrives with the next database update (0459).</p> : <Body d={d} isOwner={isOwner} reload={state.reload} />}
+        {(d) => <Body d={d} isOwner={isOwner} reload={state.reload} />}
       </AsyncSection>
     </div>
   );
 }
 
-function Body({ d, isOwner, reload }: { d: Exclude<Data, "missing">; isOwner: boolean; reload: () => void }) {
+function Body({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () => void }) {
   const { toast } = useAppStable();
   const [name, setName] = useState("");
   const [open, setOpen] = useState<string | null>(d.items[0]?.id ?? null);
