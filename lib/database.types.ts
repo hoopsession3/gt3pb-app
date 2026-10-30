@@ -546,6 +546,8 @@ export type Database = {
           cost_cents: number
           user_id: string | null
           created_at: string
+          searches: number
+          fetches: number
         }
         Insert: {
           id?: string
@@ -559,6 +561,8 @@ export type Database = {
           cost_cents?: number
           user_id?: string | null
           created_at?: string
+          searches?: number
+          fetches?: number
         }
         Update: {
           id?: string
@@ -572,6 +576,8 @@ export type Database = {
           cost_cents?: number
           user_id?: string | null
           created_at?: string
+          searches?: number
+          fetches?: number
         }
         Relationships: [
           {
@@ -10311,6 +10317,112 @@ export type Database = {
           },
         ]
       }
+      std_asset_facts: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          material_id: string
+          intake_id: string | null
+          field: string
+          value: Json
+          unit: string | null
+          source_class: string
+          source_kind: string
+          source_ref: string | null
+          source_title: string | null
+          source_locator: string | null
+          source_revision: string | null
+          content_hash: string | null
+          retrieved_at: string
+          method: string
+          confidence: string
+          risk: string
+          review: string
+          corrected_value: Json | null
+          review_note: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          material_id: string
+          intake_id?: string | null
+          field: string
+          value: Json
+          unit?: string | null
+          source_class: string
+          source_kind: string
+          source_ref?: string | null
+          source_title?: string | null
+          source_locator?: string | null
+          source_revision?: string | null
+          content_hash?: string | null
+          retrieved_at?: string
+          method: string
+          confidence?: string
+          risk?: string
+          review?: string
+          corrected_value?: Json | null
+          review_note?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          material_id?: string
+          intake_id?: string | null
+          field?: string
+          value?: Json
+          unit?: string | null
+          source_class?: string
+          source_kind?: string
+          source_ref?: string | null
+          source_title?: string | null
+          source_locator?: string | null
+          source_revision?: string | null
+          content_hash?: string | null
+          retrieved_at?: string
+          method?: string
+          confidence?: string
+          risk?: string
+          review?: string
+          corrected_value?: Json | null
+          review_note?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_asset_facts_intake_id_fkey"
+            columns: ["intake_id"]
+            isOneToOne: false
+            referencedRelation: "std_intakes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_asset_facts_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "std_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_asset_facts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       std_claims: {
         Row: {
           id: string
@@ -10383,6 +10495,7 @@ export type Database = {
           weight: number
           mandatory: boolean
           models: string[]
+          categories: string[]
         }
         Insert: {
           id?: string
@@ -10402,6 +10515,7 @@ export type Database = {
           weight?: number
           mandatory?: boolean
           models?: string[]
+          categories?: string[]
         }
         Update: {
           id?: string
@@ -10421,6 +10535,7 @@ export type Database = {
           weight?: number
           mandatory?: boolean
           models?: string[]
+          categories?: string[]
         }
         Relationships: [
           {
@@ -10525,6 +10640,69 @@ export type Database = {
           },
           {
             foreignKeyName: "std_evidence_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_intakes: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          kind: string
+          input: string | null
+          file_path: string | null
+          request_hash: string
+          status: string
+          material_id: string | null
+          matches: Json
+          error: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          kind: string
+          input?: string | null
+          file_path?: string | null
+          request_hash: string
+          status?: string
+          material_id?: string | null
+          matches?: Json
+          error?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          kind?: string
+          input?: string | null
+          file_path?: string | null
+          request_hash?: string
+          status?: string
+          material_id?: string | null
+          matches?: Json
+          error?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_intakes_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "std_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_intakes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -10664,6 +10842,8 @@ export type Database = {
           maintenance_notes: string | null
           pillars: string[]
           image_url: string | null
+          family_id: string | null
+          source_url_norm: string | null
         }
         Insert: {
           id?: string
@@ -10699,6 +10879,8 @@ export type Database = {
           maintenance_notes?: string | null
           pillars?: string[]
           image_url?: string | null
+          family_id?: string | null
+          source_url_norm?: string | null
         }
         Update: {
           id?: string
@@ -10734,10 +10916,141 @@ export type Database = {
           maintenance_notes?: string | null
           pillars?: string[]
           image_url?: string | null
+          family_id?: string | null
+          source_url_norm?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "std_materials_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "std_materials"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "std_materials_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_research_budget: {
+        Row: {
+          tenant_id: string
+          per_run_cents: number
+          daily_cents: number
+          per_run_searches: number
+          per_run_fetches: number
+          per_run_tokens: number
+          run_timeout_s: number
+          updated_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          tenant_id?: string
+          per_run_cents?: number
+          daily_cents?: number
+          per_run_searches?: number
+          per_run_fetches?: number
+          per_run_tokens?: number
+          run_timeout_s?: number
+          updated_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          tenant_id?: string
+          per_run_cents?: number
+          daily_cents?: number
+          per_run_searches?: number
+          per_run_fetches?: number
+          per_run_tokens?: number
+          run_timeout_s?: number
+          updated_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_research_budget_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      std_research_runs: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          intake_id: string
+          depth: string
+          reserved_cents: number
+          charged_cents: number
+          searches: number | null
+          fetches: number | null
+          input_tokens: number | null
+          output_tokens: number | null
+          cache_write_tokens: number | null
+          cache_read_tokens: number | null
+          outcome: string
+          error: string | null
+          started_by: string | null
+          started_at: string
+          deadline_at: string
+          settled_at: string | null
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          intake_id: string
+          depth: string
+          reserved_cents: number
+          charged_cents: number
+          searches?: number | null
+          fetches?: number | null
+          input_tokens?: number | null
+          output_tokens?: number | null
+          cache_write_tokens?: number | null
+          cache_read_tokens?: number | null
+          outcome?: string
+          error?: string | null
+          started_by?: string | null
+          started_at?: string
+          deadline_at: string
+          settled_at?: string | null
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          intake_id?: string
+          depth?: string
+          reserved_cents?: number
+          charged_cents?: number
+          searches?: number | null
+          fetches?: number | null
+          input_tokens?: number | null
+          output_tokens?: number | null
+          cache_write_tokens?: number | null
+          cache_read_tokens?: number | null
+          outcome?: string
+          error?: string | null
+          started_by?: string | null
+          started_at?: string
+          deadline_at?: string
+          settled_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "std_research_runs_intake_id_fkey"
+            columns: ["intake_id"]
+            isOneToOne: false
+            referencedRelation: "std_intakes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "std_research_runs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -13016,6 +13329,15 @@ export type Database = {
         }
         Relationships: []
       }
+      std_fact_conflicts: {
+        Row: {
+          material_id: string | null
+          field: string | null
+          values_seen: number | null
+          fact_ids: string[] | null
+        }
+        Relationships: []
+      }
       std_subject_summary: {
         Row: {
           subject_type: string | null
@@ -14303,6 +14625,8 @@ export type Database = {
         { Args: { p_kind: string | null; p_id: string | null }; Returns: string }
       stale_content_count:
         { Args: Record<PropertyKey, never>; Returns: number }
+      std_accept_facts:
+        { Args: { p_ids: string[] | null; p_corrections?: Json | null; p_bulk?: boolean | null }; Returns: number }
       std_mark_stale:
         { Args: { p_type: string | null; p_ids: string[] | null; p_reason: string | null }; Returns: undefined }
       std_material_blockers:
@@ -14311,6 +14635,12 @@ export type Database = {
         { Args: { p_what: string | null }; Returns: undefined }
       std_prohibited_claim:
         { Args: { p: string | null }; Returns: boolean }
+      std_reject_facts:
+        { Args: { p_ids: string[] | null; p_note?: string | null }; Returns: number }
+      std_research_reserve:
+        { Args: { p_intake: string | null; p_depth: string | null }; Returns: string }
+      std_research_settle:
+        { Args: { p_run: string | null; p_usage: Json | null; p_cost_cents: number | null; p_outcome: string | null; p_error?: string | null }; Returns: number }
       std_subject_ok:
         { Args: { p_type: string | null; p_id: string | null; p_tenant: string | null }; Returns: boolean }
       stop_menu:
