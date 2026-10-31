@@ -33,3 +33,4 @@
 .xl-facts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .xl-facts>li{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)}
 .xl-facts>li.xl-exc{border-left:3px solid var(--warn,#c9822b);padding-left:8px}
+.xl-sheet-head b{overflow-wrap:anywhere}

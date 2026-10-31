@@ -127,7 +127,7 @@ const VISITS = [
   // IMS6 A3: an asset inspected (no findings to decide), one with research left to review (the draft card, exceptions
   // first), Add (Ask: a link, find it for me, upload), and Manage (the full form, one action away).
   { key: "vision-library-open", path: "/vision", ready: ".vz-board", clicks: ["Library", "Fixture floor lamp"], drawn: ".xl-inspect .xl-specs", long: true },
-  { key: "vision-library-draft", path: "/vision", ready: ".vz-board", clicks: ["Library", "Fixture bench"], drawn: ".xl-draft .xl-facts", long: true },
+  { key: "vision-library-draft", path: "/vision", ready: ".vz-board", clicks: ["Library", "Fixture bench", "Review"], drawn: ".xl-draft .xl-facts", long: true },   // IMS7-A: Review is its own part, never opened for you
   { key: "vision-library-add", path: "/vision", ready: ".vz-board", clicks: ["Library", "Add an asset"], drawn: "[aria-label='Add an asset'] [role=radiogroup]", long: true },
   { key: "vision-library-manage", path: "/vision", ready: ".vz-board", clicks: ["Library", "Fixture floor lamp", "Manage"], drawn: ".xl-detail .xl-cost", long: true },
   { key: "vision-menu-product", path: "/vision", ready: ".vz-board", clicks: ["Menu", "RISE,"], drawn: "[aria-label='RISE — evidence and economics']", long: true },

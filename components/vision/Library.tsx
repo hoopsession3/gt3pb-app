@@ -7,6 +7,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import { useAppStable } from "@/components/AppProvider";
 import AsyncSection from "@/components/AsyncSection";
 import Said from "@/components/Said";
+import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import { Segmented } from "@/components/controls";
 import { failureWords } from "@/lib/failureWords";
 import type { Database } from "@/lib/database.types";
@@ -68,14 +69,16 @@ export default function Library({ isOwner }: { isOwner: boolean }) {
 }
 
 // DISCOVER (IMS6 A3): one search, the categories as chips, a Filters action; then the assets as cards — a picture (only a
-// source's own, said as theirs) or an honest placeholder, the name, the category, a short status. INSPECT opens under the
-// grid: what it is, its size and makings, the pillars it's meant to serve (intent), its status and what the Standard
-// still needs, its cost with its basis, and — when research left facts to decide — the draft card, exceptions first.
-// MANAGE (the full form, the status steps, the record) stays one action away, never the first thing seen.
+// source's own, said as theirs) or an honest placeholder, the name, the category, a short status.
+// INSPECT (IMS7-A): a sheet over the library — full height on a phone, so the list is where it was when you close it
+// (inline above the grid, a phone lost its place: about 5,000 points of scrolling back) — titled with the asset and its
+// status, in three parts: OVERVIEW (what it is, size, makings, intent, status, what the Standard still needs, cost with
+// its basis) · REVIEW (n), only when research left findings to decide, never opened for you · MANAGE (the full form, the
+// status steps, the record, the specs).
 function Assets({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () => void }) {
   const [f, setF] = useState<Filter>({});
   const [open, setOpen] = useState<string | null>(null);
-  const [manage, setManage] = useState(false);
+  const [part, setPart] = useState<Part>("overview");
   const [pick, setPick] = useState<string[]>([]);
   const [adding, setAdding] = useState<"ask" | "manual" | null>(null);
   const [filters, setFilters] = useState(false);
@@ -84,7 +87,7 @@ function Assets({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () 
   const compared = pick.map((id) => d.assets.find((a) => a.id === id)).filter((a): a is Asset => !!a);
   const present = useMemo(() => CATEGORIES.filter(([k]) => d.assets.some((a) => a.category === k && !a.archived_at)), [d.assets]);
   const active = [f.status && `Status: ${STATUS_WORD[f.status]}`, f.pillar && `Pillar: ${PILLAR_WORD[f.pillar]}`].filter(Boolean) as string[];
-  const openOne = (id: string) => { setOpen(id); setManage(false); };
+  const openOne = (id: string, to: Part = "overview") => { setOpen(id); setPart(to); };
   return (
     <div className="flex flex-col gap-3">
       <div className="xl-bar">
@@ -111,21 +114,9 @@ function Assets({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () 
         </div>
       )}
       {adding === "ask" && <Ask onManual={() => setAdding("manual")} onDone={(id) => { if (id) { setAdding(null); openOne(id); } reload(); }} />}
-      {adding === "manual" && <AddAsset onDone={(id) => { setAdding(null); if (id) { openOne(id); setManage(true); reload(); } }} />}
-      {shown && (
-        <section className="mpanel p-3 flex flex-col gap-3" aria-label={`${shown.name} — inspect`}>
-          <div className="flex flex-wrap items-start gap-2 justify-between">
-            <div className="flex flex-col gap-1 min-w-0"><b className="font-sans text-subhead">{shown.name}</b><span className="vz-card-s">{CATEGORY_WORD[shown.category]}{shown.maker ? ` · ${shown.maker}` : ""}</span></div>
-            <button type="button" className="btn-ter btn-sm" onClick={() => setOpen(null)}>Close</button>
-          </div>
-          <Inspect a={shown} pending={d.pending.get(shown.id) ?? 0} reload={reload} />
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn-sec btn-sm" aria-pressed={pick.includes(shown.id)} disabled={!pick.includes(shown.id) && pick.length >= 3} onClick={() => setPick(pick.includes(shown.id) ? pick.filter((x) => x !== shown.id) : [...pick, shown.id])}>{pick.includes(shown.id) ? "In the comparison" : "Compare"}</button>
-            <button type="button" className="btn-ter btn-sm" aria-expanded={manage} onClick={() => setManage(!manage)}>{manage ? "Hide management" : "Manage"}</button>
-          </div>
-          {manage && <Detail a={shown} d={d} isOwner={isOwner} reload={reload} />}
-        </section>
-      )}
+      {adding === "manual" && <AddAsset onDone={(id) => { setAdding(null); if (id) { openOne(id, "manage"); reload(); } }} />}
+      {shown && <Inspector a={shown} d={d} isOwner={isOwner} part={part} setPart={setPart} reload={reload} onClose={() => setOpen(null)}
+        compare={{ on: pick.includes(shown.id), full: !pick.includes(shown.id) && pick.length >= 3, toggle: () => setPick(pick.includes(shown.id) ? pick.filter((x) => x !== shown.id) : [...pick, shown.id]) }} />}
       {compared.length >= 2 && <Compare list={compared} />}
       {compared.length === 1 && <span className="vz-card-s">1 in the comparison — open another and press Compare.</span>}
       {!list.length ? <p className="vz-card-s">{d.assets.length ? "Nothing matches." : "The library is empty. Add the first asset: paste its link, describe it, or upload its spec sheet."}</p> : (
@@ -142,7 +133,7 @@ function Assets({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () 
           ))}
         </ul>
       )}
-      <p className="vz-card-s">A status says only what it means: unknown is never approved, and nothing here is a certification.</p>
+      <p className="vz-card-s">Unknown is never approved. Nothing here is a certification.</p>
     </div>
   );
 }
@@ -155,14 +146,35 @@ function Picture({ a, big = false }: { a: Asset; big?: boolean }) {
     : <span className={big ? "xl-ph xl-img-big" : "xl-ph"} aria-hidden="true"><span>{CATEGORY_WORD[a.category].slice(0, 2).toUpperCase()}</span></span>;
 }
 
-function Inspect({ a, pending, reload }: { a: Asset; pending: number; reload: () => void }) {
+type Part = "overview" | "review" | "manage";
+
+/** The inspector: the asset in a sheet, in three parts. Review is offered only when there are findings to decide, and is
+ *  never the part it opens on. */
+function Inspector({ a, d, isOwner, part, setPart, reload, onClose, compare }: { a: Asset; d: Data; isOwner: boolean; part: Part; setPart: (p: Part) => void;
+  reload: () => void; onClose: () => void; compare: { on: boolean; full: boolean; toggle: () => void } }) {
+  const pending = d.pending.get(a.id) ?? 0;
   const loadB = useCallback(async () => { if (!supabase) return [] as string[]; const { data, error } = await supabase.rpc("std_material_blockers", { p_id: a.id }); if (error) throw new Error(error.message); return (data ?? []) as string[]; }, [a.id]);
   const blockers = useAsyncData(loadB, [a.id, a.status]);
+  const shown: Part = part === "review" && !pending ? "overview" : part;
+  const parts = [{ key: "overview" as const, label: "Overview" }, ...(pending ? [{ key: "review" as const, label: `Review · ${pending}` }] : []), { key: "manage" as const, label: "Manage" }];
+  return (
+    <Sheet open onClose={onClose} label={a.name} className="xl-sheet"
+      header={<div className="cp-head xl-sheet-head"><div className="flex flex-col min-w-0"><b>{a.name}</b><span className="vz-card-s">{CATEGORY_WORD[a.category]} · {STATUS_WORD[a.status]}</span></div><CloseButton onClick={onClose} /></div>}>
+      <div className="flex flex-col gap-3">
+        <Segmented label={`${a.name} — part`} kind="choice" value={shown} onChange={setPart} options={parts} />
+        {shown === "overview" && <Inspect a={a} blockers={blockers} pending={pending} onReview={() => setPart("review")} />}
+        {shown === "review" && <DraftCard material={a.id} name={a.name} category={a.category} missingEvidence={blockers.data ?? []} onChanged={reload} />}
+        {shown === "manage" && <Detail a={a} d={d} isOwner={isOwner} reload={reload} />}
+        <button type="button" className="btn-sec btn-sm self-start" aria-pressed={compare.on} disabled={compare.full} onClick={compare.toggle}>{compare.on ? "In the comparison" : compare.full ? "Comparing 3 already" : "Compare"}</button>
+      </div>
+    </Sheet>
+  );
+}
+
+function Inspect({ a, blockers, pending, onReview }: { a: Asset; blockers: { data?: string[] | null; error?: unknown }; pending: number; onReview: () => void }) {
   return (
     <div className="xl-inspect">
-      {pending > 0
-        ? <DraftCard material={a.id} name={a.name} category={a.category} missingEvidence={blockers.data ?? []} onChanged={reload} />
-        : <figure className="xl-hero"><Picture a={a} big /><figcaption className="vz-card-s">{a.image_url ? "Image from its source — not verified as this exact product." : "No image yet — a placeholder, not the product."}</figcaption></figure>}
+      <figure className="xl-hero"><Picture a={a} big /><figcaption className="vz-card-s">{a.image_url ? "The source's picture — not verified as this exact product." : "No picture yet — a placeholder, not the product."}</figcaption></figure>
       <dl className="xl-specs">
         <dt>Status</dt><dd>{STATUS_WORD[a.status]} — {STATUS_MEANS[a.status]}{a.status_reason ? ` (${a.status_reason})` : ""}</dd>
         <dt>Evidence</dt><dd>{blockers.error ? "Couldn't read the Standard's judgement just now." : !blockers.data ? "Reading…" : blockers.data.length ? blockers.data.join(" ") : "The Standard's judgement is complete."}</dd>
@@ -172,6 +184,7 @@ function Inspect({ a, pending, reload }: { a: Asset; pending: number; reload: ()
         <dt>Cost</dt><dd>{costWords(a)}{a.cost_source ? ` — ${a.cost_source}` : ""}</dd>
         <dt>Supplier</dt><dd>{a.supplier ?? "Not known"}</dd>
       </dl>
+      {pending > 0 && <button type="button" className="btn-sec btn-sm self-start" onClick={onReview}>{pending} finding{pending === 1 ? "" : "s"} to decide</button>}
     </div>
   );
 }
@@ -228,6 +241,9 @@ function Detail({ a, d, isOwner, reload }: { a: Asset; d: Data; isOwner: boolean
   const loadB = useCallback(async () => { if (!supabase) return [] as string[]; const { data, error } = await supabase.rpc("std_material_blockers", { p_id: a.id }); if (error) throw new Error(error.message); return (data ?? []) as string[]; }, [a.id]);
   const blockers = useAsyncData(loadB, [a.id, a.status]);
   const hist = d.hist.filter((h) => h.material_id === a.id);
+  // In the inspector's sheet, closing with something typed and not saved asks first (Sheet's useUnsaved).
+  const costWas = { dollars: a.cost_cents == null ? "" : String(a.cost_cents / 100), unit: a.cost_unit ?? "", basis: a.cost_basis ?? "", source: a.cost_source ?? "", as_of: a.cost_as_of ?? "" };
+  useUnsaved(Object.keys(draft).length > 0 || JSON.stringify(cost) !== JSON.stringify(costWas) || pillars.join() !== a.pillars.join() || kind !== (a.studio_kind ?? "") || !!to || !!reason.trim());
   const val = (k: keyof Asset) => (k in draft ? draft[k]! : a[k] == null ? "" : String(a[k]));
   const save = async () => {
     if (!supabase) return;

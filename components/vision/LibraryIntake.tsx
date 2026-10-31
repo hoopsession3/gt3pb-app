@@ -67,7 +67,7 @@ export function Ask({ onDone, onManual }: { onDone: (material: string | null) =>
         <button type="button" className="btn-ter btn-sm" onClick={onManual}>Advanced: enter it by hand</button>
         {busy && <Said as="span" className="vz-card-s">Searching and reading its sources — up to a minute.</Said>}
       </div>
-      <p className="vz-card-s">GT3 records what sources say, each with its source; what no source says stays missing. It researches within its budget and never approves anything.</p>
+      <p className="vz-card-s">GT3 says only what its sources say, and shows each source. What none says stays missing. It never approves anything.</p>
       {res && <Outcome r={res} />}
     </div>
   );
@@ -81,7 +81,7 @@ function Outcome({ r }: { r: Result }) {
       {r.matches[0] && <span className="vz-card-s">{r.matches[0].kind === "same" ? "Already in the library — what's new is shown as differences to review." : r.matches[0].kind === "variant" ? "A variant of an asset already in the library — kept as its own record." : `Possibly already in the library: ${r.matches[0].why}.`}</span>}
       {r.unread.length > 0 && <span className="vz-card-s">Couldn&apos;t read: {r.unread.join(", ")}.</span>}
       {r.notes.map((n) => <span key={n} className="xl-warn">{n}</span>)}
-      {r.plan && <span className="vz-card-s">Researched {r.plan.depth === "standard" ? "at standard depth" : `${r.plan.depth}ly`} · {r.charged_cents != null ? `${r.charged_cents.toFixed(2)}¢` : "cost not reported (charged in full)"}.</span>}
+      {r.plan && <span className="vz-card-s">{r.plan.depth === "light" ? "A quick look" : r.plan.depth === "deep" ? "A deep search" : "A standard search"} · {r.charged_cents != null ? `cost ${r.charged_cents.toFixed(2)}¢` : "its cost wasn't reported, so the full allowance was counted"}.</span>}
     </div>
   );
 }
@@ -125,43 +125,67 @@ export function DraftCard({ material, name, category, missingEvidence, onChanged
   if (st.error) return <p className="xl-warn" role="alert">Couldn&apos;t read its findings just now.</p>;
   if (!st.data) return <p className="vz-card-s">Reading its findings…</p>;
   const accepted = st.data.facts.filter((x) => x.review !== "pending");
+  // A seller's claim kept is still their claim: never the specification, never evidence (IMS7-A).
+  const spec = accepted.filter((x) => x.field !== "claim"), claims = accepted.filter((x) => x.field === "claim");
+  const alone = order.filter((x) => x.why.length);
+  // One finding's row (a plain function, not a component: it closes over this card's state).
+  const row = (f: Fact, why: string[]) => {
+    const w = factWords(f), claim = f.field === "claim";
+    return (
+      <li key={f.id} className={why.length ? "xl-exc" : ""}>
+        <div className="flex flex-col gap-1 min-w-0">
+          <span>{claim ? <><b className="font-sans">They claim</b> “{w.value}”</> : <><b className="font-sans">{w.label}</b> {w.value}</>}</span>
+          <span className="vz-card-s">{w.source}{why.length ? ` · ${why.join(" · ")}` : ""}</span>
+          {f.id in fix && <label className="prod-f"><span>The right value</span><input autoFocus value={fix[f.id]} placeholder={["w_in", "d_in", "h_in"].includes(f.field) ? "6′ 2″, 6 2 or 74 (inches)" : "As it should read"} onChange={(e) => setFix({ ...fix, [f.id]: e.target.value })} /></label>}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {claim
+            ? <button type="button" className="btn-sec btn-sm" onClick={() => void call("std_accept_facts", { p_ids: [f.id], p_corrections: {}, p_bulk: false }, "Kept as their claim — not verified, and not evidence.")} aria-label={`Keep “${w.value}” as their claim`}>Keep as their claim</button>
+            : <button type="button" className="btn-sec btn-sm" onClick={() => void call("std_accept_facts", { p_ids: [f.id], p_corrections: fix[f.id]?.trim() ? { [f.id]: correction(f.field, fix[f.id]) } : {}, p_bulk: false }, fix[f.id]?.trim() ? "Corrected and accepted." : "Accepted.")} aria-label={`Accept ${w.label}`}>Accept</button>}
+          {!claim && !(f.id in fix) && <button type="button" className="btn-ter btn-sm" onClick={() => setFix({ ...fix, [f.id]: "" })} aria-label={`Correct ${w.label}`}>Correct</button>}
+          <button type="button" className="btn-ter btn-sm" onClick={() => void call("std_reject_facts", { p_ids: [f.id], p_note: null }, claim ? "Discarded — kept on the record." : "Rejected — kept on the record.")} aria-label={`${claim ? "Discard" : "Reject"} ${claim ? `“${w.value}”` : w.label}`}>{claim ? "Discard" : "Reject"}</button>
+        </div>
+      </li>
+    );
+  };
   return (
     <div className="xl-draft flex flex-col gap-3">
       <figure className="xl-hero">
         {/* eslint-disable-next-line @next/next/no-img-element -- the source's own picture on any host (CSP img-src https:), lazy */}
         {img ? <img src={img.url} alt={`${name}, as shown by ${img.from}`} loading="lazy" decoding="async" /> : <div className="xl-ph" aria-hidden="true"><span>{category.slice(0, 2).toUpperCase()}</span></div>}
-        <figcaption className="vz-card-s">{img ? `Image from ${img.from} — the source's picture, not verified as this exact product.` : "No source image yet — a placeholder, not the product."}</figcaption>
+        <figcaption className="vz-card-s">{img ? `${img.from}'s picture — not verified as this exact product.` : "No picture yet — a placeholder, not the product."}</figcaption>
       </figure>
       {order.length > 0 && (
-        <section aria-label="To decide" className="flex flex-col gap-2">
+        <section aria-label="To decide" className="flex flex-col gap-3">
           <b className="font-sans">To decide · {order.length}</b>
-          <ul className="xl-facts">
-            {order.map(({ f, why }) => (
-              <li key={f.id} className={why.length ? "xl-exc" : ""}>
-                <div className="flex flex-col gap-1 min-w-0">
-                  <span><b className="font-sans">{factWords(f).label}</b> {factWords(f).value}</span>
-                  <span className="vz-card-s">{factWords(f).source}{why.length ? ` · ${why.join(" · ")}` : ""}</span>
-                  {f.id in fix && <label className="prod-f"><span>The right value</span><input autoFocus value={fix[f.id]} placeholder={["w_in", "d_in", "h_in"].includes(f.field) ? "6′ 2″, 6 2 or 74 (inches)" : "As it should read"} onChange={(e) => setFix({ ...fix, [f.id]: e.target.value })} /></label>}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" className="btn-sec btn-sm" onClick={() => void call("std_accept_facts", { p_ids: [f.id], p_corrections: fix[f.id]?.trim() ? { [f.id]: correction(f.field, fix[f.id]) } : {}, p_bulk: false }, fix[f.id]?.trim() ? "Corrected and accepted." : "Accepted.")} aria-label={`Accept ${factWords(f).label}`}>Accept</button>
-                  {!(f.id in fix) && <button type="button" className="btn-ter btn-sm" onClick={() => setFix({ ...fix, [f.id]: "" })} aria-label={`Correct ${factWords(f).label}`}>Correct</button>}
-                  <button type="button" className="btn-ter btn-sm" onClick={() => void call("std_reject_facts", { p_ids: [f.id], p_note: null }, "Rejected — kept on the record.")} aria-label={`Reject ${factWords(f).label}`}>Reject</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {safe.length > 0 && <button type="button" className="btn-pri btn-sm self-start" onClick={() => void call("std_accept_facts", { p_ids: safe.map((x) => x.id), p_corrections: {}, p_bulk: true }, `${safe.length} accepted.`)}>Accept the safe rest ({safe.length})</button>}
-          <p className="vz-card-s">“The safe rest” is only sourced, low-risk facts with no disagreement. Health and safety facts, inferences and conflicts are decided one at a time.</p>
+          {alone.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="font-sans font-semibold">One at a time · {alone.length}</span>
+              <ul className="xl-facts">{alone.map(({ f, why }) => row(f, why))}</ul>
+            </div>
+          )}
+          {safe.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="font-sans font-semibold">Safe to accept together · {safe.length}</span>
+              <span className="vz-card-s">Sourced, low risk, and no source disagrees.</span>
+              <ul className="xl-facts">{order.filter((x) => !x.why.length).map(({ f, why }) => row(f, why))}</ul>
+              <button type="button" className="btn-pri btn-sm self-start" onClick={() => void call("std_accept_facts", { p_ids: safe.map((x) => x.id), p_corrections: {}, p_bulk: true }, `${safe.length} accepted.`)}>Accept the safe rest ({safe.length})</button>
+            </div>
+          )}
         </section>
       )}
-      {accepted.length > 0 && (
-        <details><summary className="font-sans font-bold cursor-pointer py-2">Its specification · {accepted.length}</summary>
-          <ul className="xl-hist">{accepted.map((f) => <li key={f.id}>{factWords(f).label}: {factWords(f).value} <span className="vz-card-s">— {factWords(f).source}</span></li>)}</ul>
+      {spec.length > 0 && (
+        <details><summary className="font-sans font-bold cursor-pointer py-2">Its specification · {spec.length}</summary>
+          <ul className="xl-hist">{spec.map((f) => <li key={f.id}>{factWords(f).label}: {factWords(f).value} <span className="vz-card-s">— {factWords(f).source}</span></li>)}</ul>
+        </details>
+      )}
+      {claims.length > 0 && (
+        <details><summary className="font-sans font-bold cursor-pointer py-2">Their claims, not verified · {claims.length}</summary>
+          <ul className="xl-hist">{claims.map((f) => <li key={f.id}>{factWords(f).value} <span className="vz-card-s">— {factWords(f).source}</span></li>)}</ul>
         </details>
       )}
       {missingEvidence.length > 0 && <p className="vz-card-s">Still needed for the Standard: {missingEvidence.join(" ")}</p>}
-      <p className="vz-card-s">It stays a candidate. Qualifying it needs the Standard&apos;s judgement complete; approving it is an owner&apos;s.</p>
+      <p className="vz-card-s">It stays a candidate. Qualifying needs the Standard&apos;s judgement complete; approving is an owner&apos;s.</p>
     </div>
   );
 }
