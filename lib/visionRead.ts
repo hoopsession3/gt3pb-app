@@ -34,8 +34,7 @@ export const toItem = (r: Row): Item => ({
   id: String(r.id), kind: String(r.kind), label: (r.label as string) ?? null, x_in: n(r.x_in), y_in: n(r.y_in),
   rot: ([0, 90, 180, 270].includes(n(r.rot)) ? n(r.rot) : 0) as Item["rot"], w_in: n(r.w_in, 36), d_in: n(r.d_in, 36), h_in: n(r.h_in, 36),
   why: (r.why as string) ?? null, pillars: pillarsOf(r.pillars), sort: n(r.sort),
-  // arrives-with: 0461 — read only where the column is there (a row without it says nothing about an asset).
-  ...("library_id" in r ? { library_id: (r.library_id as string) ?? null } : {}),
+  library_id: (r.library_id as string) ?? null,   // 0461 is applied (2026-10-31): the column is always there
 });
 export const toLayout = (r: Row, items: Item[]): Layout => ({
   id: String(r.id), name: String(r.name ?? "Store"), width_in: n(r.width_in, 360), depth_in: n(r.depth_in, 480), ceiling_in: n(r.ceiling_in, 132),
@@ -124,8 +123,7 @@ export async function saveLayout(sb: SupabaseClient, layout: Layout, before: rea
     const { error } = await sb.from("store_items").upsert(upsert.map((i, k) => ({
       id: i.id, layout_id: layout.id, kind: i.kind, label: i.label, x_in: i.x_in, y_in: i.y_in, rot: i.rot, w_in: i.w_in, d_in: i.d_in, h_in: i.h_in,
       why: i.why, pillars: i.pillars, sort: i.sort || k + 1, updated_at: new Date().toISOString(),
-      // arrives-with: 0461 — written only when the room was read with it, so a save before the paste still saves.
-      ...(i.library_id !== undefined ? { library_id: i.library_id } : {}),
+      library_id: i.library_id ?? null,
     })));
     if (error) return error.message;
   }

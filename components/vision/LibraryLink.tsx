@@ -3,7 +3,6 @@
 import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
-import { isMissingColumn } from "@/lib/schemaSkew";
 import { STATUS_WORD, costWords, toAsset, type Asset } from "@/lib/experienceLibrary";
 
 // WHICH LIBRARY ASSET IT IS (IMS5b, 0461) — in a thing's details: the library's assets placed as this kind (or the one
@@ -12,10 +11,8 @@ import { STATUS_WORD, costWords, toAsset, type Asset } from "@/lib/experienceLib
 export default function LibraryLink({ kind, libraryId, onPick }: { kind: string; libraryId: string | null; onPick: (id: string | null) => void }) {
   const load = useCallback(async (): Promise<Asset[]> => {
     if (!supabase) return [];
-    // arrives-with: 0461 — studio_kind and status; before 0461 (or for the crew) nothing is offered
     const { data, error } = await supabase.from("std_materials").select("*").or(`studio_kind.eq.${kind}${libraryId ? `,id.eq.${libraryId}` : ""}`).is("archived_at", null).order("name");
-    // Before 0461 the column isn't there: nothing to offer, and that is the truth. Any other failure is said.
-    if (error && isMissingColumn(error)) return [];
+    // The crew read no library (its rows are owners' and admins'): nothing to offer. A failure is said.
     if (error) throw new Error(error.message);
     return ((data ?? []) as Record<string, unknown>[]).map(toAsset);
   }, [kind, libraryId]);

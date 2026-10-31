@@ -192,8 +192,9 @@ async function standIn(answers) {
   // By its shape (R41): the highest file in the directory, a count that is its sections', the ones production lacks first.
   const highest = (await import("./migrations.pending.mjs")).migrationFiles().map((m) => m.file ?? m.name ?? String(m)).filter((f) => /^\d{4}_/.test(f)).sort().at(-1)?.slice(0, 4);
   ok("the plan reads the paste file: what is pending, by file", paste.from === highest && paste.count === paste.files.length
-    // by its shape, not its names (R45: production took 0438–0440 — what is pending moves on)
-    && paste.files.length > 0 && paste.files.every((f) => /^\d{4}_[a-z0-9_]+\.sql$/.test(f)) && [...paste.files].sort().join() === paste.files.join(), { paste, highest });
+    // by its shape, not its names (R45: production took 0438–0440 — what is pending moves on); nothing pending is a state
+    // too (after 0462, 2026-10-31): a count of 0 and no files
+    && paste.files.every((f) => /^\d{4}_[a-z0-9_]+\.sql$/.test(f)) && [...paste.files].sort().join() === paste.files.join(), { paste, highest });
   ok("…and a migration's own 'when' from its header — a moment or an order, not its changelog or its verify lines",
     whenLines("-- WHY. …\n-- Deploy the push function BEFORE pasting this one.\n-- changelog: below.\n-- verify: paste after\nselect 1;").join("|") === "Deploy the push function BEFORE pasting this one.");
   const steps = releaseSteps({ pending: [{ file: "0439_x.sql" }], held: [{ file: "0424_y.sql", until: "the iPhone build is on the phones" }], pushVersion: "made-up R0", snapshot: { notChecked: false } });

@@ -31,6 +31,7 @@ export function loadTs(rel) {
     if (spec.startsWith("./")) return loadTs(`${dir}${spec.slice(2)}.ts`);
     // "../x" (lib/spatial reaching lib/vision, 2026-10-26): resolved against the importing file's folder.
     if (spec.startsWith("../")) { const parts = dir.split("/").filter(Boolean); let rest = spec; while (rest.startsWith("../")) { parts.pop(); rest = rest.slice(3); } return loadTs(`${parts.length ? parts.join("/") + "/" : ""}${rest}.ts`); }
+    if (spec.startsWith("node:")) return require(spec);   // Node's own (node:crypto in lib/libraryResearch, IMS6 A2)
     throw new Error(`search.read: ${rel} imports ${spec}, which this loader doesn't follow`);
   });
   return mod.exports;

@@ -1,10 +1,10 @@
 {
   "$snapshot": {
-    "pulled_at": "2026-10-30T18:40:05.633Z",
+    "pulled_at": "2026-10-31T00:45:48.104Z",
     "project": "unrecorded — rerun with --project=<ref> to name it",
     "source": "sql fallback (pg_class/pg_attribute), run in the Supabase SQL editor",
-    "relations": 259,
-    "columns": 3313
+    "relations": 267,
+    "columns": 3434
   },
   "academy_acknowledgements": [
     "user_id",
@@ -144,7 +144,9 @@
     "cache_read_tokens",
     "cost_cents",
     "user_id",
-    "created_at"
+    "created_at",
+    "searches",
+    "fetches"
   ],
   "alert_reads": [
     "alert_id",
@@ -2552,6 +2554,33 @@
     "na_approved_by",
     "confidence"
   ],
+  "std_asset_facts": [
+    "id",
+    "tenant_id",
+    "material_id",
+    "intake_id",
+    "field",
+    "value",
+    "unit",
+    "source_class",
+    "source_kind",
+    "source_ref",
+    "source_title",
+    "source_locator",
+    "source_revision",
+    "content_hash",
+    "retrieved_at",
+    "method",
+    "confidence",
+    "risk",
+    "review",
+    "corrected_value",
+    "review_note",
+    "reviewed_by",
+    "reviewed_at",
+    "created_by",
+    "created_at"
+  ],
   "std_claims": [
     "id",
     "tenant_id",
@@ -2583,7 +2612,8 @@
     "created_at",
     "weight",
     "mandatory",
-    "models"
+    "models",
+    "categories"
   ],
   "std_evidence": [
     "id",
@@ -2610,6 +2640,27 @@
     "reviewed_at",
     "created_at"
   ],
+  "std_fact_conflicts": [
+    "material_id",
+    "field",
+    "values_seen",
+    "fact_ids"
+  ],
+  "std_intakes": [
+    "id",
+    "tenant_id",
+    "kind",
+    "input",
+    "file_path",
+    "request_hash",
+    "status",
+    "material_id",
+    "matches",
+    "error",
+    "created_by",
+    "created_at",
+    "updated_at"
+  ],
   "std_item_materials": [
     "id",
     "tenant_id",
@@ -2617,6 +2668,16 @@
     "material_id",
     "role",
     "created_at"
+  ],
+  "std_material_status": [
+    "id",
+    "tenant_id",
+    "material_id",
+    "from_status",
+    "to_status",
+    "reason",
+    "changed_by",
+    "changed_at"
   ],
   "std_materials": [
     "id",
@@ -2631,7 +2692,60 @@
     "archived_at",
     "created_by",
     "created_at",
+    "updated_at",
+    "status",
+    "status_reason",
+    "status_by",
+    "status_at",
+    "studio_kind",
+    "w_in",
+    "d_in",
+    "h_in",
+    "finishes",
+    "supplier",
+    "supplier_url",
+    "cost_cents",
+    "cost_unit",
+    "cost_basis",
+    "cost_source",
+    "cost_as_of",
+    "install_notes",
+    "maintenance_notes",
+    "pillars",
+    "image_url",
+    "family_id",
+    "source_url_norm"
+  ],
+  "std_research_budget": [
+    "tenant_id",
+    "per_run_cents",
+    "daily_cents",
+    "per_run_searches",
+    "per_run_fetches",
+    "per_run_tokens",
+    "run_timeout_s",
+    "updated_by",
     "updated_at"
+  ],
+  "std_research_runs": [
+    "id",
+    "tenant_id",
+    "intake_id",
+    "depth",
+    "reserved_cents",
+    "charged_cents",
+    "searches",
+    "fetches",
+    "input_tokens",
+    "output_tokens",
+    "cache_write_tokens",
+    "cache_read_tokens",
+    "outcome",
+    "error",
+    "started_by",
+    "started_at",
+    "deadline_at",
+    "settled_at"
   ],
   "std_reviews": [
     "id",
@@ -2643,6 +2757,28 @@
     "closed_by",
     "closed_at",
     "created_at"
+  ],
+  "std_spec_items": [
+    "id",
+    "tenant_id",
+    "spec_id",
+    "material_id",
+    "qty",
+    "unit",
+    "note",
+    "created_at"
+  ],
+  "std_specs": [
+    "id",
+    "tenant_id",
+    "name",
+    "notes",
+    "status",
+    "decided_by",
+    "decided_at",
+    "created_by",
+    "created_at",
+    "updated_at"
   ],
   "std_subject_summary": [
     "subject_type",
@@ -2733,7 +2869,8 @@
     "pillars",
     "sort",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "library_id"
   ],
   "store_layouts": [
     "id",

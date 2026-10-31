@@ -9,7 +9,6 @@ import AsyncSection from "@/components/AsyncSection";
 import { Segmented } from "@/components/controls";
 import { failureWords } from "@/lib/failureWords";
 import type { Database } from "@/lib/database.types";
-import { isMissingRelation, isMissingTable } from "@/lib/schemaSkew";
 import { CATALOG, PILLAR_WORD, type Pillar } from "@/lib/vision";
 import {
   CATEGORIES, CATEGORY_WORD, NEEDS_REASON, STATUSES, STATUS_MEANS, STATUS_WORD,
@@ -26,12 +25,12 @@ import {
 type Spec = { id: string; name: string; notes: string | null; status: "draft" | "approved" | "retired"; decided_at: string | null };
 type SpecItem = { id: string; spec_id: string; material_id: string; qty: number | null; unit: string | null };
 type Hist = { material_id: string; from_status: string | null; to_status: Status; reason: string | null; changed_at: string };
-type Data = { assets: Asset[]; specs: Spec[]; items: SpecItem[]; hist: Hist[] } | "missing";
+type Data = { assets: Asset[]; specs: Spec[]; items: SpecItem[]; hist: Hist[] };
 
 async function readLibrary(): Promise<Data> {
   if (!supabase) throw new Error("Supabase client not configured");
   const sb = supabase;
-  // arrives-with: 0461 — the library's columns and tables: before 0461 the screen says so
+  // 0461 is applied (2026-10-31): the library's columns and tables are always there.
   const [m, s, i, h] = await Promise.all([
     sb.from("std_materials").select("*").order("name"),
     sb.from("std_specs").select("id, name, notes, status, decided_at").order("created_at"),
@@ -39,10 +38,8 @@ async function readLibrary(): Promise<Data> {
     sb.from("std_material_status").select("material_id, from_status, to_status, reason, changed_at").order("changed_at", { ascending: false }).limit(500),
   ]);
   const err = s.error ?? i.error ?? h.error ?? m.error;
-  if (err && (isMissingTable(err) || isMissingRelation(err))) return "missing";
   if (err) throw new Error(err.message);
   const rows = (m.data ?? []) as Record<string, unknown>[];
-  if (rows.length && !("status" in rows[0])) return "missing";
   return { assets: rows.map(toAsset), specs: (s.data ?? []) as Spec[], items: ((i.data ?? []) as SpecItem[]).map((x) => ({ ...x, qty: x.qty == null ? null : Number(x.qty) })), hist: (h.data ?? []) as Hist[] };
 }
 
@@ -54,12 +51,7 @@ export default function Library({ isOwner }: { isOwner: boolean }) {
   return (
     <section className="flex flex-col gap-3" aria-label="The experience library">
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="Nothing yet" loadingLabel="Opening the library…" errorTitle="Couldn't open the library" errorSub="This is not an empty library — it couldn't be read just now.">
-        {(d) => d === "missing" ? (
-          <div className="mpanel p-4 flex flex-col gap-1">
-            <b className="font-sans">The library arrives with migration 0461.</b>
-            <p className="vz-card-s">Once it&apos;s applied, the Standard&apos;s materials become the library: status, size, cost with its basis, upkeep and specs.</p>
-          </div>
-        ) : (
+        {(d) => (
           <>
             <Segmented label="Library" kind="choice" value={view} onChange={setView} options={[{ key: "assets", label: `Assets · ${d.assets.filter((a) => !a.archived_at).length}` }, { key: "specs", label: `Location specs · ${d.specs.length}` }]} />
             {view === "assets" ? <Assets d={d} isOwner={isOwner} reload={state.reload} /> : <Specs d={d} isOwner={isOwner} reload={state.reload} />}
@@ -70,7 +62,7 @@ export default function Library({ isOwner }: { isOwner: boolean }) {
   );
 }
 
-function Assets({ d, isOwner, reload }: { d: Exclude<Data, "missing">; isOwner: boolean; reload: () => void }) {
+function Assets({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () => void }) {
   const [f, setF] = useState<Filter>({});
   const [open, setOpen] = useState<string | null>(null);
   const [pick, setPick] = useState<string[]>([]);
@@ -154,7 +146,7 @@ const FIELDS: { k: keyof Asset; label: string; long?: boolean; num?: boolean }[]
   { k: "image_url", label: "Picture (https link)" },
 ];
 
-function Detail({ a, d, isOwner, reload }: { a: Asset; d: Exclude<Data, "missing">; isOwner: boolean; reload: () => void }) {
+function Detail({ a, d, isOwner, reload }: { a: Asset; d: Data; isOwner: boolean; reload: () => void }) {
   const { toast } = useAppStable();
   const [draft, setDraft] = useState<Draft>({});
   const [cost, setCost] = useState({ dollars: a.cost_cents == null ? "" : String(a.cost_cents / 100), unit: a.cost_unit ?? "", basis: (a.cost_basis ?? "") as CostBasis | "", source: a.cost_source ?? "", as_of: a.cost_as_of ?? "" });
@@ -230,7 +222,7 @@ function Detail({ a, d, isOwner, reload }: { a: Asset; d: Exclude<Data, "missing
   );
 }
 
-function AddToSpec({ a, d, reload }: { a: Asset; d: Exclude<Data, "missing">; reload: () => void }) {
+function AddToSpec({ a, d, reload }: { a: Asset; d: Data; reload: () => void }) {
   const { toast } = useAppStable();
   const drafts = d.specs.filter((s) => s.status === "draft" && !d.items.some((i) => i.spec_id === s.id && i.material_id === a.id));
   const [spec, setSpec] = useState("");
@@ -249,7 +241,7 @@ function AddToSpec({ a, d, reload }: { a: Asset; d: Exclude<Data, "missing">; re
   );
 }
 
-function Specs({ d, isOwner, reload }: { d: Exclude<Data, "missing">; isOwner: boolean; reload: () => void }) {
+function Specs({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () => void }) {
   const { toast } = useAppStable();
   const [name, setName] = useState("");
   const byId = new Map(d.assets.map((a) => [a.id, a]));

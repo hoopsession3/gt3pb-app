@@ -154,6 +154,16 @@ ok("a forged claim of being an owner changes nothing (the role is read from the 
 })());
 ok("every new function is closed to PUBLIC and anon", (await q1(`select bool_and(not has_function_privilege('anon', p.oid, 'execute')) b from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('std_research_reserve','std_research_settle','std_accept_facts','std_reject_facts','std_fact_guard','std_research_budget_guard')`)).b === true);
 
+// ── who may call what: granted to signed-in users, decided inside Postgres (IMS6 v2, item 2) ──────────────────────
+const CALLABLE = ["std_research_reserve(uuid,text)", "std_research_settle(uuid,jsonb,numeric,text,text)", "std_accept_facts(uuid[],jsonb,boolean)", "std_reject_facts(uuid[],text)", "std_material_blockers(uuid)"];
+ok("the callable functions are granted to signed-in users (so owners and admins reach them through the API)", (await q1(`select bool_and(has_function_privilege('authenticated', ('public.' || f)::regprocedure, 'execute')) b from unnest($1::text[]) f`, [CALLABLE])).b === true);
+ok("…and to nobody signed out", (await q1(`select bool_and(not has_function_privilege('anon', ('public.' || f)::regprocedure, 'execute')) b from unnest($1::text[]) f`, [CALLABLE])).b === true);
+ok("the trigger-only functions are granted to no one", (await q1(`select bool_and(not has_function_privilege('authenticated', p.oid, 'execute')) b from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('std_fact_guard','std_research_budget_guard','std_library_ref_guard')`)).b === true);
+ok("staff reach the function and are refused inside it (PT403), not by a missing grant", (await as(STAFF, `select public.std_reject_facts($1)`, [[fd2.id]])).code === "PT403" && (await as(STAFF, `select public.std_research_settle($1, '{}'::jsonb, 0, 'done')`, [r1.id])).code === "PT403");
+ok("signed out is stopped at the grant (42501)", (await anon(`select public.std_reject_facts($1)`, [[fd2.id]])).code === "42501");
+ok("an owner's and an admin's permitted calls go through", !(await as(OWNER, `select public.std_material_blockers($1)`, [a.id])).error && Array.isArray(await as(ADMIN, `select public.std_reject_facts('{}'::uuid[]) n`)));
+ok("another tenant's owner reaches the function and is refused inside it", refused(await as(OTHER, `select public.std_accept_facts($1)`, [[fd2.id]]), "PT404") || refused(await as(OTHER, `select public.std_accept_facts($1)`, [[fd2.id]]), "PT409"));
+
 // ── the intake files ───────────────────────────────────────────────────────────────────────────────────────────────
 const bucket = await q1(`select public, file_size_limit::int s, allowed_mime_types m from storage.buckets where id = 'library-intake'`);
 ok("the intake bucket is private, 20 MB, documents and photos only", bucket?.public === false && bucket.s === 20971520 && bucket.m.includes("application/pdf") && !bucket.m.includes("image/svg+xml"), bucket);

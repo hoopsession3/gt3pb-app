@@ -9,6 +9,8 @@ import { money } from "./money";
 // it's cached, that prefix bills at a tenth. That's the single biggest lever, and this model makes the
 // savings visible (cache-read tokens priced at the cheap rate).
 
+/** A web search, in cents: $10 per 1,000 searches (Anthropic's web search docs, read 2026-10-30). Fetches are tokens only. */
+export const SEARCH_CENTS = 1;
 export type Rate = { in: number; out: number; cacheWrite: number; cacheRead: number };
 
 // Keyed by the model id we send to the API (see lib/anthropic MODELS). Approximate published rates.

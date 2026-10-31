@@ -4,7 +4,7 @@
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { limitsFit } from "@/lib/rateLimit";
-import { costCents } from "@/lib/aiPricing";
+import { SEARCH_CENTS, costCents } from "@/lib/aiPricing";
 
 export const MODELS = {
   sonnet: "claude-sonnet-4-6",            // internal agents (recap, readiness) — quality/cost balance
@@ -21,19 +21,21 @@ export interface ClaudeResult {
   stop_reason: string | null;
   content: any[]; // raw content blocks — needed to resume a server-tool pause_turn
   // token usage (cost visibility / logging). cache_* split out so the meter can show what caching saved.
-  usage?: { input_tokens: number; output_tokens: number; cache_write_tokens: number; cache_read_tokens: number };
+  usage?: { input_tokens: number; output_tokens: number; cache_write_tokens: number; cache_read_tokens: number; searches: number; fetches: number };
 }
 
 // Fire-and-forget cost log — one row per call into ai_usage (0190). Best-effort: never blocks or throws,
 // so metering can't break an agent. Cost is priced HERE (at log time) from lib/aiPricing.
-function logUsage(agent: string, model: string, u: { input_tokens: number; output_tokens: number; cache_write_tokens: number; cache_read_tokens: number }): void {
+function logUsage(agent: string, model: string, u: { input_tokens: number; output_tokens: number; cache_write_tokens: number; cache_read_tokens: number; searches: number; fetches: number }): void {
   if (!supabaseAdmin) return;
   try {
     void supabaseAdmin.from("ai_usage").insert({
       agent, model,
       input_tokens: u.input_tokens, output_tokens: u.output_tokens,
       cache_write_tokens: u.cache_write_tokens, cache_read_tokens: u.cache_read_tokens,
-      cost_cents: costCents(model, u),
+      // IMS6 A2 (0462): web searches are billed per search ($10 per 1,000), fetches only as tokens — both counted.
+      searches: u.searches, fetches: u.fetches,
+      cost_cents: costCents(model, u) + u.searches * SEARCH_CENTS,
     }).then(({ error }) => { if (error) console.warn(`ai usage: not metered — ${error.message}`); }, () => {}); // never surfaces to the crew; said in the server's log (R12b)
   } catch { /* best-effort */ }
 }
@@ -127,6 +129,8 @@ export async function callClaude(opts: {
         output_tokens: u.output_tokens ?? 0,
         cache_write_tokens: u.cache_creation_input_tokens ?? 0,
         cache_read_tokens: u.cache_read_input_tokens ?? 0,
+        searches: u.server_tool_use?.web_search_requests ?? 0,
+        fetches: u.server_tool_use?.web_fetch_requests ?? 0,
       };
       console.log(`[claude] ${opts.model} ${Date.now() - started}ms in=${usage.input_tokens} out=${usage.output_tokens} cache(w=${usage.cache_write_tokens} r=${usage.cache_read_tokens}) stop=${data.stop_reason ?? "?"}${attempt ? ` retries=${attempt}` : ""}`);
       logUsage(opts.label ?? "unknown", opts.model, usage);

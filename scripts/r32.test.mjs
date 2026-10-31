@@ -155,7 +155,9 @@ ok("prose: an internal link is the app's own path — no '//', no backslash anyw
     return f && body.replace(/\s*$/, "") === readFileSync(join(ROOT, "supabase/migrations", f), "utf8").replace(/\s*$/, "");
   });
   ok("APPLY_ALL_PENDING: every section is begin; its migration; commit; — and the gates read each one as its file, verbatim",
-    !!sections && sections.size > 0 && same && (paste.match(/^begin;/gm) || []).length === sections.size && (paste.match(/^commit;/gm) || []).length === sections.size
+    !!sections && same && (paste.match(/^begin;/gm) || []).length === sections.size && (paste.match(/^commit;/gm) || []).length === sections.size
+    // Nothing pending (2026-10-31, after 0462) is a state too: no sections, and the file says so.
+    && (sections.size > 0 || (/^-- pending-count: 0$/m.test(paste) && /Nothing is pending/.test(paste)))
     && /EACH MIGRATION IS ITS OWN TRANSACTION/.test(paste), sections && [...sections.keys()]);
   const gen = read("scripts/migrations.pending.mjs");
   ok("…written so by the generator (npm run migrations:pending -- --write), not by hand",

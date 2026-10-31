@@ -40,11 +40,11 @@ ok("…all approved, it is", L.specReady([{ status: "approved" }]).ready);
 
 const lib = read("components/vision/Library.tsx"), link = read("components/vision/LibraryLink.tsx"), des = read("components/vision/StoreDesigner.tsx"), app = read("components/vision/VisionApp.tsx"), rd = read("lib/visionRead.ts");
 ok("the Library is a tab for owners and admins", /\{ key: "library" as const, label: "Library" \}/.test(app) && /tab === "library" && canEdit && <Library isOwner=\{isOwner\} \/>/.test(app));
-ok("before 0461 the screen says so (never an empty list)", /The library arrives with migration 0461/.test(lib) && /arrives-with: 0461/.test(lib));
+ok("0461 applied (2026-10-31): its fallback retired — the screen reads the library, a failure is said, never an empty list", !/arrives-with: 0461/.test(lib) && /errorTitle="Couldn't open the library"/.test(lib));
 ok("nothing here is called a certification", /nothing here is a certification/i.test(lib) && !/certified\b/i.test(lib.replace(/certification/gi, "")));
 ok("an approved asset whose judgement goes stale is said stale, not hidden", /Approved, but its judgement is no longer complete/.test(lib));
 ok("a watch-list substance is a review, not a verdict", /A match is a review, not a verdict/.test(lib));
 ok("a thing in a room names its asset, its status said beside it", /not approved for GT3 yet/.test(link) && /<LibraryLink kind=\{item\.kind\}/.test(des));
-ok("…read and saved only where the column is there", /"library_id" in r \?/.test(rd) && /i\.library_id !== undefined \? \{ library_id: i\.library_id \}/.test(rd));
+ok("…read and saved with every room (0461 applied)", /library_id: \(r\.library_id as string\) \?\? null/.test(rd) && /library_id: i\.library_id \?\? null/.test(rd));
 console.log(`IMS5b — THE EXPERIENCE LIBRARY: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
