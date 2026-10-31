@@ -155,6 +155,8 @@ const VISITS = [
   { key: "vision-money", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money"], drawn: ".vz-chart .line", long: true },
   { key: "vision-traffic", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Traffic"], drawn: ".vz-funnel li", long: true },
   { key: "vision-room", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "The room"], drawn: ".vz-kpis .vz-kpi", long: true },
+  // IMS7-D: the room's library assets under the startup lines, opened — the five figures and a person's answers.
+  { key: "vision-money-fixtures", on: ["iphone-se", "iphone-17", "ipad-11", "desktop"], path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money", "Fixtures in its room"], drawn: "details[open] .xl-specs", long: true },
   { key: "vision-money-drill", path: "/vision", ready: ".vz-board", clicks: ["Plans", "A bar inside a gym, phase 1", "Money", "Cost to open:"], drawn: ".vz-formula code", long: false },
 ];
 const DB_PORT = 54329, PORT = 3219;

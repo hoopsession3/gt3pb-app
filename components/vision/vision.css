@@ -52,7 +52,8 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .vz-stats{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--sans);font-size:13px;color:var(--cream-m)}
 .vz-stats b{color:var(--cream);font-variant-numeric:tabular-nums}
 .vz-insp .prod-f{margin-top:0}
-.vz-dims{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+/* A size never narrower than it reads ("2′ 6″"): three across where there's room, fewer where there isn't (a 3D card's column). */
+.vz-dims{display:grid;grid-template-columns:repeat(auto-fit,minmax(68px,1fr));gap:8px}
 .vz-issue{margin:0;font-family:var(--sans);font-size:13px;line-height:1.4}
 /* A line that opens with its action (Look, Fix): the button keeps its tap padding but not its outward margin on the
    leading edge, so it never reaches past the panel (S1.1c — found once the spatial engine gave the seed store findings). */

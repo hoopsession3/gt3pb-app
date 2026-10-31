@@ -23,10 +23,14 @@ export default function LibraryLink({ kind, libraryId, onPick }: { kind: string;
   if (!assets.length && !libraryId) return null;
   return (
     <div className="flex flex-col gap-1">
+      {/* The asset's name is said as text, which wraps; the picker only ever shows a short word. An asset's name in the
+          picker itself was cut off in a narrow inspector (an iPad on its side: "needs 285px, has 151px"). */}
       <label className="prod-f"><span>Library asset</span>
-        <select value={libraryId ?? ""} onChange={(e) => onPick(e.target.value || null)}>
-          <option value="">None named</option>
-          {assets.map((a) => <option key={a.id} value={a.id}>{a.name} — {STATUS_WORD[a.status]}</option>)}
+        {named && <b className="vz-card-t">{named.name}</b>}
+        <select value="" onChange={(e) => { const v = e.target.value; if (v) onPick(v === "none" ? null : v); }}>
+          <option value="">{libraryId ? "Change…" : "None named"}</option>
+          {libraryId && <option value="none">None named</option>}
+          {assets.filter((a) => a.id !== libraryId).map((a) => <option key={a.id} value={a.id}>{a.name} — {STATUS_WORD[a.status]}</option>)}
         </select>
       </label>
       {named && <p className="vz-card-s">{STATUS_WORD[named.status]}{named.status === "approved" ? "" : " — not approved for GT3 yet"} · {costWords(named)}</p>}

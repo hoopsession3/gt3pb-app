@@ -95,6 +95,12 @@ export async function seedConsoleWorld(db) {
     values ($1, 'Fixture bench', 'seating', 'bench', 60, 18, 18, '{stillness}', 42000, 'each', 'estimated', 'Fixture quote', 'Fixture maker', 'Fixture supplier'),
            ($1, 'Fixture floor lamp', 'lighting', null, 18, 18, 60, '{light}', null, null, null, null, null, null),
            ($1, 'Fixture surface cleaner', 'cleaning', null, null, null, null, '{}', null, null, null, null, null, null)`, [T1]);
+  // IMS7-D/E: the room's community table names a library asset whose size isn't the one drawn (42″ deep, drawn 36″), not yet
+  // approved and in no plan line — so the plan's money shows it to reconcile, and picking it in the Studio says its line. A test world's.
+  await run("library table", `insert into public.std_materials (tenant_id, name, category, studio_kind, w_in, d_in, h_in, pillars, cost_cents, cost_unit, cost_basis, cost_source)
+    values ($1, 'Fixture community table', 'seating', 'community', 96, 42, 30, '{stillness}', 180000, 'each', 'estimated', 'Fixture quote')`, [T1]);
+  await run("room names it", `update public.store_items set library_id = (select id from public.std_materials where name = 'Fixture community table' limit 1)
+    where label = 'Community table' and layout_id = (select id from public.store_layouts order by created_at limit 1)`);
   // IMS6 A3: research left to decide on the bench (0462) — two sources disagreeing on its width, a seller's claim, one
   // safe fact — so the phone check draws the draft card, exceptions first. Fixture sources, no real page.
   await run("library facts", `insert into public.std_asset_facts (tenant_id, material_id, field, value, unit, source_class, source_kind, source_ref, source_title, source_locator, method, confidence)

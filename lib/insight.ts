@@ -122,7 +122,8 @@ const CLASS: Record<Engine, Record<string, Class | ((native: string) => Class)>>
     status: (n) => (n === "rejected" || n === "restricted" ? ["approval", 1] : ["approval", 2]),
     findings: ["evidence", 5], going_unapproved: ["approval", 2],
     not_in_plan: ["financial", 3], cost_differs: ["financial", 3], size_differs: ["spatial", 3],
-    no_cost: ["info", 6], needs_quantity: ["info", 6], size_turned: ["info", 6], shared_room: ["info", 6],
+    over_allowance: ["financial", 3],
+    no_cost: ["info", 6], needs_quantity: ["info", 6], size_turned: ["info", 6], shared_room: ["info", 6], recon_conflict: ["info", 6],
   },
 };
 export function classify(engine: Engine, rule: string, native: string): Class {

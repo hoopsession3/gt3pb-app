@@ -33,7 +33,9 @@ export type Confidence = (typeof CONFIDENCES)[number];
 export const CONFIDENCE_WORD: Record<Confidence, string> = { quoted: "Quoted", estimated: "Estimated", guess: "A guess" };
 /** One line of what the money buys. Its total is quantity × unit cost — never typed separately, so it can't disagree. A
  *  line without a unit cost is unpriced: listed, counted as unpriced, never given a number. */
-export type UseLine = { id: string; label: string; category: Category; qty: number | null; unitCents: number | null; source: string | null; on: string | null; confidence: Confidence | null; notes: string | null };
+/** `libraryId` (IMS7-D): the library asset this line prices, when a person put it there — how a plan says a fixture is already in
+ *  its startup costs. Metadata only: it changes no total (lib/planFixtures reads it; nothing adds a line on its own). */
+export type UseLine = { id: string; label: string; category: Category; qty: number | null; unitCents: number | null; source: string | null; on: string | null; confidence: Confidence | null; notes: string | null; libraryId?: string | null };
 export const lineTotal = (l: Pick<UseLine, "qty" | "unitCents">): number | null => (l.unitCents == null ? null : Math.round((l.qty ?? 1) * l.unitCents));
 
 const OLD_KIND: Record<string, Category> = { build: "buildout", equipment: "equipment", permits: "permits", deposit: "deposits", inventory: "inventory", working_capital: "reserve", other: "other" };
@@ -52,6 +54,7 @@ export function toLines(raw: unknown): UseLine[] {
       qty: legacy ? 1 : num(o.qty), unitCents: legacy ? num(o.cents) : num(o.unitCents),
       source: (o.source as string) ?? null, on: (o.on as string) ?? null,
       confidence: (CONFIDENCES as readonly string[]).includes(String(o.confidence)) ? (o.confidence as Confidence) : null, notes: (o.notes as string) ?? null,
+      ...(typeof o.libraryId === "string" && o.libraryId ? { libraryId: o.libraryId } : {}),
     };
   });
 }
@@ -95,7 +98,20 @@ export type Inputs = {
   mix: MixLine[];
   mixDrives: boolean;
   itemsPerOrder: number;
+  /** IMS7-D: how a person reconciled each library asset placed in the plan's room, by asset id — inside the allowance,
+   *  an extra cost, or not this plan's. Absent is unreviewed; a line naming the asset (UseLine.libraryId) is its own
+   *  line. Read by lib/planFixtures only: no figure in this engine reads it, so nothing here changes a total. Saved and
+   *  approved with the scenario, so it's versioned with the baseline (0458) — and never sent on an investor link (0464: not a named field). */
+  fixtures?: Record<string, FixtureRecon>;
 };
+export const FIXTURE_RECONS = ["in_allowance", "incremental", "excluded"] as const;
+export type FixtureRecon = (typeof FIXTURE_RECONS)[number];
+/** A saved reconciliation map, kept to what it can say: asset id → one of the three. Anything else is dropped. */
+export function toFixtures(raw: unknown): Record<string, FixtureRecon> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out = Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([k, v]) => /^[0-9a-f-]{36}$/i.test(k) && (FIXTURE_RECONS as readonly string[]).includes(String(v)))) as Record<string, FixtureRecon>;
+  return Object.keys(out).length ? out : undefined;
+}
 export type MixLine = { key: string; label: string; sharePct: number; priceCents: number | null; unitCostCents: number | null; packagingCents: number | null };
 /** What the engine reads from outside the inputs: the plan's room's counter, orders an hour (null: no room drawn). */
 export type Context = { counterPerHour: number | null };
@@ -108,7 +124,10 @@ export const BLANK: Inputs = {
 /** Saved inputs, read whole: every field present, the lines itemized. */
 export const toInputs = (p?: Partial<Inputs> | Record<string, unknown> | null): Inputs => {
   const o = (p ?? {}) as Partial<Inputs>;
-  return { ...BLANK, ...o, uses: toLines((o as { uses?: unknown }).uses), channels: Array.isArray(o.channels) ? o.channels : [], mix: Array.isArray(o.mix) ? o.mix : [] };
+  const fixtures = toFixtures((o as { fixtures?: unknown }).fixtures);
+  const { fixtures: _drop, ...rest } = o as Partial<Inputs> & { fixtures?: unknown };
+  void _drop;
+  return { ...BLANK, ...rest, uses: toLines((o as { uses?: unknown }).uses), channels: Array.isArray(o.channels) ? o.channels : [], mix: Array.isArray(o.mix) ? o.mix : [], ...(fixtures ? { fixtures } : {}) };
 };
 
 /** The mix, worked out: the average order (Σ share × price × items an order) and the cost of goods (Σ share × (cost +

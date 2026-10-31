@@ -6,6 +6,10 @@ import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useAppStable } from "@/components/AppProvider";
 import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
+import dynamic from "next/dynamic";
+// The library's side of the room (owners' and admins', like this panel): loaded where it's drawn, so a link's viewer never
+// downloads it (IMS7-F).
+const FixturesInPlan = dynamic(() => import("./FixturesInPlan"), { ssr: false });
 import { useConfirm } from "@/components/ConfirmSheet";
 import { Segmented } from "@/components/controls";
 import { failureWords } from "@/lib/failureWords";
@@ -215,6 +219,8 @@ function Money({ plan, asks, saved, isOwner, view, room, onOpenRoom, progress, o
       {view === "money" && <div className="vz-money grid gap-4 grid-cols-1 min-[1100px]:grid-cols-[minmax(0,400px)_minmax(0,1fr)] min-[1100px]:items-start">
         <div className="flex flex-col gap-3 min-w-0">
           <div id="vz-lines" className="contents"><Lines i={i} set={set} on={on} m={m} onOpen={setDrill} /></div>
+          {/* IMS7-D: the room's library assets, reconciled by a person — beside the plan's number, never in it. */}
+          <FixturesInPlan i={i} set={set} room={room} />
           <Inputs_ i={i} set={set} fromSales={fromSales} />
           <MixEditor i={i} set={set} />
           {on === "base" && <div id="vz-derive" className="contents"><Derive base={scen.base} onMake={(c, u) => void makeBoth(c, u)} /></div>}
