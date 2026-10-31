@@ -3,6 +3,7 @@
 // holds the same rules (an asset can't be qualified or approved while its judgement is incomplete — unknown is never
 // approved — and approving is an owner's).
 import { ftIn, type Pillar } from "./vision";
+import { money } from "./money";
 
 export const STATUSES = ["candidate", "under_research", "evidence_incomplete", "qualified", "approved", "restricted", "rejected"] as const;
 export type Status = (typeof STATUSES)[number];
@@ -66,14 +67,13 @@ export const toAsset = (r: Row): Asset => ({
 /** A cost, always with its basis: "$120 each · estimated". Unknown is said, never zero. */
 export function costWords(a: Pick<Asset, "cost_cents" | "cost_unit" | "cost_basis">): string {
   if (a.cost_cents == null) return "Cost not known";
-  const d = a.cost_cents / 100;
-  const money = d.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: d % 1 ? 2 : 0 });
-  return `${money}${a.cost_unit ? ` ${a.cost_unit}` : ""} · ${a.cost_basis ?? "basis not said"}`;
+  // lib/money's price formatter, the app's one (IMS7: this had its own toLocaleString copy).
+  return `${money(a.cost_cents)}${a.cost_unit ? ` ${a.cost_unit}` : ""} · ${a.cost_basis ?? "basis not said"}`;
 }
 
 /** One formatter for feet and inches: lib/vision's ftIn (it rounds to the inch first, so 23.5″ reads 2′, never "1′ 12″").
- *  Unknown reads "—". (IMS7: this file had its own copy, which split before rounding.) */
-export const inches = (v: number | null) => (v == null || !Number.isFinite(v) ? "—" : ftIn(v));
+ *  Unknown or not a size reads "—". (IMS7: this file had its own copy, which split before rounding.) */
+export const inches = (v: number | null) => (v == null || !Number.isFinite(v) || v <= 0 ? "—" : ftIn(v));   // a library size is positive (0461 refuses anything else)
 export const sizeWords = (a: Pick<Asset, "w_in" | "d_in" | "h_in">) => (a.w_in == null && a.d_in == null && a.h_in == null ? "Size not said" : `${inches(a.w_in)} × ${inches(a.d_in)} × ${inches(a.h_in)}`);
 
 /** The list's order: what can be used first, what can't last. */

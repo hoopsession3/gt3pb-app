@@ -16,7 +16,7 @@ ok("exceptions first: conflicts, then claims, health and safety, inferences", or
 ok("…each says why it's decided alone", order[0].why.includes("sources disagree") && order[2].why.includes("a claim, not proven") && order[2].why.includes("a seller's word") && order[4].why.includes("inferred, no source says it"));
 const safe = V.safeRest(facts, conflicts).map((x) => x.id).join();
 ok("the safe rest: sourced, low risk, no disagreement, not low confidence", safe === "a,g", safe);
-ok("a size in feet and inches, a price in dollars, its source named with where in it", V.factWords(F("x", "w_in", 96)).value === "8′" && V.factWords(F("y", "cost_cents", 189000, { unit: "each" })).value === "$1,890.00 each" && V.factWords(F("z", "maker", "M")).source === "the maker's specification — Spec, maker.test, Specifications (quoted)");
+ok("a size in feet and inches, a price in dollars, its source named with where in it", V.factWords(F("x", "w_in", 96)).value === "8′" && V.factWords(F("y", "cost_cents", 189000, { unit: "each" })).value === "$1890 each"   /* IMS7: lib/money, the app's one formatter */ && V.factWords(F("z", "maker", "M")).source === "the maker's specification — Spec, maker.test, Specifications (quoted)");
 ok("an inference is said as the AI's", /GT3's AI, inferred/.test(V.factWords(facts[5]).source));
 ok("the picture: a source's own https image, said as theirs", V.imageFor([F("i", "image_url", "https://cdn.maker.test/ct.jpg")])?.from === "maker.test");
 ok("…never an inferred one, a rejected one, or a plain http link", V.imageFor([F("i", "image_url", "https://x.test/a.jpg", { method: "inferred", source_class: "ai_inference" }), F("j", "image_url", "https://x.test/b.jpg", { review: "rejected" }), F("k", "image_url", "http://x.test/c.jpg")]) === null);

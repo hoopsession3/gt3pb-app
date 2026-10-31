@@ -12,6 +12,7 @@ import { failureWords } from "@/lib/failureWords";
 import type { Database } from "@/lib/database.types";
 import { Ask, DraftCard } from "./LibraryIntake";
 import { CATALOG, PILLAR_WORD, type Pillar } from "@/lib/vision";
+import { moneyRound } from "@/lib/money";
 import {
   CATEGORIES, CATEGORY_WORD, NEEDS_REASON, STATUSES, STATUS_MEANS, STATUS_WORD,
   compareRows, costWords, filterAssets, nextSteps, sizeWords, specReady, toAsset,
@@ -228,6 +229,11 @@ function Detail({ a, d, isOwner, reload }: { a: Asset; d: Data; isOwner: boolean
   const val = (k: keyof Asset) => (k in draft ? draft[k]! : a[k] == null ? "" : String(a[k]));
   const save = async () => {
     if (!supabase) return;
+    // Said before it's sent (IMS7): a size is a positive number of inches up to 200′ and a cost isn't negative — the
+    // database refuses anything else too (0461's checks); this says why in words instead of a refusal.
+    const badSize = FIELDS.filter((f) => f.num && f.k in draft && draft[f.k]!.trim() !== "").find((f) => { const n = Number(draft[f.k]!.trim()); return !Number.isFinite(n) || n <= 0 || n > 2400; });
+    if (badSize) { toast(`${badSize.label}: a size is a positive number of inches, up to 2400 (200′).`, "error"); return; }
+    if (cost.dollars.trim() !== "" && (!Number.isFinite(Number(cost.dollars)) || Number(cost.dollars) < 0)) { toast("Cost: a dollar amount, not negative.", "error"); return; }
     const patch: Record<string, string | number | string[] | null> = {};
     for (const [k, v] of Object.entries(draft)) { const f = FIELDS.find((x) => x.k === k); patch[k] = v.trim() === "" ? null : f?.num ? Number(v) : v.trim(); }
     const c = cost.dollars.trim() === "" ? null : Math.round(Number(cost.dollars) * 100);
@@ -347,7 +353,7 @@ function Specs({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () =
               <li key={i.id}>{i.asset?.name ?? "An asset"} · {i.asset ? STATUS_WORD[i.asset.status] : "—"}{i.qty ? ` · ${i.qty} ${i.unit ?? ""}` : ""}
                 {s.status === "draft" && <button type="button" className="btn-ter btn-sm" onClick={() => void takeOff(i.id)} aria-label={`Take ${i.asset?.name ?? "it"} off ${s.name}`}>Take off</button>}</li>
             ))}</ul>
-            <span className="vz-card-s">{items.length ? `Listed cost ${(cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}${unknown ? ` — ${unknown} not known, not counted` : ""}. Each asset's cost has its own basis.` : "Add assets from the list (open one, Add to a draft spec)."}</span>
+            <span className="vz-card-s">{items.length ? `Listed cost ${moneyRound(cents)}${unknown ? ` — ${unknown} not known, not counted` : ""}. Each asset's cost has its own basis.` : "Add assets from the list (open one, Add to a draft spec)."}</span>
             {s.status === "draft" && (isOwner ? (
               <div className="flex flex-wrap gap-2 items-center"><button type="button" className="btn-sec btn-sm" disabled={!ready.ready} onClick={() => void decide(s, "approved")}>Approve the spec</button>{!ready.ready && <span className="vz-card-s">{ready.why}</span>}</div>
             ) : <span className="vz-card-s">An owner approves a spec. {ready.why ?? "Every asset on it is approved."}</span>)}

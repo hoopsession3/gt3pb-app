@@ -157,8 +157,10 @@ export function roomStats(layout: Pick<Layout, "width_in" | "depth_in" | "items"
   };
 }
 
-/** 150 → 12′ 6″; 144 → 12′; 8 → 8″. */
+/** 150 → 12′ 6″; 144 → 12′; 8 → 8″. Rounds to the inch first, so 11.5 carries to 1′ and 23.5 to 2′ — never "12″".
+ *  A size that isn't one (negative, NaN, infinite) reads "—" (IMS7: it read "-1′ -5″"). */
 export function ftIn(inches: number): string {
+  if (!Number.isFinite(inches) || inches < 0) return "—";
   const n = Math.round(inches);
   const ft = Math.floor(n / 12), inch = n % 12;
   return ft === 0 ? `${inch}″` : inch === 0 ? `${ft}′` : `${ft}′ ${inch}″`;

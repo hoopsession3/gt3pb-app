@@ -4,6 +4,8 @@
 import { PRICING, SEARCH_CENTS, type Rate } from "./aiPricing";
 import type { Category } from "./experienceLibrary";
 
+import { toInches } from "./measure";
+
 // ── depth, by risk ──────────────────────────────────────────────────────────────────────────────────────────────────
 export type Depth = "light" | "standard" | "deep";
 /** Where people breathe, touch or eat from it: look hardest. */
@@ -89,7 +91,9 @@ export type Field = (typeof FIELDS)[number];
 export const HEALTH: readonly Field[] = ["composition", "emissions", "food_contact", "care_chemicals", "certification", "claim"];
 export type SourceClass = "manufacturer" | "supplier" | "independent" | "gt3" | "ai_inference";
 export type RawFact = { field: string; value: unknown; unit?: string | null; source_class?: string; source_kind?: string; source_ref?: string | null; source_title?: string | null; source_locator?: string | null; source_revision?: string | null; method?: string; confidence?: string; quote?: string | null };
-export type DraftFact = { field: Field; value: unknown; unit: string | null; source_class: SourceClass; source_kind: "url" | "document" | "image" | "description" | "manual"; source_ref: string | null; source_title: string | null; source_locator: string | null; source_revision: string | null; method: "quoted" | "extracted" | "inferred"; confidence: "low" | "medium" | "high"; risk: "low" | "high" };
+export type DraftFact = { field: Field; value: unknown; unit: string | null;
+  /** IMS7 (0469): a size as its source printed it, before it was read into inches. */
+  original_value: string | null; original_unit: string | null; source_class: SourceClass; source_kind: "url" | "document" | "image" | "description" | "manual"; source_ref: string | null; source_title: string | null; source_locator: string | null; source_revision: string | null; method: "quoted" | "extracted" | "inferred"; confidence: "low" | "medium" | "high"; risk: "low" | "high" };
 export type Dropped = { field: string; why: string };
 const CLASSES: readonly SourceClass[] = ["manufacturer", "supplier", "independent", "gt3", "ai_inference"];
 /** What the model said, reduced to what may be written: a known field, a value of the right shape, a source for anything
@@ -108,17 +112,25 @@ export function toDraftFacts(raw: readonly RawFact[], ctx: { kind: DraftFact["so
     if (method !== "inferred" && !ref) { dropped.push({ field, why: "no source to point to" }); continue; }
     if (ref && /^http/i.test(ref) && !/^https:\/\//.test(ref)) { dropped.push({ field, why: "source isn't https" }); continue; }
     let value = r.value;
-    if (["w_in", "d_in", "h_in", "cost_cents"].includes(field)) {
-      const n = typeof value === "number" ? value : Number(String(value).replace(/[^0-9.]/g, ""));
-      if (!Number.isFinite(n) || n <= 0 || (field !== "cost_cents" && n > 2400)) { dropped.push({ field, why: "not a usable number" }); continue; }
-      value = field === "cost_cents" ? Math.round(n) : Math.round(n * 100) / 100;
+    let unit = r.unit ?? null;
+    let original: { value: string; unit: string | null } | null = null;
+    if (["w_in", "d_in", "h_in"].includes(field)) {
+      // IMS7: read with its unit (lib/measure) — never digits stripped and called inches. What was said is kept.
+      const m = toInches(r.value, r.unit ?? null);
+      if (!m.ok) { dropped.push({ field, why: m.why }); continue; }
+      value = m.inches; unit = "in"; original = m.original;
+    } else if (field === "cost_cents") {
+      // A price in cents is a whole positive number as given; "$1,890" or "1890 USD" isn't guessed at.
+      const n = typeof value === "number" ? value : /^\d+(\.\d+)?$/.test(String(value).trim()) ? Number(String(value).trim()) : NaN;
+      if (!Number.isFinite(n) || n <= 0) { dropped.push({ field, why: "not a price in cents" }); continue; }
+      value = Math.round(n);
     } else if (field === "image_url" || field === "supplier_url") {
       if (typeof value !== "string" || !/^https:\/\//.test(value)) { dropped.push({ field, why: "not an https link" }); continue; }
     } else if (typeof value !== "string" || !value.trim()) { dropped.push({ field, why: "empty" }); continue; }
     else value = value.trim().slice(0, field === "claim" ? 600 : 1000);
     // A health or safety statement from a seller is a claim to verify, not a specification.
     const f: Field = cls === "supplier" && HEALTH.includes(field) && field !== "composition" ? "claim" : field;
-    facts.push({ field: f, value, unit: r.unit ?? null, source_class: cls, source_kind: method === "inferred" ? (ctx.kind) : ((r.source_kind as DraftFact["source_kind"]) ?? ctx.kind), source_ref: method === "inferred" ? null : ref,
+    facts.push({ field: f, value, unit, original_value: original?.value ?? null, original_unit: original?.unit ?? null, source_class: cls, source_kind: method === "inferred" ? (ctx.kind) : ((r.source_kind as DraftFact["source_kind"]) ?? ctx.kind), source_ref: method === "inferred" ? null : ref,
       source_title: r.source_title?.slice(0, 300) ?? null, source_locator: r.source_locator?.slice(0, 200) ?? null, source_revision: r.source_revision?.slice(0, 120) ?? null,
       method, confidence: (["low", "medium", "high"].includes(String(r.confidence)) ? r.confidence : "low") as DraftFact["confidence"], risk: HEALTH.includes(f) ? "high" : "low" });
   }

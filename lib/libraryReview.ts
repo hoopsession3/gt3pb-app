@@ -2,6 +2,7 @@
 // are safe to accept together, and how each is said. The database (0462, std_accept_facts) holds the same line: bulk
 // acceptance refuses health and safety fields, inferences and conflicts, whatever the screen sends.
 import { inches } from "./experienceLibrary";
+import { money } from "./money";
 
 export type Fact = { id: string; field: string; value: unknown; unit: string | null; source_class: string; source_kind: string; source_ref: string | null; source_title: string | null; source_locator: string | null; method: string; confidence: string; risk: string; review: string; retrieved_at: string };
 
@@ -16,7 +17,7 @@ const CLASS: Record<string, string> = { manufacturer: "the maker's specification
 export function factWords(f: Fact): { label: string; value: string; source: string } {
   const v = f.value;
   const value = ["w_in", "d_in", "h_in"].includes(f.field) && typeof v === "number" ? inches(v)
-    : f.field === "cost_cents" && typeof v === "number" ? `${(v / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })}${f.unit ? ` ${f.unit}` : ""}`
+    : f.field === "cost_cents" && typeof v === "number" ? `${money(v)}${f.unit ? ` ${f.unit}` : ""}`
     : typeof v === "string" ? v : JSON.stringify(v);
   let host = "";
   try { host = f.source_ref && /^https:\/\//.test(f.source_ref) ? new URL(f.source_ref).hostname.replace(/^www\./, "") : f.source_ref?.startsWith("storage:") ? "the uploaded file" : ""; } catch { host = ""; }

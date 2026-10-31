@@ -10347,6 +10347,8 @@ export type Database = {
           reviewed_at: string | null
           created_by: string | null
           created_at: string
+          original_value: string | null
+          original_unit: string | null
         }
         Insert: {
           id?: string
@@ -10374,6 +10376,8 @@ export type Database = {
           reviewed_at?: string | null
           created_by?: string | null
           created_at?: string
+          original_value?: string | null
+          original_unit?: string | null
         }
         Update: {
           id?: string
@@ -10401,6 +10405,8 @@ export type Database = {
           reviewed_at?: string | null
           created_by?: string | null
           created_at?: string
+          original_value?: string | null
+          original_unit?: string | null
         }
         Relationships: [
           {

@@ -4,6 +4,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { loadTs } from "./search.read.mjs";
+const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
 const V = loadTs("lib/vision.ts");
 const L = loadTs("lib/experienceLibrary.ts");
 let pass = 0, fail = 0;
@@ -15,7 +16,14 @@ const CASES = [
   [143.6, "12′"], [150, "12′ 6″"], [1199.5, "100′"],
 ];
 for (const [v, want] of CASES) ok(`ftIn(${v}) = ${want}`, V.ftIn(v) === want, V.ftIn(v));
-for (const [v, want] of CASES) ok(`the library says ${v} as ${want}, the same as the Studio`, L.inches(v) === want, L.inches(v));
+for (const [v, want] of CASES.filter(([v]) => v > 0)) ok(`the library says ${v} as ${want}, the same as the Studio`, L.inches(v) === want, L.inches(v));
+ok("rounding carries: 11.99 → 1′, 35.5 → 3′, 47.6 → 4′, never 12″", V.ftIn(11.99) === "1′" && V.ftIn(35.5) === "3′" && V.ftIn(47.6) === "4′");
+ok("a size that isn't one reads \"—\" — never \"-1′ -5″\"", [-5, -0.4, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY].every((v) => V.ftIn(v) === "—"), [-5, -0.4].map(V.ftIn));
+ok("…and in the library a size is positive: zero is not a size there (0461 refuses it)", L.inches(0) === "—" && L.inches(-1) === "—");
+ok("display only: the library's stored sizes are numbers; no screen reads a size back from its words", !/parseFtIn|inches\(/.test(read("lib/libraryIntake.ts") + read("lib/libraryResearch.ts")));
+const M = loadTs("lib/money.ts");
+ok("one money formatter: the library's and the review's prices are lib/money's", L.costWords(L.toAsset({ id: "a", name: "x", category: "seating", status: "candidate", cost_cents: 189000, cost_unit: "each", cost_basis: "estimated" })) === `${M.money(189000)} each · estimated`
+  && loadTs("lib/libraryReview.ts").factWords({ field: "cost_cents", value: 1250, unit: null, source_class: "supplier", source_ref: null, method: "quoted" }).value === M.money(1250));
 ok("never twelve inches", CASES.every(([v]) => !/(^|\s)12″/.test(L.inches(v))));
 ok("an unknown size is said unknown, never 0″", L.inches(null) === "—" && L.inches(undefined) === "—" && L.inches(Number.NaN) === "—" && L.inches(Number.POSITIVE_INFINITY) === "—");
 ok("a whole size in the library", L.sizeWords({ w_in: 23.5, d_in: 30, h_in: null }) === "2′ × 2′ 6″ × —", L.sizeWords({ w_in: 23.5, d_in: 30, h_in: null }));
@@ -29,5 +37,8 @@ const walk = (d) => { for (const f of readdirSync(d)) { const p = join(d, f); if
 walk(new URL("../lib", import.meta.url).pathname); walk(new URL("../components", import.meta.url).pathname);
 const copies = files.filter((p) => !p.endsWith("lib/vision.ts")).filter((p) => readFileSync(p, "utf8").split("\n").some((l) => /[/%]\s*12\b/.test(l) && l.includes("″")));
 ok("one formatter: no copy of ftIn elsewhere", copies.length === 0, copies);
-console.log(`ONE SIZE FORMATTER: ${pass} passed, ${fail} failed`);
+const app = []; const walkA = (d) => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walkA(p); else if (/\.(ts|tsx)$/.test(f)) app.push(p); } };
+walkA(new URL("../app", import.meta.url).pathname);
+ok("…and no currency formatting of its own anywhere in lib, components or app (lib/money is the one)", ![...files, ...app].some((p) => /style: "currency"/.test(readFileSync(p, "utf8"))), [...files, ...app].filter((p) => /style: "currency"/.test(readFileSync(p, "utf8"))));
+console.log(`ONE SIZE FORMATTER, ONE MONEY FORMATTER: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

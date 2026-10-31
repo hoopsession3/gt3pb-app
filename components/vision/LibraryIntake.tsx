@@ -10,6 +10,7 @@ import { Segmented } from "@/components/controls";
 import { failureWords } from "@/lib/failureWords";
 import { uploadToBucket } from "@/lib/uploads";
 import { CATEGORIES, type Category } from "@/lib/experienceLibrary";
+import { parseFtIn } from "@/lib/vision";
 import { reviewOrder, safeRest, factWords, imageFor, type Fact } from "@/lib/libraryReview";
 
 // ASK → RESEARCH → POPULATE → REVIEW EXCEPTIONS → SAVE CANDIDATE (IMS6 A3). The way an asset comes in: paste its link,
@@ -87,6 +88,16 @@ function Outcome({ r }: { r: Result }) {
 
 /** The draft card for an asset with facts to decide: its picture (sourced) or an honest placeholder, key specs each
  *  with a source chip, the exceptions first, then "Accept the safe rest", and what's still missing. */
+/** A correction as the reviewer typed it: a size in feet and inches (or plain inches) through the Studio's own parser
+ *  (lib/vision parseFtIn), a price in cents as a number, anything else as text. A size it can't read is sent as typed,
+ *  and the database refuses it (0469) — said, not guessed. */
+function correction(field: string, typed: string): string | number {
+  const t = typed.trim();
+  if (["w_in", "d_in", "h_in"].includes(field)) return parseFtIn(t) ?? t;
+  if (field === "cost_cents") return Number.isFinite(Number(t)) ? Number(t) : t;
+  return t;
+}
+
 export function DraftCard({ material, name, category, missingEvidence, onChanged }: { material: string; name: string; category: string; missingEvidence: string[]; onChanged: () => void }) {
   const { toast } = useAppStable();
   const load = useCallback(async () => {
@@ -130,10 +141,10 @@ export function DraftCard({ material, name, category, missingEvidence, onChanged
                 <div className="flex flex-col gap-1 min-w-0">
                   <span><b className="font-sans">{factWords(f).label}</b> {factWords(f).value}</span>
                   <span className="vz-card-s">{factWords(f).source}{why.length ? ` · ${why.join(" · ")}` : ""}</span>
-                  {f.id in fix && <label className="prod-f"><span>The right value</span><input autoFocus value={fix[f.id]} placeholder="As it should read" onChange={(e) => setFix({ ...fix, [f.id]: e.target.value })} /></label>}
+                  {f.id in fix && <label className="prod-f"><span>The right value</span><input autoFocus value={fix[f.id]} placeholder={["w_in", "d_in", "h_in"].includes(f.field) ? "6′ 2″, 6 2 or 74 (inches)" : "As it should read"} onChange={(e) => setFix({ ...fix, [f.id]: e.target.value })} /></label>}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" className="btn-sec btn-sm" onClick={() => void call("std_accept_facts", { p_ids: [f.id], p_corrections: fix[f.id]?.trim() ? { [f.id]: ["w_in", "d_in", "h_in", "cost_cents"].includes(f.field) ? Number(fix[f.id]) : fix[f.id].trim() } : {}, p_bulk: false }, fix[f.id]?.trim() ? "Corrected and accepted." : "Accepted.")} aria-label={`Accept ${factWords(f).label}`}>Accept</button>
+                  <button type="button" className="btn-sec btn-sm" onClick={() => void call("std_accept_facts", { p_ids: [f.id], p_corrections: fix[f.id]?.trim() ? { [f.id]: correction(f.field, fix[f.id]) } : {}, p_bulk: false }, fix[f.id]?.trim() ? "Corrected and accepted." : "Accepted.")} aria-label={`Accept ${factWords(f).label}`}>Accept</button>
                   {!(f.id in fix) && <button type="button" className="btn-ter btn-sm" onClick={() => setFix({ ...fix, [f.id]: "" })} aria-label={`Correct ${factWords(f).label}`}>Correct</button>}
                   <button type="button" className="btn-ter btn-sm" onClick={() => void call("std_reject_facts", { p_ids: [f.id], p_note: null }, "Rejected — kept on the record.")} aria-label={`Reject ${factWords(f).label}`}>Reject</button>
                 </div>
