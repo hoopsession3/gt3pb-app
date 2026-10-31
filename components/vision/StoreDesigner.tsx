@@ -4,6 +4,7 @@ import "./studio.css";
 import { failureWords } from "@/lib/failureWords";
 import { useDeferredValue, useCallback, useLayoutEffect, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { useAppStable } from "@/components/AppProvider";
 import { useConfirm } from "@/components/ConfirmSheet";
@@ -20,8 +21,10 @@ import PlanView, { KIND_MIME } from "./PlanView";
 import { SPLIT_AT, defaultView } from "@/lib/visionStudio";
 import { FORMAT, type Plan } from "@/lib/visionPlans";
 import Evaluate from "./Evaluate";
-import LibraryLink from "./LibraryLink";
-import ThingInsight from "./ThingInsight";
+// The library and the one line are owners' and admins' (the editing inspector only): loaded when drawn, so a viewer — a
+// link's investor, the crew — never downloads them (IMS7-F).
+const LibraryLink = dynamic(() => import("./LibraryLink"), { ssr: false });
+const ThingInsight = dynamic(() => import("./ThingInsight"), { ssr: false });
 import { evaluate as runSpatial, type Finding } from "@/lib/spatial/evaluate";
 import { PROFILES, modelOf } from "@/lib/spatial/profiles";
 import FlowBar, { figuresOf } from "./FlowBar";

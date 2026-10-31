@@ -11,6 +11,7 @@ import { askHeadline, cashHeadline } from "@/lib/visionHeadline";
 import type { Layout } from "@/lib/vision";
 import type { Plan } from "@/lib/visionPlans";
 import { money } from "@/lib/money";
+import { investorReadiness } from "@/lib/investorView";
 import { CashChart, SC_SWATCH, Tornado } from "./MoneyCharts";
 
 // A PLAN'S CASE, PRESENTED (R57, phase E). What it takes and what it returns — from the owner-approved baseline, through
@@ -300,8 +301,8 @@ const listMonths = (ms: number[]) => (ms.length <= 2 ? ms.join(" and ") : `${ms.
 /** Pitch (IP1.3; IP1.4): readiness in one line — the stage, the score and its coverage, what's still to close. */
 function readinessLine(sc: Score): string {
   if (sc.total == null) return "Investment readiness isn't judged yet.";
-  const open = sc.blockers.filter((x) => x.status !== "risk_accepted").map((x) => BLOCKER_WORD[x.key].toLowerCase());
-  const accepted = sc.blockers.filter((x) => x.status === "risk_accepted").map((x) => BLOCKER_WORD[x.key].toLowerCase());
+  // IMS7-F: what's still to close and what an owner accepted, through the insight contract's investor view (one rule).
+  const { open, accepted } = investorReadiness(sc, { kind: "plan", id: "case" });
   return `${READINESS_WORD[sc.readiness]}. Assessed score ${sc.total} of 100 on what can be judged, with evidence for ${sc.coverage}% of it — a checklist, not a probability. ${open.length ? `Still to close: ${listWords(open)}.` : "Nothing critical left to close."}${accepted.length ? ` Accepted as a risk by the owner: ${listWords(accepted)}.` : ""}`;
 }
 const listWords = (w: string[]) => (w.length <= 2 ? w.join(" and ") : `${w.slice(0, -1).join(", ")} and ${w.at(-1)}`);
