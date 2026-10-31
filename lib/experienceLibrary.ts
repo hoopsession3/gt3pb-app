@@ -39,13 +39,23 @@ export const CATEGORIES = [
 export type Category = (typeof CATEGORIES)[number][0];
 export const CATEGORY_WORD = Object.fromEntries(CATEGORIES) as Record<Category, string>;
 
-export type CostBasis = "actual" | "estimated" | "scenario";
+/** What kind of price (0470): estimated · listed (a maker or seller publishes it) · quoted (offered to GT3) · actual (paid)
+ *  · scenario (a what-if). A published price is never actual. */
+export const COST_BASES = ["estimated", "listed", "quoted", "actual", "scenario"] as const;
+export type CostBasis = (typeof COST_BASES)[number];
+export const BASIS_WORD: Record<CostBasis, string> = { estimated: "estimated", listed: "listed price", quoted: "quoted", actual: "actual (paid)", scenario: "scenario" };
+/** A cost recorded as actual before 0470, waiting for a person to say what it is. */
+export type BasisFlag = "actual_from_a_listing" | "actual_paid_or_quoted";
+export const FLAG_WORD: Record<BasisFlag, string> = {
+  actual_from_a_listing: "recorded as actual from a published price — say what it is",
+  actual_paid_or_quoted: "recorded as \"actual (paid or quoted)\" — say which",
+};
 export type Asset = {
   id: string; name: string; category: Category; status: Status; status_reason: string | null; status_at: string | null;
   maker: string | null; product_ref: string | null; composition: string | null; watch_list: string[]; notes: string | null;
   studio_kind: string | null; w_in: number | null; d_in: number | null; h_in: number | null; finishes: string | null;
   supplier: string | null; supplier_url: string | null;
-  cost_cents: number | null; cost_unit: string | null; cost_basis: CostBasis | null; cost_source: string | null; cost_as_of: string | null;
+  cost_cents: number | null; cost_unit: string | null; cost_basis: CostBasis | null; cost_basis_flag: BasisFlag | null; cost_source: string | null; cost_as_of: string | null;
   install_notes: string | null; maintenance_notes: string | null; pillars: Pillar[]; image_url: string | null; archived_at: string | null;
 };
 type Row = Record<string, unknown>;
@@ -58,17 +68,18 @@ export const toAsset = (r: Row): Asset => ({
   status_reason: s(r.status_reason), status_at: s(r.status_at), maker: s(r.maker), product_ref: s(r.product_ref), composition: s(r.composition),
   watch_list: Array.isArray(r.watch_list) ? r.watch_list.map(String) : [], notes: s(r.notes), studio_kind: s(r.studio_kind),
   w_in: num(r.w_in), d_in: num(r.d_in), h_in: num(r.h_in), finishes: s(r.finishes), supplier: s(r.supplier), supplier_url: s(r.supplier_url),
-  cost_cents: num(r.cost_cents), cost_unit: s(r.cost_unit), cost_basis: (["actual", "estimated", "scenario"].includes(String(r.cost_basis)) ? r.cost_basis : null) as CostBasis | null,
+  cost_cents: num(r.cost_cents), cost_unit: s(r.cost_unit), cost_basis: ((COST_BASES as readonly string[]).includes(String(r.cost_basis)) ? r.cost_basis : null) as CostBasis | null,
+  cost_basis_flag: (r.cost_basis_flag === "actual_from_a_listing" || r.cost_basis_flag === "actual_paid_or_quoted" ? r.cost_basis_flag : null) as BasisFlag | null,
   cost_source: s(r.cost_source), cost_as_of: s(r.cost_as_of), install_notes: s(r.install_notes), maintenance_notes: s(r.maintenance_notes),
   pillars: Array.isArray(r.pillars) ? (r.pillars.filter((p) => PILLARS.includes(p as Pillar)) as Pillar[]) : [],
   image_url: s(r.image_url), archived_at: s(r.archived_at),
 });
 
 /** A cost, always with its basis: "$120 each · estimated". Unknown is said, never zero. */
-export function costWords(a: Pick<Asset, "cost_cents" | "cost_unit" | "cost_basis">): string {
+export function costWords(a: Pick<Asset, "cost_cents" | "cost_unit" | "cost_basis"> & { cost_basis_flag?: BasisFlag | null }): string {
   if (a.cost_cents == null) return "Cost not known";
   // lib/money's price formatter, the app's one (IMS7: this had its own toLocaleString copy).
-  return `${money(a.cost_cents)}${a.cost_unit ? ` ${a.cost_unit}` : ""} · ${a.cost_basis ?? "basis not said"}`;
+  return `${money(a.cost_cents)}${a.cost_unit ? ` ${a.cost_unit}` : ""} · ${a.cost_basis ? BASIS_WORD[a.cost_basis] : "basis not said"}${a.cost_basis_flag ? ` — ${FLAG_WORD[a.cost_basis_flag]}` : ""}`;
 }
 
 /** One formatter for feet and inches: lib/vision's ftIn (it rounds to the inch first, so 23.5″ reads 2′, never "1′ 12″").

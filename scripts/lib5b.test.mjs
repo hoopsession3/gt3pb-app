@@ -17,7 +17,7 @@ ok("a pillar outside the four is dropped", A({ pillars: ["stillness", "espresso"
 
 ok("a cost is said with its basis", L.costWords(A({ cost_cents: 12000, cost_unit: "each", cost_basis: "estimated" })) === "$120 each · estimated");
 ok("…an unknown cost is said unknown, never $0", L.costWords(A()) === "Cost not known");
-ok("…cents are kept when there are cents", L.costWords(A({ cost_cents: 1250, cost_basis: "actual" })) === "$12.50 · actual");
+ok("…cents are kept when there are cents", L.costWords(A({ cost_cents: 1250, cost_basis: "actual" })) === "$12.50 · actual (paid)");   // 0470: actual is money paid
 ok("a size unsaid is said so", L.sizeWords(A()) === "Size not said" && L.sizeWords(A({ w_in: 24, d_in: 30, h_in: 30 })) === "2′ × 2′ 6″ × 2′ 6″");
 
 const list = [A({ id: "1", name: "Bench", status: "candidate", pillars: ["stillness"] }), A({ id: "2", name: "Lamp", category: "lighting", status: "approved", pillars: ["light"], maker: "Test Maker" }),

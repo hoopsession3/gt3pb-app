@@ -10853,6 +10853,7 @@ export type Database = {
           image_url: string | null
           family_id: string | null
           source_url_norm: string | null
+          cost_basis_flag: string | null
         }
         Insert: {
           id?: string
@@ -10890,6 +10891,7 @@ export type Database = {
           image_url?: string | null
           family_id?: string | null
           source_url_norm?: string | null
+          cost_basis_flag?: string | null
         }
         Update: {
           id?: string
@@ -10927,6 +10929,7 @@ export type Database = {
           image_url?: string | null
           family_id?: string | null
           source_url_norm?: string | null
+          cost_basis_flag?: string | null
         }
         Relationships: [
           {

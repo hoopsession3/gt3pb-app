@@ -15,7 +15,7 @@ import { CATALOG, PILLAR_WORD, type Pillar } from "@/lib/vision";
 import { moneyRound } from "@/lib/money";
 import {
   CATEGORIES, CATEGORY_WORD, NEEDS_REASON, STATUSES, STATUS_MEANS, STATUS_WORD,
-  compareRows, costWords, filterAssets, nextSteps, sizeWords, specReady, toAsset,
+  FLAG_WORD, compareRows, costWords, filterAssets, nextSteps, sizeWords, specReady, toAsset,
   type Asset, type Category, type CostBasis, type Filter, type Status,
 } from "@/lib/experienceLibrary";
 
@@ -221,6 +221,8 @@ function Detail({ a, d, isOwner, reload }: { a: Asset; d: Data; isOwner: boolean
   const [draft, setDraft] = useState<Draft>({});
   const [cost, setCost] = useState({ dollars: a.cost_cents == null ? "" : String(a.cost_cents / 100), unit: a.cost_unit ?? "", basis: (a.cost_basis ?? "") as CostBasis | "", source: a.cost_source ?? "", as_of: a.cost_as_of ?? "" });
   const [pillars, setPillars] = useState<Pillar[]>(a.pillars);
+  // 0470: a cost recorded as actual before the four bases waits for a person to say what it is — choosing its basis here is that.
+  const [basisSaid, setBasisSaid] = useState(false);
   const [kind, setKind] = useState(a.studio_kind ?? "");
   const [to, setTo] = useState<Status | "">(""), [reason, setReason] = useState("");
   const loadB = useCallback(async () => { if (!supabase) return [] as string[]; const { data, error } = await supabase.rpc("std_material_blockers", { p_id: a.id }); if (error) throw new Error(error.message); return (data ?? []) as string[]; }, [a.id]);
@@ -237,7 +239,7 @@ function Detail({ a, d, isOwner, reload }: { a: Asset; d: Data; isOwner: boolean
     const patch: Record<string, string | number | string[] | null> = {};
     for (const [k, v] of Object.entries(draft)) { const f = FIELDS.find((x) => x.k === k); patch[k] = v.trim() === "" ? null : f?.num ? Number(v) : v.trim(); }
     const c = cost.dollars.trim() === "" ? null : Math.round(Number(cost.dollars) * 100);
-    Object.assign(patch, { cost_cents: c, cost_unit: cost.unit.trim() || null, cost_basis: cost.basis || null, cost_source: cost.source.trim() || null, cost_as_of: cost.as_of || null, pillars, studio_kind: kind || null });
+    Object.assign(patch, { cost_cents: c, cost_unit: cost.unit.trim() || null, cost_basis: cost.basis || null, ...(basisSaid ? { cost_basis_flag: null } : {}), cost_source: cost.source.trim() || null, cost_as_of: cost.as_of || null, pillars, studio_kind: kind || null });
     const { error } = await supabase.from("std_materials").update(patch as Database["public"]["Tables"]["std_materials"]["Update"]).eq("id", a.id);
     if (error) { toast(failureWords(error, "Couldn't save it"), "error"); return; }
     setDraft({}); toast("Saved."); reload();
@@ -270,9 +272,10 @@ function Detail({ a, d, isOwner, reload }: { a: Asset; d: Data; isOwner: boolean
         <label className="prod-f"><span>Placed in the Studio as</span><select value={kind} onChange={(e) => setKind(e.target.value)}><option value="">Not a Studio object</option>{CATALOG.map((k) => <option key={k.kind} value={k.kind}>{k.name}</option>)}</select></label>
       </div>
       <fieldset className="xl-cost"><legend className="font-sans font-bold">Cost — said with its basis and source</legend>
+        {a.cost_basis_flag && <span className="xl-warn" role="note">This cost was {FLAG_WORD[a.cost_basis_flag]}: choose its basis below and save.</span>}
         <label className="prod-f"><span>Dollars</span><input inputMode="decimal" value={cost.dollars} onChange={(e) => setCost({ ...cost, dollars: e.target.value })} /></label>
         <label className="prod-f"><span>Per</span><input value={cost.unit} placeholder="each, sq ft, gallon…" maxLength={40} onChange={(e) => setCost({ ...cost, unit: e.target.value })} /></label>
-        <label className="prod-f"><span>Basis</span><select value={cost.basis} onChange={(e) => setCost({ ...cost, basis: e.target.value as CostBasis | "" })}><option value="">Not said</option><option value="actual">Actual (a price paid or quoted)</option><option value="estimated">Estimated</option><option value="scenario">Scenario</option></select></label>
+        <label className="prod-f"><span>Basis</span><select value={cost.basis} onChange={(e) => { setCost({ ...cost, basis: e.target.value as CostBasis | "" }); setBasisSaid(true); }}><option value="">Not said</option><option value="estimated">Estimated</option><option value="listed">Listed (a published price)</option><option value="quoted">Quoted (offered to GT3)</option><option value="actual">Actual (paid)</option><option value="scenario">Scenario</option></select></label>
         <label className="prod-f"><span>Source</span><input value={cost.source} maxLength={300} placeholder="Quote, invoice, catalog page…" onChange={(e) => setCost({ ...cost, source: e.target.value })} /></label>
         <label className="prod-f"><span>True as of</span><input type="date" value={cost.as_of} onChange={(e) => setCost({ ...cost, as_of: e.target.value })} /></label>
       </fieldset>
