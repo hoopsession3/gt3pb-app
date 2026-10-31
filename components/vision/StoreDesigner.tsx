@@ -21,6 +21,7 @@ import { SPLIT_AT, defaultView } from "@/lib/visionStudio";
 import { FORMAT, type Plan } from "@/lib/visionPlans";
 import Evaluate from "./Evaluate";
 import LibraryLink from "./LibraryLink";
+import ThingInsight from "./ThingInsight";
 import { evaluate as runSpatial, type Finding } from "@/lib/spatial/evaluate";
 import { PROFILES, modelOf } from "@/lib/spatial/profiles";
 import FlowBar, { figuresOf } from "./FlowBar";
@@ -341,7 +342,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const name = item ? item.label || kindOf(item.kind).name : "";
   const takeOut = async (it: Item) => { if (await confirm({ title: `Remove ${it.label || kindOf(it.kind).name} from the room?`, body: "Undo brings it back, until you save.", confirmLabel: "Remove from room", danger: true })) remove(it.id); };
   const inspector = item && (
-    <Inspector key={item.id} item={item} canEdit={canEdit} room={draft} target={PROFILES[model]}
+    <Inspector key={item.id} item={item} canEdit={canEdit} room={draft} target={PROFILES[model]} found={found} plans={plans}
       collapsed={detailsMin} onCollapse={() => setDetailsMin((m) => !m)}
       onPatch={(p) => patchItem(item.id, p)} onTurn={() => turn(item.id)} onCopy={() => copy(item.id)}
       onRemove={() => void takeOut(item)} onClose={() => { setDock(false); setDetailsShut(true); }} />
@@ -665,8 +666,8 @@ const findHost = (): HTMLElement | null => (typeof document === "undefined" ? nu
 const noHost = (): HTMLElement | null => null;
 
 // ── a thing's inspector: what it is, its size, which way it faces, and why it's there ──
-function Inspector({ item, canEdit, room, target, collapsed = false, onCollapse, onPatch, onTurn, onCopy, onRemove, onClose }: {
-  item: Item; canEdit: boolean; room: Layout; target: { name: string; routeIn: number }; collapsed?: boolean; onCollapse?: () => void; onPatch: (p: Partial<Item>) => void; onTurn: () => void; onCopy: () => void; onRemove: () => void; onClose: () => void;
+function Inspector({ item, canEdit, room, target, found = [], plans = [], collapsed = false, onCollapse, onPatch, onTurn, onCopy, onRemove, onClose }: {
+  item: Item; canEdit: boolean; room: Layout; found?: readonly Finding[]; plans?: readonly Plan[]; target: { name: string; routeIn: number }; collapsed?: boolean; onCollapse?: () => void; onPatch: (p: Partial<Item>) => void; onTurn: () => void; onCopy: () => void; onRemove: () => void; onClose: () => void;
 }) {
   const k = kindOf(item.kind);
   const [w, setW] = useState(ftIn(item.w_in)), [d, setD] = useState(ftIn(item.d_in)), [h, setH] = useState(ftIn(item.h_in));
@@ -708,7 +709,10 @@ function Inspector({ item, canEdit, room, target, collapsed = false, onCollapse,
           <button type="button" className="btn-ter" onClick={onClose}>Close details</button>
         </span>
       </div>
+      {/* IMS7-E: the one line — size against the library, GT3's approval, its cost in the plan — and the rest one tap away. */}
       {!collapsed && <>
+      {/* The one line (IMS7-E) opens with the details: Less folds it with them, to a line. */}
+      <ThingInsight item={item} room={room} found={found} plans={plans} />
       {/* PROGRESSIVE DISCLOSURE (IMS4): what's changed most — its name, its size, rotate and duplicate — first; why it's here
           and the pillars it's meant to serve folded under Purpose & experience; removing it apart, at the foot. */}
       <label className="prod-f"><span>Its name in the room</span>

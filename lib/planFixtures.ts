@@ -25,9 +25,10 @@
 //   APPROVAL. Through the insight contract: an asset short of approved is the library's own insight (lib/insight
 //   fromLibrary), and a plan marked ready, go or live with such assets in its room is said once, as a look — advice, since
 //   no existing rule stops a plan for it.
-import { lineTotal, type FixtureRecon, type UseLine } from "./visionMoney";
-import { ftIn, type Item } from "./vision";
-import { fromLibrary, insight, type Insight, type Ref } from "./insight";
+import { lineTotal, toInputs, type FixtureRecon, type Inputs, type UseLine } from "./visionMoney";
+import { ftIn, type Item, type Layout } from "./vision";
+import { fromLibrary, fromSpace, insight, primary, type Insight, type Ref } from "./insight";
+import type { Finding } from "./spatial/evaluate";
 import type { Asset, CostBasis, Status } from "./experienceLibrary";
 
 export type LibAsset = Pick<Asset, "id" | "name" | "status" | "status_reason" | "cost_cents" | "cost_unit" | "cost_basis" | "w_in" | "d_in" | "h_in">;
@@ -240,4 +241,41 @@ export function fixtureInsights(o: { plan: PlanRef; room: Ref; placed: readonly 
     mark: `going|${short.map((r) => `${r.asset.id}:${r.asset.status as Status}`).sort().join(",")}`,
   }));
   return out;
+}
+
+// ── THE STUDIO'S ONE LINE (IMS7-E) ────────────────────────────────────────────────────────────────────────────────────
+/** What a thing picked in the Studio says: the one most useful line (the room's checks and the library, through the
+ *  contract, the library's word first), how many more, and three short facts — its size against the library, GT3's
+ *  approval, its cost in the plans this room belongs to — each only when it's known. */
+export function thingSays(o: { item: Placed; room: Pick<Layout, "id" | "name"> & { items: readonly Placed[] }; found: readonly Finding[]; asset: LibAsset | null;
+  named: string | null; loaded: boolean; blockers: readonly string[]; pending: number; plans: readonly { plan: PlanRef; base: Inputs }[] }): { top: Insight | null; more: number; all: Insight[]; facts: string[] } {
+  const { item, asset } = o;
+  const roomRef: Ref = { kind: "layout", id: o.room.id, name: o.room.name };
+  const space = o.found.filter((f) => f.ids.includes(item.id)).map((f) => fromSpace(f, roomRef));
+  const assets = new Map(asset ? [[asset.id, asset]] : []);
+  const here = o.room.items.filter((x) => !!x.library_id && x.library_id === asset?.id);
+  // No plan reads this room: the library's own word (status, size) still holds; there's no plan to cost it against.
+  const noPlan = { plan: { id: "", name: "", status: "draft" }, base: toInputs({}) };
+  const fix: Insight[] = asset ? (o.plans.length ? o.plans : [noPlan]).flatMap(({ plan, base }) =>
+    fixtureInsights({ plan, room: roomRef, placed: here, assets, lines: base.uses, fixtures: base.fixtures, blockers: new Map([[asset.id, o.blockers]]), pending: new Map([[asset.id, o.pending]]) })
+      .filter((i) => (plan.id ? true : !["not_in_plan", "cost_differs", "going_unapproved", "shared_room"].includes(i.rule))))
+    // About this thing: its own size, its asset, the plan going ahead with it — not another placement's size.
+    .filter((i) => (i.rule === "size_differs" || i.rule === "size_turned" ? i.subject.id === item.id : true)) : [];
+  // The Studio's line (lib/insight primary): ranked by tier, the thing in hand first; another screen's lesser finding
+  // (a plan's money look) is never the line here — it waits under "n more".
+  const { top, more, all } = primary([...space, ...fix], { surface: "store", subject: item.id, prefer: ["library", "space"] });
+  const facts: string[] = [];
+  if (asset) {
+    const t = sizeTruth(item, asset);
+    facts.push(t.unknown.length === 3 ? "Size: not in the library" : t.differs.length ? "Size: differs from the library" : t.turned ? "Size: matches, drawn turned" : "Size: matches the library");
+    facts.push(asset.status === "approved" ? (o.blockers.length ? "Approved — judgement no longer complete" : "Approved for GT3") : "Not approved for GT3 yet");
+    if (!o.plans.length) facts.push("In no plan yet");
+    else {
+      // Represented: its own line, inside the allowance, or a confirmed extra — a person's answer, never assumed.
+      const st = o.plans.map(({ base }) => fixtureCosts(here, assets, base.uses, base.fixtures ?? {}).rows[0]?.status ?? "unreviewed");
+      const counted = st.map((x) => x === "named_line" || x === "in_allowance" || x === "incremental");
+      facts.push(counted.every(Boolean) ? "Cost: in the plan" : counted.some(Boolean) ? "Cost: in some plans" : st.every((x) => x === "excluded") ? "Not this plan's" : "Cost: not reviewed in the plan");
+    }
+  } else if (o.named && o.loaded) facts.push("Its library asset couldn't be found");
+  return { top, more, all, facts };
 }

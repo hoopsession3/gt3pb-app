@@ -108,9 +108,11 @@
 /* the floating and in-3D cards (IMS2/IMS4b) — after the docked column's width, which they replace */
 .vz-studio.full .vz-dock.over{position:absolute;right:10px;top:10px;z-index:4;width:min(340px,46%);max-height:calc(100% - 20px)}
 .vz-studio.short.full .vz-dock.over{width:min(280px,40%)}
-.vz-studio.full .vz-dock.in3d{position:absolute;left:10px;right:10px;bottom:10px;z-index:4;max-height:min(46%,420px);width:auto;overflow-y:auto}
+/* The card at the foot of the 3D never takes so much that the room drawn keeps under 70% of its size (smoke.console):
+   46%/420px held only while a thing's details were short; with what GT3 knows about it (IMS7-E) it scrolls sooner. */
+.vz-studio.full .vz-dock.in3d{position:absolute;left:10px;right:10px;bottom:10px;z-index:4;max-height:min(40%,340px);width:auto;overflow-y:auto}
 .vz-dock.in3d .vz-insp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:8px 16px;align-items:start}
-.vz-dock.in3d .vz-insp>:first-child,.vz-dock.in3d .vz-insp>.vz-insp-foot{grid-column:1/-1}
+.vz-dock.in3d .vz-insp>:first-child,.vz-dock.in3d .vz-insp>.vz-insp-foot,.vz-dock.in3d .vz-insp>.vz-thing{grid-column:1/-1}
 .vz-pill-issue{position:absolute;left:10px;bottom:10px;z-index:3;color:var(--warn)}
 .vz-pill-issue.error{color:var(--red-h,#dd5651)}
 /* full screen: the whole display, safe areas kept */
