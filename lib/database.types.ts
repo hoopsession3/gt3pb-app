@@ -14687,6 +14687,8 @@ export type Database = {
         { Args: { p_code: string | null; p_cents: number | null; p_key?: string | null }; Returns: number }
       vendor_dupe_candidates:
         { Args: { p_threshold?: number | null }; Returns: { a: string; a_name: string; b: string; b_name: string; sim: number }[] }
+      vision_share_baseline:
+        { Args: { b: Json | null }; Returns: Json }
       vision_shared:
         { Args: { p_token: string | null }; Returns: Json }
       vision_version_write:
