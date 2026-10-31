@@ -5,6 +5,7 @@ import { useAuth, roleOf } from "./AuthProvider";
 import { useWorkStreams, type WorkStream } from "@/lib/streams";
 import Sheet from "./Sheet";
 import BottomNav from "./BottomNav";
+import HqNav, { useHqBar } from "./HqNav";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
 import { scrollToTop } from "@/lib/appScroll";
@@ -143,7 +144,14 @@ export const SECTION_LABEL = LABELS;
 
 
 
+// THE HQ BAR RIDES THE CONSOLE'S CHUNK (IMS7, 2026-11-01). The vision's HQ bar (components/HqNav) is loaded with this
+// file — already lazy in the shell, and fetched only on the console and the vision — so no other page's bundle carries a
+// loader for it (a lazy import of its own added a kilobyte to every route; /playbook crossed its ceiling).
 export default function OperatorNav() {
+  return useHqBar() ? <HqNav /> : <ConsoleNav />;
+}
+
+function ConsoleNav() {
   const { profile } = useAuth();
   const { section, setSection } = useOperatorSection();
   const role = roleOf(profile);

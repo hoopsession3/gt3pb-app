@@ -35,6 +35,20 @@ export function surfaceOf(pathname: string | null | undefined): Surface {
 /** The drinks cart bar, a live order's status, the guest concierge and the marketing splash. */
 export const showsCommerce = (s: Surface): boolean => s === "customer";
 
+// GT3 HQ (IMS7, 2026-10-31 — Ryan: "distinguish authorized GT3 HQ tools from public customer navigation"). The crew's
+// planning tools outside the console — the vision: the roadmap, the plans, the store, the Standard, the library, the menu.
+// Still "work" above (no cart, no concierge); what changes is the bar under it. The crew get the HQ bar (back to the
+// console, and where they are); anyone else keeps the customer bar, so a guest who lands on /vision can still leave the
+// way they came. The bar is not the boundary: the page refuses anyone outside the crew (lib/access staffAccess) and the
+// database refuses their reads either way. Choosing a bar only decides which links someone is offered.
+/** Which bar a page carries: the console's own, the HQ bar (the vision and anything under it), the customer bar, or none
+ *  (a share link). Written like deskRoute below, which it ships beside in every page's bundle (/playbook sits on its weight ceiling). */
+export type NavKind = "operator" | "hq" | "customer" | "none";
+export const navOf = (pathname: string | null | undefined): NavKind => {
+  const p = pathname || "/", s = surfaceOf(p);
+  return s === "share" ? "none" : s === "console" ? "operator" : p === "/vision" || p.startsWith("/vision/") ? "hq" : "customer";
+};
+
 // THE DESK (2026-10-09, redesign 5, approved by Ryan 2026-10-08). From 1,024 wide in landscape — a laptop, a
 // desktop, an iPad on its side — the crew console and an office client's home leave the phone frame: the tab bar
 // is a sidebar and the page a canvas of two columns up to 1,240 wide (app/globals.css THE DESK, and the `desk:`

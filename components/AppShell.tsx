@@ -32,7 +32,7 @@ import MarketingSplash from "./MarketingSplash";
 import BroadcastBanner from "./BroadcastBanner";
 import TitleBar from "./TitleBar";
 import { isNativeApp } from "@/lib/native";
-import { surfaceOf, showsCommerce, deskRoute } from "@/lib/surfaces";
+import { surfaceOf, showsCommerce, deskRoute, navOf } from "@/lib/surfaces";
 import { holdFocusZoom } from "@/lib/ios";
 import dynamic from "next/dynamic";
 import { scrollMotion } from "@/lib/motion";
@@ -291,7 +291,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Fence name="notifications"><Notifications /></Fence>
         <Fence name="order-status">{customerSurface ? <OrderStatus /> : null}</Fence>
         <Fence name="cart-bar">{customerSurface ? <CartBar /> : null}</Fence>
-        <Fence name="nav">{isShare ? null : inAdmin ? <OperatorNav /> : <BottomNav />}</Fence>
+        {/* Which bar (lib/surfaces navOf): none on a share link; the lazy one on the console and the vision (OperatorNav gives
+            the vision the HQ bar itself, so every other page's bundle carries one comparison only); else the customer's. */}
+        <Fence name="nav">{isShare ? null : inAdmin || navOf(pathname) === "hq" ? <OperatorNav /> : <BottomNav />}</Fence>
         {/* THE FLOATING TIER SITS ON THE CHROME, NOT ON A NUMBER (2026-10-04).
             The theme toggle, the quick-actions button, the offline chip and the update prompt were
             each position:fixed at a guess — `calc(var(--navh, 68px) + 16px)` — and --navh was never
