@@ -95,5 +95,14 @@ export async function seedConsoleWorld(db) {
     values ($1, 'Fixture bench', 'seating', 'bench', 60, 18, 18, '{stillness}', 42000, 'each', 'estimated', 'Fixture quote', 'Fixture maker', 'Fixture supplier'),
            ($1, 'Fixture floor lamp', 'lighting', null, 18, 18, 60, '{light}', null, null, null, null, null, null),
            ($1, 'Fixture surface cleaner', 'cleaning', null, null, null, null, '{}', null, null, null, null, null, null)`, [T1]);
+  // IMS6 A3: research left to decide on the bench (0462) — two sources disagreeing on its width, a seller's claim, one
+  // safe fact — so the phone check draws the draft card, exceptions first. Fixture sources, no real page.
+  await run("library facts", `insert into public.std_asset_facts (tenant_id, material_id, field, value, unit, source_class, source_kind, source_ref, source_title, source_locator, method, confidence)
+    select $1, m.id, f.field, f.value::jsonb, f.unit, f.cls, 'url', f.ref, f.title, 'Specifications', 'quoted', 'high'
+      from public.std_materials m, (values ('w_in', '60', 'in', 'manufacturer', 'https://maker.example/bench', 'Fixture spec page'),
+                                          ('w_in', '59', 'in', 'supplier', 'https://shop.example/bench', 'Fixture listing'),
+                                          ('claim', '"Non-toxic finish"', null, 'supplier', 'https://shop.example/bench', 'Fixture listing'),
+                                          ('h_in', '18', 'in', 'manufacturer', 'https://maker.example/bench', 'Fixture spec page')) as f(field, value, unit, cls, ref, title)
+     where m.name = 'Fixture bench'`, [T1]);
   return notes;
 }

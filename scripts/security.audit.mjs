@@ -193,10 +193,10 @@ export const ACCOUNT_TRIGGERS = {
 };
 // The buckets the app writes to, each held to a size and a list of types — lib/bucketTakes' (R18), which r18.test holds
 // equal to the migrations' and r19.test holds equal to this.
-export const BUCKET_CAPS = ["avatars", "vip", "content", "shop", "brand", "training", "intake", "note-files", "receipts"];
+export const BUCKET_CAPS = ["avatars", "vip", "content", "shop", "brand", "training", "intake", "note-files", "receipts", "library-intake"];
 // The buckets that hold what only the crew or the person may see (0088, 0217, 0262, 0292): never public — a public
 // bucket serves any file to whoever has its address, whatever the row rules say.
-export const PRIVATE_BUCKETS = ["intake", "note-files", "receipts", "vip"];
+export const PRIVATE_BUCKETS = ["intake", "note-files", "receipts", "vip", "library-intake"];   // library-intake: 0462 (IMS6)
 
 const API_ROLES = ["anon", "authenticated"];
 const CMD = { r: "select", a: "insert", w: "update", d: "delete", "*": "all" };

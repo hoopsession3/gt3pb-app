@@ -6,9 +6,11 @@ import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useAppStable } from "@/components/AppProvider";
 import AsyncSection from "@/components/AsyncSection";
+import Said from "@/components/Said";
 import { Segmented } from "@/components/controls";
 import { failureWords } from "@/lib/failureWords";
 import type { Database } from "@/lib/database.types";
+import { Ask, DraftCard } from "./LibraryIntake";
 import { CATALOG, PILLAR_WORD, type Pillar } from "@/lib/vision";
 import {
   CATEGORIES, CATEGORY_WORD, NEEDS_REASON, STATUSES, STATUS_MEANS, STATUS_WORD,
@@ -25,22 +27,24 @@ import {
 type Spec = { id: string; name: string; notes: string | null; status: "draft" | "approved" | "retired"; decided_at: string | null };
 type SpecItem = { id: string; spec_id: string; material_id: string; qty: number | null; unit: string | null };
 type Hist = { material_id: string; from_status: string | null; to_status: Status; reason: string | null; changed_at: string };
-type Data = { assets: Asset[]; specs: Spec[]; items: SpecItem[]; hist: Hist[] };
+type Data = { assets: Asset[]; specs: Spec[]; items: SpecItem[]; hist: Hist[]; pending: Map<string, number> };
 
 async function readLibrary(): Promise<Data> {
   if (!supabase) throw new Error("Supabase client not configured");
   const sb = supabase;
   // 0461 is applied (2026-10-31): the library's columns and tables are always there.
-  const [m, s, i, h] = await Promise.all([
+  const [m, s, i, h, pf] = await Promise.all([
     sb.from("std_materials").select("*").order("name"),
     sb.from("std_specs").select("id, name, notes, status, decided_at").order("created_at"),
     sb.from("std_spec_items").select("id, spec_id, material_id, qty, unit"),
     sb.from("std_material_status").select("material_id, from_status, to_status, reason, changed_at").order("changed_at", { ascending: false }).limit(500),
+    sb.from("std_asset_facts").select("material_id").eq("review", "pending").limit(5000),   // 0462: what research found, still to decide
   ]);
-  const err = s.error ?? i.error ?? h.error ?? m.error;
+  const err = s.error ?? i.error ?? h.error ?? m.error ?? pf.error;
   if (err) throw new Error(err.message);
   const rows = (m.data ?? []) as Record<string, unknown>[];
-  return { assets: rows.map(toAsset), specs: (s.data ?? []) as Spec[], items: ((i.data ?? []) as SpecItem[]).map((x) => ({ ...x, qty: x.qty == null ? null : Number(x.qty) })), hist: (h.data ?? []) as Hist[] };
+  return { assets: rows.map(toAsset), specs: (s.data ?? []) as Spec[], items: ((i.data ?? []) as SpecItem[]).map((x) => ({ ...x, qty: x.qty == null ? null : Number(x.qty) })), hist: (h.data ?? []) as Hist[],
+    pending: ((pf.data ?? []) as { material_id: string }[]).reduce((mp, r) => mp.set(r.material_id, (mp.get(r.material_id) ?? 0) + 1), new Map<string, number>()) };
 }
 
 const PILLARS: Pillar[] = ["movement", "stillness", "light", "fuel"];
@@ -62,46 +66,111 @@ export default function Library({ isOwner }: { isOwner: boolean }) {
   );
 }
 
+// DISCOVER (IMS6 A3): one search, the categories as chips, a Filters action; then the assets as cards — a picture (only a
+// source's own, said as theirs) or an honest placeholder, the name, the category, a short status. INSPECT opens under the
+// grid: what it is, its size and makings, the pillars it's meant to serve (intent), its status and what the Standard
+// still needs, its cost with its basis, and — when research left facts to decide — the draft card, exceptions first.
+// MANAGE (the full form, the status steps, the record) stays one action away, never the first thing seen.
 function Assets({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () => void }) {
   const [f, setF] = useState<Filter>({});
   const [open, setOpen] = useState<string | null>(null);
+  const [manage, setManage] = useState(false);
   const [pick, setPick] = useState<string[]>([]);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<"ask" | "manual" | null>(null);
+  const [filters, setFilters] = useState(false);
   const list = useMemo(() => filterAssets(d.assets, f), [d.assets, f]);
   const shown = d.assets.find((a) => a.id === open) ?? null;
   const compared = pick.map((id) => d.assets.find((a) => a.id === id)).filter((a): a is Asset => !!a);
-  const counts = useMemo(() => Object.fromEntries(STATUSES.map((st) => [st, d.assets.filter((a) => a.status === st && !a.archived_at).length])), [d.assets]);
+  const present = useMemo(() => CATEGORIES.filter(([k]) => d.assets.some((a) => a.category === k && !a.archived_at)), [d.assets]);
+  const active = [f.status && `Status: ${STATUS_WORD[f.status]}`, f.pillar && `Pillar: ${PILLAR_WORD[f.pillar]}`].filter(Boolean) as string[];
+  const openOne = (id: string) => { setOpen(id); setManage(false); };
   return (
     <div className="flex flex-col gap-3">
-      <p className="vz-card-s">Everything GT3 might place in a location, judged by the Primal Standard. A status says only what it means — unknown is never approved, and nothing here is a certification.</p>
-      <div className="xl-filters">
-        <label className="prod-f"><span>Find</span><input type="search" value={f.text ?? ""} placeholder="Name, maker, finish…" onChange={(e) => setF({ ...f, text: e.target.value })} /></label>
-        <label className="prod-f"><span>Category</span><select value={f.category ?? ""} onChange={(e) => setF({ ...f, category: e.target.value as Category | "" })}><option value="">All</option>{CATEGORIES.map(([k, w]) => <option key={k} value={k}>{w}</option>)}</select></label>
-        <label className="prod-f"><span>Status</span><select value={f.status ?? ""} onChange={(e) => setF({ ...f, status: e.target.value as Status | "" })}><option value="">All</option>{STATUSES.map((st) => <option key={st} value={st}>{STATUS_WORD[st]} ({counts[st]})</option>)}</select></label>
-        <label className="prod-f"><span>Pillar (intent)</span><select value={f.pillar ?? ""} onChange={(e) => setF({ ...f, pillar: e.target.value as Pillar | "" })}><option value="">All</option>{PILLARS.map((p) => <option key={p} value={p}>{PILLAR_WORD[p]}</option>)}</select></label>
+      <div className="xl-bar">
+        <label className="prod-f xl-search"><span className="sr-only">Find an asset</span><input type="search" value={f.text ?? ""} placeholder="Search the library" aria-label="Search the library" onChange={(e) => setF({ ...f, text: e.target.value })} /></label>
+        <button type="button" className="btn-sec btn-sm" aria-expanded={filters} onClick={() => setFilters(!filters)}>Filters{active.length ? ` · ${active.length}` : ""}</button>
+        <button type="button" className="btn-pri btn-sm" onClick={() => setAdding(adding ? null : "ask")}>Add an asset</button>
       </div>
-      <div className="flex flex-wrap gap-2 items-center">
-        <button type="button" className="btn-pri btn-sm" onClick={() => setAdding(true)}>Add an asset</button>
-        {pick.length > 0 && <span className="vz-card-s">{pick.length} picked to compare{pick.length < 2 ? " — pick another" : ""}</span>}
-        {pick.length > 0 && <button type="button" className="btn-ter btn-sm" onClick={() => setPick([])}>Clear</button>}
-      </div>
-      {adding && <AddAsset onDone={(id) => { setAdding(false); if (id) { setOpen(id); reload(); } }} />}
+      {present.length > 0 && (
+        <div className="xl-chips" role="group" aria-label="Categories">
+          <button type="button" className={`k-chip${!f.category ? " on" : ""}`} aria-pressed={!f.category} onClick={() => setF({ ...f, category: "" })}>All</button>
+          {present.map(([k, w]) => <button key={k} type="button" className={`k-chip${f.category === k ? " on" : ""}`} aria-pressed={f.category === k} onClick={() => setF({ ...f, category: f.category === k ? "" : k })}>{w}</button>)}
+        </div>
+      )}
+      {filters && (
+        <div className="mpanel p-3 xl-filters" role="group" aria-label="Filters">
+          <label className="prod-f"><span>Status</span><select value={f.status ?? ""} onChange={(e) => setF({ ...f, status: e.target.value as Status | "" })}><option value="">Any</option>{STATUSES.map((st) => <option key={st} value={st}>{STATUS_WORD[st]}</option>)}</select></label>
+          <label className="prod-f"><span>Pillar (intent)</span><select value={f.pillar ?? ""} onChange={(e) => setF({ ...f, pillar: e.target.value as Pillar | "" })}><option value="">Any</option>{PILLARS.map((p) => <option key={p} value={p}>{PILLAR_WORD[p]}</option>)}</select></label>
+        </div>
+      )}
+      {(active.length > 0 || f.category || f.text) && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <Said as="span" className="vz-card-s">{list.length} shown{active.length ? ` · ${active.join(" · ")}` : ""}</Said>
+          <button type="button" className="btn-ter btn-sm" onClick={() => setF({})}>Reset</button>
+        </div>
+      )}
+      {adding === "ask" && <Ask onManual={() => setAdding("manual")} onDone={(id) => { if (id) { setAdding(null); openOne(id); } reload(); }} />}
+      {adding === "manual" && <AddAsset onDone={(id) => { setAdding(null); if (id) { openOne(id); setManage(true); reload(); } }} />}
+      {shown && (
+        <section className="mpanel p-3 flex flex-col gap-3" aria-label={`${shown.name} — inspect`}>
+          <div className="flex flex-wrap items-start gap-2 justify-between">
+            <div className="flex flex-col gap-1 min-w-0"><b className="font-sans text-subhead">{shown.name}</b><span className="vz-card-s">{CATEGORY_WORD[shown.category]}{shown.maker ? ` · ${shown.maker}` : ""}</span></div>
+            <button type="button" className="btn-ter btn-sm" onClick={() => setOpen(null)}>Close</button>
+          </div>
+          <Inspect a={shown} pending={d.pending.get(shown.id) ?? 0} reload={reload} />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-sec btn-sm" aria-pressed={pick.includes(shown.id)} disabled={!pick.includes(shown.id) && pick.length >= 3} onClick={() => setPick(pick.includes(shown.id) ? pick.filter((x) => x !== shown.id) : [...pick, shown.id])}>{pick.includes(shown.id) ? "In the comparison" : "Compare"}</button>
+            <button type="button" className="btn-ter btn-sm" aria-expanded={manage} onClick={() => setManage(!manage)}>{manage ? "Hide management" : "Manage"}</button>
+          </div>
+          {manage && <Detail a={shown} d={d} isOwner={isOwner} reload={reload} />}
+        </section>
+      )}
       {compared.length >= 2 && <Compare list={compared} />}
-      {!list.length ? <p className="vz-card-s">{d.assets.length ? "Nothing matches." : "The library is empty. Add the first asset — it starts as a candidate."}</p> : (
-        <ul className="xl-list" aria-label="Assets">
+      {compared.length === 1 && <span className="vz-card-s">1 in the comparison — open another and press Compare.</span>}
+      {!list.length ? <p className="vz-card-s">{d.assets.length ? "Nothing matches." : "The library is empty. Add the first asset: paste its link, describe it, or upload its spec sheet."}</p> : (
+        <ul className="xl-cards" aria-label="Assets">
           {list.map((a) => (
-            <li key={a.id} className="xl-row">
-              <label className="xl-pick" title="Compare"><input type="checkbox" checked={pick.includes(a.id)} disabled={!pick.includes(a.id) && pick.length >= 3} onChange={(e) => setPick(e.target.checked ? [...pick, a.id] : pick.filter((x) => x !== a.id))} aria-label={`Compare ${a.name}`} /></label>
-              <button type="button" className="xl-open" aria-expanded={open === a.id} onClick={() => setOpen(open === a.id ? null : a.id)}>
-                <b className="font-sans">{a.name}</b>
-                <span className="vz-card-s">{CATEGORY_WORD[a.category]} · {sizeWords(a)} · {costWords(a)}</span>
+            <li key={a.id}>
+              <button type="button" className="xl-card mpanel" aria-current={open === a.id ? "true" : undefined} onClick={() => openOne(a.id)} aria-label={`${a.name}, ${CATEGORY_WORD[a.category]}, ${STATUS_WORD[a.status]}${d.pending.get(a.id) ? `, ${d.pending.get(a.id)} to decide` : ""}`}>
+                <Picture a={a} />
+                <span className="xl-card-t">{a.name}</span>
+                <span className="vz-card-s">{CATEGORY_WORD[a.category]}</span>
+                <span className="xl-card-f"><span className={`k-chip xl-st xl-st-${a.status}`}>{STATUS_WORD[a.status]}</span>{d.pending.get(a.id) ? <span className="vz-card-s">{d.pending.get(a.id)} to decide</span> : null}</span>
               </button>
-              <span className={`k-chip xl-st xl-st-${a.status}`}>{STATUS_WORD[a.status]}</span>
-              {open === a.id && shown && <Detail a={shown} d={d} isOwner={isOwner} reload={reload} />}
             </li>
           ))}
         </ul>
       )}
+      <p className="vz-card-s">A status says only what it means: unknown is never approved, and nothing here is a certification.</p>
+    </div>
+  );
+}
+
+/** An asset's picture: its accepted https image, loaded lazily at card size — or an honest placeholder. */
+function Picture({ a, big = false }: { a: Asset; big?: boolean }) {
+  return a.image_url
+    // eslint-disable-next-line @next/next/no-img-element -- a source's own picture on any host (CSP img-src https:); lazy, at card size
+    ? <img className={big ? "xl-img xl-img-big" : "xl-img"} src={a.image_url} alt={`${a.name} — image from its source`} loading="lazy" decoding="async" />
+    : <span className={big ? "xl-ph xl-img-big" : "xl-ph"} aria-hidden="true"><span>{CATEGORY_WORD[a.category].slice(0, 2).toUpperCase()}</span></span>;
+}
+
+function Inspect({ a, pending, reload }: { a: Asset; pending: number; reload: () => void }) {
+  const loadB = useCallback(async () => { if (!supabase) return [] as string[]; const { data, error } = await supabase.rpc("std_material_blockers", { p_id: a.id }); if (error) throw new Error(error.message); return (data ?? []) as string[]; }, [a.id]);
+  const blockers = useAsyncData(loadB, [a.id, a.status]);
+  return (
+    <div className="xl-inspect">
+      {pending > 0
+        ? <DraftCard material={a.id} name={a.name} category={a.category} missingEvidence={blockers.data ?? []} onChanged={reload} />
+        : <figure className="xl-hero"><Picture a={a} big /><figcaption className="vz-card-s">{a.image_url ? "Image from its source — not verified as this exact product." : "No image yet — a placeholder, not the product."}</figcaption></figure>}
+      <dl className="xl-specs">
+        <dt>Status</dt><dd>{STATUS_WORD[a.status]} — {STATUS_MEANS[a.status]}{a.status_reason ? ` (${a.status_reason})` : ""}</dd>
+        <dt>Evidence</dt><dd>{blockers.error ? "Couldn't read the Standard's judgement just now." : !blockers.data ? "Reading…" : blockers.data.length ? blockers.data.join(" ") : "The Standard's judgement is complete."}</dd>
+        <dt>Size</dt><dd>{sizeWords(a)}</dd>
+        <dt>Made of</dt><dd>{a.composition ?? "Not said"}{a.finishes ? ` · ${a.finishes}` : ""}</dd>
+        <dt>Meant to serve</dt><dd>{a.pillars.length ? `${a.pillars.map((p) => PILLAR_WORD[p]).join(", ")} (intent, not an assessment)` : "Not said"}</dd>
+        <dt>Cost</dt><dd>{costWords(a)}{a.cost_source ? ` — ${a.cost_source}` : ""}</dd>
+        <dt>Supplier</dt><dd>{a.supplier ?? "Not known"}</dd>
+      </dl>
     </div>
   );
 }
@@ -192,7 +261,7 @@ function Detail({ a, d, isOwner, reload }: { a: Asset; d: Data; isOwner: boolean
               : <input inputMode={f.num ? "decimal" : "text"} value={val(f.k)} onChange={(e) => setDraft({ ...draft, [f.k]: e.target.value })} />}
           </label>
         ))}
-        <label className="prod-f"><span>Placed in the Studio as</span><select value={kind} onChange={(e) => setKind(e.target.value)}><option value="">Not placed as a Studio object</option>{CATALOG.map((k) => <option key={k.kind} value={k.kind}>{k.name}</option>)}</select></label>
+        <label className="prod-f"><span>Placed in the Studio as</span><select value={kind} onChange={(e) => setKind(e.target.value)}><option value="">Not a Studio object</option>{CATALOG.map((k) => <option key={k.kind} value={k.kind}>{k.name}</option>)}</select></label>
       </div>
       <fieldset className="xl-cost"><legend className="font-sans font-bold">Cost — said with its basis and source</legend>
         <label className="prod-f"><span>Dollars</span><input inputMode="decimal" value={cost.dollars} onChange={(e) => setCost({ ...cost, dollars: e.target.value })} /></label>

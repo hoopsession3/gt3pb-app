@@ -23,6 +23,8 @@ export const BUCKET_TAKES: Readonly<Record<string, BucketTakes>> = {
   intake: { maxBytes: 25 * MB, types: ["image/*", "application/pdf", "text/plain", "text/csv", "text/markdown"], said: "a picture, a PDF or a text file" },
   "note-files": { maxBytes: 25 * MB, types: ["image/*", "application/pdf", "text/plain"], said: "a picture, a PDF or a text file" },
   receipts: { maxBytes: 20 * MB, types: ["image/*", "application/pdf"], said: "a photo or a PDF" },
+  // 0462 (IMS6): a spec sheet or a product photo for the library's research — what the bucket itself allows.
+  "library-intake": { maxBytes: 20 * MB, types: ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"], said: "a PDF or a photo (JPEG, PNG, WebP or HEIC)" },
 };
 
 /** Why this bucket won't take this file, in words a person can act on — or null when it will. The type is lib/fileType's;

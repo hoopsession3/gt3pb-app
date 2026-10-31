@@ -176,8 +176,10 @@ ok("the rewrite's own function went with the paste's session", Number((await q1(
   const keyFindings = v.hard.filter((h) => h.startsWith("money-key"));
   ok(`snapshot: every unique key the money stands on is made by the migrations (${Object.keys(MONEY_KEYS).length}) — the names the audit asks for are real`, keyFindings.length === 0, keyFindings);
   const capFindings = v.hard.filter((h) => h.startsWith("bucket-caps"));
+  // This schema stops before 0425; a bucket a later migration makes is checked by the migration's own test (0462: db.ims6a1).
+  const MADE_LATER = ["library-intake"];
   ok("snapshot: every bucket the app writes to is made and capped by the migrations (0421, 0423) — and the private ones private",
-    capFindings.length === 0 && BUCKET_CAPS.every((id) => snap.b.some((b) => b[0] === id)) && !v.hard.some((h) => h.startsWith("bucket-private")), { capFindings, buckets: snap.b.map((b) => b[0]) });
+    capFindings.length === 0 && BUCKET_CAPS.filter((id) => !MADE_LATER.includes(id)).every((id) => snap.b.some((b) => b[0] === id)) && !v.hard.some((h) => h.startsWith("bucket-private")), { capFindings, buckets: snap.b.map((b) => b[0]) });
   ok("snapshot: on the rewritten policies, no table the API roles reach has RLS off and no write policy is open (the two exempted aside)",
     !v.hard.some((h) => /rls-off|open-write/.test(h) && !/booking_requests|funnel_events/.test(h)), v.hard);
   ok("snapshot: …and no policy is left calling a helper bare", (await bareCount()) === 0, await bareCount());

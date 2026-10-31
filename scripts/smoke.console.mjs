@@ -123,8 +123,13 @@ const VISITS = [
   // MEN1 — Menu & economics: the menu, a product's evidence and economics, and a location's assortment, on every phone.
   { key: "vision-menu", path: "/vision", ready: ".vz-board", clicks: ["Menu"], drawn: ".vz-menu-card", long: true },
   // IMS5b: the library — the list, and a row opened (its status, judgement, cost with its basis, record).
-  { key: "vision-library", path: "/vision", ready: ".vz-board", clicks: ["Library"], drawn: ".xl-list .xl-row", long: true },
-  { key: "vision-library-open", path: "/vision", ready: ".vz-board", clicks: ["Library", "Fixture bench"], drawn: ".xl-detail .xl-cost", long: true },
+  { key: "vision-library", path: "/vision", ready: ".vz-board", clicks: ["Library"], drawn: ".xl-cards .xl-card", long: true },
+  // IMS6 A3: an asset inspected (no findings to decide), one with research left to review (the draft card, exceptions
+  // first), Add (Ask: a link, find it for me, upload), and Manage (the full form, one action away).
+  { key: "vision-library-open", path: "/vision", ready: ".vz-board", clicks: ["Library", "Fixture floor lamp"], drawn: ".xl-inspect .xl-specs", long: true },
+  { key: "vision-library-draft", path: "/vision", ready: ".vz-board", clicks: ["Library", "Fixture bench"], drawn: ".xl-draft .xl-facts", long: true },
+  { key: "vision-library-add", path: "/vision", ready: ".vz-board", clicks: ["Library", "Add an asset"], drawn: "[aria-label='Add an asset'] [role=radiogroup]", long: true },
+  { key: "vision-library-manage", path: "/vision", ready: ".vz-board", clicks: ["Library", "Fixture floor lamp", "Manage"], drawn: ".xl-detail .xl-cost", long: true },
   { key: "vision-menu-product", path: "/vision", ready: ".vz-board", clicks: ["Menu", "RISE,"], drawn: "[aria-label='RISE — evidence and economics']", long: true },
   { key: "vision-menu-locations", path: "/vision", ready: ".vz-board", clicks: ["Menu", "Locations"], drawn: "[aria-label$='— its assortment']", long: false },
   // PF1 — Primal Food, planned: the Food tab (owners and admins), on every phone.

@@ -329,8 +329,11 @@ const BASE = "https://db.example.test";
     }
   }
   db.receipts.size ??= Number(/values \('receipts', 'receipts', false, (\d+)\)/.exec(mig("0292_"))[1]);
+  // 0462 (IMS6): the library's intake files — made with its size and types in one insert.
+  { const m = /values \('library-intake', 'library-intake', false, (\d+), array\[([^\]]*)\]\)/.exec(mig("0462_"));
+    if (m) db["library-intake"] = { size: Number(m[1]), types: m[2].split(",").map((x) => x.trim().replace(/'/g, "")) }; }
   const lib = Object.fromEntries(Object.entries(BT.BUCKET_TAKES).map(([k, v]) => [k, { size: v.maxBytes, types: [...v.types] }]));
-  ok("bucket: the app's table is the database's — every bucket, its size and its types (0421, 0423, 0292)",
+  ok("bucket: the app's table is the database's — every bucket, its size and its types (0421, 0423, 0292, 0462)",
     JSON.stringify(Object.keys(lib).sort()) === JSON.stringify(Object.keys(db).sort())
       && Object.keys(db).every((k) => lib[k].size === db[k].size && JSON.stringify(lib[k].types) === JSON.stringify(db[k].types)), { lib, db });
 }
