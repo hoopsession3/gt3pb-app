@@ -12,6 +12,7 @@ import { Segmented } from "@/components/controls";
 import { failureWords } from "@/lib/failureWords";
 import type { Database } from "@/lib/database.types";
 import { Ask, DraftCard } from "./LibraryIntake";
+import { imageFor, type Fact } from "@/lib/libraryReview";
 import { CATALOG, PILLAR_WORD, type Pillar } from "@/lib/vision";
 import { moneyRound } from "@/lib/money";
 import {
@@ -29,24 +30,36 @@ import {
 type Spec = { id: string; name: string; notes: string | null; status: "draft" | "approved" | "retired"; decided_at: string | null };
 type SpecItem = { id: string; spec_id: string; material_id: string; qty: number | null; unit: string | null };
 type Hist = { material_id: string; from_status: string | null; to_status: Status; reason: string | null; changed_at: string };
-type Data = { assets: Asset[]; specs: Spec[]; items: SpecItem[]; hist: Hist[]; pending: Map<string, number> };
+/** `pics`: a picture a source carried that nobody has decided yet (0462), by asset — shown as the source's, under the accepted one. */
+type Data = { assets: Asset[]; specs: Spec[]; items: SpecItem[]; hist: Hist[]; pending: Map<string, number>; pics: Map<string, { url: string; from: string }> };
 
 async function readLibrary(): Promise<Data> {
   if (!supabase) throw new Error("Supabase client not configured");
   const sb = supabase;
   // 0461 is applied (2026-10-31): the library's columns and tables are always there.
-  const [m, s, i, h, pf] = await Promise.all([
+  const [m, s, i, h, pf, im] = await Promise.all([
     sb.from("std_materials").select("*").order("name"),
     sb.from("std_specs").select("id, name, notes, status, decided_at").order("created_at"),
     sb.from("std_spec_items").select("id, spec_id, material_id, qty, unit"),
     sb.from("std_material_status").select("material_id, from_status, to_status, reason, changed_at").order("changed_at", { ascending: false }).limit(500),
     sb.from("std_asset_facts").select("material_id").eq("review", "pending").limit(5000),   // 0462: what research found, still to decide
+    sb.from("std_asset_facts").select("material_id, field, value, source_ref, method, review, source_class").eq("field", "image_url").eq("review", "pending").limit(2000),
   ]);
-  const err = s.error ?? i.error ?? h.error ?? m.error ?? pf.error;
+  const err = s.error ?? i.error ?? h.error ?? m.error ?? pf.error ?? im.error;
   if (err) throw new Error(err.message);
   const rows = (m.data ?? []) as Record<string, unknown>[];
   return { assets: rows.map(toAsset), specs: (s.data ?? []) as Spec[], items: ((i.data ?? []) as SpecItem[]).map((x) => ({ ...x, qty: x.qty == null ? null : Number(x.qty) })), hist: (h.data ?? []) as Hist[],
-    pending: ((pf.data ?? []) as { material_id: string }[]).reduce((mp, r) => mp.set(r.material_id, (mp.get(r.material_id) ?? 0) + 1), new Map<string, number>()) };
+    pending: ((pf.data ?? []) as { material_id: string }[]).reduce((mp, r) => mp.set(r.material_id, (mp.get(r.material_id) ?? 0) + 1), new Map<string, number>()),
+    pics: picsOf((im.data ?? []) as (Pick<Fact, "field" | "value" | "source_ref" | "method" | "review" | "source_class"> & { material_id: string })[]) };
+}
+
+/** IMS7-B: each asset's best undecided source picture (lib/libraryReview imageFor: https, never an inference). */
+function picsOf(rows: (Pick<Fact, "field" | "value" | "source_ref" | "method" | "review" | "source_class"> & { material_id: string })[]): Map<string, { url: string; from: string }> {
+  const by = new Map<string, Fact[]>();
+  for (const r of rows) by.set(r.material_id, [...(by.get(r.material_id) ?? []), r as unknown as Fact]);
+  const out = new Map<string, { url: string; from: string }>();
+  for (const [id, fs] of by) { const p = imageFor(fs); if (p) out.set(id, p); }
+  return out;
 }
 
 const PILLARS: Pillar[] = ["movement", "stillness", "light", "fuel"];
@@ -124,7 +137,7 @@ function Assets({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () 
           {list.map((a) => (
             <li key={a.id}>
               <button type="button" className="xl-card mpanel" aria-current={open === a.id ? "true" : undefined} onClick={() => openOne(a.id)} aria-label={`${a.name}, ${CATEGORY_WORD[a.category]}, ${STATUS_WORD[a.status]}${d.pending.get(a.id) ? `, ${d.pending.get(a.id)} to decide` : ""}`}>
-                <Picture a={a} />
+                <Picture a={a} pic={d.pics.get(a.id)} />
                 <span className="xl-card-t">{a.name}</span>
                 <span className="vz-card-s">{CATEGORY_WORD[a.category]}</span>
                 <span className="xl-card-f"><span className={`k-chip xl-st xl-st-${a.status}`}>{STATUS_WORD[a.status]}</span>{d.pending.get(a.id) ? <span className="vz-card-s">{d.pending.get(a.id)} to decide</span> : null}</span>
@@ -138,12 +151,17 @@ function Assets({ d, isOwner, reload }: { d: Data; isOwner: boolean; reload: () 
   );
 }
 
-/** An asset's picture: its accepted https image, loaded lazily at card size — or an honest placeholder. */
-function Picture({ a, big = false }: { a: Asset; big?: boolean }) {
-  return a.image_url
-    // eslint-disable-next-line @next/next/no-img-element -- a source's own picture on any host (CSP img-src https:); lazy, at card size
-    ? <img className={big ? "xl-img xl-img-big" : "xl-img"} src={a.image_url} alt={`${a.name} — image from its source`} loading="lazy" decoding="async" />
-    : <span className={big ? "xl-ph xl-img-big" : "xl-ph"} aria-hidden="true"><span>{CATEGORY_WORD[a.category].slice(0, 2).toUpperCase()}</span></span>;
+/** An asset's picture, best first (IMS7-B): its accepted image; else a picture a source carried, not decided yet (said as the
+ *  source's); else an honest placeholder. Lazy, at card size, its box held by its ratio (nothing jumps as it loads), and a
+ *  picture that won't load (a page moved, a host that refuses other sites) falls back to the placeholder — never a broken
+ *  image. The pictures stay on their sources' hosts: keeping our own copy needs a server step not built (said, pending). */
+function Picture({ a, pic, big = false }: { a: Asset; pic?: { url: string; from: string } | null; big?: boolean }) {
+  const src = a.image_url ? { url: a.image_url, from: null as string | null } : pic ? { url: pic.url, from: pic.from } : null;
+  const [broken, setBroken] = useState<string | null>(null);
+  const cls = big ? "xl-img xl-img-big" : "xl-img";
+  if (!src || broken === src.url) return <span className={big ? "xl-ph xl-img-big" : "xl-ph"} aria-hidden="true"><span>{CATEGORY_WORD[a.category].slice(0, 2).toUpperCase()}</span></span>;
+  // eslint-disable-next-line @next/next/no-img-element -- a source's own picture on any host (CSP img-src https:); lazy, at card size
+  return <img className={cls} src={src.url} alt={src.from ? `${a.name} — ${src.from}'s picture, not decided yet` : `${a.name} — image from its source`} loading="lazy" decoding="async" width={400} height={big ? 225 : 300} onError={() => setBroken(src.url)} />;
 }
 
 type Part = "overview" | "review" | "manage";
@@ -162,7 +180,7 @@ function Inspector({ a, d, isOwner, part, setPart, reload, onClose, compare }: {
       header={<div className="cp-head xl-sheet-head"><div className="flex flex-col min-w-0"><b>{a.name}</b><span className="vz-card-s">{CATEGORY_WORD[a.category]} · {STATUS_WORD[a.status]}</span></div><CloseButton onClick={onClose} /></div>}>
       <div className="flex flex-col gap-3">
         <Segmented label={`${a.name} — part`} kind="choice" value={shown} onChange={setPart} options={parts} />
-        {shown === "overview" && <Inspect a={a} blockers={blockers} pending={pending} onReview={() => setPart("review")} />}
+        {shown === "overview" && <Inspect a={a} pic={d.pics.get(a.id) ?? null} blockers={blockers} pending={pending} onReview={() => setPart("review")} />}
         {shown === "review" && <DraftCard material={a.id} name={a.name} category={a.category} missingEvidence={blockers.data ?? []} onChanged={reload} />}
         {shown === "manage" && <Detail a={a} d={d} isOwner={isOwner} reload={reload} />}
         <button type="button" className="btn-sec btn-sm self-start" aria-pressed={compare.on} disabled={compare.full} onClick={compare.toggle}>{compare.on ? "In the comparison" : compare.full ? "Comparing 3 already" : "Compare"}</button>
@@ -171,10 +189,10 @@ function Inspector({ a, d, isOwner, part, setPart, reload, onClose, compare }: {
   );
 }
 
-function Inspect({ a, blockers, pending, onReview }: { a: Asset; blockers: { data?: string[] | null; error?: unknown }; pending: number; onReview: () => void }) {
+function Inspect({ a, pic, blockers, pending, onReview }: { a: Asset; pic: { url: string; from: string } | null; blockers: { data?: string[] | null; error?: unknown }; pending: number; onReview: () => void }) {
   return (
     <div className="xl-inspect">
-      <figure className="xl-hero"><Picture a={a} big /><figcaption className="vz-card-s">{a.image_url ? "The source's picture — not verified as this exact product." : "No picture yet — a placeholder, not the product."}</figcaption></figure>
+      <figure className="xl-hero"><Picture a={a} pic={pic} big /><figcaption className="vz-card-s">{a.image_url ? "The source's picture — not verified as this exact product." : pic ? `${pic.from}'s picture, not decided yet — not verified as this exact product.` : "No picture yet — a placeholder, not the product."}</figcaption></figure>
       <dl className="xl-specs">
         <dt>Status</dt><dd>{STATUS_WORD[a.status]} — {STATUS_MEANS[a.status]}{a.status_reason ? ` (${a.status_reason})` : ""}</dd>
         <dt>Evidence</dt><dd>{blockers.error ? "Couldn't read the Standard's judgement just now." : !blockers.data ? "Reading…" : blockers.data.length ? blockers.data.join(" ") : "The Standard's judgement is complete."}</dd>
