@@ -69,10 +69,14 @@ ok("…and a link's viewer gets the Studio read-only", /<StoreDesigner[^>]*canEd
 
 // ── 3 · what the share function sends ──
 const migs = readdirSync(join(ROOT, "supabase/migrations")).filter((f) => f.endsWith(".sql")).sort();
-const last = migs.filter((f) => /function public\.vision_shared\(p_token text\)/.test(read(`supabase/migrations/${f}`))).at(-1);
-const sqlAll = read(`supabase/migrations/${last}`);
-const i0 = sqlAll.indexOf("function public.vision_shared(p_token text)");
-const fn = sqlAll.slice(i0, sqlAll.indexOf("$$;", sqlAll.indexOf("$$", i0) + 2));
+// The latest definition of a function across the migrations, its body only (IMS8 B1: from 0467 the door delegates to
+// vision_share_payload, and 0467/0468 redefine the door — the checks follow what a link actually sends, wherever it's built).
+const latest = (name) => { const f = migs.filter((m) => new RegExp(`create or replace function public\\.${name}\\(`).test(read(`supabase/migrations/${m}`))).at(-1); if (!f) return { file: null, body: "" };
+  const src = read(`supabase/migrations/${f}`); const i = src.lastIndexOf(`create or replace function public.${name}(`); return { file: f, src, body: src.slice(i, src.indexOf("$$;", src.indexOf("$$", i) + 2)) }; };
+const door = latest("vision_shared"), payload = latest("vision_share_payload");
+const last = door.file;
+const fn = door.body + (/vision_share_payload\(/.test(door.body) ? payload.body : "");
+const sqlAll = ["vision_share_keep", "vision_share_list", "vision_share_scenario", "vision_share_baseline"].map((n) => latest(n).body).join("\n") + "\n" + (latest("vision_share_baseline").src ?? "");
 ok(`the share function (its latest, ${last}) reads no recipe, library, research draft, Standard or AI table`, !/food_recipes|std_|academy|ai_usage|vision_plan_money\b|alerts/.test(fn), (fn.match(/food_recipes|std_\w+|academy\w*|ai_usage|vision_plan_money\b|alerts/g) ?? []));
 ok("…its research is accepted findings only, as pinned", /r\.status = 'accepted' and r\.retrieved_at <= s\.pinned_at/.test(fn));
 ok("…its money is the approved version in force when the link was pinned, only where an owner chose to show it — trimmed at the door (0463)", /'money', case when v\.id = any\(s\.money_plans\) and pv\.id is not null then jsonb_build_object\('baseline', public\.vision_share_baseline\(pv\.baseline\)/.test(fn));
@@ -81,7 +85,7 @@ ok("…built from named fields at the database (an allow-list): a line keeps its
   && /revoke all on function public\.vision_share_baseline\(jsonb\) from public, anon, authenticated;/.test(sqlAll));
 ok("…and a room carries no notes", !/'notes', l\.notes/.test(fn));
 ok("…a placed thing carries no library link (no asset, no supplier, no price)", /'id', i\.id, 'kind', i\.kind, 'label', i\.label/.test(fn) && !/library_id/.test(fn));
-ok("…a plan's needs carry their label, never the note", /'needs', coalesce\(\(select jsonb_agg\(jsonb_build_object\('label', n\.label, 'kind', n\.kind, 'due_on', n\.due_on, 'done_on', n\.done_on, 'sort', n\.sort\)/.test(fn) && !/n\.note/.test(fn));
+ok("…a plan's needs carry their label, never the note", /'needs', (case when v\.id = any\(s\.need_plans\) then )?coalesce\(\(select jsonb_agg\(jsonb_build_object\('label', n\.label, 'kind', n\.kind, 'due_on', n\.due_on, 'done_on', n\.done_on, 'sort', n\.sort\)/.test(fn) && !/n\.note/.test(fn));
 // Held at the data boundary by 0463 (its own Postgres test, db.ims7sec, calls the link as anon — new, previously issued,
 // expired, revoked, wrong and short tokens, another business). As a second layer, the screens never draw them either:
 ok("…and no investor screen draws a startup line's source, notes or library link", ![slide, read("components/vision/Present.tsx"), read("components/vision/CaseWords.tsx")].some((s) => /\b(u|l|line|x)\.(source|notes|libraryId)\b/.test(s)));
