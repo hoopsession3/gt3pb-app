@@ -14689,6 +14689,12 @@ export type Database = {
         { Args: { p_threshold?: number | null }; Returns: { a: string; a_name: string; b: string; b_name: string; sim: number }[] }
       vision_share_baseline:
         { Args: { b: Json | null }; Returns: Json }
+      vision_share_keep:
+        { Args: { o: Json | null; keys: string[] | null }; Returns: Json }
+      vision_share_list:
+        { Args: { a: Json | null; keys: string[] | null }; Returns: Json }
+      vision_share_scenario:
+        { Args: { v: Json | null }; Returns: Json }
       vision_shared:
         { Args: { p_token: string | null }; Returns: Json }
       vision_version_write:
