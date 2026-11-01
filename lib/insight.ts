@@ -31,11 +31,11 @@ export type Level = "stop" | "look" | "note";
 export const LEVELS: readonly Level[] = ["stop", "look", "note"];
 export const LEVEL_WORD: Record<Level, string> = { stop: "Stop", look: "Look", note: "Note" };
 
-export type Engine = "advisor" | "blocker" | "space" | "money" | "alert" | "library";
+export type Engine = "advisor" | "blocker" | "space" | "money" | "alert" | "library" | "publish";
 /** Who may see it — what the source screen already allows, never wider. `member`: anyone in the vision; `editor`: owners
  *  and admins; `owner`: owners; `investor`: someone on a share link; `team`: crew with the alert. */
 export type Scope = "owner" | "editor" | "member" | "investor" | "team";
-export type Ref = { kind: "plan" | "layout" | "item" | "asset" | "order" | "invoice" | "dispute" | "budget" | "alert"; id: string; name?: string };
+export type Ref = { kind: "plan" | "layout" | "item" | "asset" | "order" | "invoice" | "dispute" | "budget" | "alert" | "program" | "link"; id: string; name?: string };
 /** Acknowledgement or resolution as the source keeps it; null where the source keeps none. */
 export type State = "open" | "in_progress" | "pending_verification" | "risk_accepted" | "acceptance_lapsed" | "claimed" | "acknowledged";
 /** What kind of thing it is about (IMS7 refinement). Set per engine rule in one table (CLASS), never per screen. */
@@ -45,7 +45,7 @@ export type Domain = "safety" | "regulatory" | "operational" | "approval" | "evi
  *  dependencies · 5 optimization · 6 information. A rank, not an authority: `blocks` still comes only from an enforcing rule. */
 export type Tier = 1 | 2 | 3 | 4 | 5 | 6;
 /** The screen an insight belongs to — where its action is taken. */
-export type Surface = "plans" | "store" | "library" | "money" | "alerts" | "investor";
+export type Surface = "plans" | "store" | "library" | "money" | "alerts" | "investor" | "links";
 
 export type Insight = {
   /** Stable while the condition is the same: engine · rule · subject · what within it. */
@@ -125,12 +125,22 @@ const CLASS: Record<Engine, Record<string, Class | ((native: string) => Class)>>
     over_allowance: ["financial", 3],
     no_cost: ["info", 6], needs_quantity: ["info", 6], size_turned: ["info", 6], shared_room: ["info", 6], recon_conflict: ["info", 6],
   },
+  // IMS8 P4 (lib/publishReadiness): what a link would send, before it's sent. Its five classes are kept on the finding
+  // (`cls`); here only their domain and tier. What the database refuses, and what needs an owner, are approvals.
+  publish: {
+    no_editor: ["approval", 2], no_label: ["readiness", 4], nothing_chosen: ["readiness", 4], plan_not_shown: ["approval", 2], not_this_business: ["approval", 2],
+    money_owner_only: ["approval", 2], money_without_plan: ["readiness", 4],
+    asks_unset: ["financial", 3], uses_unpriced: ["financial", 3], newer_approval: ["approval", 2], internal_words: ["approval", 2],
+    program_no_target: ["readiness", 4], plan_no_gate: ["readiness", 4], need_no_due: ["readiness", 4], room_draft_name: ["readiness", 4], room_empty: ["readiness", 4],
+    blockers_open: ["readiness", 4], money_not_approved: ["readiness", 4],
+    placeholder: ["optimization", 5], duplicate: ["optimization", 5], lone_emoji: ["optimization", 5],
+  },
 };
 export function classify(engine: Engine, rule: string, native: string): Class {
   const c = CLASS[engine][rule] ?? CLASS[engine]["*"] ?? ["info", 6];
   return typeof c === "function" ? c(native) : c;
 }
-const HOME: Record<string, Surface> = { plans: "plans", store: "store", library: "library", money: "money" };
+const HOME: Record<string, Surface> = { plans: "plans", store: "store", library: "library", money: "money", links: "links" };
 
 /** Builds an insight with every field said (the adapters' one constructor; lib/planFixtures uses it too). Domain and tier
  *  come from CLASS unless an adapter says otherwise (a site check is never tier 1). */
@@ -158,6 +168,8 @@ export const LEVEL_OF = {
   alert: { critical: "stop", important: "look", fyi: "note" },
   // In a room or a spec: rejected or restricted stops; anything short of approved is a look; approved says nothing.
   library: { rejected: "stop", restricted: "stop", candidate: "look", under_research: "look", evidence_incomplete: "look", qualified: "look" },
+  // A link's readiness (IMS8 P4), by class: what can't go stops; what needs your confirmation is a look; the rest a note.
+  publish: { enforced: "stop", approval: "stop", material: "look", concern: "note", editorial: "note" },
 } as const satisfies Record<Engine, Record<string, Level>>;
 
 const BLOCKER_STATE: Record<BlockerStatus, State> = { open: "open", in_remediation: "in_progress", pending_verification: "pending_verification", risk_accepted: "risk_accepted", acceptance_lapsed: "acceptance_lapsed" };
@@ -260,7 +272,7 @@ export function fromLibrary(a: { id: string; name: string; status: LibraryStatus
 const RANK: Record<Level, number> = { stop: 0, look: 1, note: 2 };
 /** Where several engines see one condition, the one with the authoritative record speaks: a blocker (it has a lifecycle
  *  and an acceptance) over the Advisor's advice about it. */
-const AUTHORITY: Engine[] = ["library", "blocker", "space", "money", "alert", "advisor"];
+const AUTHORITY: Engine[] = ["library", "blocker", "space", "money", "alert", "advisor", "publish"];
 
 /** All of them, once each: deduplicated by id and by shared condition (keeping the authoritative engine's, the louder
  *  level, and naming the others), in a stable order — level, then what refuses something, then the caller's engine

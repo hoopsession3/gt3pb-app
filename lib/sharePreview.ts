@@ -17,7 +17,7 @@ const arr = (v: J): J[] => (Array.isArray(v) ? v : []);
 const str = (v: J): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 // Fields that carry no one's words — ids, dates, fixed words and numbers — by key, wherever they sit.
-const NOT_TEXT = new Set(["id", "program_id", "plan_id", "layout_id", "needs_plan_id", "kind", "status", "state", "horizon", "format", "phase",
+export const NOT_TEXT = new Set(["id", "program_id", "plan_id", "layout_id", "needs_plan_id", "kind", "status", "state", "horizon", "format", "phase",
   "start_on", "target_on", "due_on", "done_on", "retrieved_at", "approved_at", "pinned_at", "expires_at", "at", "reviewBy", "on", "confidence",
   "category", "key", "demandFrom", "bearing", "likelihood", "impact", "topic", "version", "sort", "show_asks"]);
 // Where each kind of free text is filed, by its path (array positions as []; scenario names as <scenario>).
