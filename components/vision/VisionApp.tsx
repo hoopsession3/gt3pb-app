@@ -88,7 +88,7 @@ export default function VisionApp({ canEdit, isOwner = false }: { canEdit: boole
             {tab === "food" && canEdit && <FoodLab isOwner={isOwner} />}
             {tab === "library" && canEdit && <Library isOwner={isOwner} />}
             {tab === "menu" && canEdit && <MenuStudio plans={v.plans} layouts={v.layouts} isOwner={isOwner} />}
-            {tab === "links" && canEdit && <Shares canEdit={canEdit} isOwner={isOwner} plans={v.plans} programs={v.programs} layouts={v.layouts} onGo={goTo} />}
+            {tab === "links" && canEdit && <Shares canEdit={canEdit} isOwner={isOwner} plans={v.plans} programs={v.programs} layouts={v.layouts} deps={v.deps} onGo={goTo} />}
             {canEdit && <DueChecks plans={v.plans} />}
             {presenting && <InTheRoom vision={v} withCases={canEdit} onExit={() => setPresenting(false)} />}
           </>

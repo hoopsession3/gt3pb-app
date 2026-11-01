@@ -264,3 +264,8 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .ls-foot{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin:4px -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:inherit;border-top:1px solid var(--line)}
 .ls-foot .btn-pri{flex:1 1 200px}
 @media (prefers-reduced-motion:reduce){.ls *{transition:none!important;animation:none!important}}
+/* IMS8 P9 — the story from its facts; suggested wording kept apart. */
+.ls-fact{display:flex;flex-direction:column;gap:2px;font-size:13px;line-height:1.4;white-space:normal}
+.ls-fact small,.ls-suggest small{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted)}
+.ls-suggest{display:flex;flex-direction:column;gap:4px;margin-top:8px;padding:8px 10px;border-left:3px dashed var(--line2)}
+.ls-suggest p{margin:0;font-size:15px;line-height:1.4}

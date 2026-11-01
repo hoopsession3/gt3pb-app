@@ -4,6 +4,7 @@
 // the database is only what's visibly ticked (toPublish).
 import { inScope } from "./sharePreview";
 import type { LinkDraft as PublishDraft } from "./sharePublish";
+import { AUDIENCES, type Audience } from "./linkStory";
 
 export const STEPS = ["choose", "review", "preview", "share"] as const;
 export type Step = (typeof STEPS)[number];
@@ -11,8 +12,10 @@ export const STEP_WORD: Record<Step, string> = { choose: "Choose", review: "Revi
 export const ENDS = [{ key: "never", label: "Until I turn it off", days: 0 }, { key: "7", label: "7 days", days: 7 }, { key: "30", label: "30 days", days: 30 }, { key: "90", label: "90 days", days: 90 }] as const;
 
 export type StudioDraft = { label: string; money: boolean; ends: string; programs: string[]; rooms: string[]; plans: string[]; needs: string[]; cases: string[]; research: string[];
-  step: Step; confirmed: string[]; reviewed: string | null };
-export const EMPTY: StudioDraft = { label: "", money: false, ends: "30", programs: [], rooms: [], plans: [], needs: [], cases: [], research: [], step: "choose", confirmed: [], reviewed: null };
+  step: Step; confirmed: string[]; reviewed: string | null;
+  /** Who it's for, as a preset (IMS8 P9): how suggestions are ordered and the preview presents — never what's chosen. */
+  audience: Audience | null };
+export const EMPTY: StudioDraft = { label: "", money: false, ends: "30", programs: [], rooms: [], plans: [], needs: [], cases: [], research: [], step: "choose", confirmed: [], reviewed: null, audience: null };
 export const DRAFT_KEY = "gt3.vision.linkDraft.v1";
 const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 export function readDraft(): StudioDraft | null {
@@ -21,7 +24,8 @@ export function readDraft(): StudioDraft | null {
     if (!j || typeof j !== "object") return null;
     return { label: typeof j.label === "string" ? j.label.slice(0, 80) : "", money: j.money === true, ends: typeof j.ends === "string" ? j.ends : "30",
       programs: strs(j.programs), rooms: strs(j.rooms), plans: strs(j.plans), needs: strs(j.needs), cases: strs(j.cases), research: strs(j.research),
-      step: (STEPS as readonly string[]).includes(j.step as string) ? (j.step as Step) : "choose", confirmed: strs(j.confirmed), reviewed: typeof j.reviewed === "string" ? j.reviewed : null };
+      step: (STEPS as readonly string[]).includes(j.step as string) ? (j.step as Step) : "choose", confirmed: strs(j.confirmed), reviewed: typeof j.reviewed === "string" ? j.reviewed : null,
+      audience: (AUDIENCES as readonly string[]).includes(j.audience as string) ? (j.audience as Audience) : null };
   } catch { return null; }
 }
 export function writeDraft(d: StudioDraft) {

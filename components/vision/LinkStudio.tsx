@@ -16,6 +16,8 @@ import { toVision } from "@/lib/visionRead";
 import type { Plan } from "@/lib/visionPlans";
 import type { Layout, Program } from "@/lib/vision";
 import { EMPTY, ENDS, STEPS, STEP_WORD, readDraft, toPublish, writeDraft, type Step, type StudioDraft } from "@/lib/linkDraft";
+import { AUDIENCES, AUDIENCE_MODE, AUDIENCE_WORD, recommend, storyOf } from "@/lib/linkStory";
+import type { Dep } from "@/lib/visionPlans";
 
 const LinkPreview = dynamic(() => import("./LinkPreview"), { ssr: false });
 const Present = dynamic(() => import("./Present"), { ssr: false });
@@ -32,8 +34,8 @@ const Present = dynamic(() => import("./Present"), { ssr: false });
 export const ENDS_FOR_ROW = ENDS;
 const flip = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
-export default function LinkStudio({ isOwner, plans, programs, layouts, onMade, onGo }: {
-  isOwner: boolean; plans: Plan[]; programs: Program[]; layouts: Pick<Layout, "id" | "name">[];
+export default function LinkStudio({ isOwner, plans, programs, layouts, deps = [], onMade, onGo }: {
+  isOwner: boolean; plans: Plan[]; programs: Program[]; layouts: Pick<Layout, "id" | "name">[]; deps?: Dep[];
   onMade: () => void; onGo?: (go: NonNullable<PublishFinding["go"]>) => void;
 }) {
   const { toast } = useAppStable();
@@ -131,6 +133,23 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, onMade, 
           <ShowsPicker programs={programs} layouts={layouts} pickPrograms={d.programs} setPickPrograms={(f) => setD((x) => ({ ...x, step: "choose", programs: f(x.programs) }))} pickRooms={d.rooms} setPickRooms={(f) => setD((x) => ({ ...x, step: "choose", rooms: f(x.rooms) }))}
             plans={shown} pickPlans={d.plans} setPickPlans={(f) => setD((x) => ({ ...x, step: "choose", plans: f(x.plans) }))} pickNeeds={d.needs} setPickNeeds={(f) => setD((x) => ({ ...x, step: "choose", needs: f(x.needs) }))}
             cases={isOwner ? { approved: approved.data ?? new Set(), pickCases: d.cases, pickResearch: d.research, flipCase: (id) => edit({ cases: flip(d.cases, id) }), flipResearch: (id) => edit({ research: flip(d.research, id) }) } : null} />
+          {(() => {
+            // IMS8 P9: plans worth adding, ranked from recorded facts and the audience's order — a tap adds one; nothing is added for you.
+            const sug = recommend({ plans: shown.map((p) => ({ id: p.id, name: p.name, program_id: p.program_id, shareable: p.shareable, phase: p.phase, layout_id: p.layout_id, deal: p.deal, sqft: p.sqft })),
+              deps, approved: approved.data ?? new Set(), picked: d.plans, programs: d.programs, audience: d.audience }).slice(0, 3);
+            return (
+              <div className="flex flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Who it's for, to order suggestions and the preview">
+                  <span className="vz-card-s">For</span>
+                  {AUDIENCES.map((a) => <button key={a} type="button" role="radio" aria-checked={d.audience === a} className={`k-chip${d.audience === a ? " on" : ""}`} onClick={() => set({ audience: d.audience === a ? null : a })}>{AUDIENCE_WORD[a]}</button>)}
+                </div>
+                {sug.length > 0 && <>
+                  <b className="font-sans text-subhead mt-1">Worth adding</b>
+                  {sug.map((x) => <div key={x.id} className="ls-find"><span>{x.name} · <i>{x.reason}</i></span><button type="button" className="btn-ter" onClick={() => edit({ plans: [...d.plans, x.id] })}>Add</button></div>)}
+                </>}
+              </div>
+            );
+          })()}
           {approved.error && <Said as="p" className="vz-card-s" assertive>Couldn&apos;t read which plans have an approved money case — their money can&apos;t be chosen until it&apos;s read. <button type="button" className="btn-ter" onClick={() => void approved.reload()}>Try again</button></Said>}
           <label className="prod-toggle"><input type="checkbox" checked={d.money} onChange={(e) => edit({ money: e.target.checked })} /> Show where capital may be needed (the asks)</label>
           <label className="prod-f"><span>It lives</span><select value={d.ends} onChange={(e) => edit({ ends: e.target.value })}>{ENDS.map((e) => <option key={e.key} value={e.key}>{e.label}</option>)}</select></label>
@@ -173,7 +192,19 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, onMade, 
           <p className="vz-card-s">{sendsSentence(review.payload)}</p>
           <button type="button" className="btn-sec self-start" onClick={() => setPresenting(true)}>▶ See it as they will</button>
           <LinkPreview payload={review.payload} />
-          {presenting && <Present vision={toVision(review.payload)} forWhom={pub.label ?? null} exitLabel="Back to the studio" onExit={() => setPresenting(false)} />}
+          {(() => {
+            // IMS8 P9: the story the response tells — facts, each with its source; a suggested opening apart, yours to change.
+            const story = storyOf(review.payload);
+            return story.facts.length > 0 && (
+              <details className="ls-story">
+                <summary className="vz-card-s cursor-pointer py-1"><b className="font-sans">The story, from its facts</b> · {story.facts.length}</summary>
+                <ul className="flex flex-col gap-1.5 pl-1">{story.facts.map((f, i) => <li key={i} className="ls-fact"><span>{f.says}</span><small>{f.source}</small></li>)}</ul>
+                {story.suggested && <div className="ls-suggest"><small>Suggested wording — yours to change; it isn&apos;t sent</small><p>{story.suggested}</p>
+                  <button type="button" className="btn-ter self-start" onClick={() => { void navigator.clipboard.writeText(story.suggested!).then(() => toast("Copied."), () => toast(story.suggested!)); }}>Copy it</button></div>}
+              </details>
+            );
+          })()}
+          {presenting && <Present vision={toVision(review.payload)} forWhom={pub.label ?? null} exitLabel="Back to the studio" onExit={() => setPresenting(false)} initialMode={d.audience ? AUDIENCE_MODE[d.audience] : "pitch"} />}
         </>
       )}
 

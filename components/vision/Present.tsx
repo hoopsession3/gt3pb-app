@@ -37,7 +37,7 @@ function toldInParts(slides: Slide[], cases: Vision["cases"]): Slide[] {
   return slides.flatMap((x) => (x.kind === "case" && cases?.[x.id] ? caseParts(cases[x.id]).map((part) => ({ kind: "case" as const, id: x.id, part })) : [x]));
 }
 
-export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }: { vision: Vision; onExit?: () => void; forWhom?: string | null; exitLabel?: string }) {
+export default function Present({ vision, onExit, forWhom, exitLabel = "Done", initialMode = "pitch" }: { vision: Vision; onExit?: () => void; forWhom?: string | null; exitLabel?: string; initialMode?: PresentMode }) {
   const cols = useMemo(() => board(vision.programs), [vision.programs]);
   const asksOf = useCallback((id: string) => vision.asks.filter((a) => a.program_id === id), [vision.asks]);
   const base = useMemo<Slide[]>(() => {
@@ -59,7 +59,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
   }, [cols, vision]);
   // IP1: three ways to show it. Pitch tells each case in parts, one message a slide; Explore and Diligence keep the case
   // whole on one slide (its levers, its drill-down). The modes appear only when there's a case to show.
-  const [mode, setMode] = useState<PresentMode>("pitch");
+  const [mode, setMode] = useState<PresentMode>(initialMode);
   const hasCase = base.some((x) => x.kind === "case");
   const slides = useMemo(() => (mode === "pitch" ? toldInParts(base, vision.cases) : base), [base, mode, vision.cases]);
   const [at, setAt] = useState(0);

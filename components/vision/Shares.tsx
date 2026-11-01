@@ -15,7 +15,7 @@ import { haptic } from "@/lib/haptics";
 import { isMissingColumn } from "@/lib/schemaSkew";
 import { inScope } from "@/lib/sharePreview";
 import { isStale, publishLink, reviewLink, toConfirm, type LinkDraft as PublishDraft, type Review } from "@/lib/sharePublish";
-import type { Plan } from "@/lib/visionPlans";
+import type { Dep, Plan } from "@/lib/visionPlans";
 import type { Layout, Program } from "@/lib/vision";
 import dynamic from "next/dynamic";
 import LinkStudio, { ShowsPicker, ENDS_FOR_ROW } from "./LinkStudio";
@@ -57,7 +57,7 @@ function usePublishLink() {
   };
 }
 
-export default function Shares({ canEdit, isOwner = false, plans = [], programs = [], layouts = [], onGo }: { canEdit: boolean; isOwner?: boolean; plans?: Plan[]; programs?: Program[]; layouts?: Pick<Layout, "id" | "name">[]; onGo?: (go: NonNullable<PublishFinding["go"]>) => void }) {
+export default function Shares({ canEdit, isOwner = false, plans = [], programs = [], layouts = [], deps = [], onGo }: { canEdit: boolean; isOwner?: boolean; plans?: Plan[]; programs?: Program[]; layouts?: Pick<Layout, "id" | "name">[]; deps?: Dep[]; onGo?: (go: NonNullable<PublishFinding["go"]>) => void }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
   // THE STUDIO (IMS8 P7) makes a link: Choose → Review → Preview → Share (components/vision/LinkStudio). Its draft is kept
@@ -97,7 +97,7 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
 
   return (
     <div className="vz">
-      {canEdit && <LinkStudio isOwner={isOwner} plans={plans} programs={programs} layouts={layouts} onMade={state.reload} onGo={onGo} />}
+      {canEdit && <LinkStudio isOwner={isOwner} plans={plans} programs={programs} layouts={layouts} deps={deps} onMade={state.reload} onGo={onGo} />}
       <p className="vz-sub">A private, read-only link to the plan — the roadmap, the store in 3D and, if you choose, the asks. Nothing else in the app comes with it, and you can turn it off any time.</p>
       <AsyncSection state={state} isEmpty={(d) => d.length === 0} emptyTitle="No links yet" emptySub="Make one for the next person who asks what's next." errorTitle="Couldn't load the links">
         {(rows) => (
