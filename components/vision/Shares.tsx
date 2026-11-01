@@ -11,13 +11,20 @@ import { InfoRow } from "@/components/kit";
 import { publicOrigin } from "@/lib/native";
 import { ageLabel } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
+import { isMissingColumn } from "@/lib/schemaSkew";
+import { inScope } from "@/lib/sharePreview";
 import type { Plan } from "@/lib/visionPlans";
 import type { Layout, Program } from "@/lib/vision";
+import dynamic from "next/dynamic";
+import type { Draft } from "./LinkPreview";
+
+// What a link sends (IMS7-0467): read on asking, so the Links tab carries none of it until then.
+const LinkPreview = dynamic(() => import("./LinkPreview"), { ssr: false });
 
 // PRIVATE LINKS (R52, 0447 vision_shares) — the plan for someone outside: an investor, a landlord, a partner. Each link
 // is its own long random token, named for who it's for, with or without the money; it counts its opens, and one tap turns
 // it off for good. The token rides after the # (app/present), so it never reaches a server log or a referrer.
-type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[]; program_ids?: string[]; layout_ids?: string[]; pinned_at?: string | null };
+type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[]; program_ids?: string[]; layout_ids?: string[]; pinned_at?: string | null; plan_ids?: string[]; need_plans?: string[] };
 const COLS = "id, token, label, show_asks, created_at, revoked_at, last_opened_at, opens";
 /** How long a new link lives (R53, 0448): until it's turned off, or a set number of days. */
 const ENDS = [{ key: "never", label: "Until I turn it off", days: 0 }, { key: "7", label: "7 days", days: 7 }, { key: "30", label: "30 days", days: 30 }, { key: "90", label: "90 days", days: 90 }] as const;
@@ -35,25 +42,40 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
   const { toast } = useAppStable();
   const confirm = useConfirm();
   const [label, setLabel] = useState("");
-  const [money, setMoney] = useState(true);
+  // NOTHING IS CHOSEN FOR YOU (IMS8 A1, Ryan 2026-11-01: "nothing selected by default… clear selections after successful
+  // Create… preserve the draft on failure"). A new link starts empty — no programs, plans, needs, rooms, money or asks —
+  // and a link made clears them, so the next link never inherits the last one's.
+  const [money, setMoney] = useState(false);
   const [ends, setEnds] = useState<(typeof ENDS)[number]["key"]>("30");
   const canEnd = true;   // 0448 is applied (2026-10-25): every link can end
   const [busy, setBusy] = useState(false);
   const [canCase, setCanCase] = useState(true);
-  // What a link shows of the roadmap and the store (0455): chosen per link. A new link starts with the programs and rooms
-  // of the plans marked to show — ticked, so the maker sees and can change them before making it.
+  // What a link shows of the roadmap and the store (0455): chosen per link, nothing until ticked.
   const [canChoose, setCanChoose] = useState(true);
   const shownPlans = plans.filter((p) => p.shareable);
-  const [pickPrograms, setPickPrograms] = useState<string[]>(() => [...new Set(shownPlans.map((p) => p.program_id).filter((x): x is string => !!x))]);
-  const [pickRooms, setPickRooms] = useState<string[]>(() => [...new Set(shownPlans.map((p) => p.layout_id).filter((x): x is string => !!x))]);
-  const loader = useCallback(async (): Promise<Share[]> => {
+  const [pickPrograms, setPickPrograms] = useState<string[]>([]);
+  const [pickRooms, setPickRooms] = useState<string[]>([]);
+  // Which plans it shows, and whose open needs (IMS7-0467): per link, nothing until ticked — not every plan marked to
+  // show, not every plan of a program it shows. canPick: 0467 is in (until it is, the links read and work as before).
+  const [canPick, setCanPick] = useState(true);
+  const [pickPlans, setPickPlans] = useState<string[]>([]);
+  const [pickNeeds, setPickNeeds] = useState<string[]>([]);
+  const [peek, setPeek] = useState(false);
+  // What's sent is what's visibly ticked: a plan under a program since unticked (and its needs) isn't carried.
+  const scope = inScope(shownPlans, pickPrograms, pickPlans, pickNeeds);
+  const state = useAsyncData(async (): Promise<Share[]> => {
     if (!supabase) return [];
-    const withPin = await supabase.from("vision_shares").select(`${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids, pinned_at`).order("created_at", { ascending: false });
+    const base = `${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids, pinned_at`;
+    // arrives-with: 0467 — until it's pasted, the select without plan_ids/need_plans: the links as they were, no plan
+    // picking, no preview (and nothing else rides this select).
+    const withPlans = await supabase.from("vision_shares").select(`${base}, plan_ids, need_plans`).order("created_at", { ascending: false });
+    if (!withPlans.error) { setCanCase(true); setCanChoose(true); setCanPick(true); return (withPlans.data as unknown as Share[]) ?? []; }
+    if (!isMissingColumn(withPlans.error)) throw new Error(withPlans.error.message);
+    const withPin = await supabase.from("vision_shares").select(base).order("created_at", { ascending: false });
     if (withPin.error) throw new Error(withPin.error.message);
-    setCanCase(true); setCanChoose(true);
+    setCanCase(true); setCanChoose(true); setCanPick(false);
     return (withPin.data as Share[]) ?? [];
   }, []);
-  const state = useAsyncData(loader, []);
 
   const copy = async (s: Share) => {
     try { await navigator.clipboard.writeText(shareUrl(s.token)); haptic("success"); toast(`Copied — the link for ${s.label}.`); }
@@ -64,11 +86,12 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
     setBusy(true);
     const days = ENDS.find((e) => e.key === ends)?.days ?? 0;
     const row = { label: label.trim(), show_asks: money, ...(canEnd && days ? { expires_at: new Date(Date.now() + days * 86400000).toISOString() } : {}),
-      ...(canChoose ? { program_ids: pickPrograms, layout_ids: pickRooms } : {}) };
+      ...(canChoose ? { program_ids: pickPrograms, layout_ids: pickRooms } : {}), ...(canPick ? { plan_ids: scope.plans, need_plans: scope.needs } : {}) };
     const { data, error } = await supabase.from("vision_shares").insert(row).select(COLS).single();
     setBusy(false);
+    // A failure keeps everything as it was, so nothing has to be chosen again.
     if (error) { toast(failureWords(error, "Couldn't make the link"), "error"); return; }
-    setLabel(""); state.reload();
+    setLabel(""); setMoney(false); setEnds("30"); setPickPrograms([]); setPickRooms([]); setPickPlans([]); setPickNeeds([]); setPeek(false); state.reload();
     void copy(data as Share);
   };
   const off = async (s: Share) => {
@@ -87,8 +110,11 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
           <label className="prod-f"><span>Who it&apos;s for</span><input value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Upstate investors" /></label>
           <label className="prod-toggle"><input type="checkbox" checked={money} onChange={(e) => setMoney(e.target.checked)} /> Show where capital may be needed</label>
           {canEnd && <label className="prod-f"><span>It lives</span><select value={ends} onChange={(e) => setEnds(e.target.value as typeof ends)}>{ENDS.map((e) => <option key={e.key} value={e.key}>{e.label}</option>)}</select></label>}
-          {canChoose && <ShowsPicker programs={programs} layouts={layouts} pickPrograms={pickPrograms} setPickPrograms={setPickPrograms} pickRooms={pickRooms} setPickRooms={setPickRooms} />}
-          <p className="vz-card-s">Plans show on a link only when marked &ldquo;Show it on a link&rdquo; in their sheet — drafts stay with the crew. Programs and rooms show only when ticked here.</p>
+          {canChoose && <ShowsPicker programs={programs} layouts={layouts} pickPrograms={pickPrograms} setPickPrograms={setPickPrograms} pickRooms={pickRooms} setPickRooms={setPickRooms}
+            plans={canPick ? shownPlans : null} pickPlans={pickPlans} setPickPlans={setPickPlans} pickNeeds={pickNeeds} setPickNeeds={setPickNeeds} />}
+          <p className="vz-card-s">A plan shows on a link only when it&apos;s marked &ldquo;Show it on a link&rdquo; in its sheet and ticked here, under a program ticked here. Nothing else goes.</p>
+          {canPick && <button type="button" className="btn-ter self-start" aria-expanded={peek} onClick={() => setPeek((v) => !v)}>{peek ? "Hide what it sends" : "See what it sends"}</button>}
+          {canPick && peek && <LinkPreview draft={{ label: label.trim() || "A link", program_ids: pickPrograms, layout_ids: pickRooms, plan_ids: scope.plans, need_plans: scope.needs, show_asks: money } satisfies Draft} />}
           <button type="button" className="btn-pri" onClick={() => void make()} disabled={busy || !label.trim()}>{busy ? "Making…" : "Make the link — it's copied"}</button>
         </div>
       )}
@@ -100,9 +126,10 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
                 nameExtra={<span className={`adm-substat ${st.live ? "active" : "past_due"}`}>{st.word}</span>}
                 meta={`${s.show_asks ? "With the asks" : "The vision only"} · made ${ageLabel(s.created_at)}${st.ends ? ` · ${st.ends}` : ""} · ${s.opens ? `opened ${s.opens}× · last ${ageLabel(s.last_opened_at ?? s.created_at)}` : "not opened yet"}`}
                 sub={st.live && (canEdit || isOwner) ? (
-                  <div className="flex flex-col gap-1">
-                    {canEdit && canChoose && <ShowsChooser share={s} programs={programs} layouts={layouts} onSaved={state.reload} />}
-                    {isOwner && canCase && <CaseChooser share={s} plans={plans.filter((p) => p.shareable)} onSaved={state.reload} />}
+                  <div className="flex flex-col gap-1 px-1 whitespace-normal">
+                    {canEdit && canChoose && <ShowsChooser share={s} programs={programs} layouts={layouts} plans={canPick ? shownPlans : null} onSaved={state.reload} />}
+                    {isOwner && canCase && <CaseChooser share={s} plans={shownPlans.filter((p) => !canPick || (s.plan_ids ?? []).includes(p.id))} onSaved={state.reload} />}
+                    {canEdit && canPick && <SendsLine share={s} />}
                     {s.pinned_at && <PinLine share={s} isOwner={isOwner} onSaved={state.reload} />}
                   </div>
                 ) : undefined}
@@ -151,7 +178,7 @@ function CaseChooser({ share, plans, onSaved }: { share: Share; plans: Plan[]; o
   const n = (share.money_plans ?? []).length;
   return (
     <div className="flex flex-col gap-2">
-      <button type="button" className="btn-ter self-start" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Done choosing" : n ? `Shows the case for ${n} plan${n === 1 ? "" : "s"} — change` : "Show a plan's case on this link"}</button>
+      <button type="button" className="btn-ter self-start max-w-full text-left whitespace-normal" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Done choosing" : n ? `Shows the case for ${n} plan${n === 1 ? "" : "s"} — change` : "Show a plan's case on this link"}</button>
       {open && (
         <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
           {plans.length === 0 ? <p className="vz-card-s">No plan is marked to show on a link yet — mark one in its sheet.</p> : plans.map((p) => {
@@ -172,10 +199,12 @@ function CaseChooser({ share, plans, onSaved }: { share: Share; plans: Plan[]; o
 }
 
 /** The roadmap programs and store rooms a link shows (0455), as ticks — used when making a link and when changing one. */
-function ShowsPicker({ programs, layouts, pickPrograms, setPickPrograms, pickRooms, setPickRooms }: {
+function ShowsPicker({ programs, layouts, pickPrograms, setPickPrograms, pickRooms, setPickRooms, plans = null, pickPlans = [], setPickPlans, pickNeeds = [], setPickNeeds }: {
   programs: Program[]; layouts: Pick<Layout, "id" | "name">[];
   pickPrograms: string[]; setPickPrograms: (f: (l: string[]) => string[]) => void; pickRooms: string[]; setPickRooms: (f: (l: string[]) => string[]) => void;
+  plans?: Plan[] | null; pickPlans?: string[]; setPickPlans?: (f: (l: string[]) => string[]) => void; pickNeeds?: string[]; setPickNeeds?: (f: (l: string[]) => string[]) => void;
 }) {
+  const under = (plans ?? []).filter((p) => p.program_id && pickPrograms.includes(p.program_id));
   const flip = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   return (
     <div className="flex flex-col gap-1">
@@ -183,6 +212,15 @@ function ShowsPicker({ programs, layouts, pickPrograms, setPickPrograms, pickRoo
       {programs.length === 0 ? <p className="vz-card-s">No programs yet.</p> : programs.map((p) => (
         <label key={p.id} className="prod-toggle"><input type="checkbox" checked={pickPrograms.includes(p.id)} onChange={() => setPickPrograms((l) => flip(l, p.id))} /> {p.title}</label>
       ))}
+      {plans && setPickPlans && setPickNeeds && <>
+        <b className="font-sans text-subhead mt-2">Which plans it shows</b>
+        {under.length === 0 ? <p className="vz-card-s">No plan marked to show under the programs ticked.</p> : under.map((p) => (
+          <div key={p.id} className="flex flex-col">
+            <label className="prod-toggle"><input type="checkbox" checked={pickPlans.includes(p.id)} onChange={() => { setPickPlans((l) => flip(l, p.id)); if (pickPlans.includes(p.id)) setPickNeeds((l) => l.filter((x) => x !== p.id)); }} /> {p.name}</label>
+            <label className="prod-toggle pl-6"><input type="checkbox" disabled={!pickPlans.includes(p.id)} checked={pickNeeds.includes(p.id)} onChange={() => setPickNeeds((l) => flip(l, p.id))} /> Its open needs</label>
+          </div>
+        ))}
+      </>}
       <b className="font-sans text-subhead mt-2">Which rooms it shows</b>
       {layouts.length === 0 ? <p className="vz-card-s">No rooms yet.</p> : layouts.map((l) => (
         <label key={l.id} className="prod-toggle"><input type="checkbox" checked={pickRooms.includes(l.id)} onChange={() => setPickRooms((x) => flip(x, l.id))} /> {l.name}</label>
@@ -192,31 +230,46 @@ function ShowsPicker({ programs, layouts, pickPrograms, setPickPrograms, pickRoo
 }
 
 /** Change what a live link shows of the roadmap and the store (0455). Nothing leaves until it's ticked and saved. */
-function ShowsChooser({ share, programs, layouts, onSaved }: { share: Share; programs: Program[]; layouts: Pick<Layout, "id" | "name">[]; onSaved: () => void }) {
+function ShowsChooser({ share, programs, layouts, plans, onSaved }: { share: Share; programs: Program[]; layouts: Pick<Layout, "id" | "name">[]; plans: Plan[] | null; onSaved: () => void }) {
   const { toast } = useAppStable();
   const [open, setOpen] = useState(false);
   const [pickPrograms, setPickPrograms] = useState<string[]>(share.program_ids ?? []);
   const [pickRooms, setPickRooms] = useState<string[]>(share.layout_ids ?? []);
+  const [pickPlans, setPickPlans] = useState<string[]>(share.plan_ids ?? []);
+  const [pickNeeds, setPickNeeds] = useState<string[]>(share.need_plans ?? []);
   const [busy, setBusy] = useState(false);
-  const changed = JSON.stringify([[...pickPrograms].sort(), [...pickRooms].sort()]) !== JSON.stringify([[...(share.program_ids ?? [])].sort(), [...(share.layout_ids ?? [])].sort()]);
+  const sorted = (l: string[] | undefined) => [...(l ?? [])].sort();
+  const changed = JSON.stringify([pickPrograms, pickRooms, pickPlans, pickNeeds].map(sorted)) !== JSON.stringify([share.program_ids, share.layout_ids, share.plan_ids, share.need_plans].map(sorted));
   const save = async () => {
     if (!supabase || busy) return;
     setBusy(true);
-    const { error } = await supabase.from("vision_shares").update({ program_ids: pickPrograms, layout_ids: pickRooms }).eq("id", share.id);
+    const { error } = await supabase.from("vision_shares").update({ program_ids: pickPrograms, layout_ids: pickRooms, ...(plans ? (({ plans: plan_ids, needs: need_plans }) => ({ plan_ids, need_plans }))(inScope(plans, pickPrograms, pickPlans, pickNeeds)) : {}) }).eq("id", share.id);
     setBusy(false);
     if (error) { toast(failureWords(error, "Couldn't change what the link shows"), "error"); return; }
     haptic("success"); toast(`Saved — the link for ${share.label} shows ${pickPrograms.length} program${pickPrograms.length === 1 ? "" : "s"} and ${pickRooms.length} room${pickRooms.length === 1 ? "" : "s"}.`); onSaved();
   };
-  const np = (share.program_ids ?? []).length, nr = (share.layout_ids ?? []).length;
+  const np = (share.program_ids ?? []).length, nr = (share.layout_ids ?? []).length, nl = (share.plan_ids ?? []).length;
   return (
     <div className="flex flex-col gap-2">
-      <button type="button" className="btn-ter self-start" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Done choosing" : `Shows ${np} program${np === 1 ? "" : "s"} and ${nr} room${nr === 1 ? "" : "s"} — change`}</button>
+      <button type="button" className="btn-ter self-start max-w-full text-left whitespace-normal" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Done choosing" : `${np} program${np === 1 ? "" : "s"}${plans ? ` · ${nl} plan${nl === 1 ? "" : "s"}` : ""} · ${nr} room${nr === 1 ? "" : "s"} — change`}</button>
       {open && (
         <div className="vz-insp mpanel mb-0 flex flex-col gap-2 p-3.5">
-          <ShowsPicker programs={programs} layouts={layouts} pickPrograms={pickPrograms} setPickPrograms={setPickPrograms} pickRooms={pickRooms} setPickRooms={setPickRooms} />
+          <ShowsPicker programs={programs} layouts={layouts} pickPrograms={pickPrograms} setPickPrograms={setPickPrograms} pickRooms={pickRooms} setPickRooms={setPickRooms}
+            plans={plans} pickPlans={pickPlans} setPickPlans={setPickPlans} pickNeeds={pickNeeds} setPickNeeds={setPickNeeds} />
           <button type="button" className="btn-pri btn-sm self-start" onClick={() => void save()} disabled={!changed || busy}>{busy ? "Saving…" : "Save what it shows"}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** What a live link sends (IMS7-0467), on asking — the database's own answer for it. */
+function SendsLine({ share }: { share: Share }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-1">
+      <button type="button" className="btn-ter self-start max-w-full text-left whitespace-normal" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Hide what it sends" : "What it sends"}</button>
+      {open && <LinkPreview share={share.id} />}
     </div>
   );
 }

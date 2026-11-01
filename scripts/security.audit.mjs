@@ -134,6 +134,27 @@ export const CEILING = {
   definerView: 1,      // owner-run views the API roles may read: market_live
 };
 
+// ── PRIVILEGED SINCE THE SNAPSHOT — every SECURITY DEFINER function the API roles may call that a migration ABOVE the
+// snapshot's mark added, named, with who may call it and why (IMS7-0467, Ryan: "update the security audit inventory to
+// account explicitly for the new privileged function"). The ceilings above stay the snapshot's own (0440: definerExec 127,
+// anonExec 15 — r36 pins them); this is the rest, so nothing privileged waits unnamed for a re-pull. scripts/
+// db.privileged.test.mjs replays the migrations and fails unless the API-callable definers added after the snapshot are
+// exactly these, each with these roles and a pinned search_path. At the next re-pull: definerExec = 127 + this list's
+// length (137 with 0467), anonExec as measured, and the list empties into the dated notes above.
+export const SNAPSHOT_MARK = "0440";
+export const PRIVILEGED_SINCE_SNAPSHOT = [
+  { fn: "primal_lesson_previews()", in: "0441", roles: ["anon", "authenticated"], why: "a lesson's card is anyone's (title, summary, length — published, unarchived, this business's): the course page signed out; never a lesson's body" },
+  { fn: "course_give(p_customer uuid, p_note text)", in: "0444", roles: ["authenticated"], why: "an owner or admin gives a customer the course (is_admin, else 42501)" },
+  { fn: "course_take_back(p_customer uuid)", in: "0444", roles: ["authenticated"], why: "an owner or admin takes the course back (is_admin, else 42501)" },
+  { fn: "course_students()", in: "0444", roles: ["authenticated"], why: "who has the course, with progress — answers the crew (is_staff) on this business's rows; anyone else gets no rows" },
+  { fn: "vision_shared(p_token text)", in: "0447", roles: ["anon", "authenticated"], why: "what an investor link opens, by its long random token only; since 0467 exactly what that link was given (vision_share_payload)" },
+  { fn: "std_research_reserve(p_intake uuid, p_depth text)", in: "0462", roles: ["authenticated"], why: "reserves a research run against its caps before any paid call (is_admin, else PT403; this business's intake only)" },
+  { fn: "std_research_settle(p_run uuid, p_usage jsonb, p_cost_cents numeric, p_outcome text, p_error text)", in: "0462", roles: ["authenticated"], why: "settles a research run's real usage against its reservation (is_admin, else PT403)" },
+  { fn: "std_accept_facts(p_ids uuid[], p_corrections jsonb, p_bulk boolean)", in: "0462", roles: ["authenticated"], why: "a person accepts researched facts into the library (is_admin, else PT403)" },
+  { fn: "std_reject_facts(p_ids uuid[], p_note text)", in: "0462", roles: ["authenticated"], why: "a person rejects researched facts (is_admin, else PT403; this business's assets only)" },
+  { fn: "vision_share_preview(p_share uuid, p_draft jsonb)", in: "0467", roles: ["authenticated"], why: "what a link sends, for an owner or admin (is_admin, two-step) about to send it: a link of their own business (others PT404) or a draft pinned to now; a non-owner's draft carries no money or research; the same answer the link's door gives (vision_share_payload, granted to no one); counts no open; never callable signed out" },
+];
+
 // ── EXEMPTIONS — in the open, each with its reason; "table" for rls-off, "table.policy" for open-write.
 export const EXEMPT = {
   "booking_requests.anyone request":

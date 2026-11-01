@@ -12971,6 +12971,8 @@ export type Database = {
           program_ids: string[]
           layout_ids: string[]
           pinned_at: string
+          plan_ids: string[]
+          need_plans: string[]
         }
         Insert: {
           id?: string
@@ -12989,6 +12991,8 @@ export type Database = {
           program_ids?: string[]
           layout_ids?: string[]
           pinned_at?: string
+          plan_ids?: string[]
+          need_plans?: string[]
         }
         Update: {
           id?: string
@@ -13007,6 +13011,8 @@ export type Database = {
           program_ids?: string[]
           layout_ids?: string[]
           pinned_at?: string
+          plan_ids?: string[]
+          need_plans?: string[]
         }
         Relationships: [
           {
@@ -14693,6 +14699,10 @@ export type Database = {
         { Args: { o: Json | null; keys: string[] | null }; Returns: Json }
       vision_share_list:
         { Args: { a: Json | null; keys: string[] | null }; Returns: Json }
+      vision_share_payload:
+        { Args: { s: Database["public"]["Tables"]["vision_shares"]["Row"] | null }; Returns: Json }
+      vision_share_preview:
+        { Args: { p_share?: string | null; p_draft?: Json | null }; Returns: Json }
       vision_share_scenario:
         { Args: { v: Json | null }; Returns: Json }
       vision_shared:

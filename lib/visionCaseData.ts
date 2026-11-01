@@ -13,11 +13,15 @@ export type PlanCase = { scenarios: Record<Scenario, Record<string, unknown>>; s
   /** IP1.3: the owner's acknowledgements of open readiness blockers, approved with the baseline (0449's guard: owners only). */
   acknowledged: Acknowledgement[] };
 /** An acknowledgement as stored in the baseline (shape kept here so this file stays free of the score). */
-export type Acknowledgement = { key: string; note: string; at?: string | null };
-/** The acknowledgements in a stored baseline, read defensively: a key and a written reason, or nothing. */
+export type Acknowledgement = { key: string; note: string; at?: string | null; reviewBy?: string | null };
+/** The acknowledgements in a stored baseline, read defensively: a key and a written reason, or nothing — and its review
+ *  date, kept (IMS7-0467: it was dropped here, so the score, which accepts a risk only with a reason AND a review date,
+ *  never saw one accepted — on the link or in the app after a reload). A review date that isn't a calendar date
+ *  (YYYY-MM-DD) is not kept, so a malformed one can't stand in for a real review: the risk stays open. */
 export function acksOf(raw: unknown): Acknowledgement[] {
+  const day = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) ? v : null);
   return Array.isArray(raw) ? raw.filter((a) => a && typeof a === "object" && typeof (a as Acknowledgement).key === "string" && typeof (a as Acknowledgement).note === "string" && (a as Acknowledgement).note.trim())
-    .map((a) => ({ key: (a as Acknowledgement).key, note: (a as Acknowledgement).note.trim().slice(0, 500), at: typeof (a as Acknowledgement).at === "string" ? (a as Acknowledgement).at : null })).slice(0, 20) : [];
+    .map((a) => ({ key: (a as Acknowledgement).key, note: (a as Acknowledgement).note.trim().slice(0, 500), at: typeof (a as Acknowledgement).at === "string" ? (a as Acknowledgement).at : null, reviewBy: day((a as Acknowledgement).reviewBy) })).slice(0, 20) : [];
 }
 
 type Raw = { baseline?: { scenarios?: Record<string, unknown>; structure?: Structure; acknowledged?: unknown } | null; approved_at?: string | null; version?: number | null } | null | undefined;
