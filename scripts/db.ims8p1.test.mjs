@@ -30,7 +30,10 @@ await q(`insert into public.vision_plan_versions (plan_id, version, baseline, re
   [plan.id, JSON.stringify({ scenarios: { conservative: { ...scen, ordersPerDay: 80 }, base: scen, upside: { ...scen, ordersPerDay: 140 } }, structure: { kind: "rev_share", amountCents: 4000000, sharePct: 6, capMultiple: 1.5 }, acknowledged: [{ key: "no_downside", note: "Said.", at: "2026-10-20", reviewBy: "2099-12-01" }] }),
    JSON.stringify([{ topic: "demand", claim: "1,200 members a day.", figure: "1,200", source_url: "https://x.example", source_title: "Count", bearing: "for", retrieved_at: "2026-10-01" }]),
    JSON.stringify([{ kind: "risk", words: "Footfall drops in summer.", likelihood: "medium", impact: "high", mitigation: "Events.", status: "open" }])]);
-const link = (await as(`insert into public.vision_shares (label, program_ids, plan_ids, need_plans, layout_ids, money_plans, research_plans, show_asks) values ('Equivalence', $1, $2, $2, $3, $2, $2, true) returning id, token`, [[plan.program_id], [plan.id], [room]]))[0];
+// Made the one way a link is made since 0472: reviewed, its material findings confirmed, published.
+const draft = JSON.stringify({ label: "Equivalence", program_ids: [plan.program_id], plan_ids: [plan.id], need_plans: [plan.id], layout_ids: [room], money_plans: [plan.id], research_plans: [plan.id], show_asks: true });
+const rev = (await as(`select public.vision_share_review(null, $1::jsonb) v`, [draft]))[0].v;
+const link = (await as(`select public.vision_share_publish(null, $1::jsonb, $2, $3::text[]) v`, [draft, rev.fingerprint, rev.material]))[0].v;
 
 const preview = (await as(`select public.vision_share_preview($1, null) v`, [link.id]))[0].v;
 const investor = await door(link.token);

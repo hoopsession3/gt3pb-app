@@ -13,6 +13,7 @@ import { ageLabel } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
 import { isMissingColumn } from "@/lib/schemaSkew";
 import { inScope } from "@/lib/sharePreview";
+import { isStale, publishLink, reviewLink, toConfirm, type LinkDraft as PublishDraft, type Review } from "@/lib/sharePublish";
 import type { Plan } from "@/lib/visionPlans";
 import type { Layout, Program } from "@/lib/vision";
 import dynamic from "next/dynamic";
@@ -56,9 +57,28 @@ function writeDraft(d: LinkDraft) {
   } catch { /* storage refused: the draft lives on screen only */ }
 }
 
+/** Make or change a link the one way 0472 allows (IMS8 P5): review what it would send, confirm its material findings
+ *  word for word (a sheet — nothing is confirmed unseen), publish with that review's fingerprint. A refusal shares
+ *  nothing and keeps what was chosen; one because it changed since the review says so. */
+function usePublishLink() {
+  const { toast } = useAppStable();
+  const confirm = useConfirm();
+  return async (share: string | null, draft: PublishDraft, what: string): Promise<{ id: string; token: string } | null> => {
+    if (!supabase) return null;
+    let r: Review;
+    try { r = await reviewLink(supabase, share, draft); } catch (e) { haptic("error"); toast(failureWords(e as Error, `Couldn't ${what}`), "error"); return null; }
+    const ask = toConfirm(r, draft.money_plans ?? []);
+    if (ask.ids.length && !(await confirm({ title: ask.ids.length === 1 ? "Confirm this before it's shared" : `Confirm these ${ask.ids.length} before they're shared`,
+      body: <ul className="flex flex-col gap-1.5 text-left">{ask.words.map((w, i) => <li key={i}>{w}</li>)}</ul>, confirmLabel: "Confirm and share" }))) return null;
+    try { return await publishLink(supabase, share, draft, r, ask.ids); }
+    catch (e) { haptic("error"); toast(isStale(e) ? "It changed since it was reviewed — nothing was shared. Try again to review it." : failureWords(e as Error, `Couldn't ${what}`), "error"); return null; }
+  };
+}
+
 export default function Shares({ canEdit, isOwner = false, plans = [], programs = [], layouts = [] }: { canEdit: boolean; isOwner?: boolean; plans?: Plan[]; programs?: Program[]; layouts?: Pick<Layout, "id" | "name">[] }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
+  const publish = usePublishLink();
   // A LINK IN PROGRESS SURVIVES A DETOUR (IMS8 P2): the draft — name, asks, lifetime, every tick — is kept in this tab
   // (sessionStorage, never sent anywhere) while it's being made, so a "fix it" elsewhere in the vision and Back return
   // to it as it was. A link made clears it (A1); a failed one keeps it.
@@ -108,14 +128,14 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
     if (!supabase || busy || !label.trim()) return;
     setBusy(true);
     const days = ENDS.find((e) => e.key === ends)?.days ?? 0;
-    const row = { label: label.trim(), show_asks: money, ...(canEnd && days ? { expires_at: new Date(Date.now() + days * 86400000).toISOString() } : {}),
-      ...(canChoose ? { program_ids: pickPrograms, layout_ids: pickRooms } : {}), ...(canPick ? { plan_ids: scope.plans, need_plans: scope.needs } : {}) };
-    const { data, error } = await supabase.from("vision_shares").insert(row).select(COLS).single();
+    const name = label.trim();
+    // Through review and publish (0472): what's sent is what was reviewed.
+    const made = await publish(null, { label: name, show_asks: money, days: canEnd ? days : 0, program_ids: pickPrograms, layout_ids: pickRooms, plan_ids: scope.plans, need_plans: scope.needs }, "make the link");
     setBusy(false);
     // A failure keeps everything as it was, so nothing has to be chosen again.
-    if (error) { toast(failureWords(error, "Couldn't make the link"), "error"); return; }
+    if (!made) return;
     setLabel(""); setMoney(false); setEnds("30"); setPickPrograms([]); setPickRooms([]); setPickPlans([]); setPickNeeds([]); setPeek(false); state.reload();
-    void copy(data as Share);
+    void copy({ token: made.token, label: name } as Share);
   };
   const off = async (s: Share) => {
     if (!supabase) return;
@@ -175,6 +195,7 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
 function CaseChooser({ share, plans, onSaved }: { share: Share; plans: Plan[]; onSaved: () => void }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
+  const publish = usePublishLink();
   const [open, setOpen] = useState(false);
   const [money, setMoney] = useState<string[]>(share.money_plans ?? []);
   const [research, setResearch] = useState<string[]>(share.research_plans ?? []);
@@ -193,9 +214,9 @@ function CaseChooser({ share, plans, onSaved }: { share: Share; plans: Plan[]; o
     const added = money.filter((id) => !(share.money_plans ?? []).includes(id)).map((id) => plans.find((p) => p.id === id)?.name ?? "a plan");
     if (added.length && !(await confirm({ title: `Show ${added.join(", ")}'s money on the link for ${share.label}?`, body: "Anyone holding this link sees the approved baseline — the costs, rent, wages and the investor's terms — and what follows from it. Turn it off here any time.", confirmLabel: "Show it" }))) return;
     setBusy(true);
-    const { error } = await supabase.from("vision_shares").update({ money_plans: money, research_plans: research }).eq("id", share.id);
+    const done = await publish(share.id, { money_plans: money, research_plans: research }, "change what the link shows");
     setBusy(false);
-    if (error) { toast(failureWords(error, "Couldn't change what the link shows"), "error"); return; }
+    if (!done) return;
     haptic("success"); toast(`Saved — what the link for ${share.label} shows.`); onSaved();
   };
   const n = (share.money_plans ?? []).length;
@@ -255,6 +276,7 @@ function ShowsPicker({ programs, layouts, pickPrograms, setPickPrograms, pickRoo
 /** Change what a live link shows of the roadmap and the store (0455). Nothing leaves until it's ticked and saved. */
 function ShowsChooser({ share, programs, layouts, plans, onSaved }: { share: Share; programs: Program[]; layouts: Pick<Layout, "id" | "name">[]; plans: Plan[] | null; onSaved: () => void }) {
   const { toast } = useAppStable();
+  const publish = usePublishLink();
   const [open, setOpen] = useState(false);
   const [pickPrograms, setPickPrograms] = useState<string[]>(share.program_ids ?? []);
   const [pickRooms, setPickRooms] = useState<string[]>(share.layout_ids ?? []);
@@ -266,9 +288,9 @@ function ShowsChooser({ share, programs, layouts, plans, onSaved }: { share: Sha
   const save = async () => {
     if (!supabase || busy) return;
     setBusy(true);
-    const { error } = await supabase.from("vision_shares").update({ program_ids: pickPrograms, layout_ids: pickRooms, ...(plans ? (({ plans: plan_ids, needs: need_plans }) => ({ plan_ids, need_plans }))(inScope(plans, pickPrograms, pickPlans, pickNeeds)) : {}) }).eq("id", share.id);
+    const done = await publish(share.id, { program_ids: pickPrograms, layout_ids: pickRooms, ...(plans ? (({ plans: plan_ids, needs: need_plans }) => ({ plan_ids, need_plans }))(inScope(plans, pickPrograms, pickPlans, pickNeeds)) : {}) }, "change what the link shows");
     setBusy(false);
-    if (error) { toast(failureWords(error, "Couldn't change what the link shows"), "error"); return; }
+    if (!done) return;
     haptic("success"); toast(`Saved — the link for ${share.label} shows ${pickPrograms.length} program${pickPrograms.length === 1 ? "" : "s"} and ${pickRooms.length} room${pickRooms.length === 1 ? "" : "s"}.`); onSaved();
   };
   const np = (share.program_ids ?? []).length, nr = (share.layout_ids ?? []).length, nl = (share.plan_ids ?? []).length;
@@ -302,15 +324,16 @@ function SendsLine({ share }: { share: Share }) {
 function PinLine({ share, isOwner, onSaved }: { share: Share; isOwner: boolean; onSaved: () => void }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
+  const publish = usePublishLink();
   const [busy, setBusy] = useState(false);
   const when = new Date(share.pinned_at!).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const move = async () => {
     if (!supabase || busy) return;
     if (!(await confirm({ title: `Show the latest approval on ${share.label}?`, body: `Anyone who opens this link will see the plans as approved now, instead of as approved by ${when}. The earlier approvals stay on record.`, confirmLabel: "Show the latest" }))) return;
     setBusy(true);
-    const { error } = await supabase.from("vision_shares").update({ pinned_at: new Date().toISOString() }).eq("id", share.id);
+    const done = await publish(share.id, { repin: true }, "move the link on");
     setBusy(false);
-    if (error) { haptic("error"); toast(failureWords(error, "Couldn't move the link on"), "error"); return; }
+    if (!done) return;
     haptic("success"); toast(`${share.label} shows the latest approval now.`); onSaved();
   };
   return (

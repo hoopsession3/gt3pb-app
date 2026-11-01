@@ -75,7 +75,9 @@ const latest = (name) => { const f = migs.filter((m) => new RegExp(`create or re
   const src = read(`supabase/migrations/${f}`); const i = src.lastIndexOf(`create or replace function public.${name}(`); return { file: f, src, body: src.slice(i, src.indexOf("$$;", src.indexOf("$$", i) + 2)) }; };
 const door = latest("vision_shared"), payload = latest("vision_share_payload");
 const last = door.file;
-const fn = door.body + (/vision_share_payload\(/.test(door.body) ? payload.body : "");
+// IMS8 P5 (0472): the door sends the published revision — vision_share_payload's own output, stored when reviewed — behind
+// vision_share_live's gates; both bodies are what a link sends.
+const fn = door.body + (/vision_share_(payload|live)\(/.test(door.body) ? payload.body + latest("vision_share_live").body : "");
 const sqlAll = ["vision_share_keep", "vision_share_list", "vision_share_scenario", "vision_share_baseline"].map((n) => latest(n).body).join("\n") + "\n" + (latest("vision_share_baseline").src ?? "");
 ok(`the share function (its latest, ${last}) reads no recipe, library, research draft, Standard or AI table`, !/food_recipes|std_|academy|ai_usage|vision_plan_money\b|alerts/.test(fn), (fn.match(/food_recipes|std_\w+|academy\w*|ai_usage|vision_plan_money\b|alerts/g) ?? []));
 ok("…its research is accepted findings only, as pinned", /r\.status = 'accepted' and r\.retrieved_at <= s\.pinned_at/.test(fn));

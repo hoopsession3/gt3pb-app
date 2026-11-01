@@ -12985,6 +12985,11 @@ export type Database = {
           pinned_at: string
           plan_ids: string[]
           need_plans: string[]
+          published: Json | null
+          published_fingerprint: string | null
+          published_at: string | null
+          published_by: string | null
+          confirmed: string[] | null
         }
         Insert: {
           id?: string
@@ -13005,6 +13010,11 @@ export type Database = {
           pinned_at?: string
           plan_ids?: string[]
           need_plans?: string[]
+          published?: Json | null
+          published_fingerprint?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          confirmed?: string[] | null
         }
         Update: {
           id?: string
@@ -13025,6 +13035,11 @@ export type Database = {
           pinned_at?: string
           plan_ids?: string[]
           need_plans?: string[]
+          published?: Json | null
+          published_fingerprint?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          confirmed?: string[] | null
         }
         Relationships: [
           {
@@ -14709,16 +14724,34 @@ export type Database = {
         { Args: { r: Database["public"]["Tables"]["vision_shares"]["Row"] | null }; Returns: Json }
       vision_share_baseline:
         { Args: { b: Json | null }; Returns: Json }
+      vision_share_candidate:
+        { Args: { p_share: string | null; p_draft: Json | null; p_lock: boolean | null }; Returns: Database["public"]["Tables"]["vision_shares"]["Row"] }
+      vision_share_fingerprint:
+        { Args: { p: Json | null; p_days?: number | null }; Returns: string }
+      vision_share_internal:
+        { Args: { t: string | null; p_names: string[] | null }; Returns: boolean }
       vision_share_keep:
         { Args: { o: Json | null; keys: string[] | null }; Returns: Json }
       vision_share_list:
         { Args: { a: Json | null; keys: string[] | null }; Returns: Json }
+      vision_share_live:
+        { Args: { s: Database["public"]["Tables"]["vision_shares"]["Row"] | null }; Returns: Json }
+      vision_share_material:
+        { Args: { p: Json | null; p_tenant: string | null }; Returns: string[] }
       vision_share_payload:
         { Args: { s: Database["public"]["Tables"]["vision_shares"]["Row"] | null }; Returns: Json }
       vision_share_preview:
         { Args: { p_share?: string | null; p_draft?: Json | null }; Returns: Json }
+      vision_share_private_names:
+        { Args: { p_tenant: string | null }; Returns: string[] }
+      vision_share_publish:
+        { Args: { p_share: string | null; p_draft: Json | null; p_fingerprint: string | null; p_confirm?: string[] | null }; Returns: Json }
+      vision_share_review:
+        { Args: { p_share?: string | null; p_draft?: Json | null }; Returns: Json }
       vision_share_scenario:
         { Args: { v: Json | null }; Returns: Json }
+      vision_share_texts:
+        { Args: { j: Json | null }; Returns: { key: string; val: string }[] }
       vision_shared:
         { Args: { p_token: string | null }; Returns: Json }
       vision_version_write:
