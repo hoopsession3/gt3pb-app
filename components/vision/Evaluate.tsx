@@ -22,15 +22,17 @@ import { SOURCE_WORD, pillarFacts } from "@/lib/pillarFacts";
 //       baseline never moves: the plans' working numbers recompute when the room is saved.
 type Std = (Summary & { subject_type: string; subject_id: string })[];
 
-export default function Evaluate({ draft, saved, found, plans, onLook, checkedAs }: { draft: Layout; saved: Layout | null; found: Issue[]; plans: Plan[]; onLook: (id: string) => void; checkedAs?: { name: string; basis: string } }) {
+export default function Evaluate({ draft, saved, found, plans, onLook, checkedAs, shared = false }: { draft: Layout; saved: Layout | null; found: Issue[]; plans: Plan[]; onLook: (id: string) => void; checkedAs?: { name: string; basis: string };
+  /** IMS8 P1 — on a link: the room's own checks only; the Standard's results aren't in the link's response, so none are read. */
+  shared?: boolean }) {
   const ids = useMemo(() => [draft.id, ...draft.items.map((i) => i.id)], [draft.id, draft.items]);
   const key = ids.join(",");
   const loader = useCallback(async (): Promise<Std> => {
-    if (!supabase) return [];
+    if (!supabase || shared) return [];
     const { data, error } = await supabase.from("std_subject_summary").select("*").in("subject_id", key.split(","));
     if (error) throw new Error(error.message);
     return (data ?? []).map((x) => ({ ...x, passes: Number(x.passes), conditionals: Number(x.conditionals), fails: Number(x.fails), unknowns: Number(x.unknowns), stale: Number(x.stale) })) as Std;
-  }, [key]);
+  }, [key, shared]);
   const std = useAsyncData(loader, [loader]);
   const [aside, setAside] = useState<Set<string>>(() => new Set());
   const nameOf = (id: string) => (id === draft.id ? draft.name : (() => { const it = draft.items.find((i) => i.id === id); return it ? it.label || kindOf(it.kind).name : "A thing"; })());

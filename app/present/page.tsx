@@ -43,8 +43,8 @@ export default function PresentPage() {
             <button type="button" className="btn-pri" onClick={() => setMode("story")}>▶ The story</button>
           </div>
           <Roadmap programs={vision.programs} asks={vision.asks} layouts={vision.layouts} plans={vision.plans} canEdit={false} showAsks={vision.showAsks} onSaved={() => {}} />
-          {vision.plans.length > 0 && <Plans programs={vision.programs} plans={vision.plans} needs={vision.needs} deps={vision.deps} asks={vision.asks} layouts={vision.layouts} ready canEdit={false} onSaved={() => {}} onOpenStore={() => {}} />}
-          {vision.layouts.length > 0 && <StoreDesigner layouts={vision.layouts} plans={vision.plans} canEdit={false} onSaved={() => {}} />}
+          {vision.plans.length > 0 && <Plans programs={vision.programs} plans={vision.plans} needs={vision.needs} deps={vision.deps} asks={vision.asks} layouts={vision.layouts} ready canEdit={false} shared={{ cases: vision.cases ?? {} }} onSaved={() => {}} onOpenStore={() => {}} />}
+          {vision.layouts.length > 0 && <StoreDesigner layouts={vision.layouts} plans={vision.plans} canEdit={false} shared onSaved={() => {}} />}
         </div>
       )}
     </section>

@@ -10,6 +10,7 @@ import { Segmented } from "@/components/controls";
 import MoneyPanel from "./MoneyPanel";
 import CaseWords from "./CaseWords";
 import Advisor from "./Advisor";
+import type { PlanCase as CaseData } from "@/lib/visionCaseData";
 import { haptic } from "@/lib/haptics";
 import { localToday } from "@/lib/dates";
 import { askTotals, shortMoney, type Ask, type Layout, type Program } from "@/lib/vision";
@@ -27,8 +28,11 @@ type View = "phases" | "compare";
 /** A status's tag, written whole (so the class names are words Tailwind and the CSS audit can read). */
 const TAG = { "": "k-tag", ok: "k-tag ok", gold: "k-tag gold", warn: "k-tag warn", crit: "k-tag crit", blue: "k-tag blue" } as const;
 
-export default function Plans({ programs, plans, needs, deps, asks, layouts, ready, canEdit, isOwner = false, onSaved, onOpenStore }: {
+export default function Plans({ programs, plans, needs, deps, asks, layouts, ready, canEdit, isOwner = false, shared, onSaved, onOpenStore }: {
   programs: Program[]; plans: Plan[]; needs: Need[]; deps: Dep[]; asks: Ask[]; layouts: Layout[]; ready: boolean; canEdit: boolean; isOwner?: boolean;
+  /** IMS8 P1 — an investor link (or its owner's preview of one): the screen draws only what the link's response holds and
+   *  reads nothing of its own — the case's risks come from the link, never from the tables behind it. */
+  shared?: { cases: Record<string, CaseData> };
   onSaved: () => void; onOpenStore: (layoutId: string) => void;
 }) {
   const [view, setView] = useState<View>("phases");
@@ -52,7 +56,7 @@ export default function Plans({ programs, plans, needs, deps, asks, layouts, rea
   if (caseOf) {
     return (
       <>
-        <PlanCase plan={caseOf} plans={plans} needs={needs} deps={deps} asks={asks} layouts={layouts} canEdit={canEdit} isOwner={isOwner}
+        <PlanCase plan={caseOf} plans={plans} needs={needs} deps={deps} asks={asks} layouts={layouts} canEdit={canEdit} isOwner={isOwner} shared={shared}
           onBack={() => setCaseId(null)} onEdit={() => setOpen(caseOf)} onOpenStore={onOpenStore} onSaved={onSaved} />
         {open && (
           <PlanSheet key={"id" in open ? open.id : "new"} plan={"id" in open ? open : null} draft={"id" in open ? null : open}
@@ -352,8 +356,8 @@ function PlanAsks({ asks, editHint = false }: { asks: Ask[]; editHint?: boolean 
 /** A plan's case (R54): the steps from the vision to the investment — the plan itself, then its money. Traffic (phase C),
  *  evidence and scores (D) and the investor case (E) join these steps as they land. */
 type Step = "plan" | "traffic" | "room" | "money";
-function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner, onBack, onEdit, onOpenStore, onSaved }: {
-  plan: Plan; plans: Plan[]; needs: Need[]; deps: Dep[]; asks: Ask[]; layouts: Layout[]; canEdit: boolean; isOwner: boolean;
+function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner, shared, onBack, onEdit, onOpenStore, onSaved }: {
+  plan: Plan; plans: Plan[]; needs: Need[]; deps: Dep[]; asks: Ask[]; layouts: Layout[]; canEdit: boolean; isOwner: boolean; shared?: { cases: Record<string, CaseData> };
   onBack: () => void; onEdit: () => void; onOpenStore: (layoutId: string) => void; onSaved: () => void;
 }) {
   const [step, setStep] = useState<Step>("plan");
@@ -380,7 +384,7 @@ function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner
             {p.gate && <><b className="font-sans">Goes when</b><p className="vz-sub">{p.gate}</p></>}
             {waits.length > 0 && <p className="vz-wait">Waits on {waits.map((w) => w.name).join(", ")}</p>}
             {room && <button type="button" className="btn-sec btn-sm self-start" onClick={() => onOpenStore(room.id)}>See its room →</button>}
-            <CaseWords plan={p} canEdit={canEdit} onSaved={onSaved} />
+            <CaseWords plan={p} canEdit={canEdit && !shared} onSaved={onSaved} risks={shared ? (shared.cases[p.id]?.risks ?? []) : undefined} />
           </div>
           <div className="flex flex-col gap-2 min-w-0">
             <b className="font-sans">What it needs{mine.length ? ` · ${needsProgress(mine).done} of ${mine.length} done` : ""}</b>
@@ -388,6 +392,9 @@ function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner
             <PlanAsks asks={asks.filter((x) => x.plan_id === p.id)} />
           </div>
         </div>
+      ) : shared ? (
+        // A link's money is its case (the Story's slides); this view reads no table behind the link.
+        <p className="vz-sub">{shared.cases[p.id] ? "This plan's approved case is in the presentation — Story, then its case." : "A plan's money is the owners'. Ask an owner to walk you through it."}</p>
       ) : (
         <MoneyPanel plan={p} asks={asks} canEdit={canEdit} isOwner={isOwner} view={step} room={room} onOpenRoom={room ? () => onOpenStore(room.id) : undefined}
           progress={{ needs: { done: needsProgress(mine).done, all: mine.length }, waitingOn: waits.map((w) => w.name), needList: mine.map((n) => ({ label: n.label, owner: n.owner, due_on: n.due_on, done_on: n.done_on, note: n.note })) }}

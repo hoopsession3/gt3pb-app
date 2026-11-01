@@ -68,13 +68,15 @@ export default function MoneyPanel({ plan, asks, canEdit, isOwner = false, view 
   onNeedsChanged?: () => void;
 }) {
   const load = useCallback(async (): Promise<Saved | "not-yet"> => {
+    // A reader isn't shown the money (below), so it isn't read either (IMS8 P1).
+    if (!canEdit) return "not-yet";
     if (!supabase) throw new Error("Supabase client not configured");
     const { data, error } = await supabase.from("vision_plan_money").select("scenarios, structure, baseline, baseline_at").eq("plan_id", plan.id).maybeSingle();
     if (error) throw new Error(error.message);
     const row = data as { scenarios?: Record<string, unknown>; structure?: Structure; baseline?: { scenarios?: Record<string, unknown>; structure?: Structure; acknowledged?: unknown } | null; baseline_at?: string | null } | null;
     return { ...snapOf(row), baseline: row?.baseline ? snapOf(row.baseline) : null, baselineAt: row?.baseline_at ?? null, acks: acksOf(row?.baseline?.acknowledged) };
-  }, [plan.id]);
-  const state = useAsyncData(load, [plan.id]);
+  }, [plan.id, canEdit]);
+  const state = useAsyncData(load, [plan.id, canEdit]);
   if (!canEdit) return <p className="vz-sub">A plan&apos;s money — its costs, rent, wages and terms — is the owners&apos;. Ask an owner to walk you through it.</p>;
   if (state.status === "loading" || !state.data) return state.status === "error" ? <p className="load-failed">{failureWords(state.error as Error, "Couldn't read the money")}</p> : <p className="vz-sub">Reading the money…</p>;
   if (state.data === "not-yet") return <p className="vz-sub">The money arrives with the next database update (0449). The plan, its phases and its room work as before.</p>;

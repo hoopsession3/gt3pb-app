@@ -88,6 +88,12 @@ export async function readVision(sb: SupabaseClient): Promise<Vision> {
 export async function readShared(sb: SupabaseClient, token: string): Promise<Vision> {
   const { data, error } = await sb.rpc("vision_shared", { p_token: token });
   if (error) throw new Error(/live/i.test(error.message) ? "This link isn't live — ask whoever sent it for a new one." : error.message);
+  return toVision(data);
+}
+
+/** A link's response (vision_shared, or vision_share_preview for its owner) as the screens draw it — one mapping, so the
+ *  owner's preview and the investor's link can't differ (IMS8 P1). Pure. */
+export function toVision(data: unknown): Vision {
   const j = (data ?? {}) as { label?: string; show_asks?: boolean; expires_at?: string | null; programs?: Row[]; asks?: Row[];
     plans?: (Row & { needs?: Row[]; waits_on?: string[]; money?: Row | null; research?: Row[] | null; risks?: Row[] | null })[]; layouts?: (Row & { items?: Row[] })[] };
   // 0451: a plan's case, where the link was given it — before 0451 no plan carries one, and the link shows none.

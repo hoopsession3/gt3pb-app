@@ -56,7 +56,9 @@ function keptFor(original: Layout | null | undefined): KeptDraft | null {
   } catch { return null; }
 }
 
-export default function StoreDesigner({ layouts, plans = [], initialId = null, canEdit, onSaved }: { layouts: Layout[]; plans?: Plan[]; initialId?: string | null; canEdit: boolean; onSaved: () => void }) {
+export default function StoreDesigner({ layouts, plans = [], initialId = null, canEdit, shared = false, onSaved }: { layouts: Layout[]; plans?: Plan[]; initialId?: string | null; canEdit: boolean;
+  /** IMS8 P1 — an investor link (or its owner's preview): draws only the link's rooms; reads nothing behind them. */
+  shared?: boolean; onSaved: () => void }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
   const [layoutId, setLayoutId] = useState(initialId && layouts.some((l) => l.id === initialId) ? initialId : layouts[0]?.id ?? "");
@@ -196,7 +198,8 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
   const [base, setBase] = useState(original);
   // AN INTERRUPTED SESSION (S1.1b): unsaved changes are kept on this device as they're made, and offered back the next
   // time this room opens — only if the room hasn't been saved since (a draft never lands on a newer save).
-  const [kept, setKept] = useState<KeptDraft | null>(() => keptFor(original));
+  // Only an editor's own drafts: a read-only view (a link, a crew reader) never offers, keeps or clears one (IMS8 P1).
+  const [kept, setKept] = useState<KeptDraft | null>(() => (canEdit ? keptFor(original) : null));
   // The same room read again after its own save keeps its undo history and what's picked (S1.1 — the gate: "save changes
   // and preserve undo/redo history"); another room, or a fresh read from elsewhere, starts clean.
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -212,7 +215,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
     const same = !!original && savedId === original.id;
     const newer = same && !!sent && !!draft && draft !== sent;
     setBase(original); if (!newer) setDraft(original ?? null); setSavedId(null); setSent(null);
-    if (!same) { setPast([]); setFuture([]); setSel(null); setKept(keptFor(original)); }
+    if (!same) { setPast([]); setFuture([]); setSel(null); setKept(canEdit ? keptFor(original) : null); }
   }
 
   const dirty = !!draft && !!original && JSON.stringify(draft) !== JSON.stringify(original);
@@ -224,13 +227,13 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
   useEffect(() => {
-    if (!original || kept) return;   // an offer on screen isn't overwritten until it's answered
+    if (!original || kept || !canEdit) return;   // an offer on screen isn't overwritten until it's answered; a reader keeps nothing
     try {
       const k = `gt3.studio.draft.${original.id}`;
       if (dirty && draft) localStorage.setItem(k, JSON.stringify({ at: Date.now(), base: hashOf(original), draft }));
       else localStorage.removeItem(k);
     } catch { /* storage refused: nothing kept, nothing lost from the screen */ }
-  }, [draft, dirty, original, kept]);
+  }, [draft, dirty, original, kept, canEdit]);
   // The findings, grouped (S1.1c): errors one by one, touching warnings as one. Only errors are drawn on the plan by
   // default; a finding chosen from the list highlights everything it names (focus), until something else is picked.
   // The shared spatial engine (lib/spatial), run as the room's operating model — the model of the plan that uses this room
@@ -351,7 +354,7 @@ export default function StoreDesigner({ layouts, plans = [], initialId = null, c
       onRemove={() => void takeOut(item)} onClose={() => { setDock(false); setDetailsShut(true); }} />
   );
   // What a plan reviewer would circle, the schedule, the room itself: beside the canvas on a wide studio, under it on a phone.
-  const evaluate = draft ? <Evaluate draft={draft} saved={original ?? null} found={found} plans={plans} checkedAs={PROFILES[model]} onLook={(id) => { const f = found.find((x) => x.ids.includes(id)); if (f) look(f); else pick(id); }} /> : null;
+  const evaluate = draft ? <Evaluate draft={draft} saved={original ?? null} found={found} plans={plans} shared={shared} checkedAs={PROFILES[model]} onLook={(id) => { const f = found.find((x) => x.ids.includes(id)); if (f) look(f); else pick(id); }} /> : null;
   const roomPanels = (
     <>
       {lens === "evaluate" && evaluate}

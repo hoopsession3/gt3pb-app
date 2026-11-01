@@ -18,14 +18,17 @@ type Draft = Omit<Risk, "plan_id" | "sort">;
 const toDraft = (r: Risk): Draft & { id?: string } => ({ id: r.id, kind: r.kind, words: r.words, likelihood: r.likelihood, impact: r.impact, mitigation: r.mitigation, evidence: r.evidence, status: r.status });
 const blank = (kind: Risk["kind"]): Draft => ({ kind, words: "", likelihood: null, impact: null, mitigation: null, evidence: null, status: "open" });
 
-export default function CaseWords({ plan, canEdit, onSaved }: { plan: Plan; canEdit: boolean; onSaved: () => void }) {
+export default function CaseWords({ plan, canEdit, onSaved, risks }: { plan: Plan; canEdit: boolean; onSaved: () => void;
+  /** IMS8 P1 — on a link: the risks its response holds. Given, nothing is read from the tables behind the link. */
+  risks?: Risk[] }) {
   const load = useCallback(async (): Promise<Risk[]> => {
+    if (risks) return risks;
     if (!supabase) return [];
     const { data, error } = await supabase.from("vision_plan_risks").select("*").eq("plan_id", plan.id).order("sort").order("created_at");
     if (error) throw new Error(error.message);
     return ((data ?? []) as Record<string, unknown>[]).map((r) => toRisk(r));
-  }, [plan.id]);
-  const state = useAsyncData(load, [plan.id]);
+  }, [plan.id, risks]);
+  const state = useAsyncData(load, [plan.id, risks]);
   if (!state.data) return state.status === "error" ? <p className="load-failed">{failureWords(state.error as Error, "Couldn't read the case")}</p> : <p className="vz-card-s">Reading the case…</p>;
   return <Words key={plan.id} plan={plan} risks={state.data} canEdit={canEdit} onSaved={() => { state.reload(); onSaved(); }} />;
 }
