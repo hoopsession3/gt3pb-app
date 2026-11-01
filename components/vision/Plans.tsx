@@ -28,7 +28,9 @@ type View = "phases" | "compare";
 /** A status's tag, written whole (so the class names are words Tailwind and the CSS audit can read). */
 const TAG = { "": "k-tag", ok: "k-tag ok", gold: "k-tag gold", warn: "k-tag warn", crit: "k-tag crit", blue: "k-tag blue" } as const;
 
-export default function Plans({ programs, plans, needs, deps, asks, layouts, ready, canEdit, isOwner = false, shared, onSaved, onOpenStore }: {
+export default function Plans({ programs, plans, needs, deps, asks, layouts, ready, canEdit, isOwner = false, shared, onSaved, onOpenStore, initialCase = null, initialStep = null, onCase }: {
+  /** IMS8 P2 — the plan (and step) the address opened, and where to say which plan and step are open now. */
+  initialCase?: string | null; initialStep?: "plan" | "traffic" | "room" | "money" | null; onCase?: (plan: string | null, step: "plan" | "traffic" | "room" | "money" | null) => void;
   programs: Program[]; plans: Plan[]; needs: Need[]; deps: Dep[]; asks: Ask[]; layouts: Layout[]; ready: boolean; canEdit: boolean; isOwner?: boolean;
   /** IMS8 P1 — an investor link (or its owner's preview of one): the screen draws only what the link's response holds and
    *  reads nothing of its own — the case's risks come from the link, never from the tables behind it. */
@@ -41,7 +43,8 @@ export default function Plans({ programs, plans, needs, deps, asks, layouts, rea
   const others = programs.filter((p) => !plans.some((x) => x.program_id === p.id));
   const [newFor, setNewFor] = useState("");
   // A plan's case (R54): the plan, then its money — and, as the phases land, its traffic, its evidence and the investor case.
-  const [caseId, setCaseId] = useState<string | null>(null);
+  const [caseId, setCaseIdState] = useState<string | null>(initialCase);
+  const setCaseId = (id: string | null) => { setCaseIdState(id); onCase?.(id, id ? "plan" : null); };
   const caseOf = plans.find((x) => x.id === caseId) ?? null;
 
   if (!ready) {
@@ -57,6 +60,7 @@ export default function Plans({ programs, plans, needs, deps, asks, layouts, rea
     return (
       <>
         <PlanCase plan={caseOf} plans={plans} needs={needs} deps={deps} asks={asks} layouts={layouts} canEdit={canEdit} isOwner={isOwner} shared={shared}
+          initialStep={caseOf.id === initialCase ? initialStep : null} onStep={(s) => onCase?.(caseOf.id, s)}
           onBack={() => setCaseId(null)} onEdit={() => setOpen(caseOf)} onOpenStore={onOpenStore} onSaved={onSaved} />
         {open && (
           <PlanSheet key={"id" in open ? open.id : "new"} plan={"id" in open ? open : null} draft={"id" in open ? null : open}
@@ -356,11 +360,13 @@ function PlanAsks({ asks, editHint = false }: { asks: Ask[]; editHint?: boolean 
 /** A plan's case (R54): the steps from the vision to the investment — the plan itself, then its money. Traffic (phase C),
  *  evidence and scores (D) and the investor case (E) join these steps as they land. */
 type Step = "plan" | "traffic" | "room" | "money";
-function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner, shared, onBack, onEdit, onOpenStore, onSaved }: {
+function PlanCase({ plan: p, plans, needs, deps, asks, layouts, canEdit, isOwner, shared, onBack, onEdit, onOpenStore, onSaved, initialStep = null, onStep }: {
+  initialStep?: Step | null; onStep?: (s: Step) => void;
   plan: Plan; plans: Plan[]; needs: Need[]; deps: Dep[]; asks: Ask[]; layouts: Layout[]; canEdit: boolean; isOwner: boolean; shared?: { cases: Record<string, CaseData> };
   onBack: () => void; onEdit: () => void; onOpenStore: (layoutId: string) => void; onSaved: () => void;
 }) {
-  const [step, setStep] = useState<Step>("plan");
+  const [step, setStepState] = useState<Step>(initialStep ?? "plan");
+  const setStep = (s: Step) => { setStepState(s); onStep?.(s); };
   const room = layouts.find((l) => l.id === p.layout_id) ?? null;
   const mine = needs.filter((n) => n.plan_id === p.id);
   const waits = waitingOn(p, plans, deps);

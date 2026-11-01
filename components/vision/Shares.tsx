@@ -1,7 +1,7 @@
 "use client";
 
 import { failureWords } from "@/lib/failureWords";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useAppStable } from "@/components/AppProvider";
@@ -37,29 +37,52 @@ export function linkState(s: Pick<Share, "revoked_at" | "expires_at">, now = Dat
   return { live: true, word: "Live", ends: days <= 1 ? "ends within a day" : `ends in ${days} days` };
 }
 export const shareUrl = (token: string) => `${publicOrigin()}/present#${token}`;
+/** The link in progress, kept in this tab only (IMS8 P2). Empty choices aren't kept; storage refused keeps nothing. */
+type LinkDraft = { label: string; money: boolean; ends: string; programs: string[]; rooms: string[]; plans: string[]; needs: string[] };
+const DRAFT_KEY = "gt3.vision.linkDraft.v1";
+const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+function readDraft(): LinkDraft | null {
+  try {
+    const j = JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? "null") as Partial<LinkDraft> | null;
+    if (!j || typeof j !== "object") return null;
+    return { label: typeof j.label === "string" ? j.label.slice(0, 80) : "", money: j.money === true, ends: typeof j.ends === "string" ? j.ends : "30",
+      programs: strs(j.programs), rooms: strs(j.rooms), plans: strs(j.plans), needs: strs(j.needs) };
+  } catch { return null; }
+}
+function writeDraft(d: LinkDraft) {
+  try {
+    const empty = !d.label.trim() && !d.money && d.ends === "30" && !d.programs.length && !d.rooms.length && !d.plans.length && !d.needs.length;
+    if (empty) sessionStorage.removeItem(DRAFT_KEY); else sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+  } catch { /* storage refused: the draft lives on screen only */ }
+}
 
 export default function Shares({ canEdit, isOwner = false, plans = [], programs = [], layouts = [] }: { canEdit: boolean; isOwner?: boolean; plans?: Plan[]; programs?: Program[]; layouts?: Pick<Layout, "id" | "name">[] }) {
   const { toast } = useAppStable();
   const confirm = useConfirm();
-  const [label, setLabel] = useState("");
+  // A LINK IN PROGRESS SURVIVES A DETOUR (IMS8 P2): the draft — name, asks, lifetime, every tick — is kept in this tab
+  // (sessionStorage, never sent anywhere) while it's being made, so a "fix it" elsewhere in the vision and Back return
+  // to it as it was. A link made clears it (A1); a failed one keeps it.
+  const [kept] = useState<LinkDraft | null>(readDraft);
+  const [label, setLabel] = useState(kept?.label ?? "");
   // NOTHING IS CHOSEN FOR YOU (IMS8 A1, Ryan 2026-11-01: "nothing selected by default… clear selections after successful
   // Create… preserve the draft on failure"). A new link starts empty — no programs, plans, needs, rooms, money or asks —
   // and a link made clears them, so the next link never inherits the last one's.
-  const [money, setMoney] = useState(false);
-  const [ends, setEnds] = useState<(typeof ENDS)[number]["key"]>("30");
+  const [money, setMoney] = useState(kept?.money ?? false);
+  const [ends, setEnds] = useState<(typeof ENDS)[number]["key"]>(ENDS.some((e) => e.key === kept?.ends) ? (kept!.ends as (typeof ENDS)[number]["key"]) : "30");
   const canEnd = true;   // 0448 is applied (2026-10-25): every link can end
   const [busy, setBusy] = useState(false);
   const [canCase, setCanCase] = useState(true);
   // What a link shows of the roadmap and the store (0455): chosen per link, nothing until ticked.
   const [canChoose, setCanChoose] = useState(true);
   const shownPlans = plans.filter((p) => p.shareable);
-  const [pickPrograms, setPickPrograms] = useState<string[]>([]);
-  const [pickRooms, setPickRooms] = useState<string[]>([]);
+  const [pickPrograms, setPickPrograms] = useState<string[]>(kept?.programs ?? []);
+  const [pickRooms, setPickRooms] = useState<string[]>(kept?.rooms ?? []);
   // Which plans it shows, and whose open needs (IMS7-0467): per link, nothing until ticked — not every plan marked to
   // show, not every plan of a program it shows. canPick: 0467 is in (until it is, the links read and work as before).
   const [canPick, setCanPick] = useState(true);
-  const [pickPlans, setPickPlans] = useState<string[]>([]);
-  const [pickNeeds, setPickNeeds] = useState<string[]>([]);
+  const [pickPlans, setPickPlans] = useState<string[]>(kept?.plans ?? []);
+  const [pickNeeds, setPickNeeds] = useState<string[]>(kept?.needs ?? []);
+  useEffect(() => { writeDraft({ label, money, ends, programs: pickPrograms, rooms: pickRooms, plans: pickPlans, needs: pickNeeds }); }, [label, money, ends, pickPrograms, pickRooms, pickPlans, pickNeeds]);
   const [peek, setPeek] = useState(false);
   // What's sent is what's visibly ticked: a plan under a program since unticked (and its needs) isn't carried.
   const scope = inScope(shownPlans, pickPrograms, pickPlans, pickNeeds);

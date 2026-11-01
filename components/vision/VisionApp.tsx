@@ -11,6 +11,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import { Segmented } from "@/components/controls";
 import { readCases, readVision, type Vision } from "@/lib/visionRead";
+import { placeOf, searchOf, type VisionPlace } from "@/lib/visionNav";
 import Roadmap from "./Roadmap";
 import StoreDesigner from "./StoreDesigner";
 import Present from "./Present";
@@ -25,14 +26,32 @@ import Library from "./Library";
 // program exists, where capital may be needed), the store designer (a plan to scale and the room in 3D, the reason for
 // everything in it), Present (the story, full screen, to show someone across a table), and private links for someone who
 // isn't. The crew read it; owners and admins change it.
-type Tab = "roadmap" | "plans" | "store" | "links" | "standard" | "library" | "food" | "menu";
+type Tab = VisionPlace["tab"];
+const EDIT_TABS: readonly Tab[] = ["links", "standard", "library", "menu", "food"];
 
 export default function VisionApp({ canEdit, isOwner = false }: { canEdit: boolean; isOwner?: boolean }) {
-  const [tab, setTab] = useState<Tab>("roadmap");
+  // WHERE YOU ARE, IN THE ADDRESS (IMS8 P2): the tab, the plan open and its step, the room — read once on arrival
+  // (a link, a "fix it", Back), kept in the address as you move. A tab you can't edit falls back to the roadmap.
+  const [place, setPlace] = useState<VisionPlace>(() => {
+    const p = placeOf(typeof window === "undefined" ? "" : window.location.search);
+    return !canEdit && EDIT_TABS.includes(p.tab) ? { ...p, tab: "roadmap" } : p;
+  });
+  const tab = place.tab;
+  const setTab = useCallback((t: Tab) => setPlace((p) => ({ ...p, tab: t, plan: null, step: null, room: null, back: t === "links" ? null : p.back })), []);
+  useEffect(() => {
+    const want = `/vision${searchOf(place)}`;
+    if (`${window.location.pathname}${window.location.search}` !== want) window.history.replaceState(window.history.state, "", want);
+  }, [place]);
+  useEffect(() => {
+    const back = () => setPlace(placeOf(window.location.search));
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, []);
   const [presenting, setPresenting] = useState(false);
   // The room the store opens on: a plan's or a program's "see its room" picks it.
-  const [room, setRoom] = useState<string | null>(null);
-  const openStore = useCallback((id: string) => { setRoom(id); setTab("store"); }, []);
+  const room = place.room;
+  const openStore = useCallback((id: string) => setPlace((p) => ({ ...p, tab: "store", room: id, plan: null, step: null })), []);
+  const onCase = useCallback((plan: string | null, step: VisionPlace["step"]) => setPlace((p) => (p.tab !== "plans" || (p.plan === plan && p.step === step) ? p : { ...p, plan, step: plan ? step : null })), []);
   const loader = useCallback(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
     return readVision(supabase);
@@ -49,13 +68,18 @@ export default function VisionApp({ canEdit, isOwner = false }: { canEdit: boole
         </div>
         <button type="button" className="btn-pri" onClick={() => setPresenting(true)} disabled={!state.data}>▶ Present</button>
       </div>
+      {place.back === "links" && tab !== "links" && (
+        // A "fix it" from a link in progress: one tap back, the draft as it was (IMS8 P2; the draft is kept in this tab).
+        <button type="button" className="btn-ter self-start" onClick={() => setTab("links")}>‹ Back to your link</button>
+      )}
       <Segmented label="The vision" kind="choice" value={tab} onChange={setTab}
         options={[{ key: "roadmap", label: "Roadmap" }, { key: "plans", label: "Plans" }, { key: "store", label: "The store" }, ...(canEdit ? [{ key: "links" as const, label: "Links" }, { key: "standard" as const, label: "Standard" }, { key: "library" as const, label: "Library" }, { key: "menu" as const, label: "Menu" }, { key: "food" as const, label: "Food" }] : [])]} />
       <AsyncSection state={state} isEmpty={() => false} emptyTitle="Nothing yet" loadingLabel="Loading the plan…" errorTitle="Couldn't load the plan" errorSub="This is not an empty plan — we couldn't read it just now.">
         {(v) => (
           <>
             {tab === "roadmap" && <Roadmap programs={v.programs} asks={v.asks} layouts={v.layouts} plans={v.plans} canEdit={canEdit} showAsks onSaved={state.reload} onOpenStore={openStore} onOpenPlans={() => setTab("plans")} />}
-            {tab === "plans" && <Plans programs={v.programs} plans={v.plans} needs={v.needs} deps={v.deps} asks={v.asks} layouts={v.layouts} ready={v.plansReady} canEdit={canEdit} isOwner={isOwner} onSaved={state.reload} onOpenStore={openStore} />}
+            {tab === "plans" && <Plans programs={v.programs} plans={v.plans} needs={v.needs} deps={v.deps} asks={v.asks} layouts={v.layouts} ready={v.plansReady} canEdit={canEdit} isOwner={isOwner} onSaved={state.reload} onOpenStore={openStore}
+              initialCase={place.plan} initialStep={place.step} onCase={onCase} />}
             {tab === "store" && <StoreDesigner key={room ?? "first"} layouts={v.layouts} plans={v.plans} initialId={room} canEdit={canEdit} onSaved={state.reload} />}
             {tab === "standard" && canEdit && <Standard layouts={v.layouts} plans={v.plans} isOwner={isOwner} />}
             {tab === "food" && canEdit && <FoodLab isOwner={isOwner} />}
