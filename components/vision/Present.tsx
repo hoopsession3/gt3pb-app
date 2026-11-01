@@ -150,7 +150,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
                   <div>
                     <p className="vp-eyebrow">{t.total > 0 ? `Where capital helps · ${shortMoney(t.total)}` : "Partners wanted"}</p>
                     {asks.map((a, i) => (
-                      <div key={i} className="vp-ask"><span>{a.label}</span><b>{a.amount_cents ? shortMoney(a.amount_cents) : "—"}</b><span>{ASK_WORD[a.state]}{a.note ? ` · ${a.note}` : ""}</span></div>
+                      <div key={i} className="vp-ask"><span>{a.label}</span><b>{a.amount_cents ? shortMoney(a.amount_cents) : a.amount_cents === 0 ? "None needed" : "—"}</b><span>{ASK_WORD[a.state]}{a.note ? ` · ${a.note}` : ""}</span></div>
                     ))}
                   </div>
                 )}
@@ -193,11 +193,11 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
           {s.kind === "capital" && (
             <>
               <p className="vp-eyebrow">Where we need capital</p>
-              <div className="vp-big">{total.total > 0 ? shortMoney(total.total) : "Partners wanted"}</div>
+              <div className="vp-big">{total.total > 0 ? shortMoney(total.total) : total.unset > 0 ? "Partners wanted" : "No capital needed"}</div>
               <CapitalBar t={total} dark />
               {vision.programs.filter((p) => asksOf(p.id).length).map((p) => {
                 const t = askTotals(asksOf(p.id));
-                return <div key={p.id} className="vp-ask"><span>{p.emoji ? `${p.emoji} ` : ""}{p.title}</span><b>{t.total ? shortMoney(t.total) : "—"}</b><span>{t.open ? `${shortMoney(t.open)} open` : t.total ? "Fully committed" : "Being priced"}</span></div>;
+                return <div key={p.id} className="vp-ask"><span>{p.emoji ? `${p.emoji} ` : ""}{p.title}</span><b>{t.total ? shortMoney(t.total) : "—"}</b><span>{t.open ? `${shortMoney(t.open)} open` : t.total ? "Fully committed" : t.unset ? "Being priced" : "None needed"}</span></div>;
               })}
             </>
           )}

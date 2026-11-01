@@ -55,8 +55,8 @@ const V = loadTs("lib/vision.ts");
     ["6′ 2″", "6 2", "74", "6'", "abc"].map(V.parseFtIn));
   const st = V.roomStats(ROOM);
   ok("the room's numbers: 1,200 sq ft, 15 seats, 19 things", st.sqft === 1200 && st.seats === 15 && st.items === 19, st);
-  const t = V.askTotals([{ amount_cents: 5000000, state: "open" }, { amount_cents: 2000000, state: "committed" }, { amount_cents: 0, state: "open" }]);
-  ok("the asks: totals by state, an unset amount counted as unset", t.total === 7000000 && t.open === 5000000 && t.committed === 2000000 && t.unset === 1, t);
+  const t = V.askTotals([{ amount_cents: 5000000, state: "open" }, { amount_cents: 2000000, state: "committed" }, { amount_cents: null, state: "open" }, { amount_cents: 0, state: "open" }]);
+  ok("the asks: totals by state; an amount not set (NULL) counted as unset, a confirmed $0 as none needed (0471)", t.total === 7000000 && t.open === 5000000 && t.committed === 2000000 && t.unset === 1 && t.none === 1, t);
   ok("money, short — exact under $100K, then $350K, $1.2M", V.shortMoney(5000000) === "$50,000" && V.shortMoney(35000000) === "$350K" && V.shortMoney(120000000) === "$1.2M",
     [V.shortMoney(5000000), V.shortMoney(35000000), V.shortMoney(120000000)]);
   const b = V.board([{ id: "1", title: "c", horizon: "later", sort: 1 }, { id: "2", title: "b", horizon: "now", sort: 2 }, { id: "3", title: "a", horizon: "now", sort: 1 }]);

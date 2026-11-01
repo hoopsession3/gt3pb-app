@@ -68,7 +68,7 @@ export function previewOf(payload: J): Preview {
     else if (!NOT_TEXT.has(s.key) && !/^\$\.plans\[\]\.waits_on\[\]$|pillars\[\]$/.test(s.path)) other.push(s.text);
   }
   // The amounts asked for are said with the asks (numbers, not free text, but the point of the category).
-  for (const a of arr(p.asks).map(obj)) { const u = typeof a.amount_cents === "number" ? moneyRound(a.amount_cents) : null; if (u && str(a.label)) texts.asks = texts.asks.map((t) => (t === str(a.label) ? `${t} — ${u}` : t)); }
+  for (const a of arr(p.asks).map(obj)) { const u = typeof a.amount_cents === "number" ? (a.amount_cents === 0 ? "no capital needed" : moneyRound(a.amount_cents)) : "amount to be set"; if (u && str(a.label)) texts.asks = texts.asks.map((t) => (t === str(a.label) ? `${t} — ${u}` : t)); }
   const sections = Object.keys(TITLES).filter((k) => count[k] > 0 || texts[k].length > 0).map((k) => ({ key: k, title: TITLES[k], count: count[k], texts: texts[k] }));
   return { sections, other: [...new Set(other)], total: all.length };
 }

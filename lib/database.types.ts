@@ -12375,7 +12375,7 @@ export type Database = {
           tenant_id: string | null
           program_id: string
           label: string
-          amount_cents: number
+          amount_cents: number | null
           state: string
           note: string | null
           sort: number
@@ -12387,7 +12387,7 @@ export type Database = {
           tenant_id?: string | null
           program_id: string
           label: string
-          amount_cents?: number
+          amount_cents?: number | null
           state?: string
           note?: string | null
           sort?: number
@@ -12399,7 +12399,7 @@ export type Database = {
           tenant_id?: string | null
           program_id?: string
           label?: string
-          amount_cents?: number
+          amount_cents?: number | null
           state?: string
           note?: string | null
           sort?: number

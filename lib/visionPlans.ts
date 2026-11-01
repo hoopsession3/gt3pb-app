@@ -125,7 +125,7 @@ export function compareRows(plans: readonly Plan[], ctx: { layouts: readonly Lay
     row("Seats", (p) => { const r = roomOf(p); return r ? String(roomStats(r).seats) : FORMAT[p.format].room ? "No room drawn yet" : "Theirs"; }),
     row("Needs done", (p) => { const n = needsProgress(ctx.needs.filter((x) => x.plan_id === p.id)); return n.all ? `${n.done} of ${n.all}${n.late ? ` · ${n.late} late` : ""}` : "None listed"; }),
     row("Waits on", (p) => waitingOn(p, ctx.all, ctx.deps).map((w) => w.name).join(", ") || "Nothing"),
-    row("Capital asked", (p) => { const t = askTotals(ctx.asks.filter((a) => a.plan_id === p.id)); return t.total ? `$${Math.round(t.total / 100).toLocaleString("en-US")}` : t.unset ? "Being priced" : "None asked"; }),
+    row("Capital asked", (p) => { const t = askTotals(ctx.asks.filter((a) => a.plan_id === p.id)); return t.total ? `$${Math.round(t.total / 100).toLocaleString("en-US")}` : t.unset ? "Being priced" : t.none ? "None needed" : "None asked"; }),
     row("Goes when", (p) => p.gate || "Gate to be set"),
   ];
 }

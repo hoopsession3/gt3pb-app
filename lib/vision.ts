@@ -29,7 +29,7 @@ export type Program = {
   horizon: Horizon; status: Status; start_on: string | null; target_on: string | null; emoji: string | null;
   layout_id: string | null; sort: number;
 };
-export type Ask = { id?: string; program_id: string; plan_id?: string | null; label: string; amount_cents: number; state: AskState; note: string | null; sort: number };
+export type Ask = { id?: string; program_id: string; plan_id?: string | null; label: string; amount_cents: number | null; state: AskState; note: string | null; sort: number };
 export type Item = {
   id: string; kind: string; label: string | null; x_in: number; y_in: number; rot: 0 | 90 | 180 | 270;
   w_in: number; d_in: number; h_in: number; why: string | null; pillars: Pillar[]; sort: number;
@@ -178,16 +178,34 @@ export function parseFtIn(s: string): number | null {
 }
 
 // ── the asks ────────────────────────────────────────────────────────────────────────────────────────────────────────
-export type Totals = { total: number; open: number; committed: number; funded: number; unset: number };
-/** What a program (or the whole plan) asks for, by where each part stands. A $0 line is a line with no amount set yet. */
+export type Totals = { total: number; open: number; committed: number; funded: number; unset: number; none: number };
+/** What a program (or the whole plan) asks for, by where each part stands (IMS8 P3, 0471: three states). An amount
+ *  that isn't set (NULL) is counted in `unset`; a confirmed $0 ("no capital needed here") in `none`; neither adds money. */
 export function askTotals(asks: readonly Pick<Ask, "amount_cents" | "state">[]): Totals {
-  const t: Totals = { total: 0, open: 0, committed: 0, funded: 0, unset: 0 };
+  const t: Totals = { total: 0, open: 0, committed: 0, funded: 0, unset: 0, none: 0 };
   for (const a of asks) {
-    if (!a.amount_cents) { t.unset++; continue; }
+    if (a.amount_cents == null) { t.unset++; continue; }
+    if (a.amount_cents === 0) { t.none++; continue; }
     t.total += a.amount_cents; t[a.state] += a.amount_cents;
   }
   return t;
 }
+/** An ask's amount in words: the amount, "No capital needed" (a confirmed $0), or "Amount to be set" (not set yet). */
+export function askAmountWords(cents: number | null | undefined): string {
+  if (cents == null) return "Amount to be set";
+  if (cents === 0) return "No capital needed";
+  return shortMoney(cents);
+}
+/** The roadmap form's words for an amount → what's stored: empty → not set (null); "0" → a confirmed $0; else cents.
+ *  Anything that isn't a non-negative number is undefined (the form says why before sending). */
+export function askAmountOf(words: string): number | null | undefined {
+  const t = words.replace(/[$,\s]/g, "");
+  if (!t) return null;
+  const v = Number(t);
+  return Number.isFinite(v) && v >= 0 ? Math.round(v * 100) : undefined;
+}
+/** …and back: the form shows a not-set amount empty and a confirmed $0 as "0". */
+export const askAmountDraft = (cents: number | null | undefined): string => (cents == null ? "" : String(cents / 100));
 /** "$350K", "$1.2M", "$9,500" — short enough for a card, exact enough to ask with. */
 export function shortMoney(cents: number): string {
   const d = Math.round(cents / 100);

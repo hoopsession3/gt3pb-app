@@ -53,7 +53,7 @@ const plan = (id, phase, extra = {}) => ({ id, program_id: "s", name: id, format
   ok("no needs: nothing next", P.needsProgress([]).next === null);
 
   const rows = P.compareRows([plan("gym", 1, { sqft: 400, deal: "rev_share" }), plan("store", 3, { format: "storefront_lease", sqft: 1200, deal: "lease" })],
-    { layouts: [], asks: [{ program_id: "s", plan_id: "store", label: "Build-out", amount_cents: 0, state: "open", note: null, sort: 1 }], needs: [], deps, all: ps });
+    { layouts: [], asks: [{ program_id: "s", plan_id: "store", label: "Build-out", amount_cents: null, state: "open", note: null, sort: 1 }], needs: [], deps, all: ps });
   const row = (l) => rows.find((r) => r.label === l);
   ok("side by side: every plan asked the same questions", rows.length === 11 && rows.every((r) => r.cells.length === 2), rows.map((r) => r.label));
   ok("…the rows that differ are marked, the same ones aren't", row("Size").differs && row("Deal").differs && !row("Where").differs, rows.map((r) => [r.label, r.differs]));

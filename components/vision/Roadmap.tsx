@@ -9,7 +9,7 @@ import Sheet, { CloseButton, useUnsaved } from "@/components/Sheet";
 import { haptic } from "@/lib/haptics";
 import {
   ASK_STATES, ASK_WORD, HORIZONS, HORIZON_SUB, HORIZON_WORD, PILLARS, PILLAR_WORD, STATUSES, STATUS_WORD,
-  askTotals, board, shortMoney, whenWords, type Ask, type Horizon, type Layout, type Pillar, type Program,
+  askAmountDraft, askAmountOf, askAmountWords, askTotals, board, shortMoney, whenWords, type Ask, type Horizon, type Layout, type Pillar, type Program,
 } from "@/lib/vision";
 import type { Plan } from "@/lib/visionPlans";
 
@@ -77,7 +77,7 @@ export function CapitalBar({ t, dark = false }: { t: ReturnType<typeof askTotals
   return (
     <div className={dark ? "flex flex-col gap-2" : "vz-cap mpanel mb-0 flex flex-col gap-2 px-4 py-3.5"} aria-label="Where capital may be needed">
       <div className="vz-cap-n">
-        {t.total > 0 ? <><span><b>{shortMoney(t.total)}</b> the plan asks for</span><span><b>{shortMoney(t.open)}</b> open</span></> : <span><b>Partners wanted</b> — the amounts are being set</span>}
+        {t.total > 0 ? <><span><b>{shortMoney(t.total)}</b> the plan asks for</span><span><b>{shortMoney(t.open)}</b> open</span></> : t.unset > 0 ? <span><b>Partners wanted</b> — the amounts are being set</span> : <span><b>No capital needed</b> — every line is covered</span>}
         {t.unset > 0 && t.total > 0 && <span>{t.unset} line{t.unset === 1 ? "" : "s"} still to price</span>}
       </div>
       {t.total > 0 && (
@@ -118,7 +118,7 @@ function ProgramSheet({ program, asks, layouts, plans, canEdit, showAsks, lanes,
   const [start, setStart] = useState(p?.start_on?.slice(0, 7) ?? "");
   const [target, setTarget] = useState(p?.target_on?.slice(0, 7) ?? "");
   const [layoutId, setLayoutId] = useState(p?.layout_id ?? "");
-  const [rows, setRows] = useState<AskDraft[]>(asks.map((a) => ({ id: a.id, label: a.label, dollars: a.amount_cents ? String(a.amount_cents / 100) : "", state: a.state, note: a.note ?? "", plan: a.plan_id ?? "" })));
+  const [rows, setRows] = useState<AskDraft[]>(asks.map((a) => ({ id: a.id, label: a.label, dollars: askAmountDraft(a.amount_cents), state: a.state, note: a.note ?? "", plan: a.plan_id ?? "" })));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const snapshot = JSON.stringify([title, emoji, lane, summary, why, pillars, horizon, status, start, target, layoutId, rows]);
@@ -139,7 +139,7 @@ function ProgramSheet({ program, asks, layouts, plans, canEdit, showAsks, lanes,
     if (!supabase || busy || !title.trim()) return;
     const s = monthToDate(start, false), e = monthToDate(target, true);
     if (s && e && s > e) { setErr("It can't finish before it starts — check the months."); return; }
-    const bad = rows.find((r) => r.label.trim() && r.dollars.trim() && !(Number(r.dollars.replace(/[$,]/g, "")) >= 0));
+    const bad = rows.find((r) => r.label.trim() && askAmountOf(r.dollars) === undefined);
     if (bad) { setErr(`"${bad.label}" — the amount isn't a number.`); return; }
     setBusy(true); setErr(null);
     try {
@@ -156,7 +156,7 @@ function ProgramSheet({ program, asks, layouts, plans, canEdit, showAsks, lanes,
       const gone = asks.filter((a) => a.id && !keep.some((r) => r.id === a.id)).map((a) => a.id!) ;
       if (gone.length) { const { error } = await supabase.from("vision_asks").delete().in("id", gone); if (error) throw error; }
       for (const [k, r] of keep.entries()) {
-        const v = { program_id: id, ...(plans.length || r.plan ? { plan_id: r.plan || null } : {}), label: r.label.trim(), amount_cents: Math.round(Number(r.dollars.replace(/[$,]/g, "") || 0) * 100), state: r.state, note: r.note.trim() || null, sort: k + 1 };
+        const v = { program_id: id, ...(plans.length || r.plan ? { plan_id: r.plan || null } : {}), label: r.label.trim(), amount_cents: askAmountOf(r.dollars) ?? null, state: r.state, note: r.note.trim() || null, sort: k + 1 };
         const { error } = r.id ? await supabase.from("vision_asks").update(v).eq("id", r.id) : await supabase.from("vision_asks").insert(v);
         if (error) throw error;
       }
@@ -184,7 +184,7 @@ function ProgramSheet({ program, asks, layouts, plans, canEdit, showAsks, lanes,
           {p.summary && <p className="vz-sub">{p.summary}</p>}
           {p.why && <><b className="font-sans">Why</b><p className="vz-sub">{p.why}</p></>}
           {p.pillars.length > 0 && <div className="vz-pillars">{p.pillars.map((x) => <span key={x} className="k-tag"><i className={`inline-block w-2 h-2 rounded-full pz-${x}`} />{PILLAR_WORD[x]}</span>)}</div>}
-          {showAsks && asks.length > 0 && <><CapitalBar t={t} />{asks.map((a, i) => <p key={i} className="vz-card-s"><b>{a.label}</b> — {a.amount_cents ? shortMoney(a.amount_cents) : "amount to be set"} · {ASK_WORD[a.state]}{a.note ? ` · ${a.note}` : ""}</p>)}</>}
+          {showAsks && asks.length > 0 && <><CapitalBar t={t} />{asks.map((a, i) => <p key={i} className="vz-card-s"><b>{a.label}</b> — {a.amount_cents ? shortMoney(a.amount_cents) : askAmountWords(a.amount_cents).toLowerCase()} · {ASK_WORD[a.state]}{a.note ? ` · ${a.note}` : ""}</p>)}</>}
           {layout && onOpenStore && <button type="button" className="btn-sec btn-sm" onClick={() => onOpenStore(layout.id)}>See {layout.name} →</button>}
           {plans.length > 0 && onOpenPlans && <button type="button" className="btn-sec btn-sm" onClick={onOpenPlans}>Its {plans.length} {plans.length === 1 ? "way in" : "ways in"} →</button>}
         </div>
@@ -220,7 +220,7 @@ function ProgramSheet({ program, asks, layouts, plans, canEdit, showAsks, lanes,
             {rows.map((r, i) => (
               <div key={r.id ?? `n${i}`} className="vz-ask">
                 <label className="prod-f"><span>What it buys</span><input value={r.label} maxLength={80} onChange={(e) => setRows((v) => v.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="Build-out" /></label>
-                <label className="prod-f"><span>Amount ($)</span><input inputMode="decimal" value={r.dollars} onChange={(e) => setRows((v) => v.map((x, j) => (j === i ? { ...x, dollars: e.target.value } : x)))} placeholder="180000" /></label>
+                <label className="prod-f"><span>Amount ($)</span><input inputMode="decimal" value={r.dollars} onChange={(e) => setRows((v) => v.map((x, j) => (j === i ? { ...x, dollars: e.target.value } : x)))} placeholder="Not set yet" aria-describedby={`ask-amt-${i}`} /><small id={`ask-amt-${i}`} className="vz-card-s">Empty while it&apos;s being priced · 0 if none is needed</small></label>
                 <label className="prod-f"><span>Stands</span><select value={r.state} onChange={(e) => setRows((v) => v.map((x, j) => (j === i ? { ...x, state: e.target.value as Ask["state"] } : x)))}>{ASK_STATES.map((s) => <option key={s} value={s}>{ASK_WORD[s]}</option>)}</select></label>
                 <label className="prod-f"><span>Note</span><input value={r.note} maxLength={400} onChange={(e) => setRows((v) => v.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))} /></label>
                 {plans.length > 0 && (

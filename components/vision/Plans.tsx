@@ -13,7 +13,7 @@ import Advisor from "./Advisor";
 import type { PlanCase as CaseData } from "@/lib/visionCaseData";
 import { haptic } from "@/lib/haptics";
 import { localToday } from "@/lib/dates";
-import { askTotals, shortMoney, type Ask, type Layout, type Program } from "@/lib/vision";
+import { askAmountWords, askTotals, shortMoney, type Ask, type Layout, type Program } from "@/lib/vision";
 import {
   DEALS, DEAL_WORD, FORMAT, FORMATS, NEED_KINDS, NEED_WORD, PLAN_STATUS, PLAN_STATUSES, compareRows, needsProgress, phases, roomFor, sqftWords,
   waitingOn, wouldLoop, type Dep, type Need, type Plan,
@@ -351,7 +351,7 @@ function PlanAsks({ asks, editHint = false }: { asks: Ask[]; editHint?: boolean 
   return (
     <>
       <b className="font-sans mt-2">Capital for this plan{t.total ? ` · ${shortMoney(t.total)}` : ""}</b>
-      {asks.map((a, i) => <p key={a.id ?? i} className="vz-card-s">{a.label} — {a.amount_cents ? shortMoney(a.amount_cents) : "amount to be set"}</p>)}
+      {asks.map((a, i) => <p key={a.id ?? i} className="vz-card-s">{a.label} — {a.amount_cents ? shortMoney(a.amount_cents) : askAmountWords(a.amount_cents).toLowerCase()}</p>)}
       {editHint && <p className="vz-card-s">{asks.length ? "" : "None yet. "}Asks are set in the program&apos;s sheet on the roadmap — choose this plan under &ldquo;For&rdquo;.</p>}
     </>
   );

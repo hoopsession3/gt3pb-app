@@ -27,7 +27,7 @@ export const toProgram = (r: Row): Program => ({
   layout_id: (r.layout_id as string) ?? null, sort: n(r.sort),
 });
 export const toAsk = (r: Row): Ask => ({
-  id: r.id ? String(r.id) : undefined, program_id: String(r.program_id), plan_id: r.plan_id ? String(r.plan_id) : null, label: String(r.label ?? ""), amount_cents: n(r.amount_cents),
+  id: r.id ? String(r.id) : undefined, program_id: String(r.program_id), plan_id: r.plan_id ? String(r.plan_id) : null, label: String(r.label ?? ""), amount_cents: r.amount_cents == null || r.amount_cents === "" ? null : Number(r.amount_cents),
   state: (["open", "committed", "funded"].includes(r.state as string) ? r.state : "open") as Ask["state"], note: (r.note as string) ?? null, sort: n(r.sort),
 });
 export const toItem = (r: Row): Item => ({
