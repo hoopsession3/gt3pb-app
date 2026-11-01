@@ -292,6 +292,7 @@ export type Database = {
           old_row: Json | null
           new_row: Json | null
           created_at: string
+          tenant_id: string | null
         }
         Insert: {
           id?: never
@@ -303,6 +304,7 @@ export type Database = {
           old_row?: Json | null
           new_row?: Json | null
           created_at?: string
+          tenant_id?: string | null
         }
         Update: {
           id?: never
@@ -314,6 +316,7 @@ export type Database = {
           old_row?: Json | null
           new_row?: Json | null
           created_at?: string
+          tenant_id?: string | null
         }
         Relationships: []
       }
@@ -14693,6 +14696,8 @@ export type Database = {
         { Args: { p_code: string | null; p_cents: number | null; p_key?: string | null }; Returns: number }
       vendor_dupe_candidates:
         { Args: { p_threshold?: number | null }; Returns: { a: string; a_name: string; b: string; b_name: string; sim: number }[] }
+      vision_share_audit_fields:
+        { Args: { r: Database["public"]["Tables"]["vision_shares"]["Row"] | null }; Returns: Json }
       vision_share_baseline:
         { Args: { b: Json | null }; Returns: Json }
       vision_share_keep:
