@@ -94,7 +94,7 @@ const C = loadTs("lib/visionCamera.ts"), S = loadTs("lib/visionStudio.ts");
   ok("the canvas sized to the space actually left under it", /setProperty\("--stage-h"/.test(des) && /height:var\(--stage-h,/.test(css));
   ok("an empty room says what to do", /An empty room\. Drag a fixture in/.test(plan));
   ok("the phone check measures the fit on every device it visits", /const STUDIO_FITS = \(\) =>/.test(smoke) && /check: STUDIO_FITS/.test(smoke) && /the studio fits its screen \(S1\.1\)/.test(smoke));
-  ok("the store tab gives the title's second line back to the canvas", /tab !== "store" && <p className="vz-sub">/.test(read("components/vision/VisionApp.tsx")));
+  ok("the store tab gives the title's second line back to the canvas", /tab !== "store" && (tab !== "links" && )?<p className="vz-sub">/.test(read("components/vision/VisionApp.tsx")));
 }
 
 console.log(`S1.1 — THE STUDIO'S UX GATE: ${pass} passed, ${fail} failed`);

@@ -74,7 +74,9 @@ const plan = (id, phase, extra = {}) => ({ id, program_id: "s", name: id, format
 // ── 3 · Shares ──────────────────────────────────────────────────────────────────────────────────────────────────────
 {
   const src = read("components/vision/Shares.tsx");
-  ok("a new link can end (7, 30, 90 days) — 0448 is in, so every link can", /days: 30/.test(src) && /const canEnd = true/.test(src));
+  // IMS8 P7: a link is made in the studio (components/vision/LinkStudio, its lifetimes in lib/linkDraft) — always with one.
+  const studio = read("components/vision/LinkStudio.tsx"), draft = read("lib/linkDraft.ts");
+  ok("a new link can end (7, 30, 90 days) — 0448 is in, so every link can", /days: 7/.test(draft) && /days: 30/.test(draft) && /days: 90/.test(draft) && /<span>It lives<\/span><select value=\{d\.ends\}/.test(studio));
   ok("a link's state: off, ended, live — and when it ends", /word: "Ended"/.test(src) && /ends in \$\{days\} days/.test(src));
 }
 

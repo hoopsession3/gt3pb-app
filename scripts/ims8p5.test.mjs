@@ -15,9 +15,11 @@ const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n
 
 const sh = read("components/vision/Shares.tsx");
 ok("the Links tab writes vision_shares only to turn a link off", (sh.match(/from\("vision_shares"\)\.(insert|update|upsert|delete)/g) ?? []).join() === `from("vision_shares").update` && /from\("vision_shares"\)\.update\(\{ revoked_at: new Date\(\)\.toISOString\(\) \}\)/.test(sh), sh.match(/from\("vision_shares"\)\.\w+/g));
-ok("…making a link, what it shows, its money and moving it on each go through publish", ['publish(null, { label: name', 'publish(share.id, { money_plans: money, research_plans: research }', 'publish(share.id, { program_ids: pickPrograms, layout_ids: pickRooms', 'publish(share.id, { repin: true }'].every((x) => sh.includes(x)));
+const studio = read("components/vision/LinkStudio.tsx");
+ok("…making a link (the studio, P7), what it shows, its money and moving it on each go through publish", /reviewLink\(supabase, null, pub\)/.test(studio) && /publishLink\(supabase, null, pub, review, review\.material\)/.test(studio)
+  && ['publish(share.id, { money_plans: money, research_plans: research }', 'publish(share.id, { program_ids: pickPrograms, layout_ids: pickRooms', 'publish(share.id, { repin: true }'].every((x) => sh.includes(x)));
 ok("…review first, the material findings confirmed in a sheet that lists them, then publish with exactly those ids", /r = await reviewLink\(supabase, share, draft\)/.test(sh) && /ask\.ids\.length && !\(await confirm\(/.test(sh) && /ask\.words\.map/.test(sh) && /publishLink\(supabase, share, draft, r, ask\.ids\)/.test(sh));
-ok("…a refusal shares nothing and keeps the draft (A1); a stale one says it changed", /if \(!made\) return;\n    setLabel\(""\)/.test(sh) && /isStale\(e\) \? "It changed since it was reviewed — nothing was shared/.test(sh));
+ok("…a refusal shares nothing and keeps the draft (A1); a stale one says it changed, and is reviewed again", /isStale\(e\) \? "It changed since it was reviewed — nothing was shared/.test(sh) && /if \(isStale\(e\)\) \{ toast\("It changed since you reviewed it — nothing was shared\. Here it is again\.", "error"\); setReview\(null\); void runReview\("review"\); \}/.test(studio));
 
 // lib/sharePublish with a stand-in client.
 const calls = [];

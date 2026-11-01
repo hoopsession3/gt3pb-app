@@ -11,9 +11,11 @@ import { NEVER_SENT, notChosen, previewOf, sendsSentence } from "@/lib/sharePrev
 // inspector's other half: one sentence counted from the response, what it doesn't send, and the response itself.
 export type Draft = { label: string; program_ids: string[]; layout_ids: string[]; plan_ids: string[]; need_plans: string[]; money_plans?: string[]; research_plans?: string[]; show_asks: boolean };
 
-export default function LinkPreview({ share, draft }: { share?: string; draft?: Draft }) {
-  const key = share ?? JSON.stringify(draft);
+/** `payload`: a response already in hand (the studio's review — IMS8 P7), shown as it is, with no second read. */
+export default function LinkPreview({ share, draft, payload }: { share?: string; draft?: Draft; payload?: unknown }) {
+  const key = payload !== undefined ? `payload:${JSON.stringify(payload).length}` : share ?? JSON.stringify(draft);
   const p = useAsyncData(async () => {
+    if (payload !== undefined) return { ...previewOf(payload), raw: payload, says: sendsSentence(payload), left: notChosen(payload) };
     if (!supabase) return null;
     const { data, error } = await supabase.rpc("vision_share_preview", { p_share: share ?? null, p_draft: share ? null : draft ?? null });
     if (error) throw new Error(error.message);

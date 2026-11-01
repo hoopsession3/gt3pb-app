@@ -63,25 +63,31 @@ ok("…and what changes is only that blocker's status (and the open count and st
 ok("the score's acceptance rule itself is untouched (a reason and a review date)", /a\.key === b\.key && a\.note\.trim\(\) && a\.reviewBy/.test(read("lib/visionScore.ts")));
 
 // ── The Links tab ───────────────────────────────────────────────────────────────────────────────────────────────────
-const sh = read("components/vision/Shares.tsx"), lp = read("components/vision/LinkPreview.tsx");
-ok("a link's plans and their needs are chosen per link, and saved with it — when it's made and when it's changed", /program_ids: pickPrograms, layout_ids: pickRooms, plan_ids: scope\.plans, need_plans: scope\.needs \}, "make the link"\)/.test(sh) && /publish\(share\.id, \{ program_ids: pickPrograms, layout_ids: pickRooms, \.\.\.\(plans \? .*inScope\(plans, pickPrograms, pickPlans, pickNeeds\)\) : \{\}\) \}, "change what the link shows"\)/.test(sh));
-ok("…nothing ticked by default (not every plan marked to show, not every plan of a program) — only a draft this tab already holds (IMS8 P2)", /useState<string\[\]>\(kept\?\.plans \?\? \[\]\);\n  const \[pickNeeds, setPickNeeds\] = useState<string\[\]>\(kept\?\.needs \?\? \[\]\);/.test(sh));
+// IMS8 P7: a link is made in the studio (components/vision/LinkStudio, its draft lib/linkDraft); the list and changing a
+// link stay in Shares. The same guarantees, read where the code now is — and the draft's rules run, not just read.
+const sh = read("components/vision/Shares.tsx"), lp = read("components/vision/LinkPreview.tsx"), st = read("components/vision/LinkStudio.tsx"), ld = read("lib/linkDraft.ts");
+const LD = loadTs("lib/linkDraft.ts");
+ok("a link's plans and their needs are chosen per link, and saved with it — when it's made and when it's changed", /plan_ids: scope\.plans, need_plans: scope\.needs/.test(ld) && /const pub = toPublish\(d, shown, isOwner\);/.test(st) && /publishLink\(supabase, null, pub, review, review\.material\)/.test(st)
+  && /publish\(share\.id, \{ program_ids: pickPrograms, layout_ids: pickRooms, \.\.\.\(plans \? .*inScope\(plans, pickPrograms, pickPlans, pickNeeds\)\) : \{\}\) \}, "change what the link shows"\)/.test(sh));
 // IMS8 A1 (Ryan: "nothing selected by default; clear selections after successful Create; preserve the draft on failure").
-ok("A1: a new link starts with nothing chosen — no programs, rooms, plans, needs, and the asks off (a kept draft aside, IMS8 P2)", /const \[money, setMoney\] = useState\(kept\?\.money \?\? false\);/.test(sh) && /const \[pickPrograms, setPickPrograms\] = useState<string\[\]>\(kept\?\.programs \?\? \[\]\);/.test(sh)
-  && /const \[pickRooms, setPickRooms\] = useState<string\[\]>\(kept\?\.rooms \?\? \[\]\);/.test(sh) && !/shownPlans\.map\(\(p\) => p\.(program_id|layout_id)\)/.test(sh));
-const mk = sh.slice(sh.indexOf("const make = async"), sh.indexOf("const off = async"));
-ok("A1: a link made clears every choice (label, asks, lifetime, programs, rooms, plans, needs, the preview) — the next link inherits nothing", /setLabel\(""\); setMoney\(false\); setEnds\("30"\); setPickPrograms\(\[\]\); setPickRooms\(\[\]\); setPickPlans\(\[\]\); setPickNeeds\(\[\]\); setPeek\(false\);/.test(mk));
-ok("A1: a failure keeps the draft — it returns before anything is cleared", mk.indexOf("if (!made) return;") > 0 && mk.indexOf("if (!made) return;") < mk.indexOf("setPickPrograms([])"));
-ok("A1: what's sent is what's visibly ticked — make, preview and changing a link all go through inScope", /plan_ids: scope\.plans, need_plans: scope\.needs/.test(mk) && /plan_ids: scope\.plans, need_plans: scope\.needs, show_asks: money \} satisfies Draft/.test(sh) && /inScope\(plans, pickPrograms, pickPlans, pickNeeds\)/.test(sh));
+ok("A1: a new link starts with nothing chosen — no programs, rooms, plans, needs, money, research, and the asks off (a kept draft aside, IMS8 P2)", JSON.stringify(LD.EMPTY) === JSON.stringify({ label: "", money: false, ends: "30", programs: [], rooms: [], plans: [], needs: [], cases: [], research: [], step: "choose", confirmed: [], reviewed: null })
+  && /useState<StudioDraft>\(\(\) => readDraft\(\) \?\? EMPTY\)/.test(st) && !/shownPlans\.map\(\(p\) => p\.(program_id|layout_id)\)/.test(sh + st));
+const mk = st.slice(st.indexOf("const share = async"), st.indexOf("const step = d.step"));
+ok("A1: a link made clears every choice — the next link inherits nothing", /const out = await publishLink\([^)]*\);\n\s*\/\/ A1: a link made clears every choice; the next link inherits nothing\.\n\s*setMade\(\{ token: out\.token, label: pub\.label \?\? "" \}\); setD\(EMPTY\); setReview\(null\);/.test(mk));
+ok("A1: a failure keeps the draft — the refusal path never clears it", mk.slice(mk.indexOf("} catch (e) {")).indexOf("EMPTY") < 0 && mk.indexOf("setD(EMPTY)") < mk.indexOf("} catch (e) {"));
+{ const plans = [{ id: "a", program_id: "p1" }, { id: "b", program_id: "p2" }];
+  const pub = LD.toPublish({ ...LD.EMPTY, label: " L ", programs: ["p1"], plans: ["a", "b"], needs: ["a", "b"], cases: ["a", "b"], research: ["b"], money: true, ends: "7" }, plans, true);
+  ok("A1: what's sent is what's visibly ticked — a plan under an unticked program, its needs, money and research aren't carried", JSON.stringify(pub) === JSON.stringify({ label: "L", show_asks: true, days: 7, program_ids: ["p1"], layout_ids: [], plan_ids: ["a"], need_plans: ["a"], money_plans: ["a"], research_plans: [] }), pub);
+  ok("…an admin's draft never asks for money or research (0451 is an owner's)", !("money_plans" in LD.toPublish({ ...LD.EMPTY, cases: ["a"] }, plans, false)) && /inScope\(plans, pickPrograms, pickPlans, pickNeeds\)/.test(sh)); }
 { const P = [{ id: "a", program_id: "p1" }, { id: "b", program_id: "p1" }, { id: "c", program_id: "p2" }, { id: "d", program_id: null }];
   const r1 = PV.inScope(P, ["p1"], ["a", "c", "d"], ["a", "c", "b"]);
   ok("A1: inScope — a plan under an unticked program, or with no program, isn't carried; needs only of carried plans", JSON.stringify(r1) === JSON.stringify({ plans: ["a"], needs: ["a"] }), r1);
   ok("A1: inScope — unticking every program carries nothing", JSON.stringify(PV.inScope(P, [], ["a", "b"], ["a"])) === JSON.stringify({ plans: [], needs: [] })); }
-ok("…only plans marked to show, under a program ticked, are offered", /const under = \(plans \?\? \[\]\)\.filter\(\(p\) => p\.program_id && pickPrograms\.includes\(p\.program_id\)\);/.test(sh) && /const shownPlans = plans\.filter\(\(p\) => p\.shareable\);/.test(sh));
+ok("…only plans marked to show, under a program ticked, are offered", /const under = \(plans \?\? \[\]\)\.filter\(\(p\) => p\.program_id && pickPrograms\.includes\(p\.program_id\)\);/.test(st) && /const shown = plans\.filter\(\(p\) => p\.shareable\);/.test(st) && /const shownPlans = plans\.filter\(\(p\) => p\.shareable\);/.test(sh));
 ok("the money and research chooser lists only the plans the link shows", /CaseChooser share=\{s\} plans=\{shownPlans\.filter\(\(p\) => !canPick \|\| \(s\.plan_ids \?\? \[\]\)\.includes\(p\.id\)\)\}/.test(sh));
-ok("the preview asks the database (vision_share_preview), for a draft and for a live link, and is loaded only on asking", /supabase\.rpc\("vision_share_preview", \{ p_share: share \?\? null, p_draft: share \? null : draft \?\? null \}\)/.test(lp)
-  && /const LinkPreview = dynamic\(\(\) => import\("\.\/LinkPreview"\), \{ ssr: false \}\);/.test(sh) && /<LinkPreview draft=/.test(sh) && /<LinkPreview share=\{share\.id\} \/>/.test(sh));
-ok("before 0467 is pasted the Links tab reads and works as it did (no plan picking, no preview)", /setCanPick\(false\)/.test(sh) && /canPick && peek/.test(sh));
+ok("the preview asks the database (vision_share_preview) for a live link, shows the studio's reviewed response as it is, and is loaded only on asking", /supabase\.rpc\("vision_share_preview", \{ p_share: share \?\? null, p_draft: share \? null : draft \?\? null \}\)/.test(lp)
+  && /const LinkPreview = dynamic\(\(\) => import\("\.\/LinkPreview"\), \{ ssr: false \}\);/.test(sh) && /const LinkPreview = dynamic\(\(\) => import\("\.\/LinkPreview"\), \{ ssr: false \}\);/.test(st) && /<LinkPreview payload=\{review\.payload\} \/>/.test(st) && /<LinkPreview share=\{share\.id\} \/>/.test(sh));
+ok("before 0467 is pasted the Links tab still lists the links (the studio itself needs 0472 — paste before deploy)", /setCanPick\(false\)/.test(sh));
 
 console.log(`IMS7-0467 — THE APP'S SIDE (preview, risk acceptance, the Links tab): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

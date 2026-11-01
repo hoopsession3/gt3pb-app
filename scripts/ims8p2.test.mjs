@@ -24,12 +24,13 @@ ok("an insight's go → a place: a plan's money, with the way back", JSON.string
 ok("…a room; the library; anything unknown → the roadmap", N.placeOfGo({ section: "store", anchor: R }).room === R && N.placeOfGo({ section: "library" }).tab === "library" && N.placeOfGo({ section: "nope" }).tab === "roadmap" && N.placeOfGo(null).tab === "roadmap");
 ok("…a go into the links themselves never carries a way back to them", N.placeOfGo({ section: "links" }, "links").back === null);
 
-const app = read("components/vision/VisionApp.tsx"), plans = read("components/vision/Plans.tsx"), sh = read("components/vision/Shares.tsx");
+// IMS8 P7: the draft moved with the studio into lib/linkDraft (read in components/vision/LinkStudio).
+const app = read("components/vision/VisionApp.tsx"), plans = read("components/vision/Plans.tsx"), sh = read("lib/linkDraft.ts") + read("components/vision/LinkStudio.tsx");
 ok("the vision reads its place from the address once, and a tab it can't edit falls back to the roadmap", /useState<VisionPlace>\(\(\) => \{\n    const p = placeOf\(typeof window === "undefined" \? "" : window\.location\.search\);\n    return !canEdit && EDIT_TABS\.includes\(p\.tab\) \? \{ \.\.\.p, tab: "roadmap" \} : p;/.test(app));
 ok("…keeps the address current without a reload, and follows Back", /window\.history\.replaceState\(window\.history\.state, "", want\)/.test(app) && /window\.addEventListener\("popstate", back\)/.test(app));
 ok("…opens the plan and step the address names, and says which are open", /initialCase=\{place\.plan\} initialStep=\{place\.step\} onCase=\{onCase\}/.test(app) && /useState<string \| null>\(initialCase\)/.test(plans) && /useState<Step>\(initialStep \?\? "plan"\)/.test(plans));
 ok("…and offers the way back to a link in progress", /place\.back === "links" && tab !== "links"/.test(app) && /‹ Back to your link/.test(app));
-ok("the Links draft is kept in this tab only (sessionStorage), read once, never sent; empty isn't kept; refused storage keeps nothing", /sessionStorage\.getItem\(DRAFT_KEY\)/.test(sh) && /useState<LinkDraft \| null>\(readDraft\)/.test(sh)
+ok("the Links draft is kept in this tab only (sessionStorage), read once, never sent; empty isn't kept; refused storage keeps nothing", /sessionStorage\.getItem\(DRAFT_KEY\)/.test(sh) && /useState<StudioDraft>\(\(\) => readDraft\(\) \?\? EMPTY\)/.test(sh)
   && /if \(empty\) sessionStorage\.removeItem\(DRAFT_KEY\); else sessionStorage\.setItem\(DRAFT_KEY, JSON\.stringify\(d\)\);/.test(sh) && /catch \{ \/\* storage refused/.test(sh) && !/localStorage/.test(sh));
 console.log(`IMS8 P2 — WHERE YOU ARE, IN THE ADDRESS; A LINK IN PROGRESS SURVIVES A DETOUR: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

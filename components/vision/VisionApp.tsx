@@ -11,7 +11,7 @@ import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "@/components/AsyncSection";
 import { Segmented } from "@/components/controls";
 import { readCases, readVision, type Vision } from "@/lib/visionRead";
-import { placeOf, searchOf, type VisionPlace } from "@/lib/visionNav";
+import { placeOfGo, placeOf, searchOf, type VisionPlace } from "@/lib/visionNav";
 import Roadmap from "./Roadmap";
 import StoreDesigner from "./StoreDesigner";
 import Present from "./Present";
@@ -51,6 +51,8 @@ export default function VisionApp({ canEdit, isOwner = false }: { canEdit: boole
   // The room the store opens on: a plan's or a program's "see its room" picks it.
   const room = place.room;
   const openStore = useCallback((id: string) => setPlace((p) => ({ ...p, tab: "store", room: id, plan: null, step: null })), []);
+  // A "fix it" from the publishing studio (IMS8 P7): the place its finding names, with the way back to the link in progress.
+  const goTo = useCallback((g: { section: string; anchor?: string | null }) => setPlace(placeOfGo(g, "links")), []);
   const onCase = useCallback((plan: string | null, step: VisionPlace["step"]) => setPlace((p) => (p.tab !== "plans" || (p.plan === plan && p.step === step) ? p : { ...p, plan, step: plan ? step : null })), []);
   const loader = useCallback(async () => {
     if (!supabase) throw new Error("Supabase client not configured");
@@ -64,7 +66,8 @@ export default function VisionApp({ canEdit, isOwner = false }: { canEdit: boole
         <div className="flex flex-col gap-1 min-w-0">
           <h1 className="vz-h">The vision</h1>
           {/* The store is drawn on a canvas that wants the screen: the line under the title steps aside there (S1.1). */}
-          {tab !== "store" && <p className="vz-sub">What&apos;s running, what&apos;s next, the store we&apos;re building — and why. Built on stillness, light, fuel and movement.</p>}
+          {/* …and the links tab (IMS8 P7) gives it to the studio, so its first question is nearer the top. */}
+          {tab !== "store" && tab !== "links" && <p className="vz-sub">What&apos;s running, what&apos;s next, the store we&apos;re building — and why. Built on stillness, light, fuel and movement.</p>}
         </div>
         <button type="button" className="btn-pri" onClick={() => setPresenting(true)} disabled={!state.data}>▶ Present</button>
       </div>
@@ -85,7 +88,7 @@ export default function VisionApp({ canEdit, isOwner = false }: { canEdit: boole
             {tab === "food" && canEdit && <FoodLab isOwner={isOwner} />}
             {tab === "library" && canEdit && <Library isOwner={isOwner} />}
             {tab === "menu" && canEdit && <MenuStudio plans={v.plans} layouts={v.layouts} isOwner={isOwner} />}
-            {tab === "links" && canEdit && <Shares canEdit={canEdit} isOwner={isOwner} plans={v.plans} programs={v.programs} layouts={v.layouts} />}
+            {tab === "links" && canEdit && <Shares canEdit={canEdit} isOwner={isOwner} plans={v.plans} programs={v.programs} layouts={v.layouts} onGo={goTo} />}
             {canEdit && <DueChecks plans={v.plans} />}
             {presenting && <InTheRoom vision={v} withCases={canEdit} onExit={() => setPresenting(false)} />}
           </>
