@@ -28,6 +28,8 @@ const Present = dynamic(() => import("./Present"), { ssr: false });
 // you sharing; only what the database refuses, or an unticked confirmation, does. The draft — every choice, the step, the
 // confirmations and the fingerprint they were given against — lives in this tab (sessionStorage), so a "fix it" and Back
 // return to it; confirmations are kept only while the response is the same.
+/** The lifetimes a live link can be given again (IMS8 P8): the studio's own. */
+export const ENDS_FOR_ROW = ENDS;
 const flip = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
 export default function LinkStudio({ isOwner, plans, programs, layouts, onMade, onGo }: {
@@ -120,6 +122,7 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, onMade, 
       <div className="flex flex-col gap-1">
         <span className="vp-prog ls-steps" aria-hidden="true">{STEPS.map((s, i) => <i key={s} className={i < n ? "on" : undefined} />)}</span>
         <h2 ref={head} tabIndex={-1} className="ls-h">Step {n} of 4 · {STEP_WORD[step]}</h2>
+        {JSON.stringify({ ...d, step: "choose", confirmed: [], reviewed: null }) !== JSON.stringify(EMPTY) && <span className="vz-card-s">Draft · kept on this device only, until it&apos;s shared</span>}
       </div>
 
       {step === "choose" && (

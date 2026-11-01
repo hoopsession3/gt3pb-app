@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { useAppStable } from "@/components/AppProvider";
+import Said from "@/components/Said";
 import { useConfirm } from "@/components/ConfirmSheet";
 import AsyncSection from "@/components/AsyncSection";
 import { InfoRow } from "@/components/kit";
@@ -17,7 +18,8 @@ import { isStale, publishLink, reviewLink, toConfirm, type LinkDraft as PublishD
 import type { Plan } from "@/lib/visionPlans";
 import type { Layout, Program } from "@/lib/vision";
 import dynamic from "next/dynamic";
-import LinkStudio, { ShowsPicker } from "./LinkStudio";
+import LinkStudio, { ShowsPicker, ENDS_FOR_ROW } from "./LinkStudio";
+import { changesBetween, linkPhase } from "@/lib/linkStates";
 import type { PublishFinding } from "@/lib/publishReadiness";
 
 // What a link sends (IMS7-0467): read on asking, so the Links tab carries none of it until then.
@@ -26,7 +28,7 @@ const LinkPreview = dynamic(() => import("./LinkPreview"), { ssr: false });
 // PRIVATE LINKS (R52, 0447 vision_shares) — the plan for someone outside: an investor, a landlord, a partner. Each link
 // is its own long random token, named for who it's for, with or without the money; it counts its opens, and one tap turns
 // it off for good. The token rides after the # (app/present), so it never reaches a server log or a referrer.
-type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[]; program_ids?: string[]; layout_ids?: string[]; pinned_at?: string | null; plan_ids?: string[]; need_plans?: string[] };
+type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; published_at?: string | null; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[]; program_ids?: string[]; layout_ids?: string[]; pinned_at?: string | null; plan_ids?: string[]; need_plans?: string[] };
 const COLS = "id, token, label, show_asks, created_at, revoked_at, last_opened_at, opens";
 /** A link's state, said: off, ended, or live (and when it ends). */
 export function linkState(s: Pick<Share, "revoked_at" | "expires_at">, now = Date.now()): { live: boolean; word: string; ends: string | null } {
@@ -71,7 +73,8 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
     const base = `${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids, pinned_at`;
     // arrives-with: 0467 — until it's pasted, the select without plan_ids/need_plans: the links as they were, no plan
     // picking, no preview (and nothing else rides this select).
-    const withPlans = await supabase.from("vision_shares").select(`${base}, plan_ids, need_plans`).order("created_at", { ascending: false });
+    // arrives-with: 0472 — published_at is read with the plans, so before 0472 is pasted this select fails over to the one below and the list still reads.
+    const withPlans = await supabase.from("vision_shares").select(`${base}, plan_ids, need_plans, published_at`).order("created_at", { ascending: false });
     if (!withPlans.error) { setCanCase(true); setCanChoose(true); setCanPick(true); return (withPlans.data as unknown as Share[]) ?? []; }
     if (!isMissingColumn(withPlans.error)) throw new Error(withPlans.error.message);
     const withPin = await supabase.from("vision_shares").select(base).order("created_at", { ascending: false });
@@ -101,13 +104,15 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
           <div className="k-rows">
             {rows.map((s) => { const st = linkState(s); return (
               <InfoRow key={s.id} name={s.label}
-                nameExtra={<span className={`adm-substat ${st.live ? "active" : "past_due"}`}>{st.word}</span>}
-                meta={`${s.show_asks ? "With the asks" : "The vision only"} · made ${ageLabel(s.created_at)}${st.ends ? ` · ${st.ends}` : ""} · ${s.opens ? `opened ${s.opens}× · last ${ageLabel(s.last_opened_at ?? s.created_at)}` : "not opened yet"}`}
+                nameExtra={st.live && canEdit ? <LiveState share={s} /> : <span className={`adm-substat ${st.live ? "active" : "past_due"}`}>{st.word}</span>}
+                meta={`${s.show_asks ? "With the asks" : "The vision only"} · made ${ageLabel(s.created_at)}${s.published_at && s.published_at !== s.created_at ? ` · shared as reviewed ${ageLabel(s.published_at)}` : ""}${st.ends ? ` · ${st.ends}` : ""} · ${s.opens ? `opened ${s.opens}× · last ${ageLabel(s.last_opened_at ?? s.created_at)}` : "not opened yet"}`}
                 sub={st.live && (canEdit || isOwner) ? (
                   <div className="flex flex-col gap-1 px-1 whitespace-normal">
                     {canEdit && canChoose && <ShowsChooser share={s} programs={programs} layouts={layouts} plans={canPick ? shownPlans : null} onSaved={state.reload} />}
                     {isOwner && canCase && <CaseChooser share={s} plans={shownPlans.filter((p) => !canPick || (s.plan_ids ?? []).includes(p.id))} onSaved={state.reload} />}
                     {canEdit && canPick && <SendsLine share={s} />}
+                    {canEdit && <Changes share={s} onSaved={state.reload} />}
+                    {canEdit && <Lifetime share={s} onSaved={state.reload} />}
                     {s.pinned_at && <PinLine share={s} isOwner={isOwner} onSaved={state.reload} />}
                   </div>
                 ) : undefined}
@@ -245,5 +250,81 @@ function PinLine({ share, isOwner, onSaved }: { share: Share; isOwner: boolean; 
       <span className="vz-card-s">Shows the case as approved by {when}.</span>
       {isOwner && <button type="button" className="btn-ter" onClick={() => void move()} disabled={busy}>{busy ? "Moving…" : "Show the latest approval"}</button>}
     </div>
+  );
+}
+
+/** A live link's state, from its records and the server's review (IMS8 P8): Live, or Changed since shared — what it sends
+ *  differs from what sharing it now would send (by fingerprint, 0472). Read once per link, on showing it. */
+function LiveState({ share }: { share: Share }) {
+  const r = useAsyncData(async () => (supabase ? reviewLink(supabase, share.id, {}) : null), [share.id]);
+  const st = linkPhase(share, r.data?.changed ?? null);
+  // A review that couldn't be read says so — "Live" alone would claim it's unchanged.
+  return <span className={`adm-substat ${st.phase === "changed" ? "past_due" : "active"}`}>{st.word}{r.error ? " · couldn't check for changes" : ""}</span>;
+}
+
+/** What changed since a link was shared, word for word, and the way to share the changes (IMS8 P8): review → confirm →
+ *  publish, like every change. Until then the link keeps sending what was reviewed. */
+function Changes({ share, onSaved }: { share: Share; onSaved: () => void }) {
+  const { toast } = useAppStable();
+  const publish = usePublishLink();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const r = useAsyncData(async () => {
+    if (!supabase) return null;
+    const rev = await reviewLink(supabase, share.id, {});
+    if (!rev.changed && !rev.material.some((id) => id.startsWith("newer_approval:"))) return { rev, diff: null };
+    const sent = await supabase.rpc("vision_share_preview", { p_share: share.id, p_draft: null });
+    if (sent.error) throw new Error(sent.error.message);
+    return { rev, diff: changesBetween(sent.data, rev.payload) };
+  }, [share.id]);
+  const newer = r.data?.rev.material.filter((id) => id.startsWith("newer_approval:")).length ?? 0;
+  if (r.error) return <Said as="p" className="vz-card-s" assertive>Couldn&apos;t check whether it changed since it was shared. <button type="button" className="btn-ter" onClick={() => void r.reload()}>Try again</button></Said>;
+  if (!r.data?.rev.changed && !newer) return null;
+  const again = async () => {
+    if (busy) return;
+    setBusy(true);
+    const done = await publish(share.id, {}, "share the changes");
+    setBusy(false);
+    if (!done) return;
+    haptic("success"); toast(`The link for ${share.label} sends the changes now.`); onSaved();
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="vz-card-s">{r.data?.rev.changed ? "It still sends what you shared; the plan has changed since." : ""}{newer ? ` ${newer === 1 ? "A plan has" : `${newer} plans have`} a newer approved money case than the one it shows.` : ""}</p>
+      {r.data?.diff && (
+        <>
+          <button type="button" className="btn-ter self-start max-w-full text-left whitespace-normal" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Hide what changed" : "What changed"}</button>
+          {open && (r.data.diff.changes.length ? (
+            <ul className="vz-card-s flex flex-col gap-1 pl-4 list-disc">{r.data.diff.changes.map((c) => (
+              <li key={c.title}><b className="font-sans">{c.title}</b>{c.added.length ? ` — new: ${c.added.map((t) => `“${t}”`).join(", ")}` : ""}{c.removed.length ? ` — no longer: ${c.removed.map((t) => `“${t}”`).join(", ")}` : ""}{!c.added.length && !c.removed.length ? " — its numbers changed" : ""}</li>
+            ))}</ul>
+          ) : <p className="vz-card-s">{r.data.diff.numbersOnly ? "Numbers changed — no writing did." : "Nothing a person reads changed."}</p>)}
+        </>
+      )}
+      {r.data?.rev.changed && <button type="button" className="btn-sec btn-sm self-start" onClick={() => void again()} disabled={busy}>{busy ? "Sharing…" : "Review and share the changes"}</button>}
+    </div>
+  );
+}
+
+/** How long a live link lives, changed (IMS8 P8) — through review and publish (the lifetime is part of what's reviewed). */
+function Lifetime({ share, onSaved }: { share: Share; onSaved: () => void }) {
+  const { toast } = useAppStable();
+  const publish = usePublishLink();
+  const [busy, setBusy] = useState(false);
+  const change = async (days: number) => {
+    if (busy) return;
+    setBusy(true);
+    const done = await publish(share.id, { days }, "change how long it lives");
+    setBusy(false);
+    if (!done) return;
+    haptic("success"); toast(days ? `The link for ${share.label} ends in ${days} days.` : `The link for ${share.label} lives until you turn it off.`); onSaved();
+  };
+  return (
+    <label className="prod-f max-w-xs"><span>It lives</span>
+      <select value="" disabled={busy} onChange={(e) => { if (e.target.value) void change(Number(e.target.value)); }}>
+        <option value="">{busy ? "Changing…" : "Change…"}</option>
+        {ENDS_FOR_ROW.map((e) => <option key={e.key} value={String(e.days)}>{e.label}{e.days ? " from now" : ""}</option>)}
+      </select>
+    </label>
   );
 }
