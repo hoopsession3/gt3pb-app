@@ -1068,7 +1068,7 @@ returns table (key text, val text) language sql immutable set search_path = publ
    where jsonb_typeof(w.v) = 'string' and btrim(w.v #>> '{}') <> ''
      and not (w.k = any (array['id', 'program_id', 'plan_id', 'layout_id', 'needs_plan_id', 'kind', 'status', 'state', 'horizon', 'format', 'phase',
        'start_on', 'target_on', 'due_on', 'done_on', 'retrieved_at', 'approved_at', 'pinned_at', 'expires_at', 'at', 'reviewBy', 'on', 'confidence',
-       'category', 'key', 'demandFrom', 'bearing', 'likelihood', 'impact', 'topic', 'version', 'sort', 'show_asks']))
+       'category', 'key', 'demandFrom', 'bearing', 'likelihood', 'impact', 'topic', 'version', 'sort', 'show_asks', 'deal']))
 $$;
 revoke all on function public.vision_share_texts(jsonb) from public, anon, authenticated;
 

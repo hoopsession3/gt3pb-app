@@ -19,12 +19,12 @@ const str = (v: J): string | null => (typeof v === "string" && v.trim() ? v.trim
 // Fields that carry no one's words — ids, dates, fixed words and numbers — by key, wherever they sit.
 export const NOT_TEXT = new Set(["id", "program_id", "plan_id", "layout_id", "needs_plan_id", "kind", "status", "state", "horizon", "format", "phase",
   "start_on", "target_on", "due_on", "done_on", "retrieved_at", "approved_at", "pinned_at", "expires_at", "at", "reviewBy", "on", "confidence",
-  "category", "key", "demandFrom", "bearing", "likelihood", "impact", "topic", "version", "sort", "show_asks"]);
+  "category", "key", "demandFrom", "bearing", "likelihood", "impact", "topic", "version", "sort", "show_asks", "deal"]);
 // Where each kind of free text is filed, by its path (array positions as []; scenario names as <scenario>).
 const FILED: [RegExp, string][] = [
   [/^\$\.label$/, "link"],
   [/^\$\.programs\[\]\.(title|summary|why|lane|emoji)$/, "programs"],
-  [/^\$\.plans\[\]\.(name|place|summary|why|gate|customer|market|positioning|deal)$/, "plans"],
+  [/^\$\.plans\[\]\.(name|place|summary|why|gate|customer|market|positioning)$/, "plans"],
   [/^\$\.plans\[\]\.needs\[\]\.label$/, "needs"],
   [/^\$\.asks\[\]\.(label|note)$/, "asks"],
   [/^\$\.plans\[\]\.money\.baseline\.scenarios\.<scenario>\.(uses|mix)\[\]\.label$/, "money"],
@@ -79,4 +79,49 @@ export function inScope(plans: readonly { id: string; program_id?: string | null
   const ok = new Set(plans.filter((p) => p.program_id && programs.includes(p.program_id)).map((p) => p.id));
   const kept = pickPlans.filter((id) => ok.has(id));
   return { plans: kept, needs: pickNeeds.filter((id) => kept.includes(id)) };
+}
+
+// ── THE INSPECTOR'S WORDS (IMS8 P6) ─────────────────────────────────────────────────────────────────────────────────
+const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const listed = (w: string[]) => (w.length <= 2 ? w.join(" and ") : `${w.slice(0, -1).join(", ")} and ${w.at(-1)}`);
+
+/** What a link sends, in one sentence, counted from the response itself — never from what was ticked. */
+export function sendsSentence(payload: J): string {
+  const p = obj(payload), plans = arr(p.plans).map(obj);
+  const money = plans.filter((x) => x.money).length, needs = plans.reduce((a, x) => a + arr(x.needs).map(obj).filter((n) => !n.done_on).length, 0);
+  const research = plans.reduce((a, x) => a + arr(x.research).length, 0), asks = arr(p.asks).length, rooms = arr(p.layouts).length, programs = arr(p.programs).length;
+  const parts = [
+    programs && count(programs, "program"),
+    plans.length && `${count(plans.length, "plan")}${money ? ` (${money === plans.length ? (money === 1 ? "with its approved money case" : "each with its approved money case") : `${money} with an approved money case`})` : ""}`,
+    needs && count(needs, "open need"),
+    research && count(research, "research finding"),
+    asks && count(asks, "ask"),
+    rooms && count(rooms, "room"),
+  ].filter((x): x is string => !!x);
+  const { sections, other } = previewOf(payload);
+  const words = sections.reduce((a, s) => a + s.texts.length, 0) + other.length;
+  return parts.length ? `It sends ${listed(parts)} — and ${count(words, "piece")} of your writing, word for word below.` : "It sends nothing of the plan yet — only who it's for.";
+}
+
+/** Never on any link: what vision_share_payload (0467) doesn't name. Said so a person knows, not guesses. */
+export const NEVER_SENT = [
+  "Who made the link, its key, and who opened it",
+  "Notes on needs, and who owns them",
+  "A room's notes; library links, suppliers and prices of what's placed",
+  "Money that isn't approved — drafts and versions after the link's date",
+  "Research that isn't accepted",
+  "Recipes, the Standard, HQ, and anything outside the vision",
+] as const;
+
+/** What this response leaves out that it could have carried: the asks, and per plan its money and research. */
+export function notChosen(payload: J): string[] {
+  const p = obj(payload), out: string[] = [];
+  if (p.show_asks !== true) out.push("The asks — not chosen");
+  for (const x of arr(p.plans).map(obj)) {
+    const name = str(x.name) ?? "A plan";
+    if (!x.money) out.push(`${name}'s money — not chosen, or not approved yet`);
+    if (x.research == null) out.push(`${name}'s research — not chosen`);
+    if (!arr(x.needs).length) out.push(`${name}'s open needs — not chosen`);
+  }
+  return out;
 }

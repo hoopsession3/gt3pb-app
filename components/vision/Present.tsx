@@ -14,6 +14,13 @@ import dynamic from "next/dynamic";
 
 // A plan's case (R57) draws the money's engine and its chart — loaded only when a case slide is reached.
 const CaseSlide = dynamic(() => import("./CaseSlide"), { ssr: false, loading: () => <p className="vp-lede">Loading the numbers…</p> });
+// The room's own plan, drawn to scale (IMS8 P6) — the Studio's renderer, read-only, loaded only when asked for.
+const RoomToScale = dynamic(() => import("./RoomToScale"), { ssr: false, loading: () => <p className="vp-lede">Drawing the plan…</p> });
+
+/** An ask's amount on a slide (0471): the amount, "None needed" (a confirmed $0) or "Being priced" (not set) — never $0. */
+const askWord = (cents: number | null) => (cents ? shortMoney(cents) : cents === 0 ? "None needed" : "Being priced");
+/** A need's date, as written (a calendar day, read as one — never shifted by the viewer's time zone). */
+const dueWords = (d: string | null) => (d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : null);
 
 // THE PRESENTER (R52) — "pull the app up and show someone". The plan as a story, full screen, in its own dark room:
 // the four pillars, the board, each program and why, the store in 3D with the reason for each thing in it, and where
@@ -107,7 +114,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
         onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY }; }}
         onPointerUp={(e) => {
           const st = swipe.current; swipe.current = null;
-          if (!st || (e.target as HTMLElement).closest("canvas, button, a, input, label, summary, details, .vp-drill, .vp-explore, .vz-chart, .vz-cmp-wrap, .vp-month, .vp-scn")) return;
+          if (!st || (e.target as HTMLElement).closest("canvas, button, a, input, label, summary, details, .vp-drill, .vp-explore, .vz-chart, .vz-cmp-wrap, .vp-month, .vp-scn, .vp-plan")) return;
           const dx = e.clientX - st.x;
           if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
           else if (Math.abs(dx) < 8 && Math.abs(e.clientY - st.y) < 8) go(e.clientX > window.innerWidth / 3 ? 1 : -1);
@@ -115,7 +122,11 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
         <div className="vp-slide" key={`${mode}:${at}`}>
           {s.kind === "cover" && (
             <>
-              <p className="vp-eyebrow">GT3 Performance Bar{forWhom ? ` · for ${forWhom}` : ""}</p>
+              {/* IMS8 P6: the approved Performance Bar wordmark itself (public/gt3-pb-wordmark.png, white on transparent — the
+                  brand's own pixels, never redrawn), on the presenter's dark room. */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- the brand's own wordmark, one fixed 440×248 file sized by CSS; the presenter is a portal */}
+              <img className="vp-mark" src="/gt3-pb-wordmark.png" width={440} height={248} alt="GT3 Performance Bar" />
+              {forWhom && <p className="vp-eyebrow">For {forWhom}</p>}
               <h1 className="vp-title">What&apos;s next.</h1>
               <p className="vp-lede">People want clean coffee, and they want it every day. Everything we build stands on four pillars — and says plainly what goes into the cup.</p>
               <div className="vp-pillars">{PILLARS.map((p) => <span key={p} className="vp-pillar"><i className={`pz-${p}`} />{PILLAR_WORD[p]}</span>)}</div>
@@ -148,12 +159,23 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
                 {p.pillars.length > 0 && <div className="vp-pillars">{p.pillars.map((x) => <span key={x} className="vp-pillar"><i className={`pz-${x}`} />{PILLAR_WORD[x]} — {PILLAR_LINE[x]}</span>)}</div>}
                 {vision.showAsks && asks.length > 0 && (
                   <div>
-                    <p className="vp-eyebrow">{t.total > 0 ? `Where capital helps · ${shortMoney(t.total)}` : "Partners wanted"}</p>
+                    <p className="vp-eyebrow">{t.total > 0 ? `Where capital helps · ${shortMoney(t.total)}` : t.unset > 0 ? "Partners wanted · being priced" : "No capital needed"}</p>
                     {asks.map((a, i) => (
-                      <div key={i} className="vp-ask"><span>{a.label}</span><b>{a.amount_cents ? shortMoney(a.amount_cents) : a.amount_cents === 0 ? "None needed" : "—"}</b><span>{ASK_WORD[a.state]}{a.note ? ` · ${a.note}` : ""}</span></div>
+                      <div key={i} className="vp-ask"><span>{a.label}</span><b>{askWord(a.amount_cents)}</b><span>{ASK_WORD[a.state]}{a.note ? ` · ${a.note}` : ""}</span></div>
                     ))}
                   </div>
                 )}
+                {(() => {
+                  // IMS8 P6: what comes next, from the plans' own open needs (only those the link was given), soonest first.
+                  const mine = new Set(vision.plans.filter((x) => x.program_id === p.id).map((x) => x.id));
+                  const next = vision.needs.filter((n) => mine.has(n.plan_id) && !n.done_on).sort((a, b) => (a.due_on ?? "9999").localeCompare(b.due_on ?? "9999") || a.sort - b.sort).slice(0, 4);
+                  return next.length > 0 && (
+                    <div>
+                      <p className="vp-eyebrow">Next steps</p>
+                      <ul className="vp-next">{next.map((n, i) => <li key={n.id ?? i}><span>{n.label}</span>{dueWords(n.due_on) && <b>by {dueWords(n.due_on)}</b>}</li>)}</ul>
+                    </div>
+                  );
+                })()}
               </>
             );
           })()}
@@ -197,7 +219,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done" }:
               <CapitalBar t={total} dark />
               {vision.programs.filter((p) => asksOf(p.id).length).map((p) => {
                 const t = askTotals(asksOf(p.id));
-                return <div key={p.id} className="vp-ask"><span>{p.emoji ? `${p.emoji} ` : ""}{p.title}</span><b>{t.total ? shortMoney(t.total) : "—"}</b><span>{t.open ? `${shortMoney(t.open)} open` : t.total ? "Fully committed" : t.unset ? "Being priced" : "None needed"}</span></div>;
+                return <div key={p.id} className="vp-ask"><span>{p.emoji ? `${p.emoji} ` : ""}{p.title}</span><b>{t.total ? shortMoney(t.total) : t.unset ? "Being priced" : "None needed"}</b><span>{t.open ? `${shortMoney(t.open)} open` : t.total ? "Fully committed" : t.unset ? "Amounts being set" : "Nothing to raise"}</span></div>;
               })}
             </>
           )}
@@ -229,12 +251,18 @@ function TourSlide({ layout: l, focus, setFocus }: { layout: Layout; focus: numb
   const tour = l.items.filter((i) => i.why);
   const cur = flowOn ? undefined : tour[focus % Math.max(1, tour.length)];
   const sqft = Math.round((l.width_in * l.depth_in) / 144);
+  // IMS8 P6: the room in 3D, or its own plan drawn to scale — the same geometry, the Studio's renderer, read-only.
+  const [view, setView] = useState<"3d" | "plan">("3d");
   return (
     <>
       <p className="vp-eyebrow">The room · {sqft.toLocaleString()} sq ft</p>
       <h2 className="vp-title">{l.name}</h2>
+      <div className="vp-modes self-start" role="radiogroup" aria-label="How to see the room">
+        <button type="button" role="radio" aria-checked={view === "3d"} className={view === "3d" ? "on" : undefined} onClick={() => setView("3d")}>In 3D</button>
+        <button type="button" role="radio" aria-checked={view === "plan"} className={view === "plan" ? "on" : undefined} onClick={() => setView("plan")}>The plan, to scale</button>
+      </div>
       <div className="vp-tour grid-cols-1 min-[860px]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Store3D layout={l} selected={cur?.id ?? null} focus={cur?.id ?? null} spin={!cur} figures={figures} heat={flow?.heat} label={`${l.name}, in 3D`} />
+        {view === "plan" ? <RoomToScale layout={l} /> : <Store3D layout={l} selected={cur?.id ?? null} focus={cur?.id ?? null} spin={!cur} figures={figures} heat={flow?.heat} label={`${l.name}, in 3D`} />}
         <div className="vp-why" key={cur?.id ?? "flow"}>
           {cur && (
             <>
