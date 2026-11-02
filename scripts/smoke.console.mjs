@@ -447,9 +447,11 @@ try {
       const errors = [];
       page.on("pageerror", (e) => errors.push(`pageerror: ${e.message.slice(0, 200)}`));
       page.on("console", (m) => { if (m.type() === "error" && !IGNORE.some((re) => re.test(m.text()))) errors.push(m.text().slice(0, 200)); });
-      const mark = fb.failures.length;
+      const mark = fb.failures.length, t0 = Date.now();
       await page.goto(`${BASE}${v.path}`, { waitUntil: "load", timeout: 30000 }).catch(() => {});
-      await page.waitForSelector(v.ready, { timeout: 15000 }).catch(() => {});
+      // When the screen's own frame came, if it did — a screen that never became ready is said in the diagnosis below.
+      let readyMs = null;
+      await page.waitForSelector(v.ready, { timeout: 15000 }).then(() => { readyMs = Date.now() - t0; }).catch(() => {});
       const tap = async (c) => { await page.getByRole("radio", { name: c, exact: false }).or(page.getByRole("button", { name: c, exact: false })).or(page.locator("summary", { hasText: c })).first().click({ timeout: 5000 }).catch(() => {}); await page.waitForTimeout(500); };
       for (const c of v.clicks ?? []) await tap(c);
       // A slide found by stepping to it (the presenter's slides shift as the plan grows): Next until it's there.
@@ -589,6 +591,28 @@ try {
       if (process.env.CONSOLE_VERBOSE) console.log(`  · ${tag}`);
       const drawn = await page.evaluate((sel) => !!document.querySelector(sel), v.drawn).catch(() => false);
       ok(`${tag} · drawn`, drawn, (await page.evaluate(() => document.body.innerText.slice(0, 160)).catch(() => "")).replace(/\s+/g, " "));
+      // NOT DRAWN, DIAGNOSED (IMS8 P13 — the sign-in flake): read after the fact, from the page and the stand-in, nothing
+      // added to the run itself — did the app start (React attached), what did the screen say, when did the document and
+      // its slow files arrive, is the session on the phone (its expiry and whether it holds a user — never a token), what
+      // the stand-in was asked of sign-in since this page opened, and the page's errors.
+      if (!drawn) {
+        const dx = await page.evaluate(() => {
+          const raw = localStorage.getItem("sb-127-auth-token"); let j = null; try { j = JSON.parse(raw); } catch { /* not JSON */ }
+          const nav = performance.getEntriesByType("navigation")[0];
+          const text = document.body.innerText;
+          return {
+            started: [...document.querySelectorAll("body *")].slice(0, 60).some((e) => Object.keys(e).some((k) => k.startsWith("__reactFiber"))),
+            says: /Sign in with your crew account/.test(text) ? "sign in" : /Opening the vision…|Opening your run…/i.test(text) ? "opening (session not read yet)" : /Checking your access/.test(text) ? "checking access" : "other",
+            readyState: document.readyState, pageMs: Math.round(performance.now()),
+            document: nav ? { responseEnd: Math.round(nav.responseEnd), domContentLoaded: Math.round(nav.domContentLoadedEventEnd), load: Math.round(nav.loadEventEnd) } : null,
+            slowFiles: performance.getEntriesByType("resource").filter((e) => e.duration > 1000 || e.responseEnd === 0).slice(0, 12).map((e) => ({ file: e.name.replace(/^https?:\/\/[^/]+/, "").slice(0, 80), startMs: Math.round(e.startTime), ms: Math.round(e.duration) })),
+            session: raw == null ? { stored: false } : { stored: true, expiresInS: j?.expires_at ? j.expires_at - Math.floor(Date.now() / 1000) : null, user: !!j?.user?.id },
+          };
+        }).catch((e) => ({ error: String(e.message).slice(0, 200) }));
+        const diagnosis = { tag, readyMs, ...dx, signInCalls: fb.calls.filter((c) => c.at >= t0 && c.path.startsWith("/auth/")).map((c) => ({ ms: c.at - t0, method: c.method, path: c.path })), standInRefused: fb.failures.slice(mark).length, errors: errors.slice(0, 5) };
+        writeFileSync(`${OUT}/${d.key}/${v.key}-diagnosis.json`, JSON.stringify(diagnosis, null, 1));
+        console.log(`    diagnosis: ready ${readyMs == null ? "never (15 s)" : `${readyMs} ms`} · app started ${dx.started} · says "${dx.says}" · session ${dx.session?.stored ? `stored, user ${dx.session.user}, ${dx.session.expiresInS} s left` : "absent"} · document ${dx.document?.domContentLoaded} ms · ${dx.slowFiles?.length ?? 0} slow file(s) · ${diagnosis.signInCalls.length} sign-in call(s) → ${v.key}-diagnosis.json`);
+      }
       if (v.check) { const said = await page.evaluate(v.check).catch((e) => e.message); ok(`${tag} · the studio fits its screen (S1.1)`, !said, said); }
       if (v.also) { const said = await page.evaluate(v.also).catch((e) => e.message); ok(`${tag} · canvas first, nothing beside it unasked (IMS1/IMS2)`, !said, said); }
       const m = await page.evaluate(MEASURE).catch((e) => ({ error: e.message }));
