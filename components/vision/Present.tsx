@@ -11,10 +11,13 @@ import { DEAL_WORD, FORMAT, phases } from "@/lib/visionPlans";
 import FlowBar, { figuresOf } from "./FlowBar";
 import { useFlow, type Speed } from "./useFlow";
 import dynamic from "next/dynamic";
+import { propositionHas } from "@/lib/propositionHas";
+import More from "./More";
 
 // A plan's case (R57) draws the money's engine and its chart — loaded only when a case slide is reached.
 const CaseSlide = dynamic(() => import("./CaseSlide"), { ssr: false, loading: () => <p className="vp-lede">Loading the numbers…</p> });
 // The room's own plan, drawn to scale (IMS8 P6) — the Studio's renderer, read-only, loaded only when asked for.
+const Proposition = dynamic(() => import("./Proposition"), { ssr: false, loading: () => <p className="vp-lede">Loading the numbers…</p> });
 const RoomToScale = dynamic(() => import("./RoomToScale"), { ssr: false, loading: () => <p className="vp-lede">Drawing the plan…</p> });
 
 /** An ask's amount on a slide (0471): the amount, "None needed" (a confirmed $0) or "Being priced" (not set) — never $0. */
@@ -27,7 +30,7 @@ const dueWords = (d: string | null) => (d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new
 // capital may be needed. Tap the right side (or →) for the next, the left (or ←) for the one before; swipe works too.
 // The same screen opens from a private link (app/present) for someone who isn't in the room.
 type Slide =
-  | { kind: "cover" } | { kind: "board" } | { kind: "program"; id: string } | { kind: "ways"; id: string } | { kind: "case"; id: string; part?: CasePart } | { kind: "store"; id: string } | { kind: "capital" } | { kind: "end" };
+  | { kind: "cover" } | { kind: "proposition" } | { kind: "board" } | { kind: "program"; id: string } | { kind: "ways"; id: string } | { kind: "case"; id: string; part?: CasePart } | { kind: "store"; id: string } | { kind: "capital" } | { kind: "end" };
 const PILLAR_LINE: Record<Pillar, string> = {
   stillness: "Room to slow down.", light: "Daylight, and nothing to hide.", fuel: "Clean fuel — cold extracted, every ingredient named.", movement: "A reason to move, every day.",
 };
@@ -41,7 +44,9 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done", i
   const cols = useMemo(() => board(vision.programs), [vision.programs]);
   const asksOf = useCallback((id: string) => vision.asks.filter((a) => a.program_id === id), [vision.asks]);
   const base = useMemo<Slide[]>(() => {
-    const out: Slide[] = [{ kind: "cover" }, { kind: "board" }];
+    // IMS8 P12: the proposition straight after the cover, when the link holds anything to answer it with.
+    const pr = { has: propositionHas(vision) };
+    const out: Slide[] = [{ kind: "cover" }, ...(pr.has.sought || pr.has.uses || pr.has.terms || pr.has.milestones ? [{ kind: "proposition" as const }] : []), { kind: "board" }];
     const shownRooms = new Set<string>();
     for (const h of HORIZONS) for (const p of cols[h]) {
       if (h === "now" && !p.why) continue;
@@ -132,6 +137,7 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done", i
               <div className="vp-pillars">{PILLARS.map((p) => <span key={p} className="vp-pillar"><i className={`pz-${p}`} />{PILLAR_WORD[p]}</span>)}</div>
             </>
           )}
+          {s.kind === "proposition" && <Proposition vision={vision} />}
           {s.kind === "board" && (
             <>
               <p className="vp-eyebrow">The roadmap</p>
@@ -168,11 +174,12 @@ export default function Present({ vision, onExit, forWhom, exitLabel = "Done", i
                 {(() => {
                   // IMS8 P6: what comes next, from the plans' own open needs (only those the link was given), soonest first.
                   const mine = new Set(vision.plans.filter((x) => x.program_id === p.id).map((x) => x.id));
-                  const next = vision.needs.filter((n) => mine.has(n.plan_id) && !n.done_on).sort((a, b) => (a.due_on ?? "9999").localeCompare(b.due_on ?? "9999") || a.sort - b.sort).slice(0, 4);
+                  // Every one of them: the first four, and the rest on asking — never cut without being counted.
+                  const next = vision.needs.filter((n) => mine.has(n.plan_id) && !n.done_on).sort((a, b) => (a.due_on ?? "9999").localeCompare(b.due_on ?? "9999") || a.sort - b.sort);
                   return next.length > 0 && (
-                    <div>
-                      <p className="vp-eyebrow">Next steps</p>
-                      <ul className="vp-next">{next.map((n, i) => <li key={n.id ?? i}><span>{n.label}</span>{dueWords(n.due_on) && <b>by {dueWords(n.due_on)}</b>}</li>)}</ul>
+                    <div className="flex flex-col gap-1">
+                      <p className="vp-eyebrow">Next steps · {next.length}</p>
+                      <ul className="vp-next"><More items={next} first={4} word={next.length - 4 === 1 ? "step" : "steps"} render={(n, i) => <li key={n.id ?? i}><span>{n.label}</span>{dueWords(n.due_on) && <b>by {dueWords(n.due_on)}</b>}</li>} /></ul>
                     </div>
                   );
                 })()}
@@ -291,3 +298,4 @@ function TourSlide({ layout: l, focus, setFocus }: { layout: Layout; focus: numb
     </>
   );
 }
+

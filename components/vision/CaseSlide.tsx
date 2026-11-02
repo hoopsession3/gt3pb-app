@@ -13,6 +13,7 @@ import type { Plan } from "@/lib/visionPlans";
 import { money } from "@/lib/money";
 import { investorReadiness } from "@/lib/investorView";
 import { CashChart, SC_SWATCH, Tornado } from "./MoneyCharts";
+import More from "./More";
 
 // A PLAN'S CASE, PRESENTED (R57, phase E). What it takes and what it returns — from the owner-approved baseline, through
 // the one engine: startup spending, funding required, break-even, payback, the business's ROI before financing, the
@@ -37,7 +38,8 @@ export default function CaseSlide({ plan, c, room, part = "all", mode = "pitch" 
     </button>
   ) : <div key={label} className="vz-kpi"><span>{label}</span><b>{value}</b>{note && <em>{note}</em>}</div>;
   const show = (p: CasePart) => part === "all" || part === p;
-  const risks = keyRisks(c.risks);
+  // IMS8 P12: every open risk, most material first — a slide shows three and the rest on asking; none is dropped.
+  const risks = keyRisks(c.risks, Infinity);
   // IP1.2 (the editorial pass): a headline says what the numbers mean, not what the slide contains. IP1.4: the cash
   // headline names its scenario and its month, worked out from that scenario's own months.
   const sub = !b.ok ? "The numbers aren't finished yet." : part === "cash" ? cashHeadline(b) : part === "risks" ? "What could go wrong, and what we'd do about it." : part === "evidence" ? "What the research says, and where it came from." : mode === "explore" ? "Move the numbers, compare the cases, see what moves the result." : mode === "diligence" ? "Check every number: where it comes from and how it's worked out." : askHeadline(b, c.structure.kind);
@@ -75,17 +77,18 @@ export default function CaseSlide({ plan, c, room, part = "all", mode = "pitch" 
       {mode === "pitch" && show("risks") && risks.length > 0 && (
         <div className="flex flex-col gap-1">
           <p className="vp-eyebrow">The risks we watch</p>
-          {risks.map((r, i) => (
+          <More items={risks} first={3} word={risks.length - 3 === 1 ? "risk" : "risks"} render={(r, i) => (
             <p key={i} className="vp-lede">{r.kind === "assumption" ? "We're assuming: " : ""}{sentence(r.words)}{r.likelihood && r.impact ? ` Likelihood ${LEVEL_WORD[r.likelihood].toLowerCase()}, impact ${LEVEL_WORD[r.impact].toLowerCase()}.` : ""}{r.mitigation ? ` What we'd do: ${sentence(r.mitigation)}` : ""}</p>
-          ))}
+          )} />
         </div>
       )}
       {mode === "pitch" && show("evidence") && c.research.length > 0 && (
         <div className="flex flex-col gap-1">
           <p className="vp-eyebrow">Research · {c.research.length} finding{c.research.length === 1 ? "" : "s"}, each with its source</p>
-          {c.research.slice(0, 8).map((r, i) => (
+          {/* IMS8 P12: every finding — the first eight, the rest on asking; none cut without being counted. */}
+          <More items={c.research} first={8} word="findings" render={(r, i) => (
             <p key={i} className="vp-lede">{TOPIC_WORD[r.topic] ?? r.topic}: {r.claim}{r.figure ? ` (${r.figure})` : ""} — <a href={r.source_url} target="_blank" rel="noopener noreferrer">{r.source_title || domainOf(r.source_url)}</a></p>
-          ))}
+          )} />
         </div>
       )}
       <p className="vz-card-s">Projections from the plan{approved ? ` approved on ${approved}` : ""}{c.version ? ` (version ${c.version})` : ""}, not results. Not an offer of securities and not financial advice.</p>
@@ -144,7 +147,7 @@ function Drill({ t, all, c, approved, onOpen, onClose }: { t: Trace; all: Record
           : <button key={m} type="button" className="btn-sec btn-sm" onClick={() => onOpen(m as MetricKey)}>{PRESENT_LABEL[m as MetricKey] ?? all[m as MetricKey].label} · {all[m as MetricKey].display}</button>)}
       </div>
       <p className="vz-card-s">From the plan approved{approved ? ` on ${approved}` : ""}. {c.research.length ? `${c.research.length} accepted research finding${c.research.length === 1 ? "" : "s"} support it:` : "No market research has been accepted for it yet."}</p>
-      {c.research.slice(0, 8).map((r, i) => <p key={i} className="vz-card-s">{TOPIC_WORD[r.topic] ?? r.topic}: <a href={r.source_url} target="_blank" rel="noopener noreferrer">{r.source_title || domainOf(r.source_url)}</a>{r.retrieved_at ? ` · retrieved ${r.retrieved_at.slice(0, 10)}` : ""}</p>)}
+      <More items={c.research} first={8} word="sources" render={(r, i) => <p key={i} className="vz-card-s">{TOPIC_WORD[r.topic] ?? r.topic}: <a href={r.source_url} target="_blank" rel="noopener noreferrer">{r.source_title || domainOf(r.source_url)}</a>{r.retrieved_at ? ` · retrieved ${r.retrieved_at.slice(0, 10)}` : ""}</p>} />
     </section>
   );
 }
@@ -233,21 +236,24 @@ function MonthDetail({ rows, at, setAt, reserve }: { rows: MonthRow[]; at: numbe
   );
 }
 
-/** Every month (IP1.4): a table where there's room for it, a list of months on a phone — never a sideways scroll. */
+/** Every month (IP1.4): a table where there's room for it, a list of months on a phone — never a sideways scroll. IMS8 P12:
+ *  the two carry the same figures — what was raised, cash in, costs, equipment, the investor's share, cash at the end and
+ *  where it stands against the reserve — so a phone never shows less than a desktop. */
 function MonthList({ rows, reserve }: { rows: MonthRow[]; reserve: number }) {
   return (
     <>
       <div className="vp-months-table vz-cmp-wrap" role="region" aria-label="Cash, month by month" tabIndex={0}>
         <table className="vz-cmp vz-num">
-          <thead><tr><th scope="col">Month</th><th scope="col">Cash in</th><th scope="col">Costs out</th><th scope="col">Equipment</th><th scope="col">To investor</th><th scope="col">Cash at the end</th></tr></thead>
-          <tbody>{rows.map((r) => <tr key={r.m}><th scope="row">{r.m || "Open"}</th><td>{dollars(r.cashIn)}</td><td>{dollars(r.costs)}</td><td>{dollars(r.capex)}</td><td>{dollars(r.toInvestor)}</td><td>{dollars(r.closing)}</td></tr>)}</tbody>
+          <caption className="vz-card-s text-left">Raised before opening day: {dollars(rows[0]?.opening ?? 0)}</caption>
+          <thead><tr><th scope="col">Month</th><th scope="col">Cash in</th><th scope="col">Costs out</th><th scope="col">Equipment</th><th scope="col">To investor</th><th scope="col">Cash at the end</th><th scope="col">Against the reserve</th></tr></thead>
+          <tbody>{rows.map((r) => <tr key={r.m}><th scope="row">{r.m || "Open"}</th><td>{dollars(r.cashIn)}</td><td>{dollars(r.costs)}</td><td>{dollars(r.capex)}</td><td>{dollars(r.toInvestor)}</td><td>{dollars(r.closing)}</td><td>{reserveStatus(r.closing, reserve).word}</td></tr>)}</tbody>
         </table>
       </div>
       <ol className="vp-months-list" aria-label="Cash, month by month">
         {rows.map((r) => (
           <li key={r.m}>
             <b>{r.m ? `Month ${r.m}` : "Opening day"} · {dollars(r.closing)}</b>
-            <span>{r.m ? `in ${dollars(r.cashIn)} · costs ${dollars(r.costs)} · investor ${dollars(r.toInvestor)}` : `raised ${dollars(r.opening)} · opening cost ${dollars(r.capex)}`} · {reserveStatus(r.closing, reserve).word}</span>
+            <span>{r.m ? "" : `raised ${dollars(r.opening)} · `}in {dollars(r.cashIn)} · costs {dollars(r.costs)} · equipment {dollars(r.capex)} · investor {dollars(r.toInvestor)} · {reserveStatus(r.closing, reserve).word}</span>
           </li>
         ))}
       </ol>
@@ -311,7 +317,8 @@ const listWords = (w: string[]) => (w.length <= 2 ? w.join(" and ") : `${w.slice
 function Diligence({ plan, c, f, room, approved }: { plan: Plan; c: PlanCase; f: ReturnType<typeof figuresOf>; room: Layout | null; approved: string | null }) {
   const b = f.models.base, sc = f.scores.base, i = useMemo(() => toInputs(c.scenarios.base as Partial<Inputs>), [c]);
   const checks = useMemo(() => checksOf(f), [f]);
-  const risks = keyRisks(c.risks);
+  // IMS8 P12: every open risk, most material first — a slide shows three and the rest on asking; none is dropped.
+  const risks = keyRisks(c.risks, Infinity);
   const left = b.fundingRaised - b.startupSpend - b.reservePlanned;
   const unpricedNames = i.uses.filter((u) => u.category !== "reserve" && u.unitCents == null).map((u) => u.label || "a line");
   const sec = (key: string, title: string, gist: string, body: React.ReactNode) => (
