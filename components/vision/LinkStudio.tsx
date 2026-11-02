@@ -10,7 +10,7 @@ import { failureWords } from "@/lib/failureWords";
 import { haptic } from "@/lib/haptics";
 import { publicOrigin } from "@/lib/native";
 import { sendsSentence } from "@/lib/sharePreview";
-import { draftChecks, payloadChecks, readinessOf, BAND_WORD, type PublishFinding, type Readiness } from "@/lib/publishReadiness";
+import { draftChecks, isFor, payloadChecks, readinessOf, BAND_WORD, type PublishFinding, type Readiness } from "@/lib/publishReadiness";
 import { isStale, publishLink, reviewLink, type Review } from "@/lib/sharePublish";
 import { toVision } from "@/lib/visionRead";
 import type { Plan } from "@/lib/visionPlans";
@@ -57,28 +57,55 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, deps = [
   const [made, setMade] = useState<{ token: string; label: string } | null>(null);
   const ready: Readiness | null = review ? readinessOf([...before, ...payloadChecks(review.payload, { latestApproved: review.latest, privateNames: review.private_names, moneyPlans: pub.money_plans ?? [] })]) : null;
   // The server's material ids are what's bound; each said in our words (lib/publishReadiness finds the same ones).
-  const material = review ? review.material.map((id) => ready?.all.find((f) => f.confirm === id) ?? null) : [];
+  // The server's ids carry a hash of the exact content they're about (0472); a finding is matched by the rest (isFor).
+  const material = review ? review.material.map((id) => ready?.all.find((f) => isFor(id, f.confirm)) ?? null) : [];
   const allConfirmed = !!review && review.material.every((id) => d.confirmed.includes(id));
+  // READY TO PUBLISH (IMS8 P11) is said only when every confirmation is given AND the server, asked again, answers with the
+  // same response and the same findings — never "reviewed" while a confirmation is still owed.
+  const [validated, setValidated] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
+  const status: "needs" | "checking" | "ready" | null = !review ? null : !allConfirmed ? "needs" : validated === review.fingerprint ? "ready" : "checking";
 
   const runReview = async (then: Step = "review") => {
     if (!supabase || busy) return;
     setBusy(true);
     try {
       const r = await reviewLink(supabase, null, pub);
-      setReview(r); setCheckedAt(new Date());
-      // Confirmations stand only for the response they were given against.
-      setD((x) => ({ ...x, step: then, reviewed: r.fingerprint, confirmed: x.reviewed === r.fingerprint ? x.confirmed.filter((id) => r.material.includes(id)) : [] }));
+      // Confirmations stand only for the response they were given against; kept ones covering every finding of this
+      // fresh server review make it Ready to publish (the server has just answered with the same response).
+      const kept = d.reviewed === r.fingerprint ? d.confirmed.filter((id) => r.material.includes(id)) : [];
+      setReview(r); setCheckedAt(new Date()); setValidated(r.material.every((id) => kept.includes(id)) ? r.fingerprint : null);
+      setD((x) => ({ ...x, step: then, reviewed: r.fingerprint, confirmed: kept }));
     } catch (e) { haptic("error"); toast(failureWords(e as Error, "Couldn't review it"), "error"); }
     finally { setBusy(false); }
   };
   // Back from a "fix it" (or a reload) on a later step: the review is read again, never assumed.
   const resumed = useRef(false);
   useEffect(() => { if (!resumed.current && d.step !== "choose" && !review) { resumed.current = true; void runReview(d.step); } });
+  // Every confirmation given: ask the server again. The same response and findings → Ready to publish; anything else is a
+  // new review (its confirmations start again — they were for something that changed).
+  const validate = async () => {
+    if (!supabase || !review || validating) return;
+    setValidating(true);
+    try {
+      const r = await reviewLink(supabase, null, pub);
+      const same = r.fingerprint === review.fingerprint && JSON.stringify(r.material) === JSON.stringify(review.material);
+      if (same) setValidated(r.fingerprint);
+      else { setReview(r); setCheckedAt(new Date()); setValidated(r.material.length === 0 ? r.fingerprint : null); setD((x) => ({ ...x, reviewed: r.fingerprint, confirmed: [] })); toast("It changed since you reviewed it — here it is again, to confirm.", "error"); }
+    } catch (e) { toast(failureWords(e as Error, "Couldn't check it"), "error"); }
+    finally { setValidating(false); }
+  };
+  // Ticking a box: when it's the last one owed, the server is asked again (validate).
+  const flipConfirm = (id: string) => {
+    const next = flip(d.confirmed, id);
+    set({ confirmed: next });
+    if (review && review.material.every((x) => next.includes(x))) void validate();
+  };
   // A choice changed after review: back to Choose — the review was of something else.
   const edit = (p: Partial<StudioDraft>) => { set({ ...p, step: "choose" }); setReview(null); };
 
   const share = async () => {
-    if (!supabase || !review || busy || !allConfirmed) return;
+    if (!supabase || !review || busy || status !== "ready") return;
     setBusy(true);
     try {
       const out = await publishLink(supabase, null, pub, review, review.material);
@@ -89,7 +116,7 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, deps = [
     } catch (e) {
       haptic("error");
       // A refusal shares nothing and keeps the draft; one because it changed is reviewed again.
-      if (isStale(e)) { toast("It changed since you reviewed it — nothing was shared. Here it is again.", "error"); setReview(null); void runReview("review"); }
+      if (isStale(e)) { toast("It changed since you reviewed it — nothing was shared. Here it is again, to confirm.", "error"); setReview(null); void runReview("share"); }
       else toast(failureWords(e as Error, "Couldn't make the link"), "error");
     } finally { setBusy(false); }
   };
@@ -120,11 +147,12 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, deps = [
   return (
     <div className="ls vz-insp mpanel mb-0 flex flex-col gap-3 p-3.5" aria-label="Make a link">
       {/* The one live region: it stays, and its words change with the step, the verdict and what stops Review (A11Y F12). */}
-      <p className="sr-only" aria-live="polite">{`Step ${n} of 4, ${STEP_WORD[step]}.${ready && step === "review" ? ` ${ready.verdict}.` : ""}${step === "choose" && blocked.length ? ` ${BAND_WORD.cant}: ${blocked.length === 1 ? "one thing" : `${blocked.length} things`} to fix.` : ""}`}</p>
+      <p className="sr-only" aria-live="polite">{`Step ${n} of 4, ${STEP_WORD[step]}.${ready && step === "review" ? ` ${ready.verdict}.` : ""}${status === "ready" ? " Ready to publish." : ""}${step === "choose" && blocked.length ? ` ${BAND_WORD.cant}: ${blocked.length === 1 ? "one thing" : `${blocked.length} things`} to fix.` : ""}`}</p>
       <div className="flex flex-col gap-1">
         <span className="vp-prog ls-steps" aria-hidden="true">{STEPS.map((s, i) => <i key={s} className={i < n ? "on" : undefined} />)}</span>
         <h2 ref={head} tabIndex={-1} className="ls-h">Step {n} of 4 · {STEP_WORD[step]}</h2>
         {JSON.stringify({ ...d, step: "choose", confirmed: [], reviewed: null }) !== JSON.stringify(EMPTY) && <span className="vz-card-s">Draft · kept on this device only, until it&apos;s shared</span>}
+        {status && step !== "choose" && <span className={status === "ready" ? "ls-status ready" : "ls-status needs"}>{status === "ready" ? "Ready to publish" : status === "checking" ? "Checking it's still what you reviewed…" : `Needs confirmation · ${review!.material.filter((id) => !d.confirmed.includes(id)).length} to go`}</span>}
       </div>
 
       {step === "choose" && (
@@ -162,16 +190,7 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, deps = [
       {step === "review" && ready && review && (
         <>
           <div className={ready.band === "cant" ? "ls-verdict cant" : ready.band === "confirm" ? "ls-verdict confirm" : "ls-verdict ready"}><b>{ready.verdict}</b></div>
-          {material.length > 0 && (
-            <fieldset className="ls-confirm flex flex-col gap-2">
-              <legend className="font-sans font-bold">Confirm before sharing</legend>
-              {review.material.map((id, i) => (
-                <label key={id} className="prod-toggle ls-check"><input type="checkbox" checked={d.confirmed.includes(id)} onChange={() => set({ confirmed: flip(d.confirmed, id) })} />
-                  <span className="flex flex-col gap-1"><span>{material[i]?.words ?? `Something to confirm (${id.split(":")[0].replace(/_/g, " ")}).`}</span>
-                    {material[i]?.go && onGo && <button type="button" className="btn-ter self-start" onClick={(e) => { e.preventDefault(); onGo(material[i]!.go!); }}>{material[i]?.action ?? "Fix it"} ›</button>}</span></label>
-              ))}
-            </fieldset>
-          )}
+          {review.material.length > 0 && <Confirms ids={review.material} material={material} confirmed={d.confirmed} onFlip={flipConfirm} onGo={onGo} />}
           {(() => {
             const look = ready.all.filter((f) => f.cls === "concern" || f.cls === "editorial");
             const first = look.slice(0, Math.max(0, 3 - material.length)), rest = look.slice(first.length);
@@ -183,7 +202,6 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, deps = [
               </div>
             );
           })()}
-          <p className="ls-fp vz-card-s"><span aria-hidden="true">● </span>The same response the link will send · checked {checkedAt?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</p>
         </>
       )}
 
@@ -191,7 +209,7 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, deps = [
         <>
           <p className="vz-card-s">{sendsSentence(review.payload)}</p>
           <button type="button" className="btn-sec self-start" onClick={() => setPresenting(true)}>▶ See it as they will</button>
-          <LinkPreview payload={review.payload} />
+          <LinkPreview payload={review.payload} diag={{ fingerprint: review.fingerprint, checkedAt }} />
           {(() => {
             // IMS8 P9: the story the response tells — facts, each with its source; a suggested opening apart, yours to change.
             const story = storyOf(review.payload);
@@ -212,18 +230,43 @@ export default function LinkStudio({ isOwner, plans, programs, layouts, deps = [
         <>
           <p className="vz-card-s">{sendsSentence(review.payload)}</p>
           <p className="vz-card-s">It sends exactly what you reviewed. Edits you make after sharing wait until you review and share it again{pub.money_plans?.length ? "; the money case stays as approved by today" : ""}. It lives {(ENDS.find((e) => e.key === d.ends)?.label ?? "30 days").toLowerCase()}, and turning it off works at once.</p>
-          {review.material.length > 0 && <p className="vz-card-s">You confirmed {review.material.length === 1 ? "one thing" : `${review.material.length} things`}; they&apos;re kept with the link.</p>}
+          {review.material.length > 0 && (allConfirmed
+            ? <p className="vz-card-s">You confirmed {review.material.length === 1 ? "one thing" : `${review.material.length} things`}; they&apos;re kept with the link.</p>
+            : <Confirms ids={review.material} material={material} confirmed={d.confirmed} onFlip={flipConfirm} onGo={onGo} />)}
         </>
       )}
 
       <div className="ls-foot">
         {step !== "choose" && <button type="button" className="btn-sec" onClick={() => set({ step: STEPS[n - 2] })} disabled={busy}>Back</button>}
         {step === "choose" && <button type="button" className="btn-pri" onClick={() => void runReview()} disabled={busy || blocked.length > 0}>{busy ? "Reviewing…" : "Review what it sends"}</button>}
-        {step === "review" && <button type="button" className="btn-pri" onClick={() => set({ step: "preview" })} disabled={busy || !review || !allConfirmed}>{allConfirmed ? "Preview it" : `Confirm ${review ? review.material.filter((id) => !d.confirmed.includes(id)).length : ""} more to go on`}</button>}
+        {/* Preview is open before confirmations — seeing it may be how the owner decides (IMS8 P11). */}
+        {step === "review" && <button type="button" className="btn-pri" onClick={() => set({ step: "preview" })} disabled={busy || !review}>Preview it</button>}
         {step === "preview" && <button type="button" className="btn-pri" onClick={() => set({ step: "share" })} disabled={busy || !review}>Ready to share</button>}
-        {step === "share" && <button type="button" className="btn-pri" onClick={() => void share()} disabled={busy || !review || !allConfirmed}>{busy ? "Sharing…" : "Share — make the link"}</button>}
+        {step === "share" && <button type="button" className="btn-pri" onClick={() => void share()} disabled={busy || status !== "ready"}>{busy ? "Creating…" : status === "needs" ? "Confirm above to create" : status === "checking" ? "Checking…" : "Create the link"}</button>}
       </div>
     </div>
+  );
+}
+
+/** What must be confirmed, each in full: a flagged passage word for word with where it is, said to go into the public link
+ *  as written, and a way to edit it; anything else in its own words. Each box is for that exact content (0472). */
+function Confirms({ ids, material, confirmed, onFlip, onGo }: { ids: string[]; material: (PublishFinding | null)[]; confirmed: string[]; onFlip: (id: string) => void; onGo?: (go: NonNullable<PublishFinding["go"]>) => void }) {
+  return (
+    <fieldset className="ls-confirm flex flex-col gap-3">
+      <legend className="font-sans font-bold">Confirm before it&apos;s created</legend>
+      {ids.map((id, i) => {
+        const f = material[i], words = f?.rule === "internal_words";
+        return (
+          <div key={id} className="flex flex-col gap-1">
+            {f ? <span>{f.words}</span> : <span>Something to confirm ({id.split(":")[0].replace(/_/g, " ")}).</span>}
+            {words && f!.evidence.map((e, j) => <blockquote key={j} className="ls-passage"><span>{e.says}</span><small>{e.source}</small></blockquote>)}
+            {f?.go && onGo && <button type="button" className="btn-ter self-start" onClick={() => onGo(f.go!)}>{f.action ?? "Fix it"} ›</button>}
+            <label className="prod-toggle ls-check"><input type="checkbox" checked={confirmed.includes(id)} onChange={() => onFlip(id)} />
+              <span>{words ? "Include these words in the public link exactly as written" : f?.rule === "asks_unset" ? "Show them as being priced" : f?.rule === "uses_unpriced" ? "Show these lines without a price" : f?.rule === "newer_approval" ? "Keep the version this link shows" : "Share it as it is"}</span></label>
+          </div>
+        );
+      })}
+    </fieldset>
   );
 }
 

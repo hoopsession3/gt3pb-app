@@ -29,7 +29,7 @@ ok("sharing the changes and changing how long it lives go through review and pub
 ok("…and until then the link keeps sending what was reviewed — said so", /It still sends what you shared; the plan has changed since\./.test(sh));
 ok("what it sends now is the link's own answer (vision_share_preview → its published revision), compared with the review", /supabase\.rpc\("vision_share_preview", \{ p_share: share\.id, p_draft: null \}\)/.test(sh) && /changesBetween\(sent\.data, rev\.payload\)/.test(sh));
 ok("a draft is said to be this device's", /Draft · kept on this device only, until it&apos;s shared/.test(st));
-ok("when it was last shared as reviewed is said; read with the plans so the list still reads before 0472", /select\(`\$\{base\}, plan_ids, need_plans, published_at`\)/.test(sh) && !/const COLS = "[^"]*published_at/.test(sh) && /shared as reviewed \$\{ageLabel\(s\.published_at\)\}/.test(sh));
+ok("each link says its revision and when it was shared; read with the plans so the list still reads before 0472", /select\(`\$\{base\}, plan_ids, need_plans, published_at, revision`\)/.test(sh) && !/const COLS = "[^"]*published_at/.test(sh) && /revision \$\{s\.revision \?\? 1\}, shared \$\{ageLabel\(s\.published_at\)\}/.test(sh));
 ok("opens are counted, never attributed", /opened \$\{s\.opens\}×/.test(sh) && !/opened by|who opened/i.test(sh));
 console.log(`IMS8 P8 — A LINK'S LIFE, FROM ITS RECORDS: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

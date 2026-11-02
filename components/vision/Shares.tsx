@@ -28,7 +28,7 @@ const LinkPreview = dynamic(() => import("./LinkPreview"), { ssr: false });
 // PRIVATE LINKS (R52, 0447 vision_shares) — the plan for someone outside: an investor, a landlord, a partner. Each link
 // is its own long random token, named for who it's for, with or without the money; it counts its opens, and one tap turns
 // it off for good. The token rides after the # (app/present), so it never reaches a server log or a referrer.
-type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; published_at?: string | null; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[]; program_ids?: string[]; layout_ids?: string[]; pinned_at?: string | null; plan_ids?: string[]; need_plans?: string[] };
+type Share = { id: string; token: string; label: string; show_asks: boolean; created_at: string; published_at?: string | null; revision?: number | null; revoked_at: string | null; last_opened_at: string | null; opens: number; expires_at?: string | null; money_plans?: string[]; research_plans?: string[]; program_ids?: string[]; layout_ids?: string[]; pinned_at?: string | null; plan_ids?: string[]; need_plans?: string[] };
 const COLS = "id, token, label, show_asks, created_at, revoked_at, last_opened_at, opens";
 /** A link's state, said: off, ended, or live (and when it ends). */
 export function linkState(s: Pick<Share, "revoked_at" | "expires_at">, now = Date.now()): { live: boolean; word: string; ends: string | null } {
@@ -74,7 +74,7 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
     // arrives-with: 0467 — until it's pasted, the select without plan_ids/need_plans: the links as they were, no plan
     // picking, no preview (and nothing else rides this select).
     // arrives-with: 0472 — published_at is read with the plans, so before 0472 is pasted this select fails over to the one below and the list still reads.
-    const withPlans = await supabase.from("vision_shares").select(`${base}, plan_ids, need_plans, published_at`).order("created_at", { ascending: false });
+    const withPlans = await supabase.from("vision_shares").select(`${base}, plan_ids, need_plans, published_at, revision`).order("created_at", { ascending: false });
     if (!withPlans.error) { setCanCase(true); setCanChoose(true); setCanPick(true); return (withPlans.data as unknown as Share[]) ?? []; }
     if (!isMissingColumn(withPlans.error)) throw new Error(withPlans.error.message);
     const withPin = await supabase.from("vision_shares").select(base).order("created_at", { ascending: false });
@@ -105,7 +105,7 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
             {rows.map((s) => { const st = linkState(s); return (
               <InfoRow key={s.id} name={s.label}
                 nameExtra={st.live && canEdit ? <LiveState share={s} /> : <span className={`adm-substat ${st.live ? "active" : "past_due"}`}>{st.word}</span>}
-                meta={`${s.show_asks ? "With the asks" : "The vision only"} · made ${ageLabel(s.created_at)}${s.published_at && s.published_at !== s.created_at ? ` · shared as reviewed ${ageLabel(s.published_at)}` : ""}${st.ends ? ` · ${st.ends}` : ""} · ${s.opens ? `opened ${s.opens}× · last ${ageLabel(s.last_opened_at ?? s.created_at)}` : "not opened yet"}`}
+                meta={`${s.show_asks ? "With the asks" : "The vision only"} · made ${ageLabel(s.created_at)}${s.published_at ? ` · revision ${s.revision ?? 1}, shared ${ageLabel(s.published_at)}` : ""}${st.ends ? ` · ${st.ends}` : ""} · ${s.opens ? `opened ${s.opens}× · last ${ageLabel(s.last_opened_at ?? s.created_at)}` : "not opened yet"}`}
                 sub={st.live && (canEdit || isOwner) ? (
                   <div className="flex flex-col gap-1 px-1 whitespace-normal">
                     {canEdit && canChoose && <ShowsChooser share={s} programs={programs} layouts={layouts} plans={canPick ? shownPlans : null} onSaved={state.reload} />}

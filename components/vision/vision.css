@@ -260,7 +260,6 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .ls-look{padding:2px 0}
 .ls-find{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:1.4;color:var(--muted);white-space:normal}
 .ls-find span{flex:1 1 220px;min-width:0}
-.ls-fp{color:var(--tone-ok)}
 .ls-foot{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin:4px -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));background:inherit;border-top:1px solid var(--line)}
 .ls-foot .btn-pri{flex:1 1 200px}
 @media (prefers-reduced-motion:reduce){.ls *{transition:none!important;animation:none!important}}
@@ -269,3 +268,9 @@ svg .bg{fill:var(--line2)} svg .bg-dark{fill:rgba(245,241,232,.16)}
 .ls-fact small,.ls-suggest small{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted)}
 .ls-suggest{display:flex;flex-direction:column;gap:4px;margin-top:8px;padding:8px 10px;border-left:3px dashed var(--line2)}
 .ls-suggest p{margin:0;font-size:15px;line-height:1.4}
+/* IMS8 P11 — the studio's status (never "reviewed" while a confirmation is owed) and a flagged passage, in full. */
+.ls-status{font-family:var(--sans);font-weight:700;font-size:13px;letter-spacing:.02em}
+.ls-status.needs{color:var(--tone-warn)}
+.ls-status.ready{color:var(--tone-ok)}
+.ls-passage{margin:0;display:flex;flex-direction:column;gap:2px;padding:6px 10px;border-left:3px solid var(--tone-warn);white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.45}
+.ls-passage small{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--muted);white-space:normal}

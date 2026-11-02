@@ -27,7 +27,8 @@ export const CLASSES: readonly PublishClass[] = ["enforced", "approval", "materi
 export const CLASS_WORD: Record<PublishClass, string> = { enforced: "Can't go", approval: "Needs the owner", material: "Confirm before sharing", concern: "Worth a look", editorial: "Wording" };
 export type PublishFinding = Insight & { cls: PublishClass; confirm: string | null };
 export type Band = "cant" | "confirm" | "ready";
-export const BAND_WORD: Record<Band, string> = { cant: "Can't share yet", confirm: "Ready once you confirm", ready: "Ready to share" };
+/** The three bands, in plain words (IMS8 P11): nothing here says "reviewed" while a confirmation is still owed. */
+export const BAND_WORD: Record<Band, string> = { cant: "Can't share yet", confirm: "Needs confirmation", ready: "Ready to publish" };
 
 type J = unknown;
 type Obj = Record<string, J>;
@@ -224,7 +225,7 @@ export function readinessOf(list: readonly PublishFinding[], shown = 3): Readine
   const look = all.length - stop - confirm.length;
   const band: Band = stop ? "cant" : confirm.length ? "confirm" : "ready";
   const tail = look ? ` · ${plural(look, "thing")} worth a look` : "";
-  const verdict = band === "cant" ? `${BAND_WORD.cant} — ${plural(stop, "thing")} to fix first` : band === "confirm" ? `${BAND_WORD.confirm} ${plural(confirm.length, "thing")}${tail}` : `${BAND_WORD.ready}${tail}`;
+  const verdict = band === "cant" ? `${BAND_WORD.cant} — ${plural(stop, "thing")} to fix first` : band === "confirm" ? `${BAND_WORD.confirm} — ${plural(confirm.length, "thing")} to confirm${tail}` : `${BAND_WORD.ready}${tail}`;
   return { band, verdict, top: all.slice(0, shown), more: Math.max(0, all.length - shown), all, materialIds: [...new Set(confirm.map((f) => f.confirm!))].sort() };
 }
 

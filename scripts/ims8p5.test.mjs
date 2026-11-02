@@ -19,7 +19,7 @@ const studio = read("components/vision/LinkStudio.tsx");
 ok("…making a link (the studio, P7), what it shows, its money and moving it on each go through publish", /reviewLink\(supabase, null, pub\)/.test(studio) && /publishLink\(supabase, null, pub, review, review\.material\)/.test(studio)
   && ['publish(share.id, { money_plans: money, research_plans: research }', 'publish(share.id, { program_ids: pickPrograms, layout_ids: pickRooms', 'publish(share.id, { repin: true }'].every((x) => sh.includes(x)));
 ok("…review first, the material findings confirmed in a sheet that lists them, then publish with exactly those ids", /r = await reviewLink\(supabase, share, draft\)/.test(sh) && /ask\.ids\.length && !\(await confirm\(/.test(sh) && /ask\.words\.map/.test(sh) && /publishLink\(supabase, share, draft, r, ask\.ids\)/.test(sh));
-ok("…a refusal shares nothing and keeps the draft (A1); a stale one says it changed, and is reviewed again", /isStale\(e\) \? "It changed since it was reviewed — nothing was shared/.test(sh) && /if \(isStale\(e\)\) \{ toast\("It changed since you reviewed it — nothing was shared\. Here it is again\.", "error"\); setReview\(null\); void runReview\("review"\); \}/.test(studio));
+ok("…a refusal shares nothing and keeps the draft (A1); a stale one says it changed, and is reviewed again", /isStale\(e\) \? "It changed since it was reviewed — nothing was shared/.test(sh) && /if \(isStale\(e\)\) \{ toast\("It changed since you reviewed it — nothing was shared\. Here it is again, to confirm\.", "error"\); setReview\(null\); void runReview\("share"\); \}/.test(studio));
 
 // lib/sharePublish with a stand-in client.
 const calls = [];

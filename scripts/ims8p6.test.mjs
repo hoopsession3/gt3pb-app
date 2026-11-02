@@ -28,7 +28,7 @@ const payload = {
   ],
   layouts: [{ id: RM, name: "Storefront", width_in: 240, depth_in: 360, ceiling_in: 120, items: [{ id: "0c46f000-0000-4000-8000-0000000000d1", kind: "counter", label: "Bar", x_in: 10, y_in: 10, rot: 0, w_in: 96, d_in: 30, h_in: 42, why: "Where the pour happens.", pillars: [], sort: 1 }] }],
 };
-ok("one sentence, counted from the response: programs, plans and their money, open needs (done ones aren't), research, asks, rooms, and how much writing", SP.sendsSentence(payload) === "It sends 1 program, 2 plans (1 with an approved money case), 1 open need, 1 research finding, 1 ask and 1 room — and 26 pieces of your writing, word for word below.", SP.sendsSentence(payload));
+ok("one sentence, counted from the response: programs, plans and their money, open needs (done ones aren't), research, asks, rooms, and how much writing", SP.sendsSentence(payload) === "It sends 1 program, 2 plans (1 with an approved money case), 1 open need, 1 research finding, 1 ask and 1 room — and 26 text fields written by you or your team, each shown word for word below.", SP.sendsSentence(payload));
 ok("…a response with nothing of the plan says so", SP.sendsSentence({ label: "x", programs: [], plans: [], asks: [], layouts: [] }) === "It sends nothing of the plan yet — only who it's for.");
 const pv = SP.previewOf(payload), shown = [...pv.sections.flatMap((s) => s.texts), ...pv.other];
 const all = PR.textsOf(payload);

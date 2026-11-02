@@ -98,9 +98,32 @@ export function sendsSentence(payload: J): string {
     asks && count(asks, "ask"),
     rooms && count(rooms, "room"),
   ].filter((x): x is string => !!x);
+  const { fields } = textFields(payload);
+  return parts.length ? `It sends ${listed(parts)} — and ${count(fields, "text field")} written by you or your team, each shown word for word below.` : "It sends nothing of the plan yet — only who it's for.";
+}
+
+/** How many text fields a response carries (each a distinct value, as the inspector lists them) and a few to recognise
+ *  them by: the first value of up to three categories, shortest first within each (IMS8 P11 — a bare count of "your
+ *  writing" said what, not which). */
+export function textFields(payload: J): { fields: number; examples: { title: string; text: string }[] } {
   const { sections, other } = previewOf(payload);
-  const words = sections.reduce((a, s) => a + s.texts.length, 0) + other.length;
-  return parts.length ? `It sends ${listed(parts)} — and ${count(words, "piece")} of your writing, word for word below.` : "It sends nothing of the plan yet — only who it's for.";
+  const fields = sections.reduce((a, s) => a + s.texts.length, 0) + other.length;
+  const examples = sections.filter((s) => s.key !== "link" && s.texts.length).slice(0, 3)
+    .map((s) => ({ title: s.title, text: [...s.texts].sort((a, b) => a.length - b.length)[0] }));
+  return { fields, examples };
+}
+
+/** What the investor's screen works out from what's sent — figures and judgements that aren't sent as text, so the owner
+ *  knows they'll appear (IMS8 P11: included, excluded and derived, told apart). Only what this response supports. */
+export function derivedOf(payload: J): string[] {
+  const p = obj(payload), plans = arr(p.plans).map(obj), out: string[] = [];
+  const cases = plans.filter((x) => x.money).map((x) => str(x.name) ?? "A plan");
+  if (cases.length) out.push(`From ${listed(cases)}'s approved money: opening cost, funding needed, monthly cash for three years in three scenarios, break-even, payback, return before and after the investor, and the investor's return (IRR) — worked out on their screen by the same model you use`);
+  if (cases.length) out.push("A readiness score and what's still to close, worked out from the approved money and its accepted research — a checklist, not a probability");
+  if (arr(p.asks).length) out.push("Totals of the asks by where each stands (open, committed, funded) — an ask with no amount is said as being priced, never $0");
+  if (arr(p.layouts).length) out.push("Each room's floor area, from its recorded width and depth, and how guests might flow through it at a chosen pace");
+  if (plans.some((x) => arr(x.needs).length)) out.push("Next steps: the open needs, soonest first");
+  return out;
 }
 
 /** Never on any link: what vision_share_payload (0467) doesn't name. Said so a person knows, not guesses. */

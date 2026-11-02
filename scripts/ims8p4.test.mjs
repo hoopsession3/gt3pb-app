@@ -43,7 +43,7 @@ const base = (over = {}) => ({
 });
 const clean = R.payloadChecks(base(), { moneyPlans: [PL], latestApproved: { [PL]: 2 } });
 const cleanR = R.readinessOf(clean);
-ok("a clean response: nothing to confirm; Ready to share", cleanR.band === "ready" && cleanR.materialIds.length === 0 && /^Ready to share/.test(cleanR.verdict), { v: cleanR.verdict, r: rules(clean) });
+ok("a clean response: nothing to confirm; Ready to publish", cleanR.band === "ready" && cleanR.materialIds.length === 0 && /^Ready to publish/.test(cleanR.verdict), { v: cleanR.verdict, r: rules(clean) });
 ok("…and the case's score is the engine's: what the investor will read as still to close is said as a concern, never a stop", clean.filter((f) => f.rule === "blockers_open").every((f) => f.cls === "concern" && !f.blocks && f.level === "note"));
 
 const messy = base({
@@ -70,7 +70,7 @@ ok("…an email address is found; an ordinary word containing one isn't ('tokeni
 ok("…ids, dates and fixed words are never read as text (no false hit on a uuid or a status)", R.textsOf(base()).every((t) => !/^[0-9a-f-]{36}$/.test(t.text) && t.key !== "status" && t.key !== "pinned_at"));
 ok("concern: no target date, no gate, an undated need, a draft-named room", ["program_no_target", "plan_no_gate", "need_no_due", "room_draft_name"].every((r) => m.some((f) => f.rule === r && f.cls === "concern")), rules(m));
 ok("editorial: a placeholder ('Set the amount.')", m.some((f) => f.rule === "placeholder" && f.cls === "editorial"));
-ok("the band: confirm 4 things; the verdict counts the rest as worth a look", mr.band === "confirm" && /^Ready once you confirm 4 things · \d+ things worth a look$/.test(mr.verdict), mr.verdict);
+ok("the band: confirm 4 things; the verdict counts the rest as worth a look", mr.band === "confirm" && /^Needs confirmation — 4 things to confirm · \d+ things worth a look$/.test(mr.verdict), mr.verdict);
 ok("…at most 3 findings before more, material first", mr.top.length === 3 && mr.top.every((f) => f.cls === "material") && mr.more === mr.all.length - 3);
 ok("the material ids are stable and exact (what 0472 binds confirmations to)", JSON.stringify(mr.materialIds) === JSON.stringify([`asks_unset:link:link`, `internal_words:program:${PG}`, `newer_approval:plan:${PL}`, `uses_unpriced:plan:${PL}`]), mr.materialIds);
 ok("…the same response gives the same ids, findings and order every time", JSON.stringify(R.readinessOf(R.payloadChecks(messy, { moneyPlans: [PL], latestApproved: { [PL]: 3 }, privateNames: ["Acme Fixtures"] })).all.map((f) => f.id)) === JSON.stringify(mr.all.map((f) => f.id)));
