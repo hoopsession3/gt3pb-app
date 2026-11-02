@@ -96,25 +96,44 @@ export function internalWhy(text: string, names: readonly string[] = []): string
   return n ? `names ${n}, from your library` : null;
 }
 
-type Text = { subject: Ref; key: string; text: string };
+/** A free-text value: what it belongs to, its field, the part of the subject it sits in (its needs, research, risks, the
+ *  money's lines, a room's things, the asks — "" for the subject itself), and the words. */
+export type Text = { subject: Ref; key: string; area: string; text: string };
 /** Every free-text value in the response, with what it belongs to: the link, a program, a plan (its needs, money, research
  *  and risks ride inside it), a room — and an ask, under its plan or else its program. Ids, dates and fixed words aren't text. */
 export function textsOf(payload: J): Text[] {
   const p = obj(payload), out: Text[] = [];
-  const walk = (v: J, subject: Ref, key: string) => {
-    if (Array.isArray(v)) { if (key !== "pillars" && key !== "waits_on") for (const x of v) walk(x, subject, key); return; }
-    if (v && typeof v === "object") { for (const [k, x] of Object.entries(v as Obj)) walk(x, subject, k); return; }
+  const walk = (v: J, subject: Ref, key: string, area: string) => {
+    if (Array.isArray(v)) { if (key !== "pillars" && key !== "waits_on") for (const x of v) walk(x, subject, key, AREAS.has(key) ? key : area); return; }
+    if (v && typeof v === "object") { for (const [k, x] of Object.entries(v as Obj)) walk(x, subject, k, area); return; }
     const s = str(v);
-    if (s && !NOT_TEXT.has(key)) out.push({ subject, key, text: s });
+    if (s && !NOT_TEXT.has(key)) out.push({ subject, key, area, text: s });
   };
   const label = str(p.label);
-  if (label) out.push({ subject: { kind: "link", id: "link" }, key: "label", text: label });
-  for (const x of arr(p.programs).map(obj)) walk(x, { kind: "program", id: String(x.id), name: str(x.title) ?? undefined }, "");
-  for (const x of arr(p.plans).map(obj)) walk(x, { kind: "plan", id: String(x.id), name: str(x.name) ?? undefined }, "");
-  for (const x of arr(p.asks).map(obj)) walk(x, x.plan_id ? { kind: "plan", id: String(x.plan_id) } : { kind: "program", id: String(x.program_id) }, "");
-  for (const x of arr(p.layouts).map(obj)) walk(x, { kind: "layout", id: String(x.id), name: str(x.name) ?? undefined }, "");
+  if (label) out.push({ subject: { kind: "link", id: "link" }, key: "label", area: "", text: label });
+  for (const x of arr(p.programs).map(obj)) walk(x, { kind: "program", id: String(x.id), name: str(x.title) ?? undefined }, "", "");
+  for (const x of arr(p.plans).map(obj)) walk(x, { kind: "plan", id: String(x.id), name: str(x.name) ?? undefined }, "", "");
+  for (const x of arr(p.asks).map(obj)) walk(x, x.plan_id ? { kind: "plan", id: String(x.plan_id) } : { kind: "program", id: String(x.program_id) }, "", "asks");
+  for (const x of arr(p.layouts).map(obj)) walk(x, { kind: "layout", id: String(x.id), name: str(x.name) ?? undefined }, "", "");
   return out;
 }
+
+const AREAS = new Set(["needs", "research", "risks", "uses", "mix", "acknowledged", "items", "asks"]);
+const KIND_WORD: Record<string, string> = { link: "The link", program: "Roadmap program", plan: "Plan", layout: "Room" };
+const AREA_WORD: Record<string, string> = { needs: "an open need", research: "a research finding", risks: "a risk", uses: "an approved cost line", mix: "an approved menu line",
+  acknowledged: "an accepted risk's reason", items: "a thing in the room", asks: "an ask" };
+const FIELD_WORD: Record<string, string> = { label: "name", title: "title", summary: "summary", why: "why", lane: "lane", emoji: "emoji", name: "name", place: "place",
+  gate: "when it goes", customer: "customer", market: "market", positioning: "positioning", note: "note", claim: "claim", figure: "figure", source_title: "source",
+  source_url: "source link", words: "words", mitigation: "what we'd do", deal: "deal" };
+/** Where a value sits, said for a person: "Plan · Gym bar · a research finding's claim". */
+export function whereOf(t: Pick<Text, "subject" | "key" | "area">, name?: string): string {
+  if (t.subject.kind === "link") return "The link's name";
+  const field = FIELD_WORD[t.key] ?? t.key;
+  return [KIND_WORD[t.subject.kind] ?? t.subject.kind, name ?? t.subject.name ?? "", t.area ? `${AREA_WORD[t.area] ?? t.area}'s ${field}` : field].filter(Boolean).join(" · ");
+}
+/** A server confirmation id is a finding's id and a short hash of the exact content it found (0472): "rule:kind:id:hash".
+ *  This says whether it's the one this finding (rule:kind:id) is. */
+export const isFor = (serverId: string, confirm: string | null): boolean => !!confirm && serverId.slice(0, serverId.lastIndexOf(":")) === confirm;
 
 export type PayloadOpts = {
   /** The money the draft asked for (plan ids), so a plan with no approved version yet is said. */
@@ -146,17 +165,19 @@ export function payloadChecks(payload: J, o: PayloadOpts = {}): PublishFinding[]
     if (x.money && typeof money.version === "number" && typeof latest === "number" && latest > money.version) out.push(finding("material", "newer_approval", ref({ kind: "plan", id: String(x.id) }),
       `${nameOf.get(String(x.id))} has a newer approved version (${latest}) than the one this link shows (${money.version}).`, { action: "Share the newer one, or confirm", go: { section: "links" }, evidence: [{ says: `pinned ${String(p.pinned_at ?? "")}`, source: "vision_shares.pinned_at" }] }));
   }
-  const why = new Map<string, { s: Ref; reasons: string[] }>();
+  // Each flagged passage in full, where it is and why — the confirmation is for these exact words (0472 binds the id to them).
+  const why = new Map<string, { s: Ref; passages: { says: string; source: string }[] }>();
   for (const t of textsOf(payload)) {
     const r = internalWhy(t.text, o.privateNames);
     if (!r) continue;
     const k = `${t.subject.kind}:${t.subject.id}`;
-    const e = why.get(k) ?? { s: ref(t.subject), reasons: [] };
-    e.reasons.push(`"${t.text.length > 60 ? `${t.text.slice(0, 57)}…` : t.text}" ${r}`);
+    const e = why.get(k) ?? { s: ref(t.subject), passages: [] };
+    if (!e.passages.some((x) => x.says === t.text)) e.passages.push({ says: t.text, source: `${whereOf(t, e.s.name)} — ${r}` });
     why.set(k, e);
   }
-  for (const { s, reasons } of why.values()) out.push(finding("material", "internal_words", s, `${s.kind === "link" ? "The link's name" : s.name ?? "Something"} may carry words meant for inside: ${reasons.join("; ")}.`,
-    { action: "Reword it, or confirm it's fine to share", go: goOf(s), evidence: reasons.map((r) => ({ says: r })) }));
+  for (const { s, passages } of why.values()) out.push(finding("material", "internal_words", s,
+    `${passages.length === 1 ? "This passage" : `These ${passages.length} passages`} may be meant for inside, and will be in the link exactly as written unless you change ${passages.length === 1 ? "it" : "them"}.`,
+    { action: "Edit the words", go: goOf(s), evidence: passages }));
 
   // concern — worth a look, never stops
   for (const x of arr(p.programs).map(obj)) if (!x.target_on) out.push(finding("concern", "program_no_target", ref({ kind: "program", id: String(x.id) }), `${nameOf.get(String(x.id))} has no target date — the roadmap reads "to be set".`, { action: "Set a target", go: { section: "roadmap" } }));

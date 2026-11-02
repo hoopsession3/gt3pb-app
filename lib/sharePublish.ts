@@ -5,7 +5,7 @@
 // working, and nothing is published that wasn't reviewed. The confirming itself is the screen's (a sheet listing the
 // material findings, word for word); this file says what they are.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { payloadChecks, readinessOf, type PublishFinding } from "./publishReadiness";
+import { isFor, payloadChecks, readinessOf, type PublishFinding } from "./publishReadiness";
 import { isClosed } from "./refusal";
 
 /** What a person chose, as the database reads it (vision_share_candidate). Only what's named changes. */
@@ -33,8 +33,10 @@ export async function reviewLink(sb: Rpc, share: string | null, draft: LinkDraft
  *  finds the same one on the same response — and said plainly when it doesn't, so nothing is confirmed unseen. */
 export function toConfirm(r: Review, moneyPlans: readonly string[] = []): { ids: string[]; findings: PublishFinding[]; words: string[] } {
   const mine = readinessOf(payloadChecks(r.payload, { latestApproved: r.latest, privateNames: r.private_names, moneyPlans })).all.filter((f) => f.cls === "material");
-  const by = new Map(mine.map((f) => [f.confirm!, f]));
-  return { ids: r.material, findings: r.material.map((id) => by.get(id)).filter((f): f is PublishFinding => !!f), words: r.material.map((id) => by.get(id)?.words ?? `Something to confirm (${id.split(":")[0].replace(/_/g, " ")}).`) };
+  // The server's ids carry a hash of the exact content (0472); a finding is matched by the rest.
+  const of = (id: string) => mine.find((f) => isFor(id, f.confirm));
+  const said = (f: PublishFinding) => [f.words, ...f.evidence.map((e) => (e.source ? `“${e.says}” — ${e.source}` : ""))].filter(Boolean).join(" ");
+  return { ids: r.material, findings: r.material.map(of).filter((f): f is PublishFinding => !!f), words: r.material.map((id) => { const f = of(id); return f ? said(f) : `Something to confirm (${id.split(":")[0].replace(/_/g, " ")}).`; }) };
 }
 
 export async function publishLink(sb: Rpc, share: string | null, draft: LinkDraft, r: Review, confirmed: readonly string[]): Promise<{ id: string; token: string }> {

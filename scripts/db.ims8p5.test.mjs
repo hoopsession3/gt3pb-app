@@ -90,7 +90,7 @@ const baseline = (o = {}) => JSON.stringify({ scenarios: { conservative: scen({ 
   await q(`insert into public.vision_plan_versions (plan_id, version, baseline, approved_at) values ($1, 2, $2::jsonb, now())`, [plan.id, baseline({ rentCents: 999900 })]);
   ok("a newer approval doesn't reach the link (the pin, 0458) — the published money is version 1", (await door(made.token)).plans[0].money.version === 1);
   const rv = await review(OWNER, made.id, {});
-  ok("…review names it as material: a newer approved version than the pin", rv.material.includes(`newer_approval:plan:${plan.id}`) && rv.latest[plan.id] === 2, rv.material);
+  ok("…review names it as material: a newer approved version than the pin", rv.material.some((x) => x.startsWith(`newer_approval:plan:${plan.id}:`)) && rv.latest[plan.id] === 2, rv.material);
   ok("…an admin can't move the pin (0458)", (await review(ADMIN, made.id, { repin: true })).code === "PT403" && (await publish(ADMIN, made.id, { repin: true }, rv.fingerprint, rv.material)).code === "PT403");
   const rp = await review(OWNER, made.id, { repin: true });
   ok("…the owner can, through review: the newer money, confirmed and published", !(await publish(OWNER, made.id, { repin: true }, rp.fingerprint, rp.material)).error && (await door(made.token)).plans[0].money.version === 2);
@@ -142,7 +142,7 @@ const baseline = (o = {}) => JSON.stringify({ scenarios: { conservative: scen({ 
   await q(`insert into public.store_items (layout_id, kind, label, x_in, y_in, w_in, d_in, h_in) values ($1, 'counter', 'Acme Fixtures bar', 10, 10, 96, 30, 42)`, [room2]);
   const d4 = { label: "Confirm", program_ids: [plan.program_id], plan_ids: [plan.id], layout_ids: [room2], money_plans: [plan.id], show_asks: true };
   const r4 = await review(OWNER, null, d4);
-  ok("material findings: the unset ask, the words (phone, 'internal'), the library supplier in a room", r4.material.includes("asks_unset:link:link") && r4.material.includes(`internal_words:plan:${plan.id}`) && r4.material.includes(`internal_words:layout:${room2}`), r4.material);
+  ok("material findings: the unset ask, the words (phone, 'internal'), the library supplier in a room", r4.material.some((x) => x.startsWith("asks_unset:link:link:")) && r4.material.some((x) => x.startsWith(`internal_words:plan:${plan.id}:`)) && r4.material.some((x) => x.startsWith(`internal_words:layout:${room2}:`)), r4.material);
   ok("…none confirmed: PT422", (await publish(OWNER, null, d4, r4.fingerprint, [])).code === "PT422");
   ok("…one missing: PT422", (await publish(OWNER, null, d4, r4.fingerprint, r4.material.slice(1))).code === "PT422");
   ok("…one made up: PT422", (await publish(OWNER, null, d4, r4.fingerprint, [...r4.material, "asks_unset:link:other"])).code === "PT422");
@@ -152,7 +152,8 @@ const baseline = (o = {}) => JSON.stringify({ scenarios: { conservative: scen({ 
   // The server's findings are lib/publishReadiness's, id for id.
   for (const [name, rr] of [["clean", rev], ["changed", again], ["newer approval", rv], ["messy", r4]]) {
     const ts = R.readinessOf(R.payloadChecks(rr.payload, { latestApproved: rr.latest, privateNames: rr.private_names })).materialIds;
-    ok(`the material ids agree with lib/publishReadiness (${name})`, JSON.stringify(ts) === JSON.stringify(rr.material), { ts, sql: rr.material });
+    // 0472 binds each id to its content: "rule:kind:id:<md5 of the exact content, 12>" — lib/publishReadiness names the rest.
+    ok(`the material ids agree with lib/publishReadiness (${name})`, JSON.stringify(ts) === JSON.stringify(rr.material.map((x) => x.slice(0, x.lastIndexOf(":")))) && rr.material.every((x) => /:[0-9a-f]{12}$/.test(x)), { ts, sql: rr.material });
   }
   const tricky = ["token holders", "tokenism", "Write to a.b@example.com", "(518) 555-0134", "Don't share this", "privately held", "PRIVATE", "Acme Fixtures Inc", "acme", "0c46e000-0000-4000-8000-000000000001", "1234-5678-9012", "Confidential.", "internal-only", "Internals"];
   for (const t of tricky) {

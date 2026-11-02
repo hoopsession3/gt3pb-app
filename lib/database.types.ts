@@ -12990,6 +12990,7 @@ export type Database = {
           published_at: string | null
           published_by: string | null
           confirmed: string[] | null
+          revision: number
         }
         Insert: {
           id?: string
@@ -13015,6 +13016,7 @@ export type Database = {
           published_at?: string | null
           published_by?: string | null
           confirmed?: string[] | null
+          revision?: number
         }
         Update: {
           id?: string
@@ -13040,6 +13042,7 @@ export type Database = {
           published_at?: string | null
           published_by?: string | null
           confirmed?: string[] | null
+          revision?: number
         }
         Relationships: [
           {

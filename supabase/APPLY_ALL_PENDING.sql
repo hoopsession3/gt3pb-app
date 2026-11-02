@@ -18,7 +18,7 @@
 -- stops (a busy table's lock wait ran out), the ones above it stay applied and nothing below it runs — paste the file
 -- again a moment later; a migration already applied changes nothing the second time.
 -- pending-from: 0472
--- generated-at: 2026-11-01
+-- generated-at: 2026-11-02
 -- pending-count: 8
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- ============================================================
@@ -1016,15 +1016,20 @@ begin;   -- 0472, its own transaction: if it stops, what is above it stays appli
 --
 -- EXISTING LINKS (first run only). Each gets its current response as its published revision — exactly what it sends
 -- today, so nothing an investor sees changes, and nothing more can reach it. published_by is NULL (published before
--- reviews); confirmed is NULL. Production, read 2026-11-01: the live ledger ends 0462 — the count is read again,
--- read-only, before the paste is made (IMS8-RELEASE-REQUEST.md).
+-- reviews); confirmed is NULL; revision 1. A turned-off link is left as it was (never sent again). Production, read
+-- 2026-11-02: 0 links (0 live, 0 turned off) — so no existing link's behaviour changes there; the ledger ends 0462. Both
+-- are read again, read-only, before the paste is made (IMS8-RELEASE-REQUEST.md).
 --
--- set lock_timeout (database F16): five nullable columns added (no rewrite) and one partial index (an empty column), backfilled once; nine functions added or
+-- CONFIRMATIONS ARE BOUND TO CONTENT. A material finding's id is what it's about and a short md5 of the exact content it
+-- found (the flagged passages word for word, the unset asks, the unpriced lines, the two versions), so a confirmation
+-- given for one wording doesn't carry to another: edit the passage and the id — and the confirmation it needs — changes.
+--
+-- set lock_timeout (database F16): five nullable columns and one counter (a constant default — no rewrite) added and one partial index (an empty column), backfilled once; nine functions added or
 -- replaced; INSERT revoked and UPDATE narrowed to one column on vision_shares for the API roles; no policy changed.
 -- vision_share_review and vision_share_publish are SECURITY DEFINER, granted to authenticated (inventory +2).
 -- rollback: grant insert, update on public.vision_shares to authenticated; drop index vision_shares_published_by; re-run 0468's vision_shared and 0467's
 --   vision_share_preview; drop the functions below; alter table vision_shares drop column published, published_fingerprint,
---   published_at, published_by, confirmed.
+--   published_at, published_by, confirmed, revision.
 -- changelog: none — links the owner sends; what changes is that a link sends only what was reviewed.
 
 set lock_timeout = '5s';
@@ -1037,6 +1042,8 @@ begin
     alter table public.vision_shares add column published_at timestamptz;
     alter table public.vision_shares add column published_by uuid references auth.users(id) on delete set null;
     alter table public.vision_shares add column confirmed text[];
+    -- Which published revision the link is on: 1 when first published, one more each time it's shared again.
+    alter table public.vision_shares add column revision int not null default 0;
   end if;
 end $$;
 -- Every key that points at another row is found by an index (0435): who published a link.
@@ -1093,41 +1100,45 @@ revoke all on function public.vision_share_private_names(uuid) from public, anon
 -- ── The material findings of a response: what an owner must confirm, by id (lib/publishReadiness confirm ids) ───────
 create or replace function public.vision_share_material(p jsonb, p_tenant uuid)
 returns text[] language sql stable set search_path = public as $$
+  -- Each finding is (what it is about, the exact content it's about); its id is the first and a short md5 of the second,
+  -- so a confirmation holds for that content only — edit the words, the asks or the lines and the id changes.
   with names as (select public.vision_share_private_names(p_tenant) n),
-  ids as (
+  plans as (select v from jsonb_array_elements(coalesce(p -> 'plans', '[]')) v),
+  rows(k, c) as (
     -- asks that will read "Being priced" (amount not set — NULL; a confirmed $0 isn't one)
-    select 'asks_unset:link:link' id
-     where p -> 'show_asks' = 'true'::jsonb
-       and exists (select 1 from jsonb_array_elements(coalesce(p -> 'asks', '[]')) a where coalesce(a -> 'amount_cents', 'null'::jsonb) = 'null'::jsonb)
-    union
+    select 'asks_unset:link:link', coalesce(a ->> 'label', '') from jsonb_array_elements(coalesce(p -> 'asks', '[]')) a
+     where p -> 'show_asks' = 'true'::jsonb and coalesce(a -> 'amount_cents', 'null'::jsonb) = 'null'::jsonb
+    union all
     -- an approved cost line with no price, in any scenario
-    select 'uses_unpriced:plan:' || (v ->> 'id') from jsonb_array_elements(coalesce(p -> 'plans', '[]')) v
-     where exists (select 1 from jsonb_each(case when jsonb_typeof(v -> 'money' -> 'baseline' -> 'scenarios') = 'object' then v -> 'money' -> 'baseline' -> 'scenarios' else '{}'::jsonb end) sc,
-                     jsonb_array_elements(case when jsonb_typeof(sc.value -> 'uses') = 'array' then sc.value -> 'uses' else '[]'::jsonb end) u
-                    where coalesce(u -> 'unitCents', 'null'::jsonb) = 'null'::jsonb)
-    union
-    -- a newer approved version than the one the link shows
-    select 'newer_approval:plan:' || (v ->> 'id') from jsonb_array_elements(coalesce(p -> 'plans', '[]')) v
-     where jsonb_typeof(v -> 'money' -> 'version') = 'number'
-       and (v -> 'money' ->> 'version')::int < (select max(x.version) from public.vision_plan_versions x where x.plan_id = (v ->> 'id')::uuid and x.approved_at is not null)
-    union
-    -- words that read as internal, by what they belong to
-    select 'internal_words:link:link' where p ? 'label' and public.vision_share_internal(btrim(p ->> 'label'), (select n from names)) and btrim(p ->> 'label') <> ''
-    union
-    select 'internal_words:program:' || (x ->> 'id') from jsonb_array_elements(coalesce(p -> 'programs', '[]')) x
-     where exists (select 1 from public.vision_share_texts(x) t where public.vision_share_internal(t.val, (select n from names)))
-    union
-    select 'internal_words:plan:' || (x ->> 'id') from jsonb_array_elements(coalesce(p -> 'plans', '[]')) x
-     where exists (select 1 from public.vision_share_texts(x) t where public.vision_share_internal(t.val, (select n from names)))
-    union
-    select 'internal_words:' || case when a ->> 'plan_id' is not null then 'plan:' || (a ->> 'plan_id') else 'program:' || (a ->> 'program_id') end
-      from jsonb_array_elements(coalesce(p -> 'asks', '[]')) a
-     where exists (select 1 from public.vision_share_texts(a) t where public.vision_share_internal(t.val, (select n from names)))
-    union
-    select 'internal_words:layout:' || (x ->> 'id') from jsonb_array_elements(coalesce(p -> 'layouts', '[]')) x
-     where exists (select 1 from public.vision_share_texts(x) t where public.vision_share_internal(t.val, (select n from names)))
-  )
-  select coalesce(array_agg(id order by id collate "C"), '{}') from (select distinct id from ids) d
+    select 'uses_unpriced:plan:' || (v ->> 'id'), coalesce(u ->> 'id', '') || '|' || coalesce(u ->> 'label', '')
+      from plans, jsonb_each(case when jsonb_typeof(v -> 'money' -> 'baseline' -> 'scenarios') = 'object' then v -> 'money' -> 'baseline' -> 'scenarios' else '{}'::jsonb end) sc,
+           jsonb_array_elements(case when jsonb_typeof(sc.value -> 'uses') = 'array' then sc.value -> 'uses' else '[]'::jsonb end) u
+     where coalesce(u -> 'unitCents', 'null'::jsonb) = 'null'::jsonb
+    union all
+    -- a newer approved version than the one the link shows (the two versions are the content)
+    select 'newer_approval:plan:' || (v ->> 'id'), 'v' || (v -> 'money' ->> 'version') || '<v' || l.latest
+      from plans, lateral (select max(x.version) latest from public.vision_plan_versions x where x.plan_id = (v ->> 'id')::uuid and x.approved_at is not null) l
+     where jsonb_typeof(v -> 'money' -> 'version') = 'number' and (v -> 'money' ->> 'version')::int < l.latest
+    union all
+    -- words that read as internal, by what they belong to; the content is each flagged passage, word for word
+    select 'internal_words:link:link', btrim(p ->> 'label')
+     where p ? 'label' and btrim(p ->> 'label') <> '' and public.vision_share_internal(btrim(p ->> 'label'), (select n from names))
+    union all
+    select 'internal_words:program:' || (x ->> 'id'), t.val from jsonb_array_elements(coalesce(p -> 'programs', '[]')) x, public.vision_share_texts(x) t
+     where public.vision_share_internal(t.val, (select n from names))
+    union all
+    select 'internal_words:plan:' || (v ->> 'id'), t.val from plans, public.vision_share_texts(v) t
+     where public.vision_share_internal(t.val, (select n from names))
+    union all
+    select 'internal_words:' || case when a ->> 'plan_id' is not null then 'plan:' || (a ->> 'plan_id') else 'program:' || (a ->> 'program_id') end, t.val
+      from jsonb_array_elements(coalesce(p -> 'asks', '[]')) a, public.vision_share_texts(a) t
+     where public.vision_share_internal(t.val, (select n from names))
+    union all
+    select 'internal_words:layout:' || (x ->> 'id'), t.val from jsonb_array_elements(coalesce(p -> 'layouts', '[]')) x, public.vision_share_texts(x) t
+     where public.vision_share_internal(t.val, (select n from names))
+  ),
+  per as (select k, string_agg(c, E'\n' order by c collate "C") c from (select distinct k, c from rows) d group by k)
+  select coalesce(array_agg(k || ':' || left(md5(c), 12) order by k collate "C"), '{}') from per
 $$;
 revoke all on function public.vision_share_material(jsonb, uuid) from public, anon, authenticated;
 
@@ -1244,6 +1255,8 @@ begin
         from jsonb_array_elements(p -> 'plans') v where jsonb_typeof(v -> 'money') = 'object'), '{}'::jsonb),
     'private_names', to_jsonb(public.vision_share_private_names(s.tenant_id)),
     'published_fingerprint', case when p_share is not null then s.published_fingerprint end,
+    'revision', case when p_share is not null then s.revision end,
+    'published_at', case when p_share is not null then s.published_at end,
     'changed', case when p_share is not null then s.published_fingerprint is distinct from public.vision_share_fingerprint(p, null) end);
 end $$;
 revoke all on function public.vision_share_review(uuid, jsonb) from public, anon, authenticated;
@@ -1272,19 +1285,20 @@ begin
   end if;
   if p_share is null then
     insert into public.vision_shares (tenant_id, label, show_asks, expires_at, pinned_at, program_ids, plan_ids, need_plans, layout_ids, money_plans, research_plans,
-                                      published, published_fingerprint, published_at, published_by, confirmed)
+                                      published, published_fingerprint, published_at, published_by, confirmed, revision)
     values (s.tenant_id, s.label, s.show_asks, s.expires_at, s.pinned_at, s.program_ids, s.plan_ids, s.need_plans, s.layout_ids, s.money_plans, s.research_plans,
-            p, public.vision_share_fingerprint(p, null), now(), auth.uid(), material)
-    returning id, token into r;
+            p, public.vision_share_fingerprint(p, null), now(), auth.uid(), material, 1)
+    returning id, token, revision into r;
   else
     update public.vision_shares set label = s.label, show_asks = s.show_asks, expires_at = s.expires_at, pinned_at = s.pinned_at,
            program_ids = s.program_ids, plan_ids = s.plan_ids, need_plans = s.need_plans, layout_ids = s.layout_ids,
            money_plans = s.money_plans, research_plans = s.research_plans,
-           published = p, published_fingerprint = public.vision_share_fingerprint(p, null), published_at = now(), published_by = auth.uid(), confirmed = material
+           published = p, published_fingerprint = public.vision_share_fingerprint(p, null), published_at = now(), published_by = auth.uid(), confirmed = material,
+           revision = revision + 1
      where id = s.id
-    returning id, token into r;
+    returning id, token, revision into r;
   end if;
-  return jsonb_build_object('id', r.id, 'token', r.token);
+  return jsonb_build_object('id', r.id, 'token', r.token, 'revision', r.revision);
 end $$;
 revoke all on function public.vision_share_publish(uuid, jsonb, text, text[]) from public, anon, authenticated;
 grant execute on function public.vision_share_publish(uuid, jsonb, text, text[]) to authenticated;
@@ -1376,13 +1390,14 @@ returns jsonb language sql immutable set search_path = public as $$
     'revoked_at', r.revoked_at, 'pinned_at', r.pinned_at, 'created_by', r.created_by, 'created_at', r.created_at,
     'program_ids', r.program_ids, 'plan_ids', r.plan_ids, 'need_plans', r.need_plans, 'layout_ids', r.layout_ids,
     'money_plans', r.money_plans, 'research_plans', r.research_plans,
-    'published_at', r.published_at, 'published_by', r.published_by, 'published_fingerprint', r.published_fingerprint, 'confirmed', r.confirmed) end
+    'published_at', r.published_at, 'published_by', r.published_by, 'published_fingerprint', r.published_fingerprint, 'confirmed', r.confirmed,
+    'revision', r.revision) end
 $$;
 revoke all on function public.vision_share_audit_fields(public.vision_shares) from public, anon, authenticated;
 
 -- ── Existing links (first run only): what each sends today becomes its published revision ──────────────────────────
 update public.vision_shares s
-   set published = public.vision_share_payload(s), published_fingerprint = public.vision_share_fingerprint(public.vision_share_payload(s), null), published_at = now()
+   set published = public.vision_share_payload(s), published_fingerprint = public.vision_share_fingerprint(public.vision_share_payload(s), null), published_at = now(), revision = 1
  where s.published is null and s.revoked_at is null;   -- a turned-off link is never sent (and stays as it was)
 
 select public.record_migration('0472_a_link_sends_what_you_reviewed');

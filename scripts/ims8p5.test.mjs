@@ -25,7 +25,7 @@ ok("…a refusal shares nothing and keeps the draft (A1); a stale one says it ch
 const calls = [];
 const sb = (answers) => ({ rpc: async (name, args) => { calls.push([name, args]); return answers[name]; } });
 const payload = { label: "L", show_asks: true, programs: [{ id: "0c46e000-0000-4000-8000-0000000000aa", title: "P", target_on: "2027-01-01" }], asks: [{ program_id: "0c46e000-0000-4000-8000-0000000000aa", plan_id: null, label: "Build-out", amount_cents: null, state: "open", note: null, sort: 1 }], plans: [], layouts: [] };
-const rev = { payload, fingerprint: "f".repeat(32), material: ["asks_unset:link:link", "zz_new_rule:link:link"], latest: {}, private_names: [] };
+const rev = { payload, fingerprint: "f".repeat(32), material: ["asks_unset:link:link:0123456789ab", "zz_new_rule:link:link:0123456789ab"], latest: {}, private_names: [] };
 const r = await P.reviewLink(sb({ vision_share_review: { data: rev, error: null } }), null, { label: "L" });
 ok("review calls vision_share_review with the link and the draft", calls[0][0] === "vision_share_review" && calls[0][1].p_share === null && calls[0][1].p_draft.label === "L" && r.fingerprint === rev.fingerprint);
 const c = P.toConfirm(r);
