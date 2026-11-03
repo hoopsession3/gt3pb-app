@@ -76,6 +76,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { DEFINERS, definersAt } from "./security.definers.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SNAPSHOT = join(ROOT, "supabase/schema.security.json");
@@ -125,8 +126,24 @@ export const CEILING = {
   // the roadmap, the asks, the layouts, and from 0451 only the money and research an owner chose for that link — by a long
   // random token, never who wrote it; granted to anon and authenticated by name; 0448, 0451 and 0454 redefine it, one
   // function). Raised by the owner's yes before the re-pull, so the snapshot at or past 0447 meets it.
+  // 2026-11-03, snapshot at ledger 0472 (IMS8 baseline): definerExec 127 → 139, named — not raised to meet a count. The
+  // 12 in are scripts/security.definers.mjs's entries since 0441, each with how it is authorized, read from its own text:
+  // primal_lesson_previews (0441, signed out on purpose: published cards of this business only); course_give and
+  // course_take_back (0444, is_admin inline); course_students (0444, rows only where is_staff — a finding: any crew saw
+  // students' emails, paid and notes; 0473 makes it is_admin); vision_shared (0447, the link's token only); std_research_
+  // reserve, std_accept_facts, std_reject_facts (0462, is_admin inline, this business); std_research_settle (0462,
+  // is_admin inline, the cost the caller's word — a finding; 0473 takes it from the API roles); vision_share_preview (0467,
+  // is_admin inline, money only is_owner); vision_share_review and vision_share_publish (0472, delegated to
+  // vision_share_candidate: is_admin, this business, is_owner for money and the pin). After 0473: 140 — course_status and
+  // customers_total in (is_staff row/value filters, this business), std_research_settle out (std_research_settle_server
+  // is service_role only); 0474 none. That is 15 changes since 0440 (14 in, 1 out), net +13. The audit judges the snapshot
+  // BY NAME against the inventory at the snapshot's own ledger (definersAt), so this number moves only with a named entry.
+  // Signed out stays 16 (0441 +1, 0442 −1, 0447 +1).
   publicRead: 3,      // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
-  definerExec: 127,    // SECURITY DEFINER functions the API roles may call (none of them a trigger any more)
+  // 2026-11-03, snapshot re-pulled at ledger 0473 (0473 applied; its five function bodies match the review's fingerprints):
+  // definerExec 139 → 140 — exactly the inventory's 0473 entries: course_status and customers_total in, std_research_settle
+  // out (std_research_settle_server is service_role only). Measured 140 by name in production; signed out 16.
+  definerExec: 140,    // SECURITY DEFINER functions the API roles may call at SNAPSHOT_MARK (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.
@@ -135,37 +152,15 @@ export const CEILING = {
 };
 
 // ── PRIVILEGED SINCE THE SNAPSHOT — every SECURITY DEFINER function the API roles may call that a migration ABOVE the
-// snapshot's mark added, named, with who may call it and why (IMS7-0467, Ryan: "update the security audit inventory to
-// account explicitly for the new privileged function"). The ceilings above stay the snapshot's own (0440: definerExec 127,
-// anonExec 15 — r36 pins them); this is the rest, so nothing privileged waits unnamed for a re-pull. scripts/
-// db.privileged.test.mjs replays the migrations and fails unless the API-callable definers added after the snapshot are
-// exactly these, each with these roles and a pinned search_path. At the next re-pull: definerExec = 127 + this list's
-// length (137 with 0467), anonExec as measured, and the list empties into the dated notes above.
-// 2026-11-03 (IMS8 security review, for Ryan's decision): supabase/schema.security.json is re-pulled from production at
-// ledger 0472 and committed AS IT IS — it measures 139 API-callable definers against the ceiling of 127 below, and the
-// audit fails on it until the ceiling is decided from the review of each one (IMS8-STATUS.md › "The 12 new privileged
-// functions"), not from the count. This mark and the ceilings stay the 0440 snapshot's until then. 0473 takes one away
-// (std_research_settle — the bill is the server's, std_research_settle_server, granted to service_role only) and adds
-// one (course_status, a definer since the crew no longer read program_access directly — it checks the caller itself and
-// masks payment and note) and customers_total (the Goals card's count, so 0474 can take the crew's row read of the
-// customer book away). After 0473 + 0474 production would measure 139 − 1 + 2 = 140; anon stays 16. The ceiling is not
-// raised here: IMS8-STATUS › "Final permissions" reviews each function and proposes the number.
-export const SNAPSHOT_MARK = "0440";
-export const PRIVILEGED_SINCE_SNAPSHOT = [
-  { fn: "primal_lesson_previews()", in: "0441", roles: ["anon", "authenticated"], why: "a lesson's card is anyone's (title, summary, length — published, unarchived, this business's): the course page signed out; never a lesson's body" },
-  { fn: "course_give(p_customer uuid, p_note text)", in: "0444", roles: ["authenticated"], why: "an owner or admin gives a customer the course (is_admin, else 42501)" },
-  { fn: "course_take_back(p_customer uuid)", in: "0444", roles: ["authenticated"], why: "an owner or admin takes the course back (is_admin, else 42501)" },
-  { fn: "course_students()", in: "0444", roles: ["authenticated"], why: "who has the course, with progress, emails, what they paid and the note — since 0473 the owners' and admins' only (is_admin; was is_staff), this business's rows; anyone else gets no rows. The crew's customer record reads course_status: one customer's line, no email, payment or note" },
-  { fn: "customers_total()", in: "0473", roles: ["authenticated"], why: "how many customers this business has, for the Goals card a lead may see: crew only (is_staff; anyone else gets null), this business only (effective_tenant); a count — no row, no field" },
-  { fn: "course_status(p_customer uuid)", in: "0473", roles: ["authenticated"], why: "one customer's course line for the customer record (how and when they got it, taken back, progress): crew of the customer's own business only (is_staff, effective_tenant; others get no row); what they paid and the note only for an owner or admin (is_admin); never a name, email or user id" },
-  { fn: "vision_shared(p_token text)", in: "0447", roles: ["anon", "authenticated"], why: "what an investor link opens, by its long random token only; since 0467 exactly what that link was given (vision_share_payload)" },
-  { fn: "std_research_reserve(p_intake uuid, p_depth text)", in: "0462", roles: ["authenticated"], why: "reserves a research run against its caps before any paid call (is_admin, else PT403; this business's intake only)" },
-  { fn: "std_accept_facts(p_ids uuid[], p_corrections jsonb, p_bulk boolean)", in: "0462", roles: ["authenticated"], why: "a person accepts researched facts into the library (is_admin, else PT403)" },
-  { fn: "std_reject_facts(p_ids uuid[], p_note text)", in: "0462", roles: ["authenticated"], why: "a person rejects researched facts (is_admin, else PT403; this business's assets only)" },
-  { fn: "vision_share_preview(p_share uuid, p_draft jsonb)", in: "0467", roles: ["authenticated"], why: "what a link sends, for an owner or admin (is_admin, two-step) about to send it: a link of their own business (others PT404) or a draft pinned to now; a non-owner's draft carries no money or research; the same answer the link's door gives (vision_share_payload, granted to no one); counts no open; never callable signed out" },
-  { fn: "vision_share_review(p_share uuid, p_draft jsonb)", in: "0472", roles: ["authenticated"], why: "what publishing a link would send, for an owner or admin (is_admin, two-step; money and the pin an owner's): the response, its fingerprint and the material findings to confirm; this business's links only (others PT404); writes nothing; never callable signed out" },
-  { fn: "vision_share_publish(p_share uuid, p_draft jsonb, p_fingerprint text, p_confirm text[])", in: "0472", roles: ["authenticated"], why: "the one way a link is made or changed (direct INSERT revoked, UPDATE only revoked_at): every check again, the link locked, the response computed once — refused PT409 if its fingerprint isn't the reviewed one, PT422 unless the confirmations are exactly its material findings — and that response stored as what the link sends" },
-];
+// snapshot's mark adds (or takes away), named in scripts/security.definers.mjs with who may call it, how the call is
+// authorized and why (IMS7-0467, then the IMS8 baseline, 2026-11-03: the whole inventory is named, not only what is new).
+// scripts/db.privileged.test.mjs replays the migrations and fails unless what is callable at the mark and at the latest
+// migration is exactly the inventory at those ledgers, by name and role, each with a pinned search_path.
+export const SNAPSHOT_MARK = "0473";
+const seq = (x) => (x ? Number(x) : 0);
+export const PRIVILEGED_SINCE_SNAPSHOT = DEFINERS.filter((d) => seq(d.since) > Number(SNAPSHOT_MARK))
+  .map((d) => ({ fn: d.fn, in: d.since, roles: d.roles, why: `${d.why} — ${d.path}` }));
+export const UNPRIVILEGED_SINCE_SNAPSHOT = DEFINERS.filter((d) => seq(d.until) > Number(SNAPSHOT_MARK)).map((d) => ({ fn: d.fn, out: d.until, why: d.why }));
 
 // ── EXEMPTIONS — in the open, each with its reason; "table" for rls-off, "table.policy" for open-write.
 export const EXEMPT = {
@@ -432,8 +427,22 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
     if (!v.hard.some((h) => h.startsWith("definer-path"))) console.log("  ✓ every definer function the API roles may call pins its search_path");
   }
   ratchet("tables readable by the world (SELECT `true`)", v.publicRead, CEILING.publicRead);
-  ratchet("SECURITY DEFINER functions the API roles may call", v.definerExec, CEILING.definerExec);
-  ratchet("…of them, callable with no session (anon)", v.anonExec, CEILING.anonExec);
+  // IMS8 baseline (2026-11-03): the definers are judged BY NAME against the inventory at the snapshot's own ledger — a
+  // count can't see an unsafe function replacing a safe one. The number is the inventory's; CEILING holds it at the mark.
+  const at = definersAt(String(snap.ledger?.max_seq ?? SNAPSHOT_MARK).padStart(4, "0"));
+  const named = (name, measured, expected) => {
+    const extra = measured.filter((x) => !expected.includes(x)), missing = expected.filter((x) => !measured.includes(x));
+    if (extra.length || missing.length) {
+      fails++;
+      console.log(`  ✗ ${name}, by name: ${extra.length} not in scripts/security.definers.mjs, ${missing.length} named there but not measured`);
+      for (const x of extra) console.log(`      + ${x}`);
+      for (const x of missing) console.log(`      − ${x}`);
+    } else console.log(`  ✓ ${name}, by name: ${measured.length}, each one in scripts/security.definers.mjs at ledger ${String(snap.ledger?.max_seq).padStart(4, "0")}`);
+  };
+  named("SECURITY DEFINER functions the API roles may call", v.definerExec, at.all);
+  named("…of them, callable with no session (anon)", v.anonExec, at.anon);
+  ratchet("SECURITY DEFINER functions the API roles may call", v.definerExec, at.all.length);
+  ratchet("…of them, callable with no session (anon)", v.anonExec, at.anon.length);
   ratchet("owner-run views the API roles may read", v.definerView, CEILING.definerView);
   if (fails) { console.log(`\nSECURITY AUDIT: ${fails} failure(s)${stale.length ? ` in production as measured at ledger ${String(snap.ledger?.max_seq).padStart(4, "0")}; the ${stale.length} pending migration(s) are not checked` : ""}.`); process.exit(1); }
   if (stale.length) process.exit(0);
