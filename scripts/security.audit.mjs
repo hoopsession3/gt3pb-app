@@ -141,6 +141,10 @@ export const CEILING = {
 // db.privileged.test.mjs replays the migrations and fails unless the API-callable definers added after the snapshot are
 // exactly these, each with these roles and a pinned search_path. At the next re-pull: definerExec = 127 + this list's
 // length (137 with 0467), anonExec as measured, and the list empties into the dated notes above.
+// 2026-11-03 (IMS8 security review, for Ryan's decision): supabase/schema.security.json is re-pulled from production at
+// ledger 0472 and committed AS IT IS — it measures 139 API-callable definers against the ceiling of 127 below, and the
+// audit fails on it until the ceiling is decided from the review of each one (IMS8-STATUS.md › "The 12 new privileged
+// functions"), not from the count. This mark and the ceilings stay the 0440 snapshot's until then.
 export const SNAPSHOT_MARK = "0440";
 export const PRIVILEGED_SINCE_SNAPSHOT = [
   { fn: "primal_lesson_previews()", in: "0441", roles: ["anon", "authenticated"], why: "a lesson's card is anyone's (title, summary, length — published, unarchived, this business's): the course page signed out; never a lesson's body" },
