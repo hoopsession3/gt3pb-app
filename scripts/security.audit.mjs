@@ -140,7 +140,10 @@ export const CEILING = {
   // BY NAME against the inventory at the snapshot's own ledger (definersAt), so this number moves only with a named entry.
   // Signed out stays 16 (0441 +1, 0442 −1, 0447 +1).
   publicRead: 3,      // tables with a world-readable SELECT policy: live_status, site_copy, stops — the truck's public face
-  definerExec: 139,    // SECURITY DEFINER functions the API roles may call at SNAPSHOT_MARK (none of them a trigger any more)
+  // 2026-11-03, snapshot re-pulled at ledger 0473 (0473 applied; its five function bodies match the review's fingerprints):
+  // definerExec 139 → 140 — exactly the inventory's 0473 entries: course_status and customers_total in, std_research_settle
+  // out (std_research_settle_server is service_role only). Measured 140 by name in production; signed out 16.
+  definerExec: 140,    // SECURITY DEFINER functions the API roles may call at SNAPSHOT_MARK (none of them a trigger any more)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.
@@ -153,7 +156,7 @@ export const CEILING = {
 // authorized and why (IMS7-0467, then the IMS8 baseline, 2026-11-03: the whole inventory is named, not only what is new).
 // scripts/db.privileged.test.mjs replays the migrations and fails unless what is callable at the mark and at the latest
 // migration is exactly the inventory at those ledgers, by name and role, each with a pinned search_path.
-export const SNAPSHOT_MARK = "0472";
+export const SNAPSHOT_MARK = "0473";
 const seq = (x) => (x ? Number(x) : 0);
 export const PRIVILEGED_SINCE_SNAPSHOT = DEFINERS.filter((d) => seq(d.since) > Number(SNAPSHOT_MARK))
   .map((d) => ({ fn: d.fn, in: d.since, roles: d.roles, why: `${d.why} — ${d.path}` }));
