@@ -14,6 +14,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { CEILING, judge } from "./security.audit.mjs";
+import { definersAt } from "./security.definers.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
@@ -32,15 +33,17 @@ const ok = (n, c, got) => { if (c) pass++; else { fail++; console.log(`  ✗ ${n
     v.hard.length === 0 && v.publicRead.length <= CEILING.publicRead && v.definerExec.length <= CEILING.definerExec
     && v.anonExec.length <= CEILING.anonExec && v.definerView.length <= CEILING.definerView,
     { hard: v.hard, publicRead: v.publicRead.length, definerExec: v.definerExec.length, anonExec: v.anonExec.length });
-  ok("the definer ceiling rose by exactly the three two-step doors 0433 granted to the signed in, each named",
-    CEILING.definerExec === 127 && v.definerExec.length === 127
-    && ["two_step_ok", "two_step_state", "require_two_step"].every((f) => v.definerExec.some((d) => String(d).startsWith(f)))
+  // IMS8 baseline (2026-11-03): the snapshot is re-pulled at 0472 and judged by name (scripts/security.definers.mjs). What
+  // R36 decided still holds in it: the three two-step doors are callable and named, the 0433 raise is recorded, and what
+  // is callable signed out is exactly the inventory's at the snapshot's ledger (16: vision_shared's raise, 0447).
+  const at = definersAt(String(snap.ledger?.max_seq).padStart(4, "0"));
+  ok("the three two-step doors 0433 granted to the signed in are callable, each named in the inventory",
+    ["two_step_ok()", "two_step_state()", "require_two_step(p_on boolean)"].every((f) => v.definerExec.includes(f) && at.all.includes(f))
     && /definerExec 124 → 127 — two_step_ok, two_step_state and require_two_step \(0433/.test(read("scripts/security.audit.mjs")),
     v.definerExec.filter((d) => /two_step|require_two/.test(String(d))));
-  // The snapshot R36 judged counts 15 signed out. The ceiling is that, or the one raise named in security.audit.mjs ahead of
-  // the next pull (2026-10-26: 15 → 16, vision_shared, 0447) — the owner's yes, so the re-pulled snapshot meets it.
-  ok("…and nothing new is callable signed out (anon 15)", v.anonExec.length === 15 && (CEILING.anonExec === 15
-    || (CEILING.anonExec === 16 && /anonExec 15 → 16 — vision_shared \(0447/.test(read("scripts/security.audit.mjs")))), { measured: v.anonExec.length, ceiling: CEILING.anonExec });
+  ok("…and what is callable signed out is the inventory's, by name (vision_shared's raise named, 0447)",
+    JSON.stringify(v.anonExec) === JSON.stringify(at.anon) && CEILING.anonExec === at.anon.length
+    && /anonExec 15 → 16 — vision_shared \(0447/.test(read("scripts/security.audit.mjs")), { measured: v.anonExec.length, named: at.anon.length });
   const fns = new Map((snap.f || []).map((f) => [`${f[0]}(${f[1]})`, f]));
   ok("the server's own doors 0430 and 0434 made are the server's alone in production (ops_alive, rate_limit_peek)",
     [...fns.entries()].filter(([k]) => /^(ops_alive|rate_limit_peek)\(/.test(k)).every(([, f]) => f[2] === false && f[3] === false && f[4] === true)
