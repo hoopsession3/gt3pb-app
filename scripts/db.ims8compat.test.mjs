@@ -47,7 +47,7 @@ const OLD = {
 };
 const NEW = {
   courseLine: (w, who) => w.as(who, `select source, note from public.course_status($1)`, [w.cust]).then((r) => r.code ? { error: r.code } : { line: r.rows[0] ?? null }),
-  settle: (w, run) => w.as(null, `select 1`).then(() => ({ needsServerRole: true })),   // the new route settles with the server's key (std_research_settle_server)
+  // the new route settles with the server's key (std_research_settle_server): what matters is that it exists
   settleExists: (w) => w.db.query(`select count(*)::int n from pg_proc where proname = 'std_research_settle_server'`).then((r) => r.rows[0].n === 1),
   goalsCount: (w, who) => w.as(who, `select public.customers_total() n`).then((r) => (r.code ? { unknown: r.code } : r.rows[0].n)),   // on error: the metric reads "—"
   deadLink: (w) => w.as(null, `select public.vision_shared($1) v`, ["x".repeat(40)]).then((r) => r.code === "PT404" || r.rows[0]?.v?.live === false ? "isn't live" : r.code ? `error ${r.code}` : "drawn"),
