@@ -146,13 +146,15 @@ export const CEILING = {
 // audit fails on it until the ceiling is decided from the review of each one (IMS8-STATUS.md › "The 12 new privileged
 // functions"), not from the count. This mark and the ceilings stay the 0440 snapshot's until then. 0473 takes one away
 // (std_research_settle — the bill is the server's, std_research_settle_server, granted to service_role only) and adds
-// none (course_status is an invoker).
+// one (course_status, a definer since the crew no longer read program_access directly — it checks the caller itself and
+// masks payment and note). So after 0473 production would measure 139 − 1 + 1 = 139; the ceiling is still not raised.
 export const SNAPSHOT_MARK = "0440";
 export const PRIVILEGED_SINCE_SNAPSHOT = [
   { fn: "primal_lesson_previews()", in: "0441", roles: ["anon", "authenticated"], why: "a lesson's card is anyone's (title, summary, length — published, unarchived, this business's): the course page signed out; never a lesson's body" },
   { fn: "course_give(p_customer uuid, p_note text)", in: "0444", roles: ["authenticated"], why: "an owner or admin gives a customer the course (is_admin, else 42501)" },
   { fn: "course_take_back(p_customer uuid)", in: "0444", roles: ["authenticated"], why: "an owner or admin takes the course back (is_admin, else 42501)" },
-  { fn: "course_students()", in: "0444", roles: ["authenticated"], why: "who has the course, with progress, emails, what they paid and the note — since 0473 the owners' and admins' only (is_admin; was is_staff), this business's rows; anyone else gets no rows. The crew's customer record reads course_status (invoker): one customer's line, no email, payment or note" },
+  { fn: "course_students()", in: "0444", roles: ["authenticated"], why: "who has the course, with progress, emails, what they paid and the note — since 0473 the owners' and admins' only (is_admin; was is_staff), this business's rows; anyone else gets no rows. The crew's customer record reads course_status: one customer's line, no email, payment or note" },
+  { fn: "course_status(p_customer uuid)", in: "0473", roles: ["authenticated"], why: "one customer's course line for the customer record (how and when they got it, taken back, progress): crew of the customer's own business only (is_staff, effective_tenant; others get no row); what they paid and the note only for an owner or admin (is_admin); never a name, email or user id" },
   { fn: "vision_shared(p_token text)", in: "0447", roles: ["anon", "authenticated"], why: "what an investor link opens, by its long random token only; since 0467 exactly what that link was given (vision_share_payload)" },
   { fn: "std_research_reserve(p_intake uuid, p_depth text)", in: "0462", roles: ["authenticated"], why: "reserves a research run against its caps before any paid call (is_admin, else PT403; this business's intake only)" },
   { fn: "std_accept_facts(p_ids uuid[], p_corrections jsonb, p_bulk boolean)", in: "0462", roles: ["authenticated"], why: "a person accepts researched facts into the library (is_admin, else PT403)" },
@@ -390,7 +392,10 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   if (stale.length) {
     console.log(`SECURITY AUDIT: NOT CHECKED — ${stale.length} migration(s) above the snapshot's mark change policies, grants, RLS, unique keys, buckets or triggers: ${stale.join(", ")}.`);
     console.log("  The snapshot predates a change to exactly what it measures. Re-pull it once they are applied (steps in this file's header).");
-    process.exit(0);
+    // IMS8 review (2026-11-03, Ryan: "Keep the security snapshot failure visible until the changed permissions are
+    // reviewed"): pending migrations make the snapshot stale for THEM — they stay not checked — but what the snapshot did
+    // measure is production as it stands, and its failures are still failures. Judged below, labelled as such.
+    console.log("  Production as this snapshot measured it (before the pending migrations) is judged below:");
   }
   const v = judge(snap);
   let fails = 0;
@@ -427,6 +432,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   ratchet("SECURITY DEFINER functions the API roles may call", v.definerExec, CEILING.definerExec);
   ratchet("…of them, callable with no session (anon)", v.anonExec, CEILING.anonExec);
   ratchet("owner-run views the API roles may read", v.definerView, CEILING.definerView);
-  if (fails) { console.log(`\nSECURITY AUDIT: ${fails} failure(s).`); process.exit(1); }
+  if (fails) { console.log(`\nSECURITY AUDIT: ${fails} failure(s)${stale.length ? ` in production as measured at ledger ${String(snap.ledger?.max_seq).padStart(4, "0")}; the ${stale.length} pending migration(s) are not checked` : ""}.`); process.exit(1); }
+  if (stale.length) process.exit(0);
   console.log("\nSECURITY AUDIT: clean.");
 }
