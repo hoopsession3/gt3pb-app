@@ -87,7 +87,7 @@ ok("…only plans marked to show, under a program ticked, are offered", /const u
 ok("the money and research chooser lists only the plans the link shows", /CaseChooser share=\{s\} plans=\{shownPlans\.filter\(\(p\) => !canPick \|\| \(s\.plan_ids \?\? \[\]\)\.includes\(p\.id\)\)\}/.test(sh));
 ok("the preview asks the database (vision_share_preview) for a live link, shows the studio's reviewed response as it is, and is loaded only on asking", /supabase\.rpc\("vision_share_preview", \{ p_share: share \?\? null, p_draft: share \? null : draft \?\? null \}\)/.test(lp)
   && /const LinkPreview = dynamic\(\(\) => import\("\.\/LinkPreview"\), \{ ssr: false \}\);/.test(sh) && /const LinkPreview = dynamic\(\(\) => import\("\.\/LinkPreview"\), \{ ssr: false \}\);/.test(st) && /<LinkPreview payload=\{review\.payload\} diag=/.test(st) && /<LinkPreview share=\{share\.id\} \/>/.test(sh));
-ok("before 0467 is pasted the Links tab still lists the links (the studio itself needs 0472 — paste before deploy)", /setCanPick\(false\)/.test(sh));
+ok("0467 and 0472 are applied (2026-11-03): the Links tab reads the links in one select, and a failed read is said — the fallback for before them is retired", !/setCanPick\(false\)/.test(sh) && !/arrives-with: 046|arrives-with: 047/.test(sh) && /if \(withPlans\.error\) throw new Error\(withPlans\.error\.message\);/.test(sh));
 
 console.log(`IMS7-0467 — THE APP'S SIDE (preview, risk acceptance, the Links tab): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

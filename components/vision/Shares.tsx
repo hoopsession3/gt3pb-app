@@ -12,7 +12,6 @@ import { InfoRow } from "@/components/kit";
 import { publicOrigin } from "@/lib/native";
 import { ageLabel } from "@/lib/dates";
 import { haptic } from "@/lib/haptics";
-import { isMissingColumn } from "@/lib/schemaSkew";
 import { inScope } from "@/lib/sharePreview";
 import { isStale, publishLink, reviewLink, toConfirm, type LinkDraft as PublishDraft, type Review } from "@/lib/sharePublish";
 import type { Dep, Plan } from "@/lib/visionPlans";
@@ -71,16 +70,12 @@ export default function Shares({ canEdit, isOwner = false, plans = [], programs 
   const state = useAsyncData(async (): Promise<Share[]> => {
     if (!supabase) return [];
     const base = `${COLS}, expires_at, money_plans, research_plans, program_ids, layout_ids, pinned_at`;
-    // arrives-with: 0467 — until it's pasted, the select without plan_ids/need_plans: the links as they were, no plan
-    // picking, no preview (and nothing else rides this select).
-    // arrives-with: 0472 — published_at is read with the plans, so before 0472 is pasted this select fails over to the one below and the list still reads.
+    // 0467 and 0472 are applied in production (ledger read 2026-11-03): the columns are there, so the fallback that read the
+    // links without them is retired — a failed read is said, not quietly narrowed.
     const withPlans = await supabase.from("vision_shares").select(`${base}, plan_ids, need_plans, published_at, revision`).order("created_at", { ascending: false });
-    if (!withPlans.error) { setCanCase(true); setCanChoose(true); setCanPick(true); return (withPlans.data as unknown as Share[]) ?? []; }
-    if (!isMissingColumn(withPlans.error)) throw new Error(withPlans.error.message);
-    const withPin = await supabase.from("vision_shares").select(base).order("created_at", { ascending: false });
-    if (withPin.error) throw new Error(withPin.error.message);
-    setCanCase(true); setCanChoose(true); setCanPick(false);
-    return (withPin.data as Share[]) ?? [];
+    if (withPlans.error) throw new Error(withPlans.error.message);
+    setCanCase(true); setCanChoose(true); setCanPick(true);
+    return (withPlans.data as unknown as Share[]) ?? [];
   }, []);
 
   const copy = async (s: Share) => {
