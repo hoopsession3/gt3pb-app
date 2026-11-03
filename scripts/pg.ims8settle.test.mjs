@@ -132,6 +132,53 @@ for (const [label, cost, want] of [["cheaper than its reservation", 9.5, 50], ["
   ok("a late report of $0 can't lower a closed run below its reservation", Number(low.rows[0]?.c) === 50 && Number((await run1(r)).charged_cents) === 50, low);
 }
 
+// 7. A late report above the day's whole allowance: the real cost is recorded (not capped), counted once — replacing the
+//    reservation, never added to it — and the next reservation is refused because the day is now over its cap.
+{
+  await root.query(`update public.std_research_runs set started_at = started_at - interval '2 days' where tenant_id = $1`, [T1]);   // a fresh day
+  await root.query(`update public.std_research_budget set daily_cents = 1000, per_run_cents = 50 where tenant_id = $1`, [T1]);
+  const r = await reserve();
+  await root.query(`update public.std_research_runs set deadline_at = now() - interval '1 second' where id = $1`, [r]);
+  const r2 = await reserve();   // closes r at its reservation (50)
+  ok("the expired run is closed at its 50¢ reservation by the next reservation", (await run1(r)).outcome === "unreported" && Number((await run1(r)).charged_cents) === 50);
+  await session("service", SETTLE, [T1, r2, usage, 10, key(1201)]);
+  const day = async () => Number((await root.query(`select coalesce(sum(charged_cents), 0) s from public.std_research_runs where tenant_id = $1 and started_at >= date_trunc('day', now())`, [T1])).rows[0].s);
+  const late = await session("service", SETTLE, [T1, r, usage, 1500, key(1202)]);
+  ok("a late report of 1500¢ — above the whole day's 1000¢ allowance — is recorded at its real cost, not capped", !late.code && Number(late.rows[0].c) === 1500 && Number((await run1(r)).charged_cents) === 1500, late);
+  ok("…counted once: the day is 1500 + 10, the 50¢ reservation replaced, not added", (await day()) === 1510, await day());
+  const next = await session(OWNER, `select public.std_research_reserve($1, 'light') run`, [intake]);
+  ok("…and the next reservation is refused: the day is over its cap (PT429)", next.code === "PT429", next);
+  ok("…a retry of the late settle: the same 1500, the day unchanged", Number((await session("service", SETTLE, [T1, r, usage, 1500, key(1202)])).rows[0]?.c) === 1500 && (await day()) === 1510);
+  await root.query(`insert into public.ai_usage (agent, model, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, searches, fetches, cost_cents, created_at)
+    values ('library-intake', 'claude-sonnet-4-6', 4000, 900, 0, 0, 2, 1, 1500, now()), ('library-intake', 'claude-sonnet-4-6', 4000, 900, 0, 0, 2, 1, 10, now())`);
+  const { readFileSync } = await import("node:fs");
+  const rec = (await root.query(readFileSync("supabase/checks/ims8_research_reconciliation.sql", "utf8"))).rows.find((x) => String(x.day).length && x.runs > 0 && Number(x.metered_calls) === 2);
+  ok("…reconciliation for the day: bill and meter agree (1510 = 1510), no paid call uncounted, nothing charged twice", rec && Number(rec.charged_cents) === 1510 && Number(rec.metered_cents) === 1510 && rec.meter_above_bill === false && Number(rec.reported_bill_minus_meter_cents) === 0, rec);
+  await root.query(`update public.std_research_budget set daily_cents = 10000 where tenant_id = $1`, [T1]);
+  await root.query(`update public.std_research_runs set started_at = started_at - interval '2 days' where tenant_id = $1`, [T1]);
+}
+
+// 8. A wrong link's miss is counted and STAYS counted (0474: an answer, so its transaction commits), each on its own
+//    connection; the refusal past the limit (a raise) undoes only itself, not the misses before it.
+{
+  const headers = JSON.stringify({ "cf-connecting-ip": "198.51.100.77" });
+  const knock = async (n) => {
+    const c = await connect();
+    await c.query("begin");
+    await c.query(`select set_config('request.headers', $1, true), set_config('request.jwt.claim.role', 'anon', true)`, [headers]);
+    await c.query("set local role anon");
+    const r = await c.query(`select public.vision_shared($1) v`, ["q".repeat(40) + n]).then((x) => ({ v: x.rows[0].v }), (e) => ({ code: e.code }));
+    await c.query(r.code ? "rollback" : "commit"); await c.end();
+    return r;
+  };
+  const got = [];
+  for (let i = 0; i < 22; i++) got.push(await knock(i));
+  ok("twenty misses from one address, each on its own connection: answered { live: false }", got.slice(0, 20).every((x) => x.v?.live === false), got.slice(0, 20));
+  ok("…the 21st and 22nd: refused (PT429)", got[20].code === "PT429" && got[21].code === "PT429", got.slice(20));
+  const cnt = (await root.query(`select coalesce(sum(count), 0)::int n from public.rate_limit_hits where bucket = 'vision_shared:miss:198.51.100.77'`)).rows[0].n;
+  ok("…read from another connection afterwards: the counter holds exactly 20 — persisted, not undone by the refusals, not raised by them", cnt === 20, cnt);
+}
+
 // 6. Sessions still can't settle, even concurrently with the server.
 {
   const r = await reserve();
