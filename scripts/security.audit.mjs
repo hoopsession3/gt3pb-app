@@ -147,13 +147,16 @@ export const CEILING = {
 // functions"), not from the count. This mark and the ceilings stay the 0440 snapshot's until then. 0473 takes one away
 // (std_research_settle — the bill is the server's, std_research_settle_server, granted to service_role only) and adds
 // one (course_status, a definer since the crew no longer read program_access directly — it checks the caller itself and
-// masks payment and note). So after 0473 production would measure 139 − 1 + 1 = 139; the ceiling is still not raised.
+// masks payment and note) and customers_total (the Goals card's count, so 0474 can take the crew's row read of the
+// customer book away). After 0473 + 0474 production would measure 139 − 1 + 2 = 140; anon stays 16. The ceiling is not
+// raised here: IMS8-STATUS › "Final permissions" reviews each function and proposes the number.
 export const SNAPSHOT_MARK = "0440";
 export const PRIVILEGED_SINCE_SNAPSHOT = [
   { fn: "primal_lesson_previews()", in: "0441", roles: ["anon", "authenticated"], why: "a lesson's card is anyone's (title, summary, length — published, unarchived, this business's): the course page signed out; never a lesson's body" },
   { fn: "course_give(p_customer uuid, p_note text)", in: "0444", roles: ["authenticated"], why: "an owner or admin gives a customer the course (is_admin, else 42501)" },
   { fn: "course_take_back(p_customer uuid)", in: "0444", roles: ["authenticated"], why: "an owner or admin takes the course back (is_admin, else 42501)" },
   { fn: "course_students()", in: "0444", roles: ["authenticated"], why: "who has the course, with progress, emails, what they paid and the note — since 0473 the owners' and admins' only (is_admin; was is_staff), this business's rows; anyone else gets no rows. The crew's customer record reads course_status: one customer's line, no email, payment or note" },
+  { fn: "customers_total()", in: "0473", roles: ["authenticated"], why: "how many customers this business has, for the Goals card a lead may see: crew only (is_staff; anyone else gets null), this business only (effective_tenant); a count — no row, no field" },
   { fn: "course_status(p_customer uuid)", in: "0473", roles: ["authenticated"], why: "one customer's course line for the customer record (how and when they got it, taken back, progress): crew of the customer's own business only (is_staff, effective_tenant; others get no row); what they paid and the note only for an owner or admin (is_admin); never a name, email or user id" },
   { fn: "vision_shared(p_token text)", in: "0447", roles: ["anon", "authenticated"], why: "what an investor link opens, by its long random token only; since 0467 exactly what that link was given (vision_share_payload)" },
   { fn: "std_research_reserve(p_intake uuid, p_depth text)", in: "0462", roles: ["authenticated"], why: "reserves a research run against its caps before any paid call (is_admin, else PT403; this business's intake only)" },

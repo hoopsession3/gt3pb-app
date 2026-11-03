@@ -38,8 +38,10 @@ export async function computeMetric(source: string): Promise<number | null> {
       return count ?? 0;
     }
     if (source === "customers_total") {
-      const { count } = await supabase.from("customers").select("id", { count: "exact", head: true });
-      return count ?? 0;
+      // 0473: a count, not the rows — crew leads see the goal without reading the customer book (customers_total).
+      const { data, error } = await supabase.rpc("customers_total");
+      if (error) throw error;
+      return Number(data ?? 0);
     }
   } catch { /* fall through */ }
   return null;

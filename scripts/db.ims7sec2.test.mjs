@@ -9,6 +9,9 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { fullSchema } from "./fixtures/schema.full.mjs";
 import { loadTs } from "./search.read.mjs";
+// 0474: a dead link ANSWERS { live: false } (so the database can count the miss) where 0447–0473 raised PT404 "isn't live".
+// Both mean the same to a reader; the door helper reads them the same, and db.ims8sec / ims8app pin the new shape.
+const dead = (v) => (v && v.live === false ? { code: "PT404", error: "This link isn't live. (0474: answered, not raised)" } : v);
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const M463 = readFileSync(join(ROOT, "supabase/migrations/0464_a_link_sends_named_fields_only.sql"), "utf8");   // the allow-list (0464), over 0463
@@ -22,7 +25,7 @@ const db = await fullSchema({ before: "0464" });   // 0463 (the deny-list) appli
 const q = async (s, p) => (await db.query(s, p)).rows;
 const q1 = async (s, p) => (await q(s, p))[0];
 await db.exec(`grant usage on schema public to anon, authenticated, service_role;`);
-const door = async (token) => { await db.exec(`set role anon;`); try { return (await db.query(`select public.vision_shared($1) v`, [token])).rows[0].v; } catch (e) { return { error: e.message, code: e.code }; } finally { await db.exec(`reset role;`); } };
+const door = async (token) => { await db.exec(`set role anon;`); try { return dead((await db.query(`select public.vision_shared($1) v`, [token])).rows[0].v); } catch (e) { return { error: e.message, code: e.code }; } finally { await db.exec(`reset role;`); } };
 const anon = async (sql, p) => { await db.exec(`set role anon;`); try { return (await db.query(sql, p)).rows; } catch (e) { return { error: e.message, code: e.code }; } finally { await db.exec(`reset role;`); } };
 
 // ── The world: a realistic approved case, with something internal at every depth ─────────────────────────────────────

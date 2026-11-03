@@ -138,9 +138,18 @@ ok("…the 61st open from one address in ten minutes is refused (PT429)", refuse
 ok("…and isn't counted on the link (opens stop at 60)", (await q1(`select opens from public.vision_shares where id = $1`, [LINK.id])).opens === 60);
 ok("…another address still opens it", !(await open1("198.51.100.4")).code);
 ok("…IPv6 neighbours share one /64 bucket", (await (async () => { for (let i = 0; i < 60; i++) await open1(`2001:db8:1:2::${(i % 9) + 1}`); return (await open1("2001:db8:1:2:ffff::1")).code; })()) === "PT429");
-const miss = await open1("203.0.113.7").then(() => as(null, `select public.vision_shared($1) v`, ["x".repeat(40)]));
-ok("a wrong token is still PT404 (and, being a raise, isn't counted — the database can't limit guesses)", miss.code === "PT404", miss);
-ok("no address header: no limit (0436's rule)", !(await open1(null)).code);
+const tryTok = async (ip, tok) => { await db.exec(`select set_config('request.headers', '${JSON.stringify(ip ? { "cf-connecting-ip": ip } : {})}', false)`); return as(null, `select public.vision_shared($1) v`, [tok]); };
+const miss = await tryTok("192.0.2.10", "x".repeat(40));
+ok("0474: a wrong token answers { live: false } (an answer, so its miss is counted)", !miss.code && miss.rows[0]?.v?.live === false, miss);
+ok("…a short or empty token, the same", (await tryTok("192.0.2.10", "short")).rows[0]?.v?.live === false && (await tryTok("192.0.2.10", null)).rows[0]?.v?.live === false);
+let mref = null;
+for (let i = 3; i <= 25 && !mref; i++) { const r = await tryTok("192.0.2.10", "y".repeat(40) + i); if (r.code) mref = { n: i + 1, code: r.code }; }   // three misses above, so the loop's i-th try is miss i + 1
+ok("…the 21st miss from one address in ten minutes is refused (PT429)", mref?.n === 21 && mref.code === "PT429", mref);
+ok("…another address may still miss (and open)", (await tryTok("192.0.2.99", "z".repeat(40))).rows[0]?.v?.live === false && !(await tryTok("192.0.2.99", LINK.token)).code);
+ok("…the counter names the address only — no bucket carries any part of a token", (await q1(`select count(*)::int n from public.rate_limit_hits where bucket like '%xxxx%' or bucket like '%yyyy%' or bucket like '%' || $1 || '%'`, [LINK.token.slice(0, 12)])).n === 0 && (await q1(`select count(*)::int n from public.rate_limit_hits where bucket like 'vision_shared:miss:%'`)).n >= 2);
+const noAddr = [];
+for (let i = 0; i < 21; i++) noAddr.push((await tryTok(null, "w".repeat(40) + i)).code);
+ok("no address header: not unlimited — one shared 'no-address' bucket, the 21st miss refused", noAddr.slice(0, 20).every((c) => c === null) && noAddr[20] === "PT429", noAddr);
 await db.exec(`select set_config('request.headers', '', false)`);
 ok("opens is documented as raw door calls, not engagement", /not engagement/i.test((await q1(`select col_description('public.vision_shares'::regclass, (select attnum from pg_attribute where attrelid = 'public.vision_shares'::regclass and attname = 'opens')::int) d`)).d ?? ""));
 

@@ -21,8 +21,8 @@ export default function CourseOnRecord({ customerId, canGive }: { customerId: st
   const { toast } = useAppStable();
   const loader = useCallback(async (): Promise<Student | null> => {
     if (!supabase) return null;
-    // 0473: this customer's line only (course_status, read under the caller's own row rules) — never the whole students
-    // list with everyone's email; what they paid and the note come back only for an owner or an admin.
+    // 0473: this customer's line only (course_status, which checks the caller: crew of this business) — never the whole
+    // students list with everyone's email; what they paid and the note come back only for an owner or an admin.
     const { data, error } = await supabase.rpc("course_status", { p_customer: customerId });
     if (error) throw new Error(error.message);
     const row = ((data as Omit<Student, "customer_id" | "name" | "email" | "user_id" | "order_id">[] | null) ?? [])[0];

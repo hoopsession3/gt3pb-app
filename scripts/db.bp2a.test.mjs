@@ -11,6 +11,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { fullSchema } from "./fixtures/schema.full.mjs";
+// 0474: a dead link ANSWERS { live: false } (so the database can count the miss) where 0447–0473 raised PT404 "isn't live".
+// Both mean the same to a reader; the door helper reads them the same, and db.ims8sec / ims8app pin the new shape.
+const dead = (v) => (v && v.live === false ? { code: "PT404", error: "This link isn't live. (0474: answered, not raised)" } : v);
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const M458 = readFileSync(join(ROOT, "supabase/migrations/0458_what_was_approved_stays_approved.sql"), "utf8");
@@ -33,7 +36,7 @@ const as = async (who, sql, p) => {
   await db.exec(`select set_config('request.jwt.claim.sub', '${who}', false); set role authenticated;`);
   try { return (await db.query(sql, p)).rows; } catch (e) { return { error: e.message, code: e.code }; } finally { await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false);`); }
 };
-const door = async (token) => { await db.exec(`set role anon;`); try { return (await db.query(`select public.vision_shared($1) v`, [token])).rows[0].v; } catch (e) { return { error: e.message }; } finally { await db.exec(`reset role;`); } };
+const door = async (token) => { await db.exec(`set role anon;`); try { return dead((await db.query(`select public.vision_shared($1) v`, [token])).rows[0].v); } catch (e) { return { error: e.message }; } finally { await db.exec(`reset role;`); } };
 const tick = () => db.exec(`select pg_sleep(0.02);`);
 const base = (orders) => JSON.stringify({ scenarios: { base: { ordersPerDay: orders, avgOrderCents: 850 } }, structure: { kind: "rev_share", amountCents: 4000000, sharePct: 6, capMultiple: 1.5 } });
 

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAppStable } from "./AppProvider";
+import { useAuth } from "./AuthProvider";
 import { useAsyncData } from "@/lib/useAsyncData";
 import AsyncSection from "./AsyncSection";
 import Sheet, { CloseButton } from "./Sheet";
@@ -89,6 +90,10 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
   orderId: string; onClose: () => void; onChanged?: () => void;
 }) {
   const { toast } = useAppStable();
+  // 0474: the customer's record (phone, tier, history) is the owners' and admins'; the crew ship from the order's own
+  // name, email and address, which this sheet already shows. The database says the same (customers admin read).
+  const { profile } = useAuth();
+  const canOpenCustomer = !!profile?.is_admin;
   const [busy, setBusy] = useState(false);
   const [resendTo, setResendTo] = useState("");
   const [resending, setResending] = useState(false);
@@ -228,7 +233,7 @@ export default function ShopOrderRecord({ orderId, onClose, onChanged }: {
               <div className="so-id">
                 <div className="cp-id-t">
                   <b>
-                    <RecordLink kind="customer" id={o.customer_id}>{o.who}</RecordLink>
+                    {canOpenCustomer ? <RecordLink kind="customer" id={o.customer_id}>{o.who}</RecordLink> : o.who}
                   </b>
                   <span>{o.email || "no email on the order"}{age ? ` · ${age} old` : ""}</span>
                 </div>

@@ -25,6 +25,8 @@ select 'policy ' || t || ' / ' || n, exists (select 1 from pg_policies where sch
 union all
 select 'not yet: course_status',              not exists (select 1 from pg_proc where proname = 'course_status')
 union all
+select 'not yet: customers_total',            not exists (select 1 from pg_proc where proname = 'customers_total')
+union all
 select 'not yet: std_research_settle_server', not exists (select 1 from pg_proc where proname = 'std_research_settle_server')
 union all
 select 'ledger ends at 0472',                 (select max(version) from public.schema_migrations) like '0472%'

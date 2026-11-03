@@ -14350,6 +14350,8 @@ export type Database = {
         { Args: Record<PropertyKey, never>; Returns: number }
       current_tenant:
         { Args: Record<PropertyKey, never>; Returns: string }
+      customers_total:
+        { Args: Record<PropertyKey, never>; Returns: number }
       decide_on_offer:
         { Args: { p_id: string | null; p_action: string | null; p_note?: string | null }; Returns: Database["public"]["Tables"]["offer_letters"]["Row"] }
       discard_agreement:

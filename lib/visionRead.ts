@@ -84,10 +84,16 @@ export async function readVision(sb: SupabaseClient): Promise<Vision> {
   };
 }
 
+const NOT_LIVE = "This link isn't live — ask whoever sent it for a new one.";
+const TOO_MANY = "Too many tries from this network — wait a few minutes and open the link again.";
+
 /** A shared link's read: vision_shared(token), the one door for someone outside. A link that isn't live says so. */
 export async function readShared(sb: SupabaseClient, token: string): Promise<Vision> {
   const { data, error } = await sb.rpc("vision_shared", { p_token: token });
-  if (error) throw new Error(/live/i.test(error.message) ? "This link isn't live — ask whoever sent it for a new one." : error.message);
+  // 0474: a link that isn't live answers { live: false } (a refusal would undo the database's count of misses); before
+  // 0474 it was an error saying "isn't live". Both read the same. PT429: too many tries from one network.
+  if (error) throw new Error(/live/i.test(error.message) ? NOT_LIVE : (error as { code?: string }).code === "PT429" ? TOO_MANY : error.message);
+  if ((data as { live?: unknown } | null)?.live === false) throw new Error(NOT_LIVE);
   return toVision(data);
 }
 

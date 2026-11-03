@@ -56,17 +56,21 @@
 --     raises PT404 — and a raise undoes the transaction, so misses can't be counted here: a flood of guesses costs one
 --     index probe each and is NOT limited by the database (an edge rule is the only place that can; see IMS8-STATUS).
 --     The token's length is not flood protection and isn't treated as such.
+--   · customers_total() — new, SECURITY DEFINER: the number of this business's customers, to crew (is_staff); null to
+--     anyone else. For the Goals card; no row, no field. (0474, after the app, takes the crew's row read away.)
+--   · std_research_settle_server, settle vs. its deadline: a run the next reservation closed (unreported, no settle key)
+--     still takes its own late report, charged the higher of the two, never lower than what the day counted.
 --   · vision_shares.opens / last_opened_at: commented as what they are — raw door calls (a reload, a preview bot or a
 --     second tab each count), not views or engagement.
 --
--- set lock_timeout (database F16): six policies dropped and two created; two functions replaced (same signatures); two
--- definer functions added (course_status; std_research_settle_server, service_role only); one function dropped; one
+-- set lock_timeout (database F16): six policies dropped and two created; two functions replaced (same signatures); three
+-- definer functions added (course_status; customers_total; std_research_settle_server, service_role only); one function dropped; one
 -- function's body replaced (vision_shared, same signature and grants); one nullable column added (no rewrite); two
 -- column comments. existing rows: none changed.
--- rollback: supabase/cleanup/0473_rollback.sql, exactly (each piece back to its 0271 / 0444 / 0462 / 0472 text). Limits:
---   dropping settle_key loses the keys of runs settled since, so a late retry of one is refused (PT409) not answered;
---   a settle a browser made before 0473 can't be told apart (production had 0 research runs, read 2026-11-03); rate-limit
---   rows already counted stay until their window passes (harmless); the column comments are left (harmless).
+-- rollback: supabase/cleanup/0473_rollback.sql. It restores every 0473 change EXCEPT the cross-business fix on
+--   set_shop_order_status (kept on purpose: rolling back must not reopen it; 0473_rollback_including_order_scope.sql
+--   exists only for a proven defect in that one line). Limits: dropping settle_key loses the keys of runs settled since,
+--   so a late retry of one is refused (PT409) not answered; rate-limit rows age out; the column comments are left.
 -- changelog: none — who may read a list, write an order and settle a bill; nothing a customer sees.
 
 set lock_timeout = '5s';
@@ -226,25 +230,46 @@ begin
   if p_tenant is null or p_key is null then raise exception 'A settle names its business and its key.' using errcode = 'PT422'; end if;
   select * into r from public.std_research_runs where id = p_run and tenant_id = p_tenant for update;
   if not found then raise exception 'No such run.' using errcode = 'PT404'; end if;
-  if r.outcome <> 'running' then
+  if r.settle_key is not null then
     if r.settle_key = p_key then return r.charged_cents; end if;   -- the same settle, again: the same answer
+    raise exception 'This run is already settled.' using errcode = 'PT409';
+  end if;
+  -- Not running and never settled by anyone = closed by its deadline (0462: the next reservation charges a run left
+  -- open its full reservation, under the budget's lock). Its own report may still arrive: it's taken, but the charge
+  -- never goes below what the day already counted (the higher of the two), so a late report can't lower a budget
+  -- another reservation was decided against.
+  if r.outcome <> 'running' and r.outcome <> 'unreported' then
     raise exception 'This run is already settled.' using errcode = 'PT409';
   end if;
   if p_outcome not in ('done','failed','timed_out','cancelled') then raise exception 'An outcome is done, failed, timed_out or cancelled.' using errcode = 'PT422'; end if;
   v_complete := p_usage is not null and p_cost_cents is not null and p_cost_cents >= 0
     and (select bool_and(p_usage ? k and jsonb_typeof(p_usage -> k) = 'number') from unnest(array['searches','fetches','input_tokens','output_tokens']) k);
   v_charge := case when v_complete then p_cost_cents else r.reserved_cents end;
+  if r.outcome = 'unreported' then v_charge := greatest(v_charge, r.charged_cents); end if;
   update public.std_research_runs set
     searches = (p_usage ->> 'searches')::int, fetches = (p_usage ->> 'fetches')::int,
     input_tokens = (p_usage ->> 'input_tokens')::int, output_tokens = (p_usage ->> 'output_tokens')::int,
     cache_write_tokens = (p_usage ->> 'cache_write_tokens')::int, cache_read_tokens = (p_usage ->> 'cache_read_tokens')::int,
     charged_cents = v_charge, outcome = case when v_complete then p_outcome else 'unreported' end,
-    error = left(p_error, 500), settled_at = now(), settle_key = p_key
+    error = left(case when r.outcome = 'unreported' then concat_ws(' · ', 'reported after its deadline', p_error) else p_error end, 500),
+    settled_at = now(), settle_key = p_key
   where id = p_run;
   return v_charge;
 end $$;
 revoke all on function public.std_research_settle_server(uuid, uuid, jsonb, numeric, text, text, uuid) from public, anon, authenticated;
 grant execute on function public.std_research_settle_server(uuid, uuid, jsonb, numeric, text, text, uuid) to service_role;
+
+-- ── customers_total: the size of the customer book, not the book ──────────────────────────────────────────────────
+-- The Goals card "Customers" (leads see it; a lead may not be an admin) counted the customers table directly, which
+-- needed the crew's read of every customer row. A count is all it needs. 0474 then narrows the rows to owners/admins.
+create or replace function public.customers_total()
+returns int language sql stable security definer set search_path = public as $$
+  select case when (select public.is_staff())
+              then (select count(*)::int from public.customers where tenant_id = public.effective_tenant())
+         end;
+$$;
+revoke all on function public.customers_total() from public, anon, authenticated;
+grant execute on function public.customers_total() to authenticated;
 
 -- ── a link's door: limited per address ──────────────────────────────────────────────────────────────────────────────
 create or replace function public.vision_shared(p_token text)

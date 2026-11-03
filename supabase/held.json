@@ -1,4 +1,10 @@
 {
   "_why": "Migrations written and shipped but held back ON PURPOSE until something outside the database is true. scripts/migrations.pending.mjs leaves them out of the count and out of APPLY_ALL_PENDING.sql; scripts/verify.prod.mjs names them instead of failing the production gate on them. Each entry names its file and what it waits for. Take the entry out in the same change that applies it.",
-  "held": []
+  "held": [
+    {
+      "file": "0474_a_customer_book_is_the_owners_and_a_wrong_link_is_counted.sql",
+      "until": "the review-branch app (lib/visionRead { live: false }, ShopOrderRecord's owner/admin customer link, customers_total on Goals) is live and checked in production, and supabase/checks/ims8_0474_prepaste.sql says t on every row",
+      "since": "2026-11-03"
+    }
+  ]
 }

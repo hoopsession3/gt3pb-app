@@ -6,6 +6,9 @@
 import { createHash } from "node:crypto";
 import { fullSchema } from "./fixtures/schema.full.mjs";
 import { loadTs } from "./search.read.mjs";
+// 0474: a dead link ANSWERS { live: false } (so the database can count the miss) where 0447–0473 raised PT404 "isn't live".
+// Both mean the same to a reader; the door helper reads them the same, and db.ims8sec / ims8app pin the new shape.
+const dead = (v) => (v && v.live === false ? { code: "PT404", error: "This link isn't live. (0474: answered, not raised)" } : v);
 
 const R = loadTs("lib/publishReadiness.ts");
 let pass = 0, fail = 0;
@@ -26,7 +29,7 @@ const as = async (uid, sql, p) => {
   await db.exec(`select set_config('request.jwt.claim.sub', '${uid}', false); set role authenticated;`);
   try { return (await db.query(sql, p)).rows; } catch (e) { return { error: e.message, code: e.code }; } finally { await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false);`); }
 };
-const door = async (t) => { await db.exec(`set role anon;`); try { return (await db.query(`select public.vision_shared($1) v`, [t])).rows[0].v; } catch (e) { return { code: e.code }; } finally { await db.exec(`reset role;`); } };
+const door = async (t) => { await db.exec(`set role anon;`); try { return dead((await db.query(`select public.vision_shared($1) v`, [t])).rows[0].v); } catch (e) { return { code: e.code }; } finally { await db.exec(`reset role;`); } };
 const review = async (uid, share, draft) => { const r = await as(uid, `select public.vision_share_review($1, $2::jsonb) v`, [share, JSON.stringify(draft ?? {})]); return r.error ? r : r[0].v; };
 const publish = async (uid, share, draft, fp, confirm) => { const r = await as(uid, `select public.vision_share_publish($1, $2::jsonb, $3, $4::text[]) v`, [share, JSON.stringify(draft ?? {}), fp, confirm]); return r.error ? r : r[0].v; };
 
