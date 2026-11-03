@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminFromRequest, callerClient, tenantFromRequest } from "@/lib/apiAuth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled } from "@/lib/anthropic";
 import { isJsonObject, route } from "@/lib/apiRoute";
 import { runIntake, type Deps, type ModelRequest } from "@/lib/libraryResearch";
@@ -11,8 +12,11 @@ export const maxDuration = 60;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // LIBRARY INTAKE (IMS6 A2, 0462) — "Ask → Research → Populate → Review exceptions → Save candidate". An owner or admin
 // pastes a link, describes a need, or uploads a file; GT3 researches it once, within its budget, and writes draft facts
-// for review. Every read and write here is the CALLER's (their session, so the database's row rules and checks apply);
-// the server's own key is used only by the shared cost meter (ai_usage, lib/anthropic). Nothing here accepts a fact,
+// for review. Every read and write here is the CALLER's (their session, so the database's row rules and checks apply)
+// but one: the run's bill. 0473 — the cost is the model's own usage report, priced here, and settled with the server's
+// key (std_research_settle_server, the server's role only), once, under a key made for this request — a caller can no
+// longer settle a run first, at any cost they like. The server's key is otherwise used only by the shared cost meter
+// (ai_usage, lib/anthropic). Nothing here accepts a fact,
 // qualifies or approves an asset, or writes a judgement — the database refuses those to anyone but a person, through
 // their own review (std_accept_facts, the 0461 gate).
 async function post(req: Request) {
@@ -27,6 +31,7 @@ async function post(req: Request) {
   const kind = body.kind === "url" || body.kind === "describe" || body.kind === "upload" ? body.kind : null;
   if (!kind) return NextResponse.json({ ok: false, error: "Paste a link, describe it, or upload a file." }, { status: 400 });
 
+  const settleKey = crypto.randomUUID();   // 0473: this request's one settle — a retry of it gets the same answer, nothing else settles
   const must = <T,>(r: { data: T; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`${what}: ${r.error.message}`); return r.data; };
   const deps: Deps = {
     intakeByHash: async (hash, since) => (must(await sb.from("std_intakes").select("id, status, material_id").eq("request_hash", hash).gte("created_at", since).order("created_at", { ascending: false }).limit(1), "intakes") as any[])[0] ?? null,
@@ -48,7 +53,8 @@ async function post(req: Request) {
       return r.error ? { ok: false, code: String((r.error as any).code ?? ""), message: r.error.message } : { ok: true, run: String(r.data) };
     },
     settle: async (run, usage, cents, outcome, error) => {
-      const r = await sb.rpc("std_research_settle", { p_run: run, p_usage: usage as any, p_cost_cents: cents as any, p_outcome: outcome, p_error: error ?? undefined });
+      if (!supabaseAdmin) { console.warn(`[library-intake] no server key to settle run ${run} (the next reservation closes it at full charge)`); return null; }
+      const r = await (supabaseAdmin as any).rpc("std_research_settle_server", { p_tenant: tenant, p_run: run, p_usage: usage, p_cost_cents: cents, p_outcome: outcome, p_error: error ?? null, p_key: settleKey });
       if (r.error) { console.warn(`[library-intake] couldn't settle run ${run} — ${r.error.message} (the next reservation closes it at full charge)`); return null; }
       return Number(r.data);
     },

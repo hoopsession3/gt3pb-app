@@ -144,16 +144,17 @@ export const CEILING = {
 // 2026-11-03 (IMS8 security review, for Ryan's decision): supabase/schema.security.json is re-pulled from production at
 // ledger 0472 and committed AS IT IS — it measures 139 API-callable definers against the ceiling of 127 below, and the
 // audit fails on it until the ceiling is decided from the review of each one (IMS8-STATUS.md › "The 12 new privileged
-// functions"), not from the count. This mark and the ceilings stay the 0440 snapshot's until then.
+// functions"), not from the count. This mark and the ceilings stay the 0440 snapshot's until then. 0473 takes one away
+// (std_research_settle — the bill is the server's, std_research_settle_server, granted to service_role only) and adds
+// none (course_status is an invoker).
 export const SNAPSHOT_MARK = "0440";
 export const PRIVILEGED_SINCE_SNAPSHOT = [
   { fn: "primal_lesson_previews()", in: "0441", roles: ["anon", "authenticated"], why: "a lesson's card is anyone's (title, summary, length — published, unarchived, this business's): the course page signed out; never a lesson's body" },
   { fn: "course_give(p_customer uuid, p_note text)", in: "0444", roles: ["authenticated"], why: "an owner or admin gives a customer the course (is_admin, else 42501)" },
   { fn: "course_take_back(p_customer uuid)", in: "0444", roles: ["authenticated"], why: "an owner or admin takes the course back (is_admin, else 42501)" },
-  { fn: "course_students()", in: "0444", roles: ["authenticated"], why: "who has the course, with progress — answers the crew (is_staff) on this business's rows; anyone else gets no rows" },
+  { fn: "course_students()", in: "0444", roles: ["authenticated"], why: "who has the course, with progress, emails, what they paid and the note — since 0473 the owners' and admins' only (is_admin; was is_staff), this business's rows; anyone else gets no rows. The crew's customer record reads course_status (invoker): one customer's line, no email, payment or note" },
   { fn: "vision_shared(p_token text)", in: "0447", roles: ["anon", "authenticated"], why: "what an investor link opens, by its long random token only; since 0467 exactly what that link was given (vision_share_payload)" },
   { fn: "std_research_reserve(p_intake uuid, p_depth text)", in: "0462", roles: ["authenticated"], why: "reserves a research run against its caps before any paid call (is_admin, else PT403; this business's intake only)" },
-  { fn: "std_research_settle(p_run uuid, p_usage jsonb, p_cost_cents numeric, p_outcome text, p_error text)", in: "0462", roles: ["authenticated"], why: "settles a research run's real usage against its reservation (is_admin, else PT403)" },
   { fn: "std_accept_facts(p_ids uuid[], p_corrections jsonb, p_bulk boolean)", in: "0462", roles: ["authenticated"], why: "a person accepts researched facts into the library (is_admin, else PT403)" },
   { fn: "std_reject_facts(p_ids uuid[], p_note text)", in: "0462", roles: ["authenticated"], why: "a person rejects researched facts (is_admin, else PT403; this business's assets only)" },
   { fn: "vision_share_preview(p_share uuid, p_draft jsonb)", in: "0467", roles: ["authenticated"], why: "what a link sends, for an owner or admin (is_admin, two-step) about to send it: a link of their own business (others PT404) or a draft pinned to now; a non-owner's draft carries no money or research; the same answer the link's door gives (vision_share_payload, granted to no one); counts no open; never callable signed out" },

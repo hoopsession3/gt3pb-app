@@ -135,7 +135,7 @@ const pdf = (pages) => ({ bytes: new TextEncoder().encode(`%PDF-1.7\n${"<< /Type
 {
   const code = (t) => t.split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n");   // the code, not what its comments say
   const route = code(readFileSync(new URL("../app/api/library/intake/route.ts", import.meta.url), "utf8")), anth = readFileSync(new URL("../lib/anthropic.ts", import.meta.url), "utf8");
-  ok("the route acts as the caller: their session for every read and write", /const sb = callerClient\(req\)/.test(route) && !/supabaseAdmin/.test(route));
+  ok("the route acts as the caller: their session for every read and write but the bill (0473: settled by the server, once, with a key)", /const sb = callerClient\(req\)/.test(route) && (route.match(/supabaseAdmin/g) || []).length === 4 && /rpc\("std_research_settle_server", \{ p_tenant: tenant, p_run: run, p_usage: usage, p_cost_cents: cents, p_outcome: outcome, p_error: error \?\? null, p_key: settleKey \}\)/.test(route) && !/rpc\("std_research_settle"/.test(route));
   ok("…owners and admins only", /if \(!\(await adminFromRequest\(req\)\)\) return/.test(route));
   ok("…and never accepts, qualifies, approves or judges", !/std_accept_facts|std_assessments|status: "approved"|status: "qualified"|std_reject_facts/.test(route) && !/std_accept_facts|std_assessments/.test(code(readFileSync(new URL("../lib/libraryResearch.ts", import.meta.url), "utf8"))));
   ok("the shared meter counts searches and fetches, and prices each search", /searches: u\.server_tool_use\?\.web_search_requests \?\? 0/.test(anth) && /fetches: u\.server_tool_use\?\.web_fetch_requests \?\? 0/.test(anth) && /costCents\(model, u\) \+ u\.searches \* SEARCH_CENTS/.test(anth));

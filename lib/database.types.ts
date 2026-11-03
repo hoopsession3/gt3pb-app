@@ -11012,6 +11012,7 @@ export type Database = {
           started_at: string
           deadline_at: string
           settled_at: string | null
+          settle_key: string | null
         }
         Insert: {
           id?: string
@@ -11032,6 +11033,7 @@ export type Database = {
           started_at?: string
           deadline_at: string
           settled_at?: string | null
+          settle_key?: string | null
         }
         Update: {
           id?: string
@@ -11052,6 +11054,7 @@ export type Database = {
           started_at?: string
           deadline_at?: string
           settled_at?: string | null
+          settle_key?: string | null
         }
         Relationships: [
           {
@@ -14331,6 +14334,8 @@ export type Database = {
         { Args: { p_id: string | null; p_typed_name: string | null }; Returns: Database["public"]["Tables"]["operator_agreements"]["Row"] }
       course_give:
         { Args: { p_customer: string | null; p_note?: string | null }; Returns: Json }
+      course_status:
+        { Args: { p_customer: string | null }; Returns: { source: string; granted_at: string; revoked_at: string; paid_cents: number; note: string; done: number; total: number; rookie_done: number; rookie_total: number; last_done_at: string }[] }
       course_students:
         { Args: Record<PropertyKey, never>; Returns: { customer_id: string; name: string; email: string; user_id: string; source: string; granted_at: string; revoked_at: string; order_id: string; paid_cents: number; note: string; done: number; total: number; rookie_done: number; rookie_total: number; last_done_at: string }[] }
       course_take_back:
@@ -14675,8 +14680,8 @@ export type Database = {
         { Args: { p_ids: string[] | null; p_note?: string | null }; Returns: number }
       std_research_reserve:
         { Args: { p_intake: string | null; p_depth: string | null }; Returns: string }
-      std_research_settle:
-        { Args: { p_run: string | null; p_usage: Json | null; p_cost_cents: number | null; p_outcome: string | null; p_error?: string | null }; Returns: number }
+      std_research_settle_server:
+        { Args: { p_tenant: string | null; p_run: string | null; p_usage: Json | null; p_cost_cents: number | null; p_outcome: string | null; p_error: string | null; p_key: string | null }; Returns: number }
       std_subject_ok:
         { Args: { p_type: string | null; p_id: string | null; p_tenant: string | null }; Returns: boolean }
       stop_menu:
