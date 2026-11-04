@@ -1,6 +1,6 @@
 # IMS8 — status and patch manifest (the one authoritative copy)
 
-Updated: 2026-11-04 (UTC): production state; 0474 spoof check passed (limits stated); two-step explanation accepted; research acceptance open, with a bounded design proposed (next section). Previously 2026-11-02: the refinements (P10–P12), the restart, and the console-walk investigation (P13). **Local patches only.** Nothing has been pushed, merged, deployed or migrated, and the historical cleanup hasn't been run. The production release is a separate request: `IMS8-RELEASE-REQUEST.md`.
+Updated: 2026-11-04 (UTC): production state; 0474 spoof check passed (limits stated); two-step explanation accepted; research acceptance open, remaining uncertainty recorded (next section). Previously 2026-11-02: the refinements (P10–P12), the restart, and the console-walk investigation (P13). **Local patches only.** Nothing has been pushed, merged, deployed or migrated, and the historical cleanup hasn't been run. The production release is a separate request: `IMS8-RELEASE-REQUEST.md`.
 
 ## Production state — 2026-11-04 (supersedes the "Local patches only" line above)
 
@@ -15,7 +15,7 @@ The 2026-11-03 checklist said owner steps "need two-step sign-in". **Wrong.** `i
 |---|---|
 | Pre-paste check `supabase/checks/ims8_0474_prepaste.sql` (read-only, production) | **all 8 rows t** |
 | Address source | `caller_address()` reads only `cf-connecting-ip` from `request.headers`; format-checked; `::ffff:` → IPv4; IPv6 → /64. Not a definer; no API role may call it. `X-Forwarded-For` / `X-Real-IP` / `True-Client-IP` never read. The link page calls `vision_shared` from the browser straight to the Supabase API. |
-| Spoof resistance (2026-11-04 00:37–00:39 UTC) | **PASSED** for the requests tested — accepted 2026-11-04 (limits below) |
+| Spoof resistance (2026-11-04 00:37–00:39 UTC) | **PASSED** for the requests tested; scope accepted as recorded, 2026-11-04 (limits below) |
 | App that 0474 depends on, live | `8b5ecf0` live; signed-in check below still owed |
 | Your approval to paste | owed |
 
@@ -59,21 +59,28 @@ Budget row not yet made; defaults apply: `per_run_cents` 25, `daily_cents` 300. 
 
 So no request that uses web search, or web fetch on a PDF, has a provider-enforced spend ceiling.
 
-**Smallest enforceable per-run bound — proposed, not built.** Only for "Paste a link" and "Upload"; "Find it for me" (search) stays on the estimate path, labelled as such, and is excluded from bounded acceptance.
-1. **No server tools.** The route fetches the pasted https URL itself (public addresses only, 2 MB and 10 s caps, text extracted, truncated by bytes) or reads the upload. One `messages.create` with `tools` absent: one sampling, no server loop, no `pause_turn`, no search charge.
-2. **Output:** `max_tokens: 2000` — provider-enforced. Thinking not enabled (Sonnet 4.6 runs without it unless asked). At most 2,000 × $15/MTok = **3¢**.
-3. **Input:** `count_tokens` on the exact request; refused before sending if over **20,000** (6¢ at the count). The count is an estimate, so the ceiling is set with a **2× input margin**: even 40,000 billed input tokens is 12¢.
-4. **Per-run ceiling: 15¢** with the margin (9¢ nominal), under the 25¢ allowance. Only the input side relies on the provider's "small" counting variance, and the margin covers it.
-5. **Reconciliation unchanged and stricter:** reserve `per_run_cents` as now; settle from the response's own `usage` through `std_research_settle_server`, once by key; a settled cost above the run's computed ceiling is recorded as charged **and** raised as an alert. It is never clipped to the ceiling.
-6. **Test before any live run:** a replay test that the bounded path sends no `tools`, refuses over 20,000 counted tokens, sets `max_tokens` 2000, and settles actual usage over the ceiling without clipping.
+**Option considered, not adopted (decision 2026-11-04: no new research path built just to complete this test).** A tool-free path for "Paste a link" and "Upload" was sketched: no server tools; `max_tokens` 2000 (at most 3¢ output); requests refused over 20,000 counted input tokens. That gives about **15¢ per run. This is an estimate with a margin, not an enforceable ceiling.** The output side is provider-enforced. The input side rests on `count_tokens`, which the provider calls an estimate, plus a 2× margin chosen by us, not guaranteed by anyone. Nothing was built or changed.
 
-Not yet built or tested. A live acceptance run waits for your go-ahead on this design.
+**Remaining uncertainty — exact.**
+1. **The current path has no provider-enforced per-run spend limit.** Its uncapped and approximate parts:
+   - web search result tokens (uncapped; billed as input in every iteration);
+   - up to 10 server-loop iterations per request, with input re-billed in each;
+   - `max_content_tokens` (approximate, and not applied to PDFs);
+   - dynamic filtering's added iterations.
+   - Only `max_tokens` and `max_uses` (searches at 1¢ each) are hard.
+2. **The 25¢ `per_run_cents` bounds an estimate.** `worstCents` assumes 3,000 tokens per search result, a figure the code itself marks "not capped by the API — an allowance until A4 measures it". No production run has measured it: `std_research_runs` has 0 rows.
+3. **Not known until a real run:** the actual tokens per search result, the iteration count, and how far the actual cost lands from `worstCents`.
+4. **Bounded today:** spend per day. `std_research_reserve` refuses a new run once that day's charged total plus `per_run_cents` would exceed `daily_cents` (300). Open runs count at their reservation and settled runs at their actual cost. A single run can still cost more than its reservation, and an overrun on the day's last run can take the day past 300¢.
+5. **What a settle records is the app's own computation, not the provider's bill.** The cost passed to settle is computed in `lib/libraryResearch.ts` from the response's `usage` × `lib/aiPricing.ts` (Sonnet 4.6 at $3/$15, verified against the provider's pricing page on 2026-11-04) + 1¢ per search. If the provider's pricing changes, the record drifts until that table is updated. The Anthropic usage and cost reports are the source of truth; no reconciliation against them exists yet.
+6. **A run whose usage isn't reported is charged its reservation (25¢), not its true cost** (`std_research_settle_server`: incomplete usage → `reserved_cents`; a late report after the deadline takes the higher of the two). If such a run actually cost more, the record under-counts it.
+
+**Kept unchanged:** settlement from the response's own `usage` through `std_research_settle_server` (service role only, once per key); any overrun is charged in full and noted ("over its plan — kept on the record"), never clipped; a run left open past its deadline is closed and charged its full reservation. Production unchanged.
 
 ### Remaining blockers
 1. 0474 (held): the signed-in order-sheet and Goals checks (owner, and an authorized crew session), then your deployment approval.
 2. Investor link: create → private-window open → revoke → refused (your owner session).
 3. Course visibility: the owner view (yours), and the crew view (an authorized crew session).
-4. Research billing: live acceptance open; the bounded design above is waiting for your go-ahead to build.
+4. Research billing: live acceptance open; the remaining uncertainty is recorded above. No new path is planned for the test.
 
 ## Release-state ladder
 
