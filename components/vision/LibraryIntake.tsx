@@ -24,7 +24,7 @@ type Mode = "url" | "describe" | "upload";
 type Result = {
   ok: boolean; status: string; intake: string | null; material: string | null; reason?: string; error?: string;
   matches: { id: string; kind: string; why: string }[]; missing: { fields: string[]; evidence: string[] }; unread: string[]; notes: string[];
-  dropped: { field: string; why: string }[]; plan: { depth: string; worstCents: number } | null; charged_cents: number | null;
+  dropped: { field: string; why: string }[]; plan: { depth: string; worstCents: number } | null; charged_cents: number | null; cost_known?: boolean;
 };
 
 export function Ask({ onDone, onManual }: { onDone: (material: string | null) => void; onManual: () => void }) {
@@ -75,13 +75,13 @@ export function Ask({ onDone, onManual }: { onDone: (material: string | null) =>
 
 function Outcome({ r }: { r: Result }) {
   if (r.status === "duplicate") return <p className="vz-card-s" role="status">Asked already today — opening that one.</p>;
-  if (!r.ok || r.status !== "ready") return <p className="xl-warn" role="alert">{r.reason ?? r.error ?? "The research didn't finish."}{r.charged_cents != null ? ` (${r.charged_cents.toFixed(2)}¢ used.)` : ""}</p>;
+  if (!r.ok || r.status !== "ready") return <p className="xl-warn" role="alert">{r.reason ?? r.error ?? "The research didn't finish."}{r.charged_cents != null ? (r.cost_known ? ` (${r.charged_cents.toFixed(2)}¢ used.)` : ` (Cost not reported: ${r.charged_cents.toFixed(2)}¢ reserved and counted provisionally; the actual cost is unknown.)`) : ""}</p>;
   return (
     <div className="flex flex-col gap-1" role="status">
       {r.matches[0] && <span className="vz-card-s">{r.matches[0].kind === "same" ? "Already in the library — what's new is shown as differences to review." : r.matches[0].kind === "variant" ? "A variant of an asset already in the library — kept as its own record." : `Possibly already in the library: ${r.matches[0].why}.`}</span>}
       {r.unread.length > 0 && <span className="vz-card-s">Couldn&apos;t read: {r.unread.join(", ")}.</span>}
       {r.notes.map((n) => <span key={n} className="xl-warn">{n}</span>)}
-      {r.plan && <span className="vz-card-s">{r.plan.depth === "light" ? "A quick look" : r.plan.depth === "deep" ? "A deep search" : "A standard search"} · {r.charged_cents != null ? `cost ${r.charged_cents.toFixed(2)}¢` : "its cost wasn't reported, so the full allowance was counted"}.</span>}
+      {r.plan && <span className="vz-card-s">{r.plan.depth === "light" ? "A quick look" : r.plan.depth === "deep" ? "A deep search" : "A standard search"} · {r.charged_cents == null ? "its cost wasn't reported" : r.cost_known ? `cost ${r.charged_cents.toFixed(2)}¢` : `cost not reported: ${r.charged_cents.toFixed(2)}¢ reserved, counted provisionally; actual unknown`}.</span>}
     </div>
   );
 }

@@ -76,6 +76,25 @@ So no request that uses web search, or web fetch on a PDF, has a provider-enforc
 
 **Kept unchanged:** settlement from the response's own `usage` through `std_research_settle_server` (service role only, once per key); any overrun is charged in full and noted ("over its plan — kept on the record"), never clipped; a run left open past its deadline is closed and charged its full reservation. Production unchanged.
 
+**Wording fixed on this branch (not deployed), 2026-11-04.** The research card and its messages no longer present a reservation as a limit or as a verified cost:
+- Per-run: "No useful search fits the per-run reservation (an estimate of what a run costs, not a cap)."
+- PDF: "…so its estimated cost fits the per-run reservation."
+- Daily: "Today's research has reached its daily reservation threshold… A run can cost more than it reserves; any overrun is counted."
+- Overrun: "…more than its N¢ estimate — charged in full and kept on the record."
+- Usage missing: `cost_known: false`. The card reads "cost not reported: N¢ reserved, counted provisionally; actual unknown", where it used to read "cost N¢" or "the full allowance was counted".
+
+Settlement is untouched. `scripts/ims6a2.research.test.mjs` passes 37/37, with new cases for the overrun note, the provisional path and the card. `words`, `spoken` and `falseempty` audits are clean, and `tsc` is clean.
+
+### Engineering follow-ups (recorded, not started)
+1. **Provider-cost reconciliation.** Reuse what exists; don't build another reporting system.
+   - `ai_usage` (0190) already logs every Claude call, with tokens, searches and a priced `cost_cents` (`lib/anthropic.ts`).
+   - `components/AiSpend.tsx` is the owner's spend meter that reads it.
+   - The follow-up: compare each period's `ai_usage` total, and `std_research_runs.charged_cents` for research, with the provider's own cost report, and show the difference on that same meter.
+   - Note: the Admin API cost report needs an Admin key and raw HTTP, because it isn't in the SDK.
+2. **Missing-usage recovery.** A run settled without usage keeps its reservation as a provisional charge (`outcome: unreported`, `cost_known: false`).
+   - The follow-up: once the provider's usage for that window is known, through the same reconciliation, replace the provisional charge with the actual one through a server-only path. Record both values; never lower the charge silently.
+   - Until then, the card and the record say the cost is provisional and the actual cost unknown.
+
 ### Remaining blockers
 1. 0474 (held): the signed-in order-sheet and Goals checks (owner, and an authorized crew session), then your deployment approval.
 2. Investor link: create → private-window open → revoke → refused (your owner session).

@@ -129,7 +129,16 @@ const pdf = (pages) => ({ bytes: new TextEncoder().encode(`%PDF-1.7\n${"<< /Type
   ok("an instruction found in a source is reported, not followed", o6.notes.some((n) => /instruction, not followed/.test(n)) && inj.calls.facts.length === 1);
   const ov = world({ answer: { ...rec([F("maker", "Test Maker")], { name: "X" }), usage: { input_tokens: 90000, output_tokens: 3000, cache_write_tokens: 0, cache_read_tokens: 0, searches: 3, fetches: 3 } } });
   const o7 = await R.runIntake({ kind: "url", input: URL1, tenant: T }, ov.deps);
-  ok("an overrun is charged as it was and said on the card", o7.charged_cents > o7.plan.worstCents && o7.notes.some((n) => /over its/.test(n)), { charged: o7.charged_cents, plan: o7.plan.worstCents });
+  ok("an overrun is charged as it was and said on the card", o7.charged_cents > o7.plan.worstCents && o7.cost_known === true && o7.notes.some((n) => /more than its [\d.]+¢ estimate — charged in full/.test(n)), { charged: o7.charged_cents, plan: o7.plan.worstCents, notes: o7.notes });
+  // Usage missing: the database counts the reservation; the card says provisional, never a verified cost (2026-11-04).
+  const unrep = world({ answer: { ...rec([F("maker", "Test Maker")], { name: "X" }), usage: null } });
+  const o8 = await R.runIntake({ kind: "url", input: URL1, tenant: T }, unrep.deps);
+  ok("usage missing: the reservation is counted, labelled provisional, actual unknown", o8.charged_cents === 25 && o8.cost_known === false
+    && o8.notes.some((n) => /counted provisionally; the actual cost is unknown/.test(n)) && !o8.notes.some((n) => /estimate — charged in full/.test(n)), { charged: o8.charged_cents, known: o8.cost_known, notes: o8.notes });
+  const card = readFileSync(new URL("../components/vision/LibraryIntake.tsx", import.meta.url), "utf8");
+  ok("the card shows a cost as measured only when it is (cost_known); otherwise reserved, provisional, actual unknown",
+    /r\.cost_known \? `cost \$\{r\.charged_cents\.toFixed\(2\)\}¢` : `cost not reported: \$\{r\.charged_cents\.toFixed\(2\)\}¢ reserved, counted provisionally; actual unknown`/.test(card)
+    && !/full allowance was counted/.test(card));
 }
 // The wiring
 {

@@ -42,6 +42,8 @@ export type Outcome = {
   intake: string | null; material: string | null; matches: Match[]; facts: DraftFact[]; dropped: Dropped[];
   missing: { fields: string[]; evidence: string[] }; unread: string[]; notes: string[];
   plan: Plan | null; charged_cents: number | null; reason?: string;
+  /** true only when the charge is the run's own reported usage; false = the reservation, counted provisionally (actual unknown). */
+  cost_known?: boolean;
 };
 
 export const MODEL = "claude-sonnet-4-6";
@@ -148,13 +150,13 @@ export async function runIntake(a: Ask, d: Deps): Promise<Outcome> {
   let file: { block: unknown } | null = null;
   const isPdf = !!ask.path && /\.pdf$/i.test(ask.path), isImage = !!ask.path && !isPdf;
   const plan = planFor(depth, await d.budget(), MODEL, { pdf: isPdf, image: isImage });
-  if (!plan) return fail("refused", "The research budget per run is too small for anything useful.");
+  if (!plan) return fail("refused", "No useful search fits the per-run reservation (an estimate of what a run costs, not a cap).");
   if (ask.path) {
     const f = await d.readFile(ask.path);
     if (!f) return fail("failed", "Couldn't read the uploaded file.");
     if (isPdf) {
       const pages = pdfPages(f.bytes);
-      if (pages > plan.pdfPages) return fail("refused", `The PDF is about ${pages} pages — upload the specification pages (up to ${plan.pdfPages}) so the research stays inside its budget.`);
+      if (pages > plan.pdfPages) return fail("refused", `The PDF is about ${pages} pages — upload the specification pages (up to ${plan.pdfPages}) so its estimated cost fits the per-run reservation.`);
       file = { block: { type: "document", source: { type: "base64", media_type: "application/pdf", data: Buffer.from(f.bytes).toString("base64") } } };
     } else {
       if (!IMAGE_OK.includes(f.mime)) return fail("refused", `${f.mime === "image/heic" || f.mime === "image/heif" ? "A HEIC photo" : "This image type"} can't be read for research — save it as JPEG or PNG and upload that.`);
@@ -163,13 +165,13 @@ export async function runIntake(a: Ask, d: Deps): Promise<Outcome> {
   }
   // 4 · The budget, reserved in the database first.
   const res = await d.reserve(intake, depth);
-  if (!res.ok) return res.code === "PT429" ? fail("budget_exhausted", "Today's research budget is spent. It resets tomorrow, or an owner can raise it.", { plan }) : fail("failed", res.message, { plan });
+  if (!res.ok) return res.code === "PT429" ? fail("budget_exhausted", "Today's research has reached its daily reservation threshold. It resets tomorrow, or an owner can raise it. A run can cost more than it reserves; any overrun is counted.", { plan }) : fail("failed", res.message, { plan });
   // 5 · One call.
   let r: ModelResult;
   try { r = await d.model(researchRequest({ kind: a.kind, input: ask.input }, plan, file, cat)); }
   catch (e) {
     const charged = await d.settle(res.run, null, null, "failed", (e as Error).message);
-    return fail("failed", `The research didn't finish: ${(e as Error).message.slice(0, 200)}`, { plan, charged_cents: charged });
+    return fail("failed", `The research didn't finish: ${(e as Error).message.slice(0, 200)}`, { plan, charged_cents: charged, cost_known: false });
   }
   // 6 · Settled with what it used; a missing count is charged in full by the database.
   const u = r.usage;
@@ -179,9 +181,11 @@ export async function runIntake(a: Ask, d: Deps): Promise<Outcome> {
   const ans = readAnswer(r);
   const finished = ans.recorded && r.stop_reason !== "pause_turn" && r.stop_reason !== "max_tokens";
   const charged = await d.settle(res.run, usage, cents, finished ? "done" : "failed", finished ? null : `stopped: ${r.stop_reason ?? "no answer"}`);
-  const notes = [...(charged != null && charged > plan.worstCents ? [`This run cost ${charged.toFixed(2)}¢, over its ${plan.worstCents}¢ plan — kept on the record.`] : []),
+  const costKnown = usage != null && cents != null && charged === cents;
+  const notes = [...(costKnown && charged! > plan.worstCents ? [`This run cost ${charged!.toFixed(2)}¢, more than its ${plan.worstCents}¢ estimate — charged in full and kept on the record.`] : []),
+    ...(!costKnown && charged != null ? [`Its usage wasn't reported: ${charged.toFixed(2)}¢ (the reservation) is counted provisionally; the actual cost is unknown.`] : []),
     ...ans.seen.map((s) => `A source contained an instruction, not followed: “${s.slice(0, 160)}”`)];
-  if (!finished) return fail("failed", r.stop_reason === "max_tokens" ? "The answer ran past its length before it was recorded." : r.stop_reason === "pause_turn" ? "The research paused before it finished; nothing was recorded." : "No findings were recorded.", { plan, charged_cents: charged, unread: ans.unread, notes });
+  if (!finished) return fail("failed", r.stop_reason === "max_tokens" ? "The answer ran past its length before it was recorded." : r.stop_reason === "pause_turn" ? "The research paused before it finished; nothing was recorded." : "No findings were recorded.", { plan, charged_cents: charged, cost_known: costKnown, unread: ans.unread, notes });
   // 7 · Draft facts, against the right asset.
   const srcRef = a.kind === "url" ? ask.input : null;
   const { facts, dropped } = toDraftFacts(ans.raw, { kind: a.kind === "url" ? "url" : a.kind === "upload" ? (isPdf ? "document" : "image") : "description", ref: srcRef ?? (ask.path ? `storage:library-intake/${ask.path}` : null) });
@@ -194,5 +198,5 @@ export async function runIntake(a: Ask, d: Deps): Promise<Outcome> {
   const material = same ? same.id : await d.createAsset({ name, category, family_id: variant?.id ?? null, source_url_norm: found.url ? normUrl(found.url) : null });
   const written = facts.length ? await d.insertFacts(material, intake, facts) : 0;
   await d.updateIntake(intake, { status: "ready", material_id: material, matches, error: null });
-  return { status: "ready", intake, material, matches, facts: facts.slice(0, written), dropped, missing: missingFor(facts, crit, category), unread: ans.unread, notes, plan, charged_cents: charged };
+  return { status: "ready", intake, material, matches, facts: facts.slice(0, written), dropped, missing: missingFor(facts, crit, category), unread: ans.unread, notes, plan, charged_cents: charged, cost_known: costKnown };
 }
