@@ -1,13 +1,13 @@
 # IMS8 — status and patch manifest (the one authoritative copy)
 
-Updated: 2026-11-04 (UTC): production state, the 0474 spoof result, two-step corrected, research stopped (next section). Previously 2026-11-02: the refinements (P10–P12), the restart, and the console-walk investigation (P13). **Local patches only.** Nothing has been pushed, merged, deployed or migrated, and the historical cleanup hasn't been run. The production release is a separate request: `IMS8-RELEASE-REQUEST.md`.
+Updated: 2026-11-04 (UTC): production state; 0474 spoof check passed (limits stated); two-step explanation accepted; research acceptance open, with a bounded design proposed (next section). Previously 2026-11-02: the refinements (P10–P12), the restart, and the console-walk investigation (P13). **Local patches only.** Nothing has been pushed, merged, deployed or migrated, and the historical cleanup hasn't been run. The production release is a separate request: `IMS8-RELEASE-REQUEST.md`.
 
 ## Production state — 2026-11-04 (supersedes the "Local patches only" line above)
 
 **App:** `main` = `8b5ecf0` (D2 `e359c28` + the D6 named inventory, one commit, baseline/test files only). Deployment `dpl_A4DPWTZC7Zk8T7zeAX1TauuKr3TX` READY on `app.gt3pb.com`; `/api/health` reports commit `8b5ecf0`, production, db/cron/hooks ok. D6: 140 API-callable definers named by name and role, 16 signed out; the audit judges by name, so a swap at an unchanged total fails. `claude/edits-pvmqdc` kept at `2d01d81` (not overwritten).
 **Database:** ledger 469 rows, max 0473; 0473 recorded once, not re-applied. **0474 held** — not applied; `customers staff read` still present.
 
-### Two-step sign-in — corrected
+### Two-step sign-in — corrected (explanation accepted 2026-11-04)
 The 2026-11-03 checklist said owner steps "need two-step sign-in". **Wrong.** `is_admin()` = owner/admin role **and** `two_step_ok()`; `two_step_ok()` is true at aal2, **or** when the account has no verified authenticator and the business doesn't require one. Production: neither owner account has an authenticator (0 verified, 0 unverified factors), and `two_step_settings.required` is unset (false). So owner actions pass on an ordinary sign-in today. (Enrolling an authenticator later makes aal2 required for that account.)
 
 ### 0474 — prerequisites
@@ -15,11 +15,21 @@ The 2026-11-03 checklist said owner steps "need two-step sign-in". **Wrong.** `i
 |---|---|
 | Pre-paste check `supabase/checks/ims8_0474_prepaste.sql` (read-only, production) | **all 8 rows t** |
 | Address source | `caller_address()` reads only `cf-connecting-ip` from `request.headers`; format-checked; `::ffff:` → IPv4; IPv6 → /64. Not a definer; no API role may call it. `X-Forwarded-For` / `X-Real-IP` / `True-Client-IP` never read. The link page calls `vision_shared` from the browser straight to the Supabase API. |
-| Spoof resistance (2026-11-04 00:37–00:39 UTC) | **Forged address not trusted.** |
+| Spoof resistance (2026-11-04 00:37–00:39 UTC) | **PASSED** for the requests tested — accepted 2026-11-04 (limits below) |
 | App that 0474 depends on, live | `8b5ecf0` live; signed-in check below still owed |
 | Your approval to paste | owed |
 
 **Spoof test method.** On the 0473 schema, `track_guest()` (anon, no token) calls `caller_address()` and counts a `rate_limit_hits` bucket named `guest-visit:<address>`, so the bucket name is what PostgreSQL itself parsed from the headers it received. Sent from a short-lived Vercel Sandbox (egress limited to the Supabase host; stopped afterwards): two forged requests (`CF-Connecting-IP: 203.0.113.77` and `2001:db8:77::1`, documentation ranges) and one control without the header. Results, read from PostgreSQL immediately: both forged requests **refused at Cloudflare's edge (403) before the gateway** — no bucket in either forged range, guest count unchanged; the control **reached PostgreSQL** (204; one new bucket under the sandbox's own address, guest count +1). No token, link or address value was printed or stored in the record. Side effect: today's guest-visit count is one higher.
+
+**Limits of this pass.**
+- Tested: one forged IPv4 and one forged IPv6 `CF-Connecting-IP`, in one request each, to `https://hmpxgomiiyjjxxxyzzbg.supabase.co/rest/v1/rpc/track_guest`, from one Vercel `iad1` egress, on 2026-11-04.
+- Not tested:
+  - other Supabase paths. `vision_shared` uses the same `caller_address()` behind the same gateway, but it wasn't called;
+  - requests that come from inside Cloudflare (Workers);
+  - a direct connection that bypasses Cloudflare to the gateway;
+  - other casings or duplicate headers;
+  - floods spread across real addresses, which remains the documented limit of 0474.
+- The refusal is Cloudflare's behaviour, not ours. It can change without notice, so re-run the test before any change to address handling.
 
 ### Investor link — reconciled
 No test link exists or ever existed: `vision_shares` 0 rows; `admin_audit` 0 rows for `vision_shares`; no `vision_shared` buckets. The test will leave: an `admin_audit` row for create, publish and revoke (`vision_share_audit_tg`; opens alone are not audit lines), `opens`/`last_opened_at`, `revoked_at`. **None of it is to be deleted; the revoked row stays.**
@@ -30,16 +40,40 @@ No test link exists or ever existed: `vision_shares` 0 rows; `admin_audit` 0 row
 
 ### Signed-in checks — records reused, nothing duplicated
 - Course and order sheet: **your own customer record** (linked to the owner account; it already has the only shop order, needs fulfillment). No course grant exists anywhere, so the check makes exactly one, on that record.
-- Crew view: either of the two operator accounts (not admin, no authenticator).
+- Crew view: needs an authorized crew session, meaning one of the two operator accounts (not admin, no authenticator), signed in by its holder. The owner session doesn't stand in for it.
 
-### Research acceptance — STOPPED (bound not enforceable)
-Budget row not yet made; defaults apply: `per_run_cents` 25, `daily_cents` 300. The 25¢ ceiling bounds a **pre-flight estimate** (`planFor` shrinks the plan until `worstCents` ≤ 25), not the spend: search-result tokens are an allowance, "not capped by the API" (`lib/libraryIntake.ts`), and an overrun is recorded after the fact ("over its plan — kept on the record", `lib/libraryResearch.ts`). Depth is chosen from the category, not by the person. A run is therefore not guaranteed ≤ $0.25, and none was started. To proceed: a hard spend cap (e.g. a provider-side limit), or your acceptance of an estimate-bounded run.
+### Research acceptance — OPEN (live run not started)
+Budget row not yet made; defaults apply: `per_run_cents` 25, `daily_cents` 300. Today's 25¢ ceiling bounds a **pre-flight estimate** (`planFor` shrinks the plan until `worstCents` ≤ 25), not the spend: search-result tokens are an allowance, "not capped by the API" (`lib/libraryIntake.ts`), and an overrun is recorded after the fact ("over its plan — kept on the record", `lib/libraryResearch.ts`). Depth is chosen from the category, not by the person. A run is therefore not guaranteed ≤ $0.25; none was started, and live acceptance stays open by decision (2026-11-04).
+
+**What the provider enforces** (Anthropic docs, read 2026-11-04: web search, web fetch, token counting, pricing):
+| Limit | Enforced? |
+|---|---|
+| `max_tokens` | yes — the response's output ceiling |
+| `web_search.max_uses` | yes — searches past it return `max_uses_exceeded`; $10 / 1,000 searches (1¢ each) |
+| web search **result tokens** | **no** — "counted as input tokens, in search iterations run during a single turn"; no size cap |
+| `web_fetch.max_content_tokens` | approximate ("can vary by a small amount"); text only — **not** applied to binary content such as PDFs |
+| server-tool loop | up to 10 sampling iterations per request, then `pause_turn`; each iteration's input is billed |
+| `count_tokens` | an **estimate** ("might differ by a small amount"); free; rejects requests with web search/fetch tools |
+| dynamic filtering (`web_search_20260209`) | code execution added automatically; no extra charge beyond tokens, but more iterations |
+| Sonnet 4.6 | $3 / MTok in, $15 / MTok out |
+
+So no request that uses web search, or web fetch on a PDF, has a provider-enforced spend ceiling.
+
+**Smallest enforceable per-run bound — proposed, not built.** Only for "Paste a link" and "Upload"; "Find it for me" (search) stays on the estimate path, labelled as such, and is excluded from bounded acceptance.
+1. **No server tools.** The route fetches the pasted https URL itself (public addresses only, 2 MB and 10 s caps, text extracted, truncated by bytes) or reads the upload. One `messages.create` with `tools` absent: one sampling, no server loop, no `pause_turn`, no search charge.
+2. **Output:** `max_tokens: 2000` — provider-enforced. Thinking not enabled (Sonnet 4.6 runs without it unless asked). At most 2,000 × $15/MTok = **3¢**.
+3. **Input:** `count_tokens` on the exact request; refused before sending if over **20,000** (6¢ at the count). The count is an estimate, so the ceiling is set with a **2× input margin**: even 40,000 billed input tokens is 12¢.
+4. **Per-run ceiling: 15¢** with the margin (9¢ nominal), under the 25¢ allowance. Only the input side relies on the provider's "small" counting variance, and the margin covers it.
+5. **Reconciliation unchanged and stricter:** reserve `per_run_cents` as now; settle from the response's own `usage` through `std_research_settle_server`, once by key; a settled cost above the run's computed ceiling is recorded as charged **and** raised as an alert. It is never clipped to the ceiling.
+6. **Test before any live run:** a replay test that the bounded path sends no `tools`, refuses over 20,000 counted tokens, sets `max_tokens` 2000, and settles actual usage over the ceiling without clipping.
+
+Not yet built or tested. A live acceptance run waits for your go-ahead on this design.
 
 ### Remaining blockers
-1. 0474: the signed-in order-sheet/Goals check, then your approval to paste.
+1. 0474 (held): the signed-in order-sheet and Goals checks (owner, and an authorized crew session), then your deployment approval.
 2. Investor link: create → private-window open → revoke → refused (your owner session).
-3. Course visibility: owner and crew views (signed in).
-4. Research billing: blocked on an enforceable $0.25 bound or your decision.
+3. Course visibility: the owner view (yours), and the crew view (an authorized crew session).
+4. Research billing: live acceptance open; the bounded design above is waiting for your go-ahead to build.
 
 ## Release-state ladder
 
