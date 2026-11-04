@@ -80,20 +80,25 @@ So no request that uses web search, or web fetch on a PDF, has a provider-enforc
 - Per-run: "No useful search fits the per-run reservation (an estimate of what a run costs, not a cap)."
 - PDF: "…so its estimated cost fits the per-run reservation."
 - Daily: "Today's research has reached its daily reservation threshold… A run can cost more than it reserves; any overrun is counted."
-- Overrun: "…more than its N¢ estimate — charged in full and kept on the record."
+- Overrun: "This run's calculated cost is N¢, more than its M¢ estimate — charged in full and kept on the record."
+- Reported usage: "calculated cost N¢" (it used to read "cost N¢").
 - Usage missing: `cost_known: false`. The card reads "cost not reported: N¢ reserved, counted provisionally; actual unknown", where it used to read "cost N¢" or "the full allowance was counted".
 
 Settlement is untouched. `scripts/ims6a2.research.test.mjs` passes 37/37, with new cases for the overrun note, the provisional path and the card. `words`, `spoken` and `falseempty` audits are clean, and `tsc` is clean.
 
 ### Engineering follow-ups (recorded, not started)
+Until provider reconciliation exists, every usage-based cost is described as **calculated** ("calculated cost N¢"): the app's own computation from reported usage × `lib/aiPricing.ts`, not the provider's bill.
 1. **Provider-cost reconciliation.** Reuse what exists; don't build another reporting system.
    - `ai_usage` (0190) already logs every Claude call, with tokens, searches and a priced `cost_cents` (`lib/anthropic.ts`).
    - `components/AiSpend.tsx` is the owner's spend meter that reads it.
-   - The follow-up: compare each period's `ai_usage` total, and `std_research_runs.charged_cents` for research, with the provider's own cost report, and show the difference on that same meter.
-   - Note: the Admin API cost report needs an Admin key and raw HTTP, because it isn't in the SDK.
-2. **Missing-usage recovery.** A run settled without usage keeps its reservation as a provisional charge (`outcome: unreported`, `cost_known: false`).
-   - The follow-up: once the provider's usage for that window is known, through the same reconciliation, replace the provisional charge with the actual one through a server-only path. Record both values; never lower the charge silently.
-   - Until then, the card and the record say the cost is provisional and the actual cost unknown.
+   - The follow-up: compare each period's `ai_usage` total, and `std_research_runs.charged_cents` for research, with the provider's cost report, and show the difference on that same meter.
+   - **The provider Admin key stays server-side only:** a server environment variable read by a server route or cron, never sent to a browser, never logged, never in the repo. The Admin API cost report is raw HTTP, because it isn't in the SDK.
+2. **Missing-usage recovery.** A run settled without usage keeps its reservation as a provisional charge (`outcome: unreported`, `cost_known: false`). Recovery may replace it only when all of these hold:
+   - **Reliable attribution:** the provider's record is tied to this exact run, for example by the API request id stored on the run when the call is made. Time-window or amount matching is not attribution.
+   - **An audited adjustment:** a server-only definer writes who, when, the old and new charge, and the provider record it matched, to an audit table.
+   - **Idempotent:** keyed by run and provider record; a repeat returns the same result.
+   - The original reservation charge stays on the record, and nothing is lowered silently.
+   - **Unmatched charges stay provisional,** labelled "actual unknown".
 
 ### Remaining blockers
 1. 0474 (held): the signed-in order-sheet and Goals checks (owner, and an authorized crew session), then your deployment approval.

@@ -42,7 +42,8 @@ export type Outcome = {
   intake: string | null; material: string | null; matches: Match[]; facts: DraftFact[]; dropped: Dropped[];
   missing: { fields: string[]; evidence: string[] }; unread: string[]; notes: string[];
   plan: Plan | null; charged_cents: number | null; reason?: string;
-  /** true only when the charge is the run's own reported usage; false = the reservation, counted provisionally (actual unknown). */
+  /** true only when the charge is calculated from the run's own reported usage (not yet reconciled with the provider's bill);
+   *  false = the reservation, counted provisionally (actual unknown). */
   cost_known?: boolean;
 };
 
@@ -182,7 +183,7 @@ export async function runIntake(a: Ask, d: Deps): Promise<Outcome> {
   const finished = ans.recorded && r.stop_reason !== "pause_turn" && r.stop_reason !== "max_tokens";
   const charged = await d.settle(res.run, usage, cents, finished ? "done" : "failed", finished ? null : `stopped: ${r.stop_reason ?? "no answer"}`);
   const costKnown = usage != null && cents != null && charged === cents;
-  const notes = [...(costKnown && charged! > plan.worstCents ? [`This run cost ${charged!.toFixed(2)}¢, more than its ${plan.worstCents}¢ estimate — charged in full and kept on the record.`] : []),
+  const notes = [...(costKnown && charged! > plan.worstCents ? [`This run's calculated cost is ${charged!.toFixed(2)}¢, more than its ${plan.worstCents}¢ estimate — charged in full and kept on the record.`] : []),
     ...(!costKnown && charged != null ? [`Its usage wasn't reported: ${charged.toFixed(2)}¢ (the reservation) is counted provisionally; the actual cost is unknown.`] : []),
     ...ans.seen.map((s) => `A source contained an instruction, not followed: “${s.slice(0, 160)}”`)];
   if (!finished) return fail("failed", r.stop_reason === "max_tokens" ? "The answer ran past its length before it was recorded." : r.stop_reason === "pause_turn" ? "The research paused before it finished; nothing was recorded." : "No findings were recorded.", { plan, charged_cents: charged, cost_known: costKnown, unread: ans.unread, notes });
