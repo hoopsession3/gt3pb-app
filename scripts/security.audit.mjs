@@ -143,7 +143,11 @@ export const CEILING = {
   // 2026-11-03, snapshot re-pulled at ledger 0473 (0473 applied; its five function bodies match the review's fingerprints):
   // definerExec 139 → 140 — exactly the inventory's 0473 entries: course_status and customers_total in, std_research_settle
   // out (std_research_settle_server is service_role only). Measured 140 by name in production; signed out 16.
-  definerExec: 140,    // SECURITY DEFINER functions the API roles may call at SNAPSHOT_MARK (none of them a trigger any more)
+  // 2026-11-11, corrective (Ryan): the ceiling is 127 again. The 127 → 140 raise above (8b5ecf06, "D6 approved") has no
+  // verified approval — recorded as unverified in docs/releases/IMS8-STATUS.md. The by-name inventory stays: the audit
+  // still judges every callable definer by name and role against scripts/security.definers.mjs, AND the count against
+  // this ceiling — so production's measured 140 fails here, visibly, until the 13 named increases are explicitly accepted.
+  definerExec: 127,    // SECURITY DEFINER functions the API roles may call — the last APPROVED ceiling (0437 snapshot)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.
@@ -428,7 +432,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   }
   ratchet("tables readable by the world (SELECT `true`)", v.publicRead, CEILING.publicRead);
   // IMS8 baseline (2026-11-03): the definers are judged BY NAME against the inventory at the snapshot's own ledger — a
-  // count can't see an unsafe function replacing a safe one. The number is the inventory's; CEILING holds it at the mark.
+  // count can't see an unsafe function replacing a safe one. The count is then held to the approved CEILING (2026-11-11).
   const at = definersAt(String(snap.ledger?.max_seq ?? SNAPSHOT_MARK).padStart(4, "0"));
   const named = (name, measured, expected) => {
     const extra = measured.filter((x) => !expected.includes(x)), missing = expected.filter((x) => !measured.includes(x));
@@ -441,7 +445,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop()
   };
   named("SECURITY DEFINER functions the API roles may call", v.definerExec, at.all);
   named("…of them, callable with no session (anon)", v.anonExec, at.anon);
-  ratchet("SECURITY DEFINER functions the API roles may call", v.definerExec, at.all.length);
+  // 2026-11-11: the count is held to the approved CEILING, not to the inventory's own size (which would accept any
+  // named addition silently). The names above say WHAT is callable; this says whether that many was approved.
+  ratchet("SECURITY DEFINER functions the API roles may call", v.definerExec, CEILING.definerExec);
   ratchet("…of them, callable with no session (anon)", v.anonExec, at.anon.length);
   ratchet("owner-run views the API roles may read", v.definerView, CEILING.definerView);
   if (fails) { console.log(`\nSECURITY AUDIT: ${fails} failure(s)${stale.length ? ` in production as measured at ledger ${String(snap.ledger?.max_seq).padStart(4, "0")}; the ${stale.length} pending migration(s) are not checked` : ""}.`); process.exit(1); }
