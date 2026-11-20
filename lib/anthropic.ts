@@ -58,6 +58,10 @@ export async function callClaude(opts: {
   maxTokens?: number;
   temperature?: number;
   label?: string; // which copilot this call belongs to — attributes the cost in ai_usage (0190)
+  /** How many tries (default 3). A caller holding a spend limit sends 1 and reserves each try itself (lib/researchBudget). */
+  attempts?: number;
+  /** Mark the system prompt as a cache breakpoint (default true). */
+  cache?: boolean;
 }): Promise<ClaudeResult> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY not set");
@@ -83,7 +87,7 @@ export async function callClaude(opts: {
   // input rate. For grounded agents that's the single biggest cost cut. Short prompts under the min
   // cacheable size are simply not cached (no error), so this is always safe to send.
   const systemBlocks = opts.system
-    ? [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }]
+    ? [opts.cache === false ? { type: "text", text: opts.system } : { type: "text", text: opts.system, cache_control: { type: "ephemeral" } }]
     : undefined;
   const body = JSON.stringify({
     model: opts.model,
@@ -102,7 +106,8 @@ export async function callClaude(opts: {
   const ATTEMPT_MS = 45_000;     // per-attempt timeout — heavy grounded calls (eventprep) need the room
   const started = Date.now();
   let lastErr: unknown = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  const tries = Math.max(1, Math.min(3, opts.attempts ?? 3));
+  for (let attempt = 0; attempt < tries; attempt++) {
     const elapsed = Date.now() - started;
     if (elapsed > TOTAL_BUDGET - 2000) break; // no budget for another attempt
     if (attempt > 0) await sleep(Math.min(400 * attempt, 1000));
@@ -118,7 +123,7 @@ export async function callClaude(opts: {
       if (!res.ok) {
         const detail = (await res.text()).slice(0, 500);
         // retry only fast, transient HTTP errors — and only if there's budget for another attempt
-        if (RETRYABLE.has(res.status) && attempt < 2 && Date.now() - started < TOTAL_BUDGET - ATTEMPT_MS) { lastErr = new Error(`Anthropic ${res.status}: ${detail}`); continue; }
+        if (RETRYABLE.has(res.status) && attempt < tries - 1 && Date.now() - started < TOTAL_BUDGET - ATTEMPT_MS) { lastErr = new Error(`Anthropic ${res.status}: ${detail}`); continue; }
         throw new Error(`Anthropic ${res.status}: ${detail}`);
       }
       const data = await res.json();
@@ -147,7 +152,7 @@ export async function callClaude(opts: {
       // with a clean error the route can return as JSON. Only quick NETWORK blips get a retry.
       if (e?.name === "AbortError") throw new Error("Anthropic request timed out");
       const isNet = !(typeof e?.message === "string" && e.message.startsWith("Anthropic "));
-      if (isNet && attempt < 2 && Date.now() - started < TOTAL_BUDGET - ATTEMPT_MS) continue;
+      if (isNet && attempt < tries - 1 && Date.now() - started < TOTAL_BUDGET - ATTEMPT_MS) continue;
       throw e;
     } finally {
       clearTimeout(timer);
