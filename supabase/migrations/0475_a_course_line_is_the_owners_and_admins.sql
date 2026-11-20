@@ -13,6 +13,8 @@
 --
 -- Rollback: re-run 0473's course_status definition (lines 104–124). Safe with 0474 held or applied (independent objects).
 -- Post-check:  select pg_get_functiondef('public.course_status(uuid)'::regprocedure) ~ 'is_admin\(\)\);' -- t
+-- lock-timeout: none — replaces one function's body (no table is altered or locked); applied 2026-11-20 11:13:19 UTC
+-- changelog: none — an internal permission narrowing; no app or customer-visible change
 create or replace function public.course_status(p_customer uuid)
 returns table (source text, granted_at timestamptz, revoked_at timestamptz, paid_cents int, note text,
                done int, total int, rookie_done int, rookie_total int, last_done_at timestamptz)
