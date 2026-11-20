@@ -262,7 +262,8 @@ console.log(JSON.stringify({ ties, later: b > a }));`;
       && !/bcast/.test(nbc.replace(/\/\*[\s\S]*?\*\//g, "")) && /<html lang="en" data-build=\{APP_BUILD \? "app" : undefined\}>/.test(lay)
       && /if \(body\.includes\("\.native-bar\{"\)\) await new Promise\(\(r\) => setTimeout\(r, 1500\)\);/.test(sn) && /…with the bridge's stylesheet arriving last, as a slow phone has it/.test(sn) && /held\.bridgeCss === true && held\.shift < 0\.01/.test(sn));
   const ciy = read(".github/workflows/ci.yml");
-  ok("CI lets a slow green run finish: 40 minutes for a gate that took 21", /runs-on: ubuntu-24\.04\n(?:\s+#.*\n)+\s+timeout-minutes: 40\n\s+steps:/.test(ciy));
+  // 60 since 2026-11-20: the full gate reached 39m 47s on its last green run and run #966 was cut off at 40 with nothing failed.
+  ok("CI lets a slow green run finish: 60 minutes for a gate that reached 40", /runs-on: ubuntu-24\.04\n(?:\s+#.*\n)+\s+timeout-minutes: 60\n\s+steps:/.test(ciy));
   ok("…and TestFlight's refusal says what to do with a red run: open it, fix it or re-run it",
     /Failed: open that run, fix it or re-run it, and once it is green run this again\./.test(read(".github/workflows/ios.yml")));
 }
