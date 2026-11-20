@@ -51,7 +51,11 @@ jobs:
     # 40, not 30 (R40 — the fresh audit's OPS11-07): the whole gate took 20m 45s, 20m 57s and 21m 20s on main's last full
     # runs (R32, R33, R29), and every round adds to it — a third more on a slower runner and a green tree would be cut off
     # as a red one. A run that hangs still ends; one that is only slow is let finish.
-    timeout-minutes: 40
+    # 60, not 40 (2026-11-20, PR #136's run #966): the last full green verify (2026-10-26) took 39m 47s — 13 seconds
+    # under the old ceiling — and #966 passed test, audit (R36 included), build and smoke:ui in 18 minutes, then was
+    # cancelled at 40m while smoke:console was still building and walking the phones (it had run 20 minutes, with no
+    # failure printed). The gate grew past its budget; nothing in it failed.
+    timeout-minutes: 60
     steps:
       # Every action by the commit it is, not by a tag (R30 — the 10/10 audit, operations F21, security F14): a tag is a
       # pointer its owner — or whoever takes their account — can move to other code, and the job runs whatever it points
