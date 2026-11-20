@@ -25,7 +25,11 @@ const at = async (before, mutate) => { const db = await fullSchema(before ? { be
 const mark = await at(next(SNAPSHOT_MARK)), now = await at(null);
 const dm = diff(mark, definersAt(SNAPSHOT_MARK)), dn = diff(now, definersAt(latest));
 ok(`at the snapshot's mark (${SNAPSHOT_MARK}) the replay is the inventory by name and role (${mark.length})`, dm.clean, dm);
-ok(`…and CEILING holds the inventory's count at the mark (${CEILING.definerExec}, signed out ${CEILING.anonExec})`, CEILING.definerExec === definersAt(SNAPSHOT_MARK).all.length && CEILING.anonExec === definersAt(SNAPSHOT_MARK).anon.length && mark.length === CEILING.definerExec);
+// 2026-11-11 (corrective, Ryan): the approved ceiling is 127; the inventory at the mark names 140. The gap is the 13
+// increases awaiting explicit acceptance — pinned here so it can't widen or be closed by editing the number alone.
+const UNRESOLVED = ["course_give(p_customer uuid, p_note text)", "course_status(p_customer uuid)", "course_students()", "course_take_back(p_customer uuid)", "customers_total()", "primal_lesson_previews()", "std_accept_facts(p_ids uuid[], p_corrections jsonb, p_bulk boolean)", "std_reject_facts(p_ids uuid[], p_note text)", "std_research_reserve(p_intake uuid, p_depth text)", "vision_share_preview(p_share uuid, p_draft jsonb)", "vision_share_publish(p_share uuid, p_draft jsonb, p_fingerprint text, p_confirm text[])", "vision_share_review(p_share uuid, p_draft jsonb)", "vision_shared(p_token text)"];
+const atMark = definersAt(SNAPSHOT_MARK).all;
+ok(`…the approved ceiling stays 127 (signed out ${CEILING.anonExec}); the inventory at the mark names ${atMark.length}: the 13 unresolved increases, exactly`, CEILING.definerExec === 127 && CEILING.anonExec === definersAt(SNAPSHOT_MARK).anon.length && atMark.length === 127 + UNRESOLVED.length && UNRESOLVED.every((f) => atMark.includes(f)), { ceiling: CEILING.definerExec, named: atMark.length, notNamed: UNRESOLVED.filter((f) => !atMark.includes(f)) });
 ok(`at the latest migration (${latest}) the replay is the inventory by name and role (${now.length})`, dn.clean, dn);
 ok("every API-callable definer the API may call is callable by signed-in callers (none anon-only)", now.every((r) => r.u), now.filter((r) => !r.u).map((r) => r.f));
 ok("every API-callable definer pins its search_path", now.every((r) => /search_path/.test(r.cfg)), now.filter((r) => !/search_path/.test(r.cfg)).map((r) => r.f));
