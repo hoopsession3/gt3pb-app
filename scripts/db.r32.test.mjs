@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { fullSchema } from "./fixtures/schema.full.mjs";
+import { pasteSections, migrationFiles, heldMigrations } from "./migrations.pending.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const M437 = readFileSync(join(ROOT, "supabase/migrations/0437_a_password_alone_opens_no_owner_door_and_a_paid_order_keeps_what_it_bought.sql"), "utf8");
@@ -227,7 +228,11 @@ ok("a program already running on its UTC date keeps its weeks: that date is writ
 // What Ryan pastes is supabase/APPLY_ALL_PENDING.sql, as one query. Applied whole to the schema before 0430, every
 // pending migration lands; with one broken in the middle, the ones above it stay applied and nothing below it runs; the
 // same file pasted again then finishes the rest.
-const PASTE = readFileSync(join(ROOT, "supabase/APPLY_ALL_PENDING.sql"), "utf8");
+// With nothing pending (2026-11-20: production current but for the held 0474), the wrapping is tested on the last two
+// applied, unheld migrations, written by the generator's own pasteSections — the same code the paste file comes from.
+const PASTE_FILE = readFileSync(join(ROOT, "supabase/APPLY_ALL_PENDING.sql"), "utf8");
+const heldSeqs = new Set(heldMigrations().map((h) => h.seq));
+const PASTE = /^begin;/m.test(PASTE_FILE) ? PASTE_FILE : pasteSections(migrationFiles().filter((m) => !heldSeqs.has(m.seq)).slice(-2));
 const pendingSeqs = [...PASTE.matchAll(/^--\s*={10,}\s*\n--\s*(\d{4})_\S*\.sql\s*$/gm)].map((m) => Number(m[1]));
 // The schema the paste lands on is production's: every migration before the first one pending (R47 — 0443 was applied
 // by itself, so "before 0430" no longer is), the held ones included as they sit beside it.
