@@ -26,7 +26,7 @@ const s0 = await fullSchema({ before: "0473" });
 const S0 = await shape(s0); const pre3at0 = (await s0.query(PRE3)).rows; await s0.close();
 const s1 = await fullSchema({ before: "0474" });
 const S1 = await shape(s1); const pre3at1 = (await s1.query(PRE3)).rows; const pre4at1 = (await s1.query(PRE4)).rows; await s1.close();
-const after = await fullSchema({});
+const after = await fullSchema({ before: "0475" });   // 0474 applied, 0475 (held, independent) not: the rollback compares 0474 alone
 const S2 = await shape(after); const pre4at2 = (await after.query(PRE4)).rows;
 const REC = readFileSync("supabase/checks/ims8_research_reconciliation.sql", "utf8");
 const recEmpty = (await after.query(REC)).rows;

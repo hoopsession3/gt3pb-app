@@ -542,3 +542,88 @@ During the investigation, two of my own shell commands selected a process by a n
 - then set the ceiling, by name, to whatever you accept.
 
 **Until then the ceiling is 127, and the audit's failure stays visible.**
+
+### 2026-11-20: released — 3d0b306f live
+
+**What landed** (PR #133, squash-merged onto `e13e3dd4`):
+- `main` = `3d0b306f`. Its tree is byte-identical to the reviewed candidate `06c178c6` (`94e2fc35` + `06c178c6`).
+- All 13 files match the release manifest by sha256.
+- Carried through GitHub's web editor (branch `ims8-release`), because the checkout's push is disabled on purpose.
+- **Vercel:** production `dpl_EamGPUsrQM8mw4v4AfnoMENGxaje`, READY. **`/api/health`:** commit `3d0b306f…`, env production, ok.
+- **CI on the PR:**
+  - `verify` stops at R36 22/23 ("140 — ceiling 127"), the failure kept visible on purpose. Because it stops there, CI doesn't reach the later suites; they were run locally on the identical tree (below).
+  - `advisories` and the Vercel preview pass.
+
+**Not changed:** migrations 0474 and 0475 (held; production ledger still at 0473), the ceiling (127; the audit fails 140 > 127 by design), production data.
+
+**Checked locally on the merged tree `3d0b306f`:**
+- ims8budget 35, ims6a2.research 37, ims8app 7;
+- db.ims8sec 65, db.ims8compat 23, db.ims8roles 37, db.privileged 15, db.ims8rollback 16, db.r47 13, db.ims6a1 71, db.ims8p5 79, db.ims8p10 19;
+- security.audit: only "140 — ceiling 127"; r36 22/23.
+- **Console walk:** 1 run of 1 passed (3,266 checks, 0 failed). Every console section as the owner, on 10 phone and iPad layouts, about 55 minutes.
+  - The intermittent screen-walk issue didn't recur in this run. **It stays open:** one clean run doesn't show it's fixed.
+  - The walk drives the owner only. The operator's order sheet is checked from the source: a static test, `ims8app` "crew see the name". It is not rendered.
+
+**Research path in the merged tree:** `lib/researchBudget.ts` (bound and ledger), `lib/libraryResearch.ts` (`boundedRequest`, the per-try loop), `lib/pageFetch.ts`, `app/api/library/intake/route.ts` (one try per call, no cache marker).
+- **Spending assumptions** (Sonnet 4.6 prices as re-read 2026-11-11):
+  - input priced at max($3, $3.75) per MTok; output $15/MTok;
+  - every text byte counted as at least a token; 2,000 frame tokens; 4,000 per image; 2,000 output;
+  - PDFs refused.
+- **Retry accounting:** at most 3 tries; each try is reserved at its bound before it is sent; a try that can't fit isn't sent.
+- **Missing usage:** a try with no usage is charged its full bound, and the run is marked "cost not known".
+- The live run's limit is `per_run_cents`: 25¢ today, never more than 100¢.
+- **Production acceptance (open):** the $1 maximum is shown in production only by a live run, with the reconciliation query (`supabase/checks/ims8_research_reconciliation.sql`) agreeing to the cent.
+
+**0475 prepared, held, not pushed:** local branch `ims8-0475-course-status` (`abcec88f`; the rendered journey below is `f0320700` on the same branch).
+- `course_status` narrowed from `is_staff()` to `is_admin()`. An operator's call returns no line; the grant, columns and count (140) are unchanged.
+- Held in `held.json`. db.ims8sec 66, db.ims8rollback pinned before 0475 (16), migrations.pending clean.
+
+**Order sheet and course access by role: two separate results** (local; `scripts/journey.ordersheet.mjs` on `ims8-0475-course-status`, made-up accounts on the console walk's stand-in database, phone size).
+
+*1. What the app shows (rendered UI; the same before and after 0475, because 0475 changes no app code):*
+
+| Role | Customer's name on the order sheet | Customer record from the order sheet |
+|---|---|---|
+| Owner | a link | opens, with the course line and its note |
+| Admin | a link | opens, the same |
+| Operator | plain text | can't be opened from the order sheet |
+
+*2. What the database answers (`course_status`, called directly as each role):*
+
+| Role | 0473 (production today) | With 0475 |
+|---|---|---|
+| Owner, admin | the line with note (and payment when paid) | the same |
+| Operator | a limited line: how and when, progress, no note, no payment | no course line (an empty answer, not an error) |
+| Signed out | refused (no grant) | refused |
+
+The journey passes 5/5 on 0473 and 5/5 with 0475. The replayed 0475 paste sequence passes 21/21 (`db.ims8_0475`). These are local renders and replays, not production. The live journeys need the owner's and an operator's own sessions.
+
+**Console walk: targeted check, 2026-11-20.** The three screens that failed before (`vision-menu`, `vision-money`, `vision-traffic`) on their three devices (iPhone 17 Pro Max, iPhone 17 landscape, iPad 13 landscape) ran 20 times, about 90 s each. **All 20 passed (54 checks each, 1,080 in all)**, and no run recorded a screen that didn't start.
+- These short runs don't recreate the condition the failures came in: 40–60 minutes into a full walk. **The intermittent issue stays open.**
+- Next, when revisited: the three screens repeated inside one browser session for about an hour. Deferred for now.
+
+**0475 pre-apply check, production, 2026-11-20 (read-only, approved, one query).**
+- The migration is unchanged since `f0320700`: sha256 `6065ca14cbf703653912d1b7e1fa0e19f6e90153b7ba564d9effc71c876c1acf`.
+- Ran `supabase/checks/ims8_0475_prepaste.sql` plus one extra read-only row. It reads only the migration ledger and `course_status` / `is_admin` metadata. **Every row was t:**
+  - `course_status` has 0473's body fingerprint and is a definer;
+  - callable signed in, not signed out;
+  - the ledger has 0473 and not 0475;
+  - `is_admin()` exists;
+  - no 0474 in the ledger, nothing above 0473.
+- Nothing was applied. 0474 and 0475 stay held; the ceiling stays 127.
+
+**0475 applied to production, 2026-11-20 11:13:19 UTC (approved, once).**
+- The exact reviewed file: sha256 `6065ca14cbf703653912d1b7e1fa0e19f6e90153b7ba564d9effc71c876c1acf`, byte-identical to `f0320700`. Checked locally before applying, with the pre-apply check (all t) run minutes earlier.
+- Sent as one statement batch, so it ran as a single transaction. It returned one ledger row: `0475_a_course_line_is_the_owners_and_admins`, number 475, stamped 2026-11-20 11:13:19 UTC. No error, no retry.
+- **Verified, 2026-11-20 (read-only post-apply check, approved, one query):** `supabase/checks/ims8_0475_postpaste.sql` plus two read-only rows. **All 7 t:**
+  - `course_status` has 0475's body fingerprint (`4556ee02…`): it checks `is_admin()` and no longer `is_staff()`, and is still a definer;
+  - grants as before 0475: callable signed in, not signed out;
+  - search_path still pinned to `public`;
+  - 0475 recorded, **exactly once**;
+  - **0474 absent** from the ledger; `customers staff read` still in place, `customers admin read` not (0474 untouched).
+- 0474 stays held. The ceiling stays 127; the audit's count is unchanged (140 > 127).
+- **Consequence until the 0475 branch lands on `main`:** the scheduled production check (`verify:prod`) reads the ledger and will report a migration the directory doesn't have (0475).
+  - The app is unaffected.
+  - The fix is the 0475 branch (`d3c95a7b`: the migration, its checks and rollback, 0474's order-independent pre-paste check, and 0475 off the held list), landed with its own approval.
+
+**Open:** D6 (the 13 increases; 12 recommended to accept; `course_status` narrowed by 0475, applied and verified 2026-11-20); 0474 (held); landing the 0475 branch on `main`; the research production run; the production investor-link test; the intermittent screen-walk issue.
