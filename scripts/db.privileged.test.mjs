@@ -25,11 +25,15 @@ const at = async (before, mutate) => { const db = await fullSchema(before ? { be
 const mark = await at(next(SNAPSHOT_MARK)), now = await at(null);
 const dm = diff(mark, definersAt(SNAPSHOT_MARK)), dn = diff(now, definersAt(latest));
 ok(`at the snapshot's mark (${SNAPSHOT_MARK}) the replay is the inventory by name and role (${mark.length})`, dm.clean, dm);
-// 2026-11-11 (corrective, Ryan): the approved ceiling is 127; the inventory at the mark names 140. The gap is the 13
-// increases awaiting explicit acceptance — pinned here so it can't widen or be closed by editing the number alone.
-const UNRESOLVED = ["course_give(p_customer uuid, p_note text)", "course_status(p_customer uuid)", "course_students()", "course_take_back(p_customer uuid)", "customers_total()", "primal_lesson_previews()", "std_accept_facts(p_ids uuid[], p_corrections jsonb, p_bulk boolean)", "std_reject_facts(p_ids uuid[], p_note text)", "std_research_reserve(p_intake uuid, p_depth text)", "vision_share_preview(p_share uuid, p_draft jsonb)", "vision_share_publish(p_share uuid, p_draft jsonb, p_fingerprint text, p_confirm text[])", "vision_share_review(p_share uuid, p_draft jsonb)", "vision_shared(p_token text)"];
-const atMark = definersAt(SNAPSHOT_MARK).all;
-ok(`…the approved ceiling stays 127 (signed out ${CEILING.anonExec}); the inventory at the mark names ${atMark.length}: the 13 unresolved increases, exactly`, CEILING.definerExec === 127 && CEILING.anonExec === definersAt(SNAPSHOT_MARK).anon.length && atMark.length === 127 + UNRESOLVED.length && UNRESOLVED.every((f) => atMark.includes(f)), { ceiling: CEILING.definerExec, named: atMark.length, notNamed: UNRESOLVED.filter((f) => !atMark.includes(f)) });
+// 2026-11-20 (Ryan, D6): the 13 increases over the 0437 ceiling of 127 are approved by name, in their reviewed forms
+// (course_status in its 0475 owner/admin-only form). The ceiling is 140: exactly 127 and these 13. Pinned by name here,
+// so the number can't move without the names, and a swapped function fails even at the same count.
+const APPROVED_D6 = ["course_give(p_customer uuid, p_note text)", "course_status(p_customer uuid)", "course_students()", "course_take_back(p_customer uuid)", "customers_total()", "primal_lesson_previews()", "std_accept_facts(p_ids uuid[], p_corrections jsonb, p_bulk boolean)", "std_reject_facts(p_ids uuid[], p_note text)", "std_research_reserve(p_intake uuid, p_depth text)", "vision_share_preview(p_share uuid, p_draft jsonb)", "vision_share_publish(p_share uuid, p_draft jsonb, p_fingerprint text, p_confirm text[])", "vision_share_review(p_share uuid, p_draft jsonb)", "vision_shared(p_token text)"];
+const atMark = definersAt(SNAPSHOT_MARK).all, at0437 = definersAt("0437").all;
+ok(`…the approved ceiling is 140 (signed out ${CEILING.anonExec}): the 127 at 0437 and the 13 D6 names, exactly; the inventory at the mark names ${atMark.length}`,
+  CEILING.definerExec === 140 && at0437.length === 127 && atMark.length === CEILING.definerExec && CEILING.anonExec === definersAt(SNAPSHOT_MARK).anon.length
+    && APPROVED_D6.every((f) => atMark.includes(f) && !at0437.includes(f)) && atMark.filter((f) => !at0437.includes(f)).sort().join("|") === [...APPROVED_D6].sort().join("|"),
+  { ceiling: CEILING.definerExec, at0437: at0437.length, atMark: atMark.length, notApproved: atMark.filter((f) => !at0437.includes(f) && !APPROVED_D6.includes(f)), notAtMark: APPROVED_D6.filter((f) => !atMark.includes(f)) });
 ok(`at the latest migration (${latest}) the replay is the inventory by name and role (${now.length})`, dn.clean, dn);
 ok("every API-callable definer the API may call is callable by signed-in callers (none anon-only)", now.every((r) => r.u), now.filter((r) => !r.u).map((r) => r.f));
 ok("every API-callable definer pins its search_path", now.every((r) => /search_path/.test(r.cfg)), now.filter((r) => !/search_path/.test(r.cfg)).map((r) => r.f));
