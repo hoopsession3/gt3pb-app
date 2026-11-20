@@ -48,7 +48,8 @@ ok("…signed out: refused", (await list(null)).code === "42501");
 
 const status = async (who, c) => (await as(who, `select source, note, paid_cents, done, total from public.course_status($1)`, [c]));
 const sCrew = await status(KAY, C1), sOwn = await status(ALEX, C1);
-ok("one customer's course line for the crew's customer record: how and when, no note, no payment, no email", sCrew.rows.length === 1 && sCrew.rows[0].source === "comp" && sCrew.rows[0].note === null && !("email" in sCrew.rows[0]), sCrew);
+ok("0475: an operator's call to course_status returns no line (owners and admins only; the crew have no customer-record journey)", sCrew.rows.length === 0 && !sCrew.code, sCrew);
+ok("…the owner's line: how and when, progress, and no email", sOwn.rows.length === 1 && sOwn.rows[0].source === "comp" && !("email" in sOwn.rows[0]), sOwn);
 ok("…the owner sees the note", sOwn.rows[0]?.note === "a gift", sOwn);
 ok("…another business's owner can't read our customer's line", (await status(OLA, C1)).rows.length === 0);
 ok("…nor our crew theirs", (await status(KAY, C2)).rows.length === 0);
