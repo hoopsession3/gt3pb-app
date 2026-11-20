@@ -57,10 +57,10 @@ export function Ask({ onDone, onManual }: { onDone: (material: string | null) =>
   return (
     <div className="mpanel p-3 flex flex-col gap-3" aria-label="Add an asset">
       <Segmented label="How it comes in" kind="choice" value={mode} onChange={(m) => { setMode(m); setRes(null); }}
-        options={[{ key: "url", label: "Paste a link" }, { key: "describe", label: "Find it for me" }, { key: "upload", label: "Upload" }]} />
+        options={[{ key: "url", label: "Paste a link" }, { key: "describe", label: "Describe it" }, { key: "upload", label: "Upload" }]} />
       {mode === "url" && <label className="prod-f"><span>The product&apos;s page</span><input type="url" inputMode="url" value={text} placeholder="https://…" onChange={(e) => setText(e.target.value)} /></label>}
       {mode === "describe" && <label className="prod-f"><span>What you&apos;re looking for</span><textarea rows={3} maxLength={2000} value={text} placeholder="An eight-foot solid wood community table with documented low-emission finishes" onChange={(e) => setText(e.target.value)} /></label>}
-      {mode === "upload" && <label className="prod-f"><span>A spec sheet (PDF) or a photo</span><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>}
+      {mode === "upload" && <label className="prod-f"><span>A photo of the product or its specification page (PDFs can&apos;t be researched within the run&apos;s fixed limit)</span><input type="file" accept="image/jpeg,image/png,image/webp,image/heic" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>}
       <label className="prod-f"><span>Category (helps it look in the right places)</span><select value={cat} onChange={(e) => setCat(e.target.value as Category | "")}><option value="">Let it work out</option>{CATEGORIES.map(([k, w]) => <option key={k} value={k}>{w}</option>)}</select></label>
       <div className="flex flex-wrap gap-2 items-center">
         <button type="button" className="btn-pri btn-sm" disabled={!ready || busy} onClick={() => void go()}>{busy ? "Researching…" : "Research it"}</button>
@@ -81,7 +81,7 @@ function Outcome({ r }: { r: Result }) {
       {r.matches[0] && <span className="vz-card-s">{r.matches[0].kind === "same" ? "Already in the library — what's new is shown as differences to review." : r.matches[0].kind === "variant" ? "A variant of an asset already in the library — kept as its own record." : `Possibly already in the library: ${r.matches[0].why}.`}</span>}
       {r.unread.length > 0 && <span className="vz-card-s">Couldn&apos;t read: {r.unread.join(", ")}.</span>}
       {r.notes.map((n) => <span key={n} className="xl-warn">{n}</span>)}
-      {r.plan && <span className="vz-card-s">{r.plan.depth === "light" ? "A quick look" : r.plan.depth === "deep" ? "A deep search" : "A standard search"} · {r.charged_cents == null ? "its cost wasn't reported" : r.cost_known ? `calculated cost ${r.charged_cents.toFixed(2)}¢` : `cost not reported: ${r.charged_cents.toFixed(2)}¢ reserved, counted provisionally; actual unknown`}.</span>}
+      {r.plan && <span className="vz-card-s">Read within a {r.plan.worstCents}¢ limit (no web search) · {r.charged_cents == null ? "its cost wasn't reported" : r.cost_known ? `calculated cost ${r.charged_cents.toFixed(2)}¢` : `${r.charged_cents.toFixed(2)}¢ counted — some tries returned no usage and are counted at their most; the actual cost may be lower`}.</span>}
     </div>
   );
 }
