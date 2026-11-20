@@ -186,6 +186,20 @@ export function pendingFrom(files, count, maxSeq, held = [], seqs = null) {
  * that fact go unrecorded — `source` rides into the generated header, so a file built from typed
  * integers never looks like one built from a live read.
  */
+/** The paste file's body for these migrations: each in its own begin … commit (R32), in order. Exported so db.r32 can
+ *  test the wrapping on real files even when nothing is pending (2026-11-20). */
+export function pasteSections(pending, dir = DIR) {
+  return pending.map((m) => [
+    "-- ============================================================",
+    `-- ${m.file}`,
+    "-- ============================================================",
+    `begin;   -- ${m.file.slice(0, 4)}, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again`,
+    readFileSync(join(dir, m.file), "utf8").replace(/\s*$/, ""),
+    `commit;  -- ${m.file.slice(0, 4)}`,
+    "",
+  ].join("\n")).join("\n");
+}
+
 export async function readLedger(argv, app, doFetch = fetch) {
   const arg = (name) => {
     const hit = argv.find((a) => a.startsWith(`--${name}=`));
@@ -310,15 +324,7 @@ async function main() {
   }
 
   const body = verdict.pending.length
-    ? verdict.pending.map((m) => [
-        "-- ============================================================",
-        `-- ${m.file}`,
-        "-- ============================================================",
-        `begin;   -- ${m.file.slice(0, 4)}, its own transaction: if it stops, what is above it stays applied and nothing below it runs — paste the file again`,
-        readFileSync(join(DIR, m.file), "utf8").replace(/\s*$/, ""),
-        `commit;  -- ${m.file.slice(0, 4)}`,
-        "",
-      ].join("\n")).join("\n")
+    ? pasteSections(verdict.pending)
     : [
         heldFiles.length
           ? "-- Nothing is pending but the held migration(s) named above, which are applied by hand, each on its own yes."
