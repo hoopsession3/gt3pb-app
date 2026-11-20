@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adminFromRequest, callerClient, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled } from "@/lib/anthropic";
+import { fetchPageText } from "@/lib/pageFetch";
 import { isJsonObject, route } from "@/lib/apiRoute";
 import { runIntake, type Deps, type ModelRequest } from "@/lib/libraryResearch";
 import type { Known } from "@/lib/libraryIntake";
@@ -69,9 +70,11 @@ async function post(req: Request) {
       return { bytes: new Uint8Array(await r.data.arrayBuffer()), mime: r.data.type || (path.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream") };
     },
     model: async (q: ModelRequest) => {
-      const r = await callClaude({ model: q.model, system: q.system, messages: q.messages as any, tools: q.tools as any, maxTokens: q.maxTokens, temperature: 0, label: "library-intake" });
+      // One try, no cache marker: lib/libraryResearch reserves each try at its bound before sending it (lib/researchBudget).
+      const r = await callClaude({ model: q.model, system: q.system, messages: q.messages as any, tools: q.tools as any, tool_choice: q.tool_choice, maxTokens: q.maxTokens, temperature: 0, label: "library-intake", attempts: 1, cache: false });
       return { content: r.content, stop_reason: r.stop_reason, usage: r.usage ?? null };
     },
+    fetchPage: (url, maxBytes) => fetchPageText(url, maxBytes),
     now: () => Date.now(),
   };
   try {
