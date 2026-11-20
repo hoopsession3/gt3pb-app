@@ -37,7 +37,7 @@ ok("…nor can it go in with the safe rest (a claim is a reason to decide alone)
 
 // ── plain words, the governance kept ──
 ok("no developer words left: no 'standard depth', 'charged in full', 'it researches within its budget'", !/standard depth|charged in full|within its budget/.test(intake));
-ok("…the research said plainly: a quick look, a standard search, a deep search, and what it cost", /"A quick look"/.test(intake) && /"A deep search"/.test(intake) && /"A standard search"/.test(intake) && /cost \$\{r\.charged_cents\.toFixed\(2\)\}¢/.test(intake));
+ok("…the research said plainly: read within its limit, no web search (IMS8 bounded path), and what it cost", /Read within a \{r\.plan\.worstCents\}¢ limit \(no web search\)/.test(intake) && /cost \$\{r\.charged_cents\.toFixed\(2\)\}¢/.test(intake));
 ok("the governance words are all still said", [/Unknown is never approved\. Nothing here is a certification\./, /\(intent, not an assessment\)/, /not verified as this exact product/, /a placeholder, not the product/].every((r) => r.test(lib)) && /It stays a candidate/.test(intake) && /never approves anything/.test(intake) && /not verified as this exact product/.test(intake));
 ok("one colour for what needs an eye (the warning amber) — no red anywhere in the library", !/--red|--danger|#b82420|signal-red|text-red/i.test(css + lib + intake));
 console.log(`IMS7-A — THE LIBRARY, INSPECTED IN PARTS: ${pass} passed, ${fail} failed`);
