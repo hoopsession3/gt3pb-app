@@ -81,6 +81,15 @@ const xTake = await as(OLA, `select public.course_take_back($1)`, [C1]);
 const pa = await q1(`select revoked_at, source, note, (select count(*)::int from public.program_access where customer_id = $1) n from public.program_access where customer_id = $1`, [C1]);
 ok("another business's owner can't give our customer the course (PT404) and taking it back does nothing (revoked 0)", xGive.code === "PT404" && xTake.rows[0]?.course_take_back?.revoked === 0 && pa.n === 1 && pa.revoked_at === null && pa.note === "a gift", { xGive, xTake, pa });
 ok("…the owner, through the door: taken back", !(await as(ALEX, `select public.course_take_back($1)`, [C1])).code && !!(await q1(`select revoked_at from public.program_access where customer_id = $1`, [C1]))?.revoked_at);
+// 2026-11-11 (Ryan: "ensure future administrative actions retain the initiating person's identity"): a grant and a take-back
+// made through the doors carry the person on the row (granted_by / revoked_by) and in its history (actor); a write with
+// no session (the server's key, the SQL editor) has no person to record — the production validation's two lines were that.
+{ const row = await q1(`select id, granted_by, revoked_by from public.program_access where customer_id = $1`, [C1]);
+  const lines = await q(`select action, actor from public.admin_audit where table_name = 'program_access' and row_pk = $1 order by created_at`, [row.id]);
+  ok("the doors keep who did it: granted_by and revoked_by are the owner, and every history line of the grant and the take-back names the owner", row.granted_by === ALEX && row.revoked_by === ALEX && lines.length >= 2 && lines.every((l) => l.actor === ALEX), { row, lines });
+  await q(`update public.program_access set note = 'system touch' where id = $1`, [row.id]);
+  const sys = await q1(`select actor from public.admin_audit where table_name = 'program_access' and row_pk = $1 order by created_at desc limit 1`, [row.id]);
+  ok("…a write with no session records no person (actor null) — it can't invent one", sys?.actor === null, sys); }
 
 // ── shop orders: changed through their doors ───────────────────────────────────────────────────────────────────────
 const SO = (await q1(`insert into public.shop_orders (email, ship_name, total_cents, status, tenant_id) values ('pat@example.test', 'Pat Student', 3200, 'paid', $1) returning id`, [T1])).id;
