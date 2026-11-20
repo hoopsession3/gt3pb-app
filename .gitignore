@@ -64,3 +64,4 @@ next-env.d.ts
 # the console phone check (R49): its own build and its screenshots
 /.next-console/
 /.smoke-console/
+/.journey-ordersheet
