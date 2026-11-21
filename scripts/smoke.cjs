@@ -10087,7 +10087,7 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
 
   // ── the gates ──
   const pkg = JSON.parse(read("package.json"));
-  ok("iphone: npm run verify ends by building the app's smoke build and opening it on three iPhones", /&& npm run build:app -- --smoke && npm run smoke:native$/.test(pkg.scripts.verify));
+  ok("iphone: npm run verify's gate ends by building the app's smoke build and opening it on three iPhones", /&& npm run build:app -- --smoke && npm run smoke:native$/.test(pkg.scripts["verify:gate"]) && /^npm run verify:gate && /.test(pkg.scripts.verify));
   const wf = read(".github/workflows/ios.yml");
   ok("iphone: the TestFlight upload refuses the smoke build, and an app built without its backend", /gt3-smoke-build\.json/.test(wf) && /NEXT_PUBLIC_SUPABASE_URL/.test(wf));
   // THE WEB'S PUBLIC SETTINGS (2026-10-10): build 72 carried Supabase's two and none of the rest, so its checkout took no cards.
