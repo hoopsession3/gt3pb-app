@@ -11,12 +11,11 @@ import EmptyState from "@/components/EmptyState";
 import { Masthead, SectionHeader, ClosingBeat } from "@/components/kit";
 import { supabase } from "@/lib/supabase";
 import Icon from "@/components/Icon";
-import CookEnforcement from "@/components/CookEnforcement";
 import {
   PRODUCTS, CERTS, ROLES, READINESS, PASS_DEFAULT, ACKS, ackByKey, certExpiryDays,
   moduleBySlug, certByKey, pathForRole, certEarned, requiredModules, sectionMeta, expectationsFor,
   readinessGap, renewalLeft, assignmentDone, teamMemberRow, toAcademyRole,
-  type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike, type Cookbook, type Lesson,
+  type Module, type Product, type QuizQ, type Role, type Ack, type AssignmentLike, type Lesson,
 } from "@/lib/academy";
 import { staffAccess } from "@/lib/access";
 import { useBackStep } from "@/components/useBackStep";
@@ -26,9 +25,10 @@ import { useMinute } from "@/lib/useMinute";
 import { useLatestRead } from "@/lib/useLatestRead";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { authedFetch } from "@/lib/authedFetch";
-import RecipeEditor from "@/components/RecipeEditor";
-import { CURRENT, resolveRecipe, canPublishRecipes, type RecipeBody, type RecipeSource } from "@/lib/recipeEdit";
+import dynamic from "next/dynamic";
 import { plainFailure, failureWords } from "@/lib/failureWords";
+// The cookbook panel (and the recipe sheet behind it) loads when a product is opened, not with the page (0476).
+const CookbookPanel = dynamic(() => import("@/components/CookbookPanel"), { ssr: false });
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
 // what the role owns, the non-negotiables, the rhythm it keeps, and how it is actually judged.
@@ -574,71 +574,8 @@ async function loadLesson(slug: string): Promise<Lesson> {
 // ── the cookbook, read from the server (IP0 containment, 2026-10-27) ──
 // The recipes and specs no longer ship in this page's JavaScript: they come from /api/academy/cookbook, which answers only
 // a signed-in caller the database lets read them, and are kept in memory for the visit — never in storage.
-type CookbookBook = { cookbook: Record<string, Cookbook & { amounts?: unknown[]; fill?: string }>; sources: Record<string, RecipeSource> };
-let cookbookCache: CookbookBook | null = null;
-async function loadCookbook(): Promise<CookbookBook> {
-  if (cookbookCache) return cookbookCache;
-  const r = await authedFetch("/api/academy/cookbook");
-  if (r.status === 401) throw new Error("The cookbook is for the team — sign in with a staff account to read it.");
-  const j = (await r.json().catch(() => null)) as ({ ok?: boolean } & Partial<CookbookBook>) | null;
-  if (!r.ok || !j?.ok || !j.cookbook) throw new Error("Couldn't read the cookbook just now.");
-  cookbookCache = { cookbook: j.cookbook, sources: j.sources ?? {} };
-  return cookbookCache;
-}
-function CookbookPanel({ productKey, productName }: { productKey: string; productName: string }) {
-  // 0476: the published version (the one Ask GT3 answers from), its version line, and the door to correct it.
-  const [nonce, setNonce] = useState(0);
-  const state = useAsyncData(loadCookbook, [nonce]);
-  const [editing, setEditing] = useState<"read" | "edit" | null>(null);
-  const { profile } = useAuth();
-  const close = () => { setEditing(null); cookbookCache = null; setNonce((n) => n + 1); };
-  if (state.status === "error") return <><SectionHeader label="Cookbook · operating spec" /><p className="load-failed">{failureWords(state.error as Error, "Couldn't read the cookbook")}</p></>;
-  if (!state.data) return <><SectionHeader label="Cookbook · operating spec" /><Skeleton variant="row" count={3} /></>;
-  const raw = state.data.cookbook[productKey];
-  if (!raw) return null;
-  const cb = resolveRecipe(raw as RecipeBody);   // the batch line and the build written from the amounts
-  return (
-    <>
-        <>
-          <SectionHeader label="Cookbook · operating spec" />
-          <div className="rx-ver" data-testid="cookbook-version">{CURRENT}</div>
-          {cb.batch && <div className="ac-faq"><b>Batch</b><span>{cb.batch}</span></div>}
-          {cb.fill && <div className="ac-faq"><b>Bottle fill</b><span>{cb.fill}</span></div>}
-          {cb.brew && (
-            <div>
-              <div className="ac-mini-h">Procedure</div>
-              {/* 2026-10-01. A new operator is joining who will be cooking, and the Cookbook is
-                  where he reads the method. Driven by the cookbook's `weighs` FLAG, never by
-                  searching these sentences for the word "weigh" — see the note on that field in
-                  lib/academy.ts. It appears on the procedures that weigh and nowhere else, for the
-                  same reason BrewSteps only shows it on weighed lines. */}
-              {cb.weighs && (
-                <CookEnforcement label="Scale">
-                  Anything weighed here goes on a scale on a <b>hard, flat, level surface</b> — a
-                  counter, not a cutting board, towel, tray, or the lip of a sink. Empty container
-                  on, <b>TARE / ZERO</b> to <b>0</b>, then add until the display matches.{" "}
-                  <b>Re-zero for every ingredient.</b> This ratio is weight to weight, so a tilted
-                  scale — or one zeroed with something already on it — carries into the whole batch.
-                </CookEnforcement>
-              )}
-              <ol className="ac-ol">{cb.brew.map((x) => <li key={x}>{x}</li>)}</ol>
-            </div>
-          )}
-          {cb.serve && <div><div className="ac-mini-h">Serve</div><ul className="ac-ul">{cb.serve.map((x) => <li key={x}>{x}</li>)}</ul></div>}
-          {cb.storage && <div className="ac-faq"><b>Storage</b><span>{cb.storage}</span></div>}
-          {cb.quality && <div className="ac-faq"><b>Quality standard</b><span>{cb.quality}</span></div>}
-          {cb.troubleshoot && <div><div className="ac-mini-h">Troubleshooting</div>{cb.troubleshoot.map((t, i) => <div key={i} className="ac-faq"><b>{t.issue}</b><span>{t.fix}</span></div>)}</div>}
-          <div className="rx-row">
-            <Button kind="secondary" compact onClick={() => setEditing("edit")}>{canPublishRecipes(profile) ? "Edit recipe" : "Suggest a correction"}</Button>
-            <Button kind="quiet" onClick={() => setEditing("read")}>Versions</Button>
-          </div>
-        </>
-        {editing && <RecipeEditor productKey={productKey} productName={productName} start={editing} onClose={close} />}
-    </>
-  );
-}
-
 // ── admin team-readiness board + assignment ──
+
 function TeamBoard({ onBack, assignFor = null }: { onBack: () => void; assignFor?: string | null }) {
   // Each of the Academy's own views is a step (components/useBack): the bar's "‹ Academy", the edge swipe and
   // the browser's Back return to the path — its "‹ Academy" used to be the first thing in the view, and
