@@ -4473,8 +4473,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length >= 2,
     cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length);
   ok("cookbooks: the page shows the band from the FLAG and never from the prose",
-    /\bcb\.weighs\s*&&/.test(read("app/academy/page.tsx"))   // IP0: the panel reads the served cookbook as `cb`
-    && !WEIGH_WORDS.test((read("app/academy/page.tsx").match(/\bcb\.brew\.(?:some|filter|find)\([\s\S]{0,200}/) ?? [""])[0]));
+    /\bcb\.weighs\s*&&/.test(read("components/CookbookPanel.tsx"))   // IP0: the panel reads the served cookbook as `cb` (0476: its own file, loaded with a product)
+    && !WEIGH_WORDS.test((read("components/CookbookPanel.tsx").match(/\bcb\.brew\.(?:some|filter|find)\([\s\S]{0,200}/) ?? [""])[0]));
   ok("measuring: a fluid ounce is a volume and a 10 oz bottle a size — neither calls for the scale band; \"12 oz\" and \"ounces\" of beans still do",
     !WEIGH_WORDS.test('"Into a 10 oz bottle: 6.5 fl oz DUSK cold brew, 2 fl oz goat milk", "8 × 10 oz bottles"')
     && WEIGH_WORDS.test('"12 oz beans"') && WEIGH_WORDS.test('"ounces of beans"') && !WEIGH_WORDS.test('"2 fluid ounces"'));

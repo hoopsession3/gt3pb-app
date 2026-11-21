@@ -92,7 +92,10 @@ const PLAY = passages({ core: SC.STRATEGY_CORE, plays: SC.GTM_PLAYS.map((p) => O
   ok("neither is ever cached — private, no-store, on every answer", [cook, pb].every((s) => /private, no-store, max-age=0/.test(s) && (s.match(/headers: PRIVATE/g) ?? []).length >= 2));
   ok("the service worker never caches /api (where they now live)", /\/api\//.test(read("public/sw.js")));
   const page = read("app/academy/page.tsx"), pbp = read("app/playbook/page.tsx");
-  ok("the Academy reads the cookbook from the route, in memory only", /authedFetch\("\/api\/academy\/cookbook"\)/.test(page) && !/localStorage|sessionStorage/.test(page.slice(page.indexOf("function loadCookbook"), page.indexOf("function CookbookPanel"))));
+  // 0476: the Academy's cookbook panel is its own file (components/CookbookPanel, loaded with a product), and the page loads it.
+  const panel = read("components/CookbookPanel.tsx");
+  ok("the Academy reads the cookbook from the route, in memory only", /import\("@\/components\/CookbookPanel"\)/.test(page) && /authedFetch\("\/api\/academy\/cookbook"\)/.test(panel)
+    && !/localStorage|sessionStorage/.test(panel.slice(panel.indexOf("function loadCookbook"), panel.indexOf("function CookbookPanel"))) && panel.indexOf("function loadCookbook") > 0);
   ok("the Playbook reads the playbook from the route, after the owner/admin gate", /authedFetch\("\/api\/playbook"\)/.test(pbp) && pbp.indexOf("return <PlaybookScreen role={role} />") > pbp.indexOf('role !== "owner" && role !== "admin"'));
 }
 
