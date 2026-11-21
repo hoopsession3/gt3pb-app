@@ -147,7 +147,11 @@ export const CEILING = {
   // verified approval — recorded as unverified in docs/releases/IMS8-STATUS.md. The by-name inventory stays: the audit
   // still judges every callable definer by name and role against scripts/security.definers.mjs, AND the count against
   // this ceiling — so production's measured 140 fails here, visibly, until the 13 named increases are explicitly accepted.
-  definerExec: 127,    // SECURITY DEFINER functions the API roles may call — the last APPROVED ceiling (0437 snapshot)
+  // 2026-11-20 (Ryan, D6): the 13 increases accepted by name, in their reviewed production forms: the 12 as they stand,
+  // and course_status in its 0475 owner/admin-only form (applied 11:13:19 UTC, post-apply 7/7). Recorded in
+  // docs/releases/IMS8-STATUS.md against snapshot 7831c23d (ledger 0475: 140 callable, 16 signed out, all pinned). The
+  // count is still held to this ceiling, and every function still judged by name and role (scripts/security.definers.mjs).
+  definerExec: 140,    // SECURITY DEFINER functions the API roles may call — APPROVED 2026-11-20 (127 + the 13 D6 names)
   // …and of them, the ones a caller with NO session may call: the anon key every phone carries. Supabase grants anon by
   // name, so this is what is left once each migration has said who keeps a function (0401). First measured on the
   // snapshot at ledger 0401 (2026-10-14): 55 before 0401, 14 after.
@@ -160,7 +164,7 @@ export const CEILING = {
 // authorized and why (IMS7-0467, then the IMS8 baseline, 2026-11-03: the whole inventory is named, not only what is new).
 // scripts/db.privileged.test.mjs replays the migrations and fails unless what is callable at the mark and at the latest
 // migration is exactly the inventory at those ledgers, by name and role, each with a pinned search_path.
-export const SNAPSHOT_MARK = "0473";
+export const SNAPSHOT_MARK = "0475";   // 2026-11-20: the snapshot re-pulled at 0475 (identical to 0473 but the ledger)
 const seq = (x) => (x ? Number(x) : 0);
 export const PRIVILEGED_SINCE_SNAPSHOT = DEFINERS.filter((d) => seq(d.since) > Number(SNAPSHOT_MARK))
   .map((d) => ({ fn: d.fn, in: d.since, roles: d.roles, why: `${d.why} — ${d.path}` }));

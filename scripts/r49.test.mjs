@@ -21,9 +21,19 @@ const css = read("app/globals.css");
 {
   const s = read("scripts/smoke.console.mjs");
   const pkg = JSON.parse(read("package.json"));
-  ok("it runs in verify — after the signed-in smoke, before the iPhone app's build — and CI says so",
-    /npm run smoke:authed && npm run smoke:console && npm run build:app/.test(pkg.scripts.verify) && pkg.scripts["smoke:console"] === "node scripts/smoke.console.mjs"
-      && /smoke:authed && smoke:console && build:app/.test(read(".github/workflows/ci.yml")));
+  // 2026-11-21 (PR #136): the walk is verify's second half and CI's `console` job — required, beside `verify`, 120 minutes,
+  // the same setup (Node from .nvmrc, npm ci, Playwright's Chromium), every screen and diagnosis kept when it doesn't pass.
+  const wf = read(".github/workflows/ci.yml");
+  const job = (name) => { const i = wf.indexOf(`\n  ${name}:\n`); if (i < 0) return ""; const rest = wf.slice(i + 1); const j = rest.slice(1).search(/\n  [a-z][\w-]*:\n/); return j < 0 ? rest : rest.slice(0, j + 1); };
+  const con = job("console"), ver = job("verify");
+  ok("it runs in verify — its second half, after verify:gate — and CI runs it as a job of its own beside verify",
+    pkg.scripts.verify === "npm run verify:gate && npm run smoke:console" && pkg.scripts["smoke:console"] === "node scripts/smoke.console.mjs"
+      && !/smoke:console/.test(pkg.scripts["verify:gate"]) && /run: npm run smoke:console$/m.test(con) && !/smoke:console/.test(ver.replace(/^\s*#.*$/gm, "")));
+  ok("ci.yml: the console job has its own 120-minute budget, the same setup as verify, no condition, and is a gate (no continue-on-error)",
+    /timeout-minutes: 120\n/.test(con) && /runs-on: ubuntu-24\.04/.test(con) && /node-version-file: \.nvmrc/.test(con) && /- run: npm ci\n/.test(con)
+      && /run: npx playwright install --with-deps chromium/.test(con) && !/^\s+if:(?! failure\(\) \|\| cancelled\(\))/m.test(con) && !/continue-on-error|needs:/.test(con) && !/secrets\./.test(con), con);
+  ok("ci.yml: its screens and diagnosis are kept when it fails, is cancelled or times out",
+    /if: failure\(\) \|\| cancelled\(\)\n\s+uses: actions\/upload-artifact@/.test(con) && /path: \.smoke-console\//.test(con) && /if-no-files-found: ignore/.test(con), con);
   ok("three phones — iPhone 17, iPhone SE, iPhone 17 Pro Max — and every section the owner opens",
     /\{ key: "iphone-17", w: 402, h: 874, dpr: 3 \}/.test(s) && /\{ key: "iphone-se", w: 375, h: 667, dpr: 2 \}/.test(s) && /\{ key: "iphone-17-pro-max", w: 440, h: 956, dpr: 3 \}/.test(s)
       && /"day", "now", "command", "prep", "plan", "studio", "brew", "garage", "notes", "driver", "money", "catalog", "customers", "team", "settings"/.test(s));

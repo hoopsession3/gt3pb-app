@@ -63,8 +63,12 @@ const code = (t) => t.split("\n").map((l) => l.replace(/^\s*#.*$/, "").replace(/
   ok("`npm run release` is verify, then npm's advisories — the two CI runs — and `advisories` asks what ships, high and critical",
     s.release === "npm run verify && npm run advisories" && s.advisories === "npm audit --omit=dev --audit-level=high" && s["release:plan"] === "node scripts/release.plan.mjs");
   const ci = code(read(".github/workflows/ci.yml"));
-  ok("CI runs verify by name and the advisories beside it — and no lint step of its own any more (verify runs it)",
-    /run: npm run verify$/m.test(ci) && /run: npm audit --omit=dev --audit-level=high$/m.test(ci) && !/run: node scripts\/lint\.ratchet\.mjs/.test(ci));
+  // 2026-11-21 (PR #136): verify is two named halves — verify:gate, then smoke:console — and CI runs each by its name in a
+  // job of its own, beside each other, so neither is a hand-copied list and the walk has its own budget.
+  ok("CI runs verify's two halves by name — verify:gate in verify, smoke:console in console — and the advisories beside them; no lint step of its own",
+    /run: npm run verify:gate$/m.test(ci) && /run: npm run smoke:console$/m.test(ci) && !/run: npm run verify$/m.test(ci)
+      && s.verify === "npm run verify:gate && npm run smoke:console" && !/smoke:console/.test(s["verify:gate"])
+      && /run: npm audit --omit=dev --audit-level=high$/m.test(ci) && !/run: node scripts\/lint\.ratchet\.mjs/.test(ci));
   const readme = read("README.md");
   ok("…and the README says so: release is the whole gate, and RELEASE.md the sequence after it",
     /npm run release {12}# the whole gate/.test(readme) && /The ship sequence after it is RELEASE\.md\./.test(readme) && !/CI runs exactly this\. Green before any ship\./.test(readme));
@@ -262,7 +266,8 @@ console.log(JSON.stringify({ ties, later: b > a }));`;
       && !/bcast/.test(nbc.replace(/\/\*[\s\S]*?\*\//g, "")) && /<html lang="en" data-build=\{APP_BUILD \? "app" : undefined\}>/.test(lay)
       && /if \(body\.includes\("\.native-bar\{"\)\) await new Promise\(\(r\) => setTimeout\(r, 1500\)\);/.test(sn) && /…with the bridge's stylesheet arriving last, as a slow phone has it/.test(sn) && /held\.bridgeCss === true && held\.shift < 0\.01/.test(sn));
   const ciy = read(".github/workflows/ci.yml");
-  ok("CI lets a slow green run finish: 40 minutes for a gate that took 21", /runs-on: ubuntu-24\.04\n(?:\s+#.*\n)+\s+timeout-minutes: 40\n\s+steps:/.test(ciy));
+  // 60 since 2026-11-20: the full gate reached 39m 47s on its last green run and run #966 was cut off at 40 with nothing failed.
+  ok("CI lets a slow green run finish: 60 minutes for a gate that reached 40", /runs-on: ubuntu-24\.04\n(?:\s+#.*\n)+\s+timeout-minutes: 60\n\s+steps:/.test(ciy));
   ok("…and TestFlight's refusal says what to do with a red run: open it, fix it or re-run it",
     /Failed: open that run, fix it or re-run it, and once it is green run this again\./.test(read(".github/workflows/ios.yml")));
 }

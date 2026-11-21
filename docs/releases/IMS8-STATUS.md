@@ -627,3 +627,35 @@ The journey passes 5/5 on 0473 and 5/5 with 0475. The replayed 0475 paste sequen
   - The fix is the 0475 branch (`d3c95a7b`: the migration, its checks and rollback, 0474's order-independent pre-paste check, and 0475 off the held list), landed with its own approval.
 
 **Open:** D6 (the 13 increases; 12 recommended to accept; `course_status` narrowed by 0475, applied and verified 2026-11-20); 0474 (held); landing the 0475 branch on `main`; the research production run; the production investor-link test; the intermittent screen-walk issue.
+
+### 2026-11-20: security snapshot at 0475, and the D6 decisions
+
+**Snapshot re-pulled at ledger 0475** (read-only, approved, one query; commit `7831c23d`, `supabase/schema.security.json`):
+- The existing `scripts/security.snapshot.sql`, unchanged, reassembled with the digest verified. Pulled 2026-11-20T14:45:03Z; ledger 470 rows, high-water 0475.
+- Identical to the 0473 snapshot in every section (relations and policies, expressions, unique keys, triggers, buckets, platform tables, definers), apart from the ledger and the time.
+- **140 callable SECURITY DEFINER functions, 16 of them signed out, every one with a pinned search_path.** The same names and roles as at 0473: 0475 changed only `course_status`'s caller check, which the snapshot doesn't record (the post-apply check did, 7/7 t).
+- The audit now measures production at 0475, with no "not checked". Its one failure is the count against the ceiling (140 > 127); the by-name and by-role checks pass. It doesn't name 0474 as held; that is the production migration check's job, which does (run #460: "470 rows, high-water 0475", 0474 held). 0474 adds and removes no privileged function.
+
+**D6, approved by Ryan, 2026-11-20, by name, in their reviewed production forms** (against snapshot `7831c23d`):
+
+| Function | Signed out | Approved form |
+|---|---|---|
+| `primal_lesson_previews()` | yes | public by design: published lesson cards of this business, never a lesson's body |
+| `vision_shared(p_token text)` | yes | public by design, by token: the link's published payload only, with the opens limited |
+| `course_give(p_customer uuid, p_note text)` | no | owner/admin, this business |
+| `course_take_back(p_customer uuid)` | no | owner/admin, this business |
+| `course_students()` | no | owner/admin (since 0473) |
+| `customers_total()` | no | crew of this business; a count only |
+| `std_research_reserve(p_intake uuid, p_depth text)` | no | owner/admin, this business's intake |
+| `std_accept_facts(p_ids uuid[], p_corrections jsonb, p_bulk boolean)` | no | owner/admin, this business's facts |
+| `std_reject_facts(p_ids uuid[], p_note text)` | no | owner/admin, this business's facts |
+| `vision_share_preview(p_share uuid, p_draft jsonb)` | no | owner/admin (second step); money/research owner only |
+| `vision_share_review(p_share uuid, p_draft jsonb)` | no | owner/admin; money/pin owner only; writes nothing |
+| `vision_share_publish(p_share uuid, p_draft jsonb, p_fingerprint text, p_confirm text[])` | no | as review, plus the reviewed fingerprint and exact confirmations |
+
+**Approved separately:** `course_status(p_customer uuid)`, in its **0475 owner/admin-only form**. It was applied 2026-11-20 11:13:19 UTC from sha256 `6065ca14cbf703653912d1b7e1fa0e19f6e90153b7ba564d9effc71c876c1acf` (the repository file `815ad155…` adds two comment lines only). Post-apply check 7/7 t: the body fingerprint `4556ee02…`, `is_admin()` and not `is_staff()`, grants unchanged, search_path pinned, 0475 in the ledger exactly once, 0474 absent.
+
+**What this does not change by itself:**
+- **The ceiling stays 127** until its own approval. The audit keeps failing 140 > 127 until then.
+- The by-name and by-role inventory checks stay.
+- 0474 stays held.

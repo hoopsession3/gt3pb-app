@@ -15,8 +15,10 @@
 #     a select naming a column production does not have.
 #
 # The common cause was somebody (me) choosing a cheaper subset and reporting its result as the real
-# one. The fix is not to try harder. It is to make the subset impossible: CI runs `npm run verify`
-# ITSELF rather than a hand-copied list of its parts, so the two cannot drift. Change what verified
+# one. The fix is not to try harder. It is to make the subset impossible: CI runs `npm run verify`'s
+# parts BY THEIR NAMES in package.json rather than a hand-copied list of its steps, so the two cannot
+# drift. Since 2026-11-21 that is two names — verify:gate (job `verify`) and smoke:console (job
+# `console`), both required — because `verify` is defined as exactly those two. Change what verified
 # means in package.json and this follows automatically.
 #
 # ── WHY claude/** IS HERE ──────────────────────────────────────────────────────────────────────
@@ -51,7 +53,11 @@ jobs:
     # 40, not 30 (R40 — the fresh audit's OPS11-07): the whole gate took 20m 45s, 20m 57s and 21m 20s on main's last full
     # runs (R32, R33, R29), and every round adds to it — a third more on a slower runner and a green tree would be cut off
     # as a red one. A run that hangs still ends; one that is only slow is let finish.
-    timeout-minutes: 40
+    # 60, not 40 (2026-11-20, PR #136's run #966): the last full green verify (2026-10-26) took 39m 47s — 13 seconds
+    # under the old ceiling — and #966 passed test, audit (R36 included), build and smoke:ui in 18 minutes, then was
+    # cancelled at 40m while smoke:console was still building and walking the phones (it had run 20 minutes, with no
+    # failure printed). The gate grew past its budget; nothing in it failed.
+    timeout-minutes: 60
     steps:
       # Every action by the commit it is, not by a tag (R30 — the 10/10 audit, operations F21, security F14): a tag is a
       # pointer its owner — or whoever takes their account — can move to other code, and the job runs whatever it points
@@ -88,8 +94,41 @@ jobs:
       # could only say NOT CHECKED — while `npm ci`'s lifecycle scripts and the browser install could read a staff
       # account's password. smoke:authed says NOT CHECKED here, and opens the console signed in for real in the
       # Production workflow, against the deployed site, after each deploy and daily.
-      - name: verify (test && audit — the lint ratchet and the secrets audit among them — && build && smoke:ui && smoke:authed && smoke:console && build:app && smoke:native)
-        run: npm run verify
+      - name: verify:gate (test && audit — the lint ratchet and the secrets audit among them — && build && smoke:ui && smoke:authed && build:app && smoke:native)
+        run: npm run verify:gate
+
+  # THE PHONE WALKTHROUGH, A JOB OF ITS OWN (2026-11-21, PR #136 — Ryan: "Give smoke:console its own required CI job. It
+  # was still making progress when the shared 60-minute limit expired."). The walk opens every section of the crew
+  # console on three phones and the vision on ten more screens (tablets both ways up, Split View, desktops, a projector),
+  # against a stand-in database it builds the app for: on a runner, more than the rest of the gate together. Inside
+  # verify it made the whole gate wait on it and then cut it off (#966 at 40m, #968 at 60m, both still walking, nothing
+  # failed). Here it runs beside verify on the same commit, with its own budget, and is REQUIRED for merge like verify;
+  # `npm run verify` for a person is still the whole gate — verify:gate, then this — by one definition in package.json.
+  # Every screen it took and the diagnosis it wrote are kept when it fails, is cancelled or runs out of time.
+  console:
+    runs-on: ubuntu-24.04
+    # 120: three full phone walks took about 8 minutes each on a 2-core machine (2026-11-20, measured on this tree), the
+    # ten visit-only screens after them, and the build before — with room for a slower runner.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium for the console walk
+        run: npx playwright install --with-deps chromium
+      - name: smoke:console (the crew console on every phone, and the vision on every screen size — the full walkthrough)
+        run: npm run smoke:console
+      - name: Keep the screens and the diagnosis
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: console-walk
+          path: .smoke-console/
+          retention-days: 14
+          if-no-files-found: ignore
 
   # WHAT SHIPS CARRIES NO PUBLISHED ADVISORY OF NOTE (R30 — the 10/10 audit, operations F24). npm's advisory database,
   # asked of the dependencies that reach a phone or the server, failing on high and critical. The build tools' own
