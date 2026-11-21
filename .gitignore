@@ -65,3 +65,4 @@ next-env.d.ts
 /.next-console/
 /.smoke-console/
 /.journey-ordersheet
+.journey-recipes/
