@@ -485,43 +485,5 @@ html[data-build="app"] :is(.app:has(>.bcast),[data-hold-bcast] .app:has(>.hold-s
 .app:is(.rd-t1,.rd-t2,.rd-t3,.rd-t4,.rd-t5,.rd-t6) :is(.offline-bar,.bcast>*){zoom:var(--rd-bar-z)}
 .qd-body>*{zoom:var(--rd-root-z,1)}
 
-/* ── THE RECIPE SHEET (components/RecipeEditor, 0476) ── read · suggest a correction · review · history. Phone first:
-   the amounts are a four-column grid that fits 375pt, every field 16px (no iOS zoom on focus), every tap 44pt. */
-.rx{display:flex;flex-direction:column;gap:14px;padding-bottom:12px}
-.rx-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.rx-ver{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--bronze);margin-top:3px}
-.rx-note,.rx-who{font-size:13px;line-height:1.5;color:var(--cream-m);margin:0}
-.rx-who b{color:var(--cream)}
-.rx-warn{font-size:13px;line-height:1.45;color:var(--warn);margin:0}
-.rx-actions{display:flex;flex-direction:column;gap:8px}
-.rx-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.rx-field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--cream-m)}
-.rx-field .ev-input,.rx-amt .ev-input,.rx-steps .ev-input{font-size:16px;width:100%;min-width:0}
-.rx-amts{display:flex;flex-direction:column;gap:6px}
-.rx-amt{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr) 32px;grid-template-areas:"item item item x" "single large unit x";gap:6px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--line)}
-.rx-amt>:nth-child(1){grid-area:item}.rx-amt>:nth-child(2){grid-area:single}.rx-amt>:nth-child(3){grid-area:large}.rx-amt>:nth-child(4){grid-area:unit}.rx-amt>:nth-child(5){grid-area:x}
-.rx-amt-ro>*{grid-area:auto!important}
-.rx-amt-h{grid-template-areas:"item item item x" "single large unit x";border-bottom:0;padding-bottom:0}
-.rx-amt-ro{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr);grid-template-areas:none;font-size:15px;color:var(--cream);padding:6px 0;border-bottom:1px solid var(--line)}
-.rx-amt-h{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--bronze)}
-.rx-amt-t{font-weight:650;border-bottom:0}
-.rx-x{min-width:32px;min-height:44px;background:none;border:0;color:var(--cream-m);font-size:20px;line-height:1}
-.rx-yield{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:15px;color:var(--cream-m);padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-xl)}
-.rx-yield b{color:var(--cream);font-variant-numeric:tabular-nums}
-.rx-steps{display:flex;flex-direction:column;gap:6px;margin:0;padding-left:20px}
-.rx-steps li{display:grid;grid-template-columns:minmax(0,1fr) 32px;gap:6px;align-items:start}
-.rx-diff{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-.rx-diff li{font-size:13px;line-height:1.45;color:var(--cream-m);display:flex;flex-direction:column;gap:2px}
-.rx-diff b{color:var(--cream);font-weight:650}
-.rx-diff s{color:var(--muted)}
-.rx-diff ins{text-decoration:none;color:var(--ok)}
-.rx-card{padding:12px;border:1px solid var(--line);border-radius:var(--r-xl);margin-bottom:10px}
-.rx-meta{font-size:12px;color:var(--cream-m);margin-bottom:8px}
-.rx-hist{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px;color:var(--cream)}
-.rx-done{display:flex;flex-direction:column;gap:8px}
-.rx-done p{font-size:15px;line-height:1.5;color:var(--cream-m);margin:0}
+/* Ask GT3's buttons under a recipe answer (0476). The recipe sheet's own styles load with it: components/RecipeEditor.css. */
 .oa-recipe{display:flex;gap:8px;flex-wrap:wrap;align-self:flex-start;margin:-2px 0 4px}
-.rx-from{margin:0;padding:10px 12px;border:1px dashed var(--line2);border-radius:var(--r-xl);font-size:15px;line-height:1.45;color:var(--cream);display:flex;flex-direction:column;gap:4px}
-.rx-from-tag{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--bronze)}
-.rx-step{display:flex;flex-direction:column;gap:4px;min-width:0}
-.rx-compact{font-size:13px}
