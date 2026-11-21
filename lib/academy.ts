@@ -412,7 +412,7 @@ export const PRODUCTS: Product[] = [
   },
   {
     key: "salted_maple", name: "Salted Maple Latte", line: "Specialty", price: "$14",
-    what: "Cold-extracted coffee with real maple and a pinch of salt, balanced — not a sugar bomb.",
+    what: "Cold-extracted coffee with real maple syrup and sea salt. Balanced sweetness.",
     why: "A touch of comfort and sweetness done with a real ingredient.",
     // The build is Ryan's recipe card (2026-10-07). It had no amounts until 2026-10-09, so Ask GT3 — which answers
     // a recipe only from what is written here — could not tell a new cook how to make it. The coffee is DUSK, as
