@@ -26,6 +26,8 @@ import { useMinute } from "@/lib/useMinute";
 import { useLatestRead } from "@/lib/useLatestRead";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { authedFetch } from "@/lib/authedFetch";
+import RecipeEditor from "@/components/RecipeEditor";
+import { CURRENT, resolveRecipe, canPublishRecipes, type RecipeBody, type RecipeSource } from "@/lib/recipeEdit";
 import { plainFailure, failureWords } from "@/lib/failureWords";
 
 // What a level is held to, as opposed to what it has been taught. Four separate things on purpose:
@@ -551,7 +553,7 @@ function ProductDetail({ p, onBack }: { p: Product; onBack: () => void }) {
       <SectionHeader label="FAQs" />
       {p.faqs.map((f, i) => <div key={i} className="ac-faq"><b>{f.q}</b><span>{f.a}</span></div>)}
 
-      <CookbookPanel productKey={p.key} />
+      <CookbookPanel productKey={p.key} productName={p.name} />
     </section>
   );
 }
@@ -572,27 +574,36 @@ async function loadLesson(slug: string): Promise<Lesson> {
 // ── the cookbook, read from the server (IP0 containment, 2026-10-27) ──
 // The recipes and specs no longer ship in this page's JavaScript: they come from /api/academy/cookbook, which answers only
 // a signed-in caller the database lets read them, and are kept in memory for the visit — never in storage.
-let cookbookCache: Record<string, Cookbook> | null = null;
-async function loadCookbook(): Promise<Record<string, Cookbook>> {
+type CookbookBook = { cookbook: Record<string, Cookbook & { amounts?: unknown[]; fill?: string }>; sources: Record<string, RecipeSource> };
+let cookbookCache: CookbookBook | null = null;
+async function loadCookbook(): Promise<CookbookBook> {
   if (cookbookCache) return cookbookCache;
   const r = await authedFetch("/api/academy/cookbook");
   if (r.status === 401) throw new Error("The cookbook is for the team — sign in with a staff account to read it.");
-  const j = (await r.json().catch(() => null)) as { ok?: boolean; cookbook?: Record<string, Cookbook> } | null;
+  const j = (await r.json().catch(() => null)) as ({ ok?: boolean } & Partial<CookbookBook>) | null;
   if (!r.ok || !j?.ok || !j.cookbook) throw new Error("Couldn't read the cookbook just now.");
-  cookbookCache = j.cookbook;
-  return j.cookbook;
+  cookbookCache = { cookbook: j.cookbook, sources: j.sources ?? {} };
+  return cookbookCache;
 }
-function CookbookPanel({ productKey }: { productKey: string }) {
-  const state = useAsyncData(loadCookbook, []);
+function CookbookPanel({ productKey, productName }: { productKey: string; productName: string }) {
+  // 0476: the published version (the one Ask GT3 answers from), its version line, and the door to correct it.
+  const [nonce, setNonce] = useState(0);
+  const state = useAsyncData(loadCookbook, [nonce]);
+  const [editing, setEditing] = useState<"read" | "edit" | null>(null);
+  const { profile } = useAuth();
+  const close = () => { setEditing(null); cookbookCache = null; setNonce((n) => n + 1); };
   if (state.status === "error") return <><SectionHeader label="Cookbook · operating spec" /><p className="load-failed">{failureWords(state.error as Error, "Couldn't read the cookbook")}</p></>;
   if (!state.data) return <><SectionHeader label="Cookbook · operating spec" /><Skeleton variant="row" count={3} /></>;
-  const cb = state.data[productKey];
-  if (!cb) return null;
+  const raw = state.data.cookbook[productKey];
+  if (!raw) return null;
+  const cb = resolveRecipe(raw as RecipeBody);   // the batch line and the build written from the amounts
   return (
     <>
         <>
           <SectionHeader label="Cookbook · operating spec" />
+          <div className="rx-ver" data-testid="cookbook-version">{CURRENT}</div>
           {cb.batch && <div className="ac-faq"><b>Batch</b><span>{cb.batch}</span></div>}
+          {cb.fill && <div className="ac-faq"><b>Bottle fill</b><span>{cb.fill}</span></div>}
           {cb.brew && (
             <div>
               <div className="ac-mini-h">Procedure</div>
@@ -617,7 +628,12 @@ function CookbookPanel({ productKey }: { productKey: string }) {
           {cb.storage && <div className="ac-faq"><b>Storage</b><span>{cb.storage}</span></div>}
           {cb.quality && <div className="ac-faq"><b>Quality standard</b><span>{cb.quality}</span></div>}
           {cb.troubleshoot && <div><div className="ac-mini-h">Troubleshooting</div>{cb.troubleshoot.map((t, i) => <div key={i} className="ac-faq"><b>{t.issue}</b><span>{t.fix}</span></div>)}</div>}
+          <div className="rx-row">
+            <Button kind="secondary" compact onClick={() => setEditing("edit")}>{canPublishRecipes(profile) ? "Edit recipe" : "Suggest a correction"}</Button>
+            <Button kind="quiet" onClick={() => setEditing("read")}>Versions</Button>
+          </div>
         </>
+        {editing && <RecipeEditor productKey={productKey} productName={productName} start={editing} onClose={close} />}
     </>
   );
 }
