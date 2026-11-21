@@ -53,7 +53,10 @@ for (const e of entries) {
   ok("…and it follows imports (the Academy page reaches lib/academy)", reach.has("lib/academy.ts"));
   for (const s of SECRET) ok(`no browser-loaded module reaches ${s}`, !reach.has(s), reach.get(s));
   const importers = (s) => files.filter((f) => importsOf(f).includes(s));
-  ok("the cookbook is read only on the server: the agents' knowledge and its route", importers("lib/academyCookbook.ts").every((f) => f.startsWith("app/api/") || ["lib/operatorKb.ts", "lib/agentKnowledge.ts"].includes(f)), importers("lib/academyCookbook.ts"));
+  // 0476: lib/recipeBook (the published book: the built-in cookbook under each recipe's published version) is server-only
+  // too — it holds the service key — and the walk above proves no browser module reaches it.
+  ok("…and the recipe book (0476) is never reached from the browser", !reach.has("lib/recipeBook.ts") && !reach.has("lib/recipeKnowledge.ts"), reach.get("lib/recipeBook.ts"));
+  ok("the cookbook is read only on the server: the agents' knowledge and its route", importers("lib/academyCookbook.ts").every((f) => f.startsWith("app/api/") || ["lib/operatorKb.ts", "lib/agentKnowledge.ts", "lib/recipeBook.ts"].includes(f)), importers("lib/academyCookbook.ts"));
   ok("the lessons are read only on the server: the agents' knowledge and their route", importers("lib/academyLessons.ts").every((f) => f.startsWith("app/api/") || f === "lib/operatorKb.ts"), importers("lib/academyLessons.ts"));
   ok("the playbook is read only by its route", importers("lib/strategyContent.ts").every((f) => f.startsWith("app/api/")), importers("lib/strategyContent.ts"));
   ok("…and the agents' knowledge modules are themselves never loaded by a browser", !reach.has("lib/operatorKb.ts") && !reach.has("lib/agentKnowledge.ts") && !reach.has("lib/brandVoice.ts"), [reach.get("lib/operatorKb.ts"), reach.get("lib/agentKnowledge.ts")]);
@@ -61,7 +64,9 @@ for (const e of entries) {
 
 // ── fingerprints: every passage of 24+ characters, compared, never printed ────────────────────────────────────────
 const passages = (v, out = []) => { if (typeof v === "string") { if (v.length >= 24) out.push(v.slice(0, 40)); } else if (Array.isArray(v)) v.forEach((x) => passages(x, out)); else if (v && typeof v === "object") Object.values(v).forEach((x) => passages(x, out)); return out; };
-const COOK = passages(loadTs("lib/academyCookbook.ts").COOKBOOK);
+// A line written from the amounts (0476: "Single mix: {{single}}. …") is a template — its quantities come from the amounts
+// at read time — and the editor offers the same template to any recipe, so it is not a passage of this cookbook.
+const COOK = passages(loadTs("lib/academyCookbook.ts").COOKBOOK).filter((x) => !x.includes("{{"));
 const SC = loadTs("lib/strategyContent.ts");
 // A lesson may quote a public line on purpose (the menu's tagline lives in lib/copy, the public copy registry): those
 // are public by definition and left out of the lesson fingerprints.
