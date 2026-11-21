@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { adminFromRequest, staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
-import { academyKnowledge } from "@/lib/operatorKb";
+import { publishedKnowledge } from "@/lib/recipeKnowledge";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
@@ -155,7 +155,7 @@ async function post(req: Request) {
         "Think like an experienced mobile-unit operator. Common field failures and how to reason about them: " +
         "POWER — a generator carries the sum of RUNNING watts plus the biggest STARTUP surge; appliances with motors/heating elements (water heater, AC, blender, ice maker) spike 2–4× on startup. If a breaker trips when a second high-draw appliance kicks on, the load exceeded the generator — shed or stagger loads (don't inrush two big draws at once), bring them up one at a time, or size up the generator. WATER/HOT WATER — check the heater's own breaker/reset, power or propane supply, that the tank isn't empty and the pump is primed. CO2/KEG — check tank level, regulator set pressure, lines/connections, temperature (warm keg foams). POS — connectivity/signal, reader battery/pairing, offline mode. STOCK — substitute, ration, or send a runner; flag the reorder. " +
         "Be SAFETY-FIRST with electrical and gas. Give an ORDERED do-this-now fix the crew can actually perform with what they have. When you don't know an exact spec (a wattage, a model's behavior), give the procedure and what to check — never invent a number. Then give prevention items that would stop a repeat. Always answer with the troubleshoot tool.\n\n=== GT3 SOPs / KNOWLEDGE ===\n" +
-        academyKnowledge().slice(0, 7000),
+        (await publishedKnowledge(tenant)).slice(0, 7000),
       messages: [{ role: "user", content: `Field problem to troubleshoot:\n\n${JSON.stringify(fmt)}` }],
       tools: [TOOL],
       tool_choice: { type: "tool", name: "troubleshoot" },
