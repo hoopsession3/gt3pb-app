@@ -1362,13 +1362,17 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   // IP0 (2026-10-27): the cookbook lives server-side now, in lib/academyCookbook, keyed by product.
   const CB = require("../.smoke/academyCookbook.js").COOKBOOK;
   const lb = (latte && CB[latte.key]) ?? {};
-  ok("cookbook: the Salted Maple Latte's build is written down — 6.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp Salted Maple Syrup per 10 oz bottle; 20 / 6 / 9 tbsp per 32 oz",
-    /^10 oz bottle: 6\.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp Salted Maple Syrup\. 32 oz bottle: 20 fl oz DUSK, 6 fl oz goat milk, 9 tbsp syrup/.test(lb.batch ?? "")
-    && (lb.brew ?? []).some((x) => /^Into a 10 oz bottle: 6\.5 fl oz DUSK, 2 fl oz goat milk, 3 tbsp syrup \(a 32 oz bottle: 20 fl oz, 6 fl oz, 9 tbsp\)\.$/.test(x)), JSON.stringify(lb.batch));
-  ok("cookbook: the Salted Maple Syrup is in it, step by step — 12 fl oz maple and 2 tbsp sea salt, warmed low, off the heat as it starts to bubble, cooled into glass, shaken before each use — and it makes 8 bottles",
-    (lb.brew ?? []).length >= 7 && /^Syrup \(makes 8 bottles\): warm 12 fl oz organic maple syrup in a pan on low heat\.$/.test(lb.brew[0])
-    && lb.brew.some((x) => /^Stir in 2 tbsp sea salt until it dissolves\.$/.test(x)) && lb.brew.some((x) => /^Take it off the heat as soon as it starts to bubble/.test(x))
-    && lb.brew.some((x) => /glass container/.test(x)) && /shake or stir before each use/.test(lb.storage ?? ""));
+  // 2026-11-20 (Ryan, from Kayla's corrected card): a single mix (10.5 fl oz) and a large batch (127 fl oz), each labelled
+  // with its real yield; the bottle fill ("about 9 fl oz") said apart from the yield; the syrup by its base ratio.
+  ok("cookbook: the Salted Maple Latte's build — single mix 7 / 2 / 3 tbsp (1.5 fl oz) = 10.5 fl oz; large batch 85 / 24 / 18 = 127 fl oz; the fill apart from the yield",
+    /^Single mix — makes 10\.5 fl oz: 7 fl oz DUSK cold brew, 2 fl oz A2 goat milk, 3 tbsp \(1\.5 fl oz\) Salted Maple Syrup\. Large batch — makes 127 fl oz: 85 fl oz DUSK cold brew, 24 fl oz A2 goat milk, 18 fl oz syrup\. Fill: about 9 fl oz per bottle/.test(lb.batch ?? "")
+    && 7 + 2 + 1.5 === 10.5 && 85 + 24 + 18 === 127
+    && (lb.brew ?? []).some((x) => /^Single mix: 7 fl oz DUSK cold brew, 2 fl oz A2 goat milk, 3 tbsp \(1\.5 fl oz\) syrup — 10\.5 fl oz\. Large batch: 85 fl oz, 24 fl oz, 18 fl oz — 127 fl oz\.$/.test(x)), JSON.stringify(lb.batch));
+  ok("cookbook: the Salted Maple Syrup is in it, by the card — 18 fl oz maple and 1¾ tsp sea salt (base ratio 1 tbsp per 32 fl oz), warmed low, stirred to dissolve, watched so it does not bubble over, off the heat when it starts to bubble, cooled and stored in glass",
+    (lb.brew ?? []).length >= 8 && /^Syrup: 18 fl oz organic maple syrup and 1¾ tsp sea salt \(a rounded kitchen measure of the base ratio, 1 tbsp sea salt per 32 fl oz organic maple syrup\)\.$/.test(lb.brew[0])
+    && lb.brew[1] === "Warm the maple syrup in a pan on low heat." && lb.brew[2] === "Stir in the sea salt until it dissolves."
+    && lb.brew[3] === "Watch the pan so it doesn't bubble over." && lb.brew[4] === "Take it off the heat when it starts to bubble."
+    && lb.brew[5] === "Let it cool, then store it in glass." && /shake or stir before each use/.test(lb.storage ?? ""));
   ok("cookbook: the latte adds no salt of its own — all of it is in the syrup (it said \"add … pinch of salt\" and \"add the salt pinch to balance\")",
     !(lb.brew ?? []).some((x) => /pinch of salt/i.test(x)) && (lb.brew ?? []).some((x) => /No extra salt — it's all in the syrup/.test(x))
     && !/salt pinch/.test(JSON.stringify(lb.troubleshoot ?? [])) && !lb.weighs);
