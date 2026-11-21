@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import "./RecipeEditor.css";
 import Sheet, { CloseButton } from "./Sheet";
 import Button from "./Button";
 import Skeleton from "./Skeleton";
@@ -217,7 +218,7 @@ export default function RecipeEditor({ productKey, productName, start = "read", 
               <section aria-label="Waiting for review">
                 <div className="ac-mini-h">Waiting for review</div>
                 {waiting.map((v) => (
-                  <div key={v.id} className="rx-card" data-testid="recipe-review">
+                  <div key={v.id} className="k-card rx-card" data-testid="recipe-review">
                     <div className="rx-meta">Submitted {day(v.submitted_at)}{v.note ? ` — “${v.note}”` : ""}</div>
                     <ChangeList items={changes(published, v.body)} />
                     <RecipeRead body={v.body} compact />
@@ -277,7 +278,7 @@ export default function RecipeEditor({ productKey, productName, start = "read", 
               ))}
               <Button kind="quiet" onClick={() => setDraft({ ...draft, amounts: [...(draft.amounts ?? []), blankAmount()] })}>Add an ingredient</Button>
             </div>
-            <div className="rx-yield" data-testid="recipe-yield" aria-live="polite">
+            <div className="k-card rx-yield" data-testid="recipe-yield" aria-live="polite">
               <span>Makes <b>{flOz(y.single)}</b> single mix</span><span><b>{flOz(y.large)}</b> large batch</span>
             </div>
             <label className="rx-field">Bottle fill (separate from the yield)
@@ -286,7 +287,7 @@ export default function RecipeEditor({ productKey, productName, start = "read", 
             {draft.amounts?.length ? (
               <>
                 <div className="rx-field">Batch line — written from the amounts
-                  <p className="rx-from" data-testid="recipe-batch">{batchText(draft)}</p>
+                  <p className="k-card rx-from" data-testid="recipe-batch">{batchText(draft)}</p>
                 </div>
                 <label className="rx-field">Batch note (said after it)
                   <input className="ev-input" value={draft.batchNote ?? ""} onChange={(e) => setDraft({ ...draft, batchNote: e.target.value })} />
@@ -304,7 +305,7 @@ export default function RecipeEditor({ productKey, productName, start = "read", 
                 <li key={i}>
                   {usesAmounts(s) ? (
                     // A step written from the amounts: change the table and it follows. Shown as it will read.
-                    <div className="rx-from" data-testid="recipe-step-from-amounts" aria-label={`Step ${i + 1}, from the amounts`}>
+                    <div className="k-card rx-from" data-testid="recipe-step-from-amounts" aria-label={`Step ${i + 1}, from the amounts`}>
                       {renderText(s, draft.amounts)}
                       <span className="rx-from-tag">From the amounts above</span>
                     </div>

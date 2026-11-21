@@ -9,7 +9,9 @@ import Icon from "./Icon";
 import { useDictation } from "./useDictation";
 import { scrollMotion } from "@/lib/motion";
 import { plainFailure } from "@/lib/failureWords";
-import RecipeEditor from "./RecipeEditor";
+import dynamic from "next/dynamic";
+// The recipe sheet opens on a tap: its code and its styles load then, not with the page (0476 weight, R-weight ceilings).
+const RecipeEditor = dynamic(() => import("./RecipeEditor"), { ssr: false });
 import { useAuth } from "./AuthProvider";
 import { canPublishRecipes } from "@/lib/recipeEdit";
 

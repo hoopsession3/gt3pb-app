@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import RecipeEditor from "./RecipeEditor";
+import dynamic from "next/dynamic";
+// The recipe sheet opens on a tap: its code and its styles load then, not with the page (0476 weight, R-weight ceilings).
+const RecipeEditor = dynamic(() => import("./RecipeEditor"), { ssr: false });
 import { authedFetch } from "@/lib/authedFetch";
 import { useAsyncData } from "@/lib/useAsyncData";
 import { CURRENT, type RecipeSource } from "@/lib/recipeEdit";
