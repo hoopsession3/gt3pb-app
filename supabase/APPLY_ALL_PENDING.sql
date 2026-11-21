@@ -17,11 +17,12 @@
 -- the others back with it. Each section below is wrapped in its own begin … commit: its locks end with it, and if one
 -- stops (a busy table's lock wait ran out), the ones above it stay applied and nothing below it runs — paste the file
 -- again a moment later; a migration already applied changes nothing the second time.
--- pending-from: 0475
+-- pending-from: 0476
 -- generated-at: 2026-11-20
 -- pending-count: 0
 -- ledger-read-from: hand-read from the SQL editor
 -- held: 0474_a_customer_book_is_the_owners_and_a_wrong_link_is_counted.sql — NOT in this file; applied by hand once the condition in its header is met
+-- held: 0476_recipes_are_kept_in_the_app.sql — NOT in this file; applied by hand once the condition in its header is met
 -- Nothing is pending but the held migration(s) named above, which are applied by hand, each on its own yes.
 -- This file is kept (rather than deleted) so the command that regenerates it stays in one
 -- place and the gate in drift.check.mjs has something to read.
