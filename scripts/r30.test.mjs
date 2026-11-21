@@ -6,7 +6,7 @@
 //   · .github/dependabot.yml proposes those commits' successors and the dependencies' minor and patch releases, once a
 //     month, one pull request each, majors left for a deliberate change;
 //   · a push and every morning ask npm's advisory database of what ships, and fail on high and critical;
-//   · what ships is clear of the advisories that were open on 2026-10-18 — Next.js on 16.4.2 (its "security" upgrade
+//   · what ships is clear of the advisories that were open on 2026-10-18 — Next.js on 16.4.2 (16.4.5 since 2026-11-21) (its "security" upgrade
 //     policy's choice: the latest safe release in the major), sharp past librsvg's and libheif's, and the lockfile's
 //     nanoid, source-map-js and baseline-browser-mapping past theirs.
 import { readFileSync, existsSync } from "node:fs";
@@ -74,8 +74,11 @@ const lock = JSON.parse(read("package-lock.json"));
 const v = (s) => s.replace(/^[\^~]/, "").split(".").map(Number);
 const atLeast = (have, want) => { const a = v(have), b = v(want); for (let i = 0; i < 3; i++) { if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0); } return true; };
 const locked = (name) => lock.packages[`node_modules/${name}`]?.version ?? null;
-ok("next: asked for at 16.4.2 or later in its major, and locked at 16.4.2 (every advisory open against 16.2.12 fixed by 16.3.8)",
-  /^\^16\.4\.2$/.test(pkg.dependencies.next) && locked("next") === "16.4.2", { asked: pkg.dependencies.next, locked: locked("next") });
+// 16.4.2 -> 16.4.5 (2026-11-21): the first release patched for the seven moderate advisories published against 16.0.0–16.4.4
+// (GHSA-mfr8-8qww-v76h, -vc7v-qv4w-wrv8, -7qx7-33qx-rqx2, -f3mh-rxg3-f5g2, -pc58-hwjq-p385, -rhh4-g77r-r9qj, -vvgp-ww4w-46vf;
+// each GitHub advisory names 16.4.5 as its patched version).
+ok("next: asked for at 16.4.5 or later in its major, and locked at 16.4.5 (the seven advisories open against 16.4.4 and earlier fixed)",
+  /^\^16\.4\.5$/.test(pkg.dependencies.next) && locked("next") === "16.4.5", { asked: pkg.dependencies.next, locked: locked("next") });
 ok("eslint-config-next: the same release as next (its rules are written for that release)",
   pkg.devDependencies["eslint-config-next"] === locked("next") && locked("eslint-config-next") === locked("next"),
   { asked: pkg.devDependencies["eslint-config-next"], locked: locked("eslint-config-next") });
