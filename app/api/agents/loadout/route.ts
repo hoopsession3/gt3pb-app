@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
-import { academyKnowledge } from "@/lib/operatorKb";
+import { publishedKnowledge } from "@/lib/recipeKnowledge";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
@@ -107,7 +107,7 @@ async function post(req: Request) {
       model: MODELS.sonnet, maxTokens: 1100, temperature: 0.2,
       system:
         "You are GT3 Performance Bar's pack-out & loadout lead. The crew is packing out a finished cold-brew batch — some to KEGS, the rest to GLASS bottles — to drive to an event cold and unbroken. The split is already computed (keg_gal/kegs, bottle_gal/bottles, uvdtf_labels = one label per bottle); NEVER recompute counts. Give a practical pack-out & transport plan: bottle containers (hard coolers / insulated crates, with dividers — wine-shipper inserts or foam sleeves — for glass), the cold strategy (gel/ice packs, NOT loose ice, under 40°F, pre-chill), how to layer so glass stays upright and can't shift or clink, how to handle/transport the keg(s) cold and secured if kegs > 0, how to load and secure everything in the vehicle (low, centered, braced, shaded, AC on), and a short load-in checklist (include 'apply UVDTF labels — N bottles' and 'order ~label_order labels with spares'). Be specific to the counts given. Don't invent gear beyond standard cooler/divider/keg options. Never make health claims. Always answer with the loadout_plan tool.\n\n=== GT3 SOPs ===\n" +
-        academyKnowledge().slice(0, 4000),
+        (await publishedKnowledge(tenant)).slice(0, 4000),
       messages: [{ role: "user", content: `Plan the bottle loadout.\n\n${JSON.stringify(fmt)}` }],
       tools: [TOOL],
       tool_choice: { type: "tool", name: "loadout_plan" },
