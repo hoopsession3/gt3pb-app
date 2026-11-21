@@ -63,8 +63,12 @@ const code = (t) => t.split("\n").map((l) => l.replace(/^\s*#.*$/, "").replace(/
   ok("`npm run release` is verify, then npm's advisories — the two CI runs — and `advisories` asks what ships, high and critical",
     s.release === "npm run verify && npm run advisories" && s.advisories === "npm audit --omit=dev --audit-level=high" && s["release:plan"] === "node scripts/release.plan.mjs");
   const ci = code(read(".github/workflows/ci.yml"));
-  ok("CI runs verify by name and the advisories beside it — and no lint step of its own any more (verify runs it)",
-    /run: npm run verify$/m.test(ci) && /run: npm audit --omit=dev --audit-level=high$/m.test(ci) && !/run: node scripts\/lint\.ratchet\.mjs/.test(ci));
+  // 2026-11-21 (PR #136): verify is two named halves — verify:gate, then smoke:console — and CI runs each by its name in a
+  // job of its own, beside each other, so neither is a hand-copied list and the walk has its own budget.
+  ok("CI runs verify's two halves by name — verify:gate in verify, smoke:console in console — and the advisories beside them; no lint step of its own",
+    /run: npm run verify:gate$/m.test(ci) && /run: npm run smoke:console$/m.test(ci) && !/run: npm run verify$/m.test(ci)
+      && s.verify === "npm run verify:gate && npm run smoke:console" && !/smoke:console/.test(s["verify:gate"])
+      && /run: npm audit --omit=dev --audit-level=high$/m.test(ci) && !/run: node scripts\/lint\.ratchet\.mjs/.test(ci));
   const readme = read("README.md");
   ok("…and the README says so: release is the whole gate, and RELEASE.md the sequence after it",
     /npm run release {12}# the whole gate/.test(readme) && /The ship sequence after it is RELEASE\.md\./.test(readme) && !/CI runs exactly this\. Green before any ship\./.test(readme));
