@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server";
 import { adminFromRequest, staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
-import { academyKnowledge } from "@/lib/operatorKb";
+import { publishedKnowledge } from "@/lib/recipeKnowledge";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
@@ -44,7 +44,7 @@ const BASELINE_TASKS: { key: string; label: string; section: string; critical: b
 
 // Run the (slow, grounded) prep-list build in the background and write the result to the job row, so
 // the client polls instead of holding a long request open. Never throws — failures land as error.
-async function runPrep(jobId: string, fmt: any) {
+async function runPrep(jobId: string, fmt: any, tenant: string) {
   if (!supabaseAdmin) return;
   // scoped-by: jobId is not client-supplied. This route INSERTS the agent_jobs row itself and hands
   // the returned id straight to runPrep — see the insert at the bottom of POST. There is no path
@@ -53,7 +53,7 @@ async function runPrep(jobId: string, fmt: any) {
   const ask = async (nudge?: string) => {
     const r = await callClaude({ label: "eventprep",
       model: MODELS.sonnet, maxTokens: 1800, temperature: 0.2,
-      system: PREP_SYSTEM + academyKnowledge().slice(0, 9000),
+      system: PREP_SYSTEM + (await publishedKnowledge(tenant)).slice(0, 9000),
       messages: [{ role: "user", content: `Build the prep list.\n\n${JSON.stringify(fmt)}${nudge ? `\n\n${nudge}` : ""}` }],
       tools: [TOOL],
       tool_choice: { type: "tool", name: "prep_list" },
@@ -239,7 +239,7 @@ async function post(req: Request) {
     .insert({ kind: "eventprep", status: "pending", input: { owner: ownerCol, id: ownerId }, requested_by: me?.id ?? null })
     .select("id").single();
   if (jErr || !job) return NextResponse.json({ ok: false, error: "couldn't start the prep build" }, { status: 502 });
-  after(() => runPrep(job.id, fmt));
+  after(() => runPrep(job.id, fmt, tenant));
   return NextResponse.json({ ok: true, status: "pending", job_id: job.id });
 }
 
