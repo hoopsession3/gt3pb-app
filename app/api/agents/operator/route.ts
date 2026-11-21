@@ -3,6 +3,9 @@ import { staffFromRequest, userFromRequest, tenantFromRequest } from "@/lib/apiA
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ClaudeMsg } from "@/lib/anthropic";
 import { academyKnowledge } from "@/lib/operatorKb";
+import { publishedBook, sourceLine } from "@/lib/recipeBook";
+import { matchRecipe, isRecipeAsk, ingredientAnswer } from "@/lib/recipeEdit";
+import { PRODUCTS } from "@/lib/academy";
 import { startKnowledge } from "@/lib/crewStart";
 import { ownerCorrections, brewRecipeFacts, logConvo, MEASURING_RULES } from "@/lib/agentKnowledge";
 import { claimSafe, CLAIM_FALLBACK } from "@/lib/claimGuard";
@@ -46,7 +49,7 @@ the other in ONE line at the end ("If you meant X, say so and I'll size that ins
 answer, then ask whether you understood, then answer again — she reads this on a phone, mid-shift,
 and the second copy pushes the first off the screen.
 
-WHAT YOU CAN DO IN THE APP: GT3 runs entirely in THIS app — there is NO Monday.com, Notion board, or outside scheduler, so never mention or imply such tools. The app has built-in builders. If someone asks you to CREATE an event, say you're opening the event builder (the app opens it; you don't need to do anything else). For notes or to-dos, point them to Plan → Notes / the Company Calendar. Never claim you "don't have access" to a scheduling system — just hand off to the right in-app builder.`;
+WHAT YOU CAN DO IN THE APP: GT3 runs entirely in THIS app — there is NO Monday.com, Notion board, or outside scheduler, so never mention or imply such tools. The app has built-in builders. If someone asks you to CREATE an event, say you're opening the event builder (the app opens it; you don't need to do anything else). For notes or to-dos, point them to Plan → Notes / the Company Calendar. If someone says a RECIPE is wrong or wants to change one, never send them to Notes: tell them to tap "Suggest a correction" under this answer (or Academy → Cookbook → the drink → Suggest a correction); any crew member can submit one and an owner or admin publishes it. Say which recipe version you answered from (the RECIPE VERSION line). Never claim you "don't have access" to a scheduling system — just hand off to the right in-app builder.`;
 
 async function post(req: Request) {
   if (!(await staffFromRequest(req))) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
@@ -78,14 +81,32 @@ async function post(req: Request) {
 
   // Owner corrections (authoritative) + the real brew recipes go at the TOP — a correction beats
   // anything in the static knowledge, and recipe quantities come from data, never invention.
-  const [corrections, brewFacts] = await Promise.all([ownerCorrections("operator"), brewRecipeFacts()]);
+  // 0476: the published recipe book (drafts never), the same one the recipe screen reads.
+  const [corrections, brewFacts, book] = await Promise.all([ownerCorrections("operator"), brewRecipeFacts(), publishedBook(tenant)]);
 
   // MEASURING_RULES sits with the recipe facts and above the general knowledge: it governs how any
   // quantity below it is stated, so it has to be read before them, not after.
   // THE APP ITSELF (2026-10-08): "how do I get to crew mode?" was a text from Ryan, not something this
   // could answer — its knowledge was the craft. lib/crewStart's steps, the same words as the welcome
   // letter and the Guide's Start here, with the in-app links an answer may point to.
-  const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}\n\n${MEASURING_RULES}${brewFacts ? `\n\n${brewFacts}` : ""}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge()}\n\n=== THE APP ITSELF ===\n${startKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}\n\n=== PERMIT / INSPECTION REQUIREMENTS BY JURISDICTION (researched; [STATE/County], ANY = universal) ===\n${rules || "(none loaded)"}\nWhen asked about permits or an inspection for a place, use the rows matching that state/county PLUS the ANY rows. If we have NO rows for that jurisdiction, say it isn't researched yet, give the universal items, and tell them to confirm with that county's health department (and flag it to an owner to research). For an inspection ask, lead with what the inspector will check, then a short prep checklist. Always remind them to confirm with the authority for the specific date.`;
+  const system = `${SYSTEM}${corrections ? `\n\n${corrections}` : ""}\n\n${MEASURING_RULES}${brewFacts ? `\n\n${brewFacts}` : ""}\n\n=== GT3 KNOWLEDGE ===\n${academyKnowledge(book.cookbook, book.sources)}\n\n=== THE APP ITSELF ===\n${startKnowledge()}\n\n=== ASSETS / GEAR WE HAVE ===\n${assets || "(none loaded)"}\n\n=== INVENTORY ON HAND ===\n${inv || "(none loaded)"}\n\n=== PERMIT / INSPECTION REQUIREMENTS BY JURISDICTION (researched; [STATE/County], ANY = universal) ===\n${rules || "(none loaded)"}\nWhen asked about permits or an inspection for a place, use the rows matching that state/county PLUS the ANY rows. If we have NO rows for that jurisdiction, say it isn't researched yet, give the universal items, and tell them to confirm with that county's health department (and flag it to an owner to research). For an inspection ask, lead with what the inspector will check, then a short prep checklist. Always remind them to confirm with the authority for the specific date.`;
+
+  // THE ANSWER FIRST (2026-11-21): "how much goat milk goes in the Salted Maple Latte?" is answered from the recipe's own
+  // table — the published version, or the built-in one — exactly, not by the model: "2 fl oz for one mix, or 24 fl oz for
+  // the large batch." The method stays behind View recipe.
+  {
+    const q = [...trimmed].reverse().find((m) => m.role === "user")?.content ?? "";
+    const names = Object.fromEntries(PRODUCTS.map((p) => [p.key, p.name]));
+    const key = matchRecipe(q, book.cookbook, names);
+    const hit = key ? ingredientAnswer(q, book.cookbook[key]) : null;
+    if (key && hit) {
+      const name = names[key] ?? book.cookbook[key]?.name ?? key;
+      const reply = `${hit.lead}\n\nThat's ${hit.item} in the ${name}, from the current recipe. The full method is under View recipe.`;
+      const u = await userFromRequest(req);
+      void logConvo("operator", q, reply, u?.id ?? null, null);
+      return NextResponse.json({ ok: true, reply, recipe: { key, name, version: sourceLine(book.sources[key]) }, answered: "amount" });
+    }
+  }
 
   try {
     const r = await callClaude({ label: "operator", model: MODELS.sonnet, maxTokens: 700, temperature: 0.3, system, messages: trimmed });
@@ -100,7 +121,13 @@ async function post(req: Request) {
       console.warn(`[operator] claim-guard tripped on "${guard.hit}" — reply redirected`);
       return NextResponse.json({ ok: true, reply: CLAIM_FALLBACK });
     }
-    return NextResponse.json({ ok: true, reply: r.text });
+    // 0476: which recipe this was about, so Ask GT3 can offer "View recipe" / "Suggest a correction" — or, when the
+    // question was a recipe question and none is on file, "Create recipe draft". The published version only.
+    const names = Object.fromEntries(PRODUCTS.map((p) => [p.key, p.name]));
+    const key = matchRecipe(lastQ, book.cookbook, names) ?? matchRecipe(r.text, book.cookbook, names);
+    const recipe = key ? { key, name: names[key] ?? book.cookbook[key]?.name ?? key, version: sourceLine(book.sources[key]) }
+      : isRecipeAsk(lastQ) ? { key: null, name: null, version: null } : undefined;
+    return NextResponse.json({ ok: true, reply: r.text, recipe });
   } catch (e) {
     return NextResponse.json({ ok: false, error: errorMessage(e, 300) }, { status: 502 });
   }
