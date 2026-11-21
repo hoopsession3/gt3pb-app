@@ -273,6 +273,14 @@ export interface Cookbook {
     // every amount is written and none is weighed; lib/operatorKb.ts tells the assistant, and smoke
     // holds the flag to that.
     byVolume?: boolean;
+    // ── THE EDITOR, EXACT (0476, 2026-11-20) ─────────────────────────────────────────────────────────────────
+    // A recipe edited in the app keeps its amounts as numbers, so the yield is added up rather than retyped, and the
+    // bottle fill is kept apart from the yield. Other names a drink is asked for by (a name the regulars use) ride along.
+    amounts?: { item: string; single: number | null; large: number | null; unit: "fl oz" | "tbsp" | "tsp" | "cup" }[];
+    fill?: string;
+    aliases?: string[];
+    // Said after the formulas in the batch line (the line itself is written from the amounts).
+    batchNote?: string;
 }
 
 export const PRODUCTS: Product[] = [

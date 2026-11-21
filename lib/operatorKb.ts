@@ -1,5 +1,7 @@
 import { MODULES, PRODUCTS } from "./academy";
 import { COOKBOOK } from "./academyCookbook";
+import type { Cookbook } from "./academy";
+import { sourceLine, resolveRecipe, type RecipeSource } from "./recipeEdit";
 import { LESSONS } from "./academyLessons";
 
 // BRAND IDENTITY — the house style, stated plainly so the crew AI can answer "what's our font?",
@@ -28,9 +30,11 @@ Taglines: "Only the best for you" · "Pure Signal, No Noise."`;
 // Source of Truth (lib/academy.ts) — products + recipes + brand/nutrition/ops modules.
 // The operator assistant grounds ONLY on this + live assets/inventory, so every answer
 // traces back to written, claim-checked content (no model freelancing on nutrition).
-export function academyKnowledge(): string {
+export function academyKnowledge(book: Record<string, Cookbook> = COOKBOOK, sources: Record<string, RecipeSource> = {}): string {
+  // Every recipe as read: the batch line and any amount named in a step written out from the amounts (0476).
+  book = Object.fromEntries(Object.entries(book).map(([k, v]) => [k, resolveRecipe(v)]));
   const prods = PRODUCTS.map((p) => {
-    const cb = COOKBOOK[p.key];
+    const cb = book[p.key];
     // `weighs` is carried through so the assistant knows which procedures put something on a scale
     // without having to find the word "weigh" in the prose — the same reason the Cookbook page keys
     // its scale band on the flag rather than on the sentence (see lib/academy.ts).
@@ -40,8 +44,12 @@ export function academyKnowledge(): string {
       : cb?.byVolume
         ? " | MEASURED BY VOLUME — every amount is fluid ounces or spoons: a measuring cup and spoons, never a scale. Give no scale rules and no grams for it"
         : "";
+    // 0476: which version this is (published in the app, or built-in), the names it's also asked for by, and its exact
+    // amounts with what they add up to — the same text the recipe screen shows.
+    const ver = `\n  RECIPE VERSION: ${sourceLine(sources[p.key])}${cb?.aliases?.length ? ` | ALSO CALLED: ${cb.aliases.join(", ")}` : ""}`;
+    const amts = cb?.amounts?.length ? ` | AMOUNTS (single mix / large batch): ${cb.amounts.map((a) => `${a.item} ${a.single ?? "—"} / ${a.large ?? "—"} ${a.unit}`).join("; ")}${cb.fill ? ` | FILL: ${cb.fill}` : ""}` : "";
     const recipe = cb
-      ? `\n  RECIPE — batch: ${cb.batch ?? "—"} | brew: ${(cb.brew ?? []).join(" → ") || "—"}${weighs} | serve: ${(cb.serve ?? []).join(" → ") || "—"} | storage: ${cb.storage ?? "—"} | quality: ${cb.quality ?? "—"}${cb.troubleshoot?.length ? ` | troubleshoot: ${cb.troubleshoot.map((t) => `${t.issue} → ${t.fix}`).join("; ")}` : ""}`
+      ? `${ver}\n  RECIPE — batch: ${cb.batch ?? "—"}${amts} | brew: ${(cb.brew ?? []).join(" → ") || "—"}${weighs} | serve: ${(cb.serve ?? []).join(" → ") || "—"} | storage: ${cb.storage ?? "—"} | quality: ${cb.quality ?? "—"}${cb.troubleshoot?.length ? ` | troubleshoot: ${cb.troubleshoot.map((t) => `${t.issue} → ${t.fix}`).join("; ")}` : ""}`
       : "";
     const voices = p.voices ? `\n  Voices — Simple: ${p.voices.simple} | GT3: ${p.voices.gt3} | Founders: ${p.voices.founder}` : "";
     return `## ${p.name} (${p.line}${p.price ? `, ${p.price}` : ""})\n  What: ${p.what}\n  Why: ${p.why}\n  Ingredients: ${p.ingredients.join(", ")}\n  Benefits: ${p.benefits.join(", ")}\n  Talking points: ${p.talking.join(" | ")}${voices}\n  FAQs: ${p.faqs.map((f) => `${f.q} — ${f.a}`).join(" | ")}${recipe}`;
@@ -56,5 +64,11 @@ export function academyKnowledge(): string {
     return `## ${m.title}  [${m.section}]\n${m.summary}${why}\n${m.body.map((b) => `  • ${b.h}: ${b.p}`).join("\n")}${mist}${scn}${ins}`;
   }).join("\n\n");
 
-  return `${brandFacts()}\n\n# PRODUCTS & RECIPES\n${prods}\n\n# BRAND, NUTRITION, CX & OPS (Academy modules)\n${mods}`;
+  // A recipe published in the app for a drink that isn't on the menu yet ("Create recipe draft" from Ask GT3).
+  const known = new Set(PRODUCTS.map((p) => p.key));
+  const extra = Object.entries(book).filter(([k]) => !known.has(k)).map(([k, cb]) => {
+    const c = cb as Cookbook & { name?: string };
+    return `## ${c.name ?? k} (recipe kept in the app)\n  RECIPE VERSION: ${sourceLine(sources[k])}${c.aliases?.length ? ` | ALSO CALLED: ${c.aliases.join(", ")}` : ""}\n  RECIPE — batch: ${c.batch ?? "—"}${c.amounts?.length ? ` | AMOUNTS: ${c.amounts.map((a) => `${a.item} ${a.single ?? "—"} / ${a.large ?? "—"} ${a.unit}`).join("; ")}` : ""} | brew: ${(c.brew ?? []).join(" → ") || "—"}`;
+  }).join("\n\n");
+  return `${brandFacts()}\n\n# PRODUCTS & RECIPES\n${prods}${extra ? `\n\n${extra}` : ""}\n\n# BRAND, NUTRITION, CX & OPS (Academy modules)\n${mods}`;
 }

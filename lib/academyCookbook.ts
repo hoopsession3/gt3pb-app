@@ -20,7 +20,17 @@ export const COOKBOOK: Record<string, Cookbook> = {
       // The yield is what the ingredients add up to; the bottle fill is a separate, smaller figure: count bottles from it.
       // The card says cold brew; the product (lib/academy.ts, this latte) names DUSK as its coffee, so DUSK is kept.
       // The syrup salt: the card gives 1 3/4 tsp for 18 fl oz, a rounded kitchen measure of the base ratio below.
-      batch: "Single mix — makes 10.5 fl oz: 7 fl oz DUSK cold brew, 2 fl oz A2 goat milk, 3 tbsp (1.5 fl oz) Salted Maple Syrup. Large batch — makes 127 fl oz: 85 fl oz DUSK cold brew, 24 fl oz A2 goat milk, 18 fl oz syrup. Fill: about 9 fl oz per bottle — the yield and the fill are separate; count bottles from the fill. No extra sea salt in the latte.",
+      amounts: [
+        { item: "DUSK cold brew", single: 7, large: 85, unit: "fl oz" },
+        { item: "A2 goat milk", single: 2, large: 24, unit: "fl oz" },
+        { item: "Salted Maple Syrup", single: 1.5, large: 18, unit: "fl oz" },
+      ],
+      fill: "About 9 fl oz per bottle",
+      // The batch line, the build step and the troubleshooting fix are written FROM the amounts (lib/recipeEdit resolveRecipe:
+      // {{single}} and {{large}} are each formula with its yield, {{single:Item}} one amount) so no quantity is typed twice.
+      // The single mix and the large batch are separate formulas, each as the card gives it. The syrup steps keep their own
+      // component measurements: they make the syrup, not the latte.
+      batchNote: "No extra sea salt in the latte.",
       brew: [
         "Syrup: 18 fl oz organic maple syrup and 1¾ tsp sea salt (a rounded kitchen measure of the base ratio, 1 tbsp sea salt per 32 fl oz organic maple syrup).",
         "Warm the maple syrup in a pan on low heat.",
@@ -29,13 +39,13 @@ export const COOKBOOK: Record<string, Cookbook> = {
         "Take it off the heat when it starts to bubble.",
         "Let it cool, then store it in glass.",
         "To build, shake or stir the syrup first.",
-        "Single mix: 7 fl oz DUSK cold brew, 2 fl oz A2 goat milk, 3 tbsp (1.5 fl oz) syrup — 10.5 fl oz. Large batch: 85 fl oz, 24 fl oz, 18 fl oz — 127 fl oz.",
+        "Single mix: {{single}}. Large batch: {{large}}.",
         "Cap and shake. No extra salt — it's all in the syrup.",
       ],
       serve: ["Over ice, or served warm per build", "Made to order"],
       storage: "Make to order. Syrup: glass container; shake or stir before each use.",
       quality: "Sweet-salty balance; maple-forward, not cloying.",
-      troubleshoot: [{ issue: "Too sweet or too salty", fix: "Check the build: 3 tbsp (1.5 fl oz) syrup per single mix, 18 fl oz per large batch, and no added salt." }],
+      troubleshoot: [{ issue: "Too sweet or too salty", fix: "Check the build: {{single:Salted Maple Syrup}} syrup per single mix, {{large:Salted Maple Syrup}} per large batch, and no added salt." }],
     },
   "bone_broth": { batch: "Cook a batch per broth spec.", brew: ["Cook pasture-raised bones for hours per spec", "Strain, season to spec", "Cool and hold safely"], serve: ["Serve hot in cup", "Hold hot at safe temp"], storage: "Hold hot; discard outside safe hold window.", quality: "Clear, rich, well-seasoned; no off-notes.", troubleshoot: [{ issue: "Greasy", fix: "Skim fat; strain again." }, { issue: "Flat", fix: "Season to spec; check cook time." }] },
   "coconut_shake": { batch: "Blend to order.", brew: ["Blend coconut water + extra coconut meat for body", "Add honey to spec"], serve: ["Serve cold immediately"], storage: "Make to order.", quality: "Creamy, smooth, no separation.", troubleshoot: [{ issue: "Too thin", fix: "Add coconut meat for body." }] },
