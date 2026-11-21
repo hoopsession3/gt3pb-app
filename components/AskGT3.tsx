@@ -9,12 +9,19 @@ import Icon from "./Icon";
 import { useDictation } from "./useDictation";
 import { scrollMotion } from "@/lib/motion";
 import { plainFailure } from "@/lib/failureWords";
+import RecipeEditor from "./RecipeEditor";
+import { useAuth } from "./AuthProvider";
+import { canPublishRecipes } from "@/lib/recipeEdit";
 
 // Ask GT3 — the crew's grounded pocket-brain chat (recipes, the why, gear, stock, how-to).
 // Shared by the Ask tab and the floating QuickDock so there's ONE assistant, not two. Voice in
 // via Web Speech API where available; errors render inline as assistant messages (no toast dep).
 // It also ACTS on a couple of asks: say "create an event" and it opens the event builder.
-type ChatMsg = { role: "user" | "assistant"; content: string };
+// 0476: an answer about a recipe carries which one (the published version it answered from), so the crew can open it
+// or correct it right there — "View recipe" / "Suggest a correction" — and a recipe question with none on file offers
+// "Create recipe draft". Ask GT3 used to send a crew member who found a wrong amount to Plan → Notes.
+type RecipeHint = { key: string | null; name: string | null; version: string | null };
+type ChatMsg = { role: "user" | "assistant"; content: string; recipe?: RecipeHint };
 // A shortcut you cannot read is not a shortcut. These were five full sentences in a nowrap row:
 // 1,052 px of chips in a 426 px panel, so 626 px — three of the five — sat off-screen behind a
 // scroll with no fade, no arrow, nothing saying there was more. The LABEL is now short enough to
@@ -50,6 +57,10 @@ export default function AskGT3() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [genNotes, setGenNotes] = useState<string | null>(null); // non-null → event builder open
+  const [recipe, setRecipe] = useState<{ hint: RecipeHint; start: "read" | "edit" } | null>(null);
+  // An owner or admin edits a recipe (and publishes it after reviewing); the rest of the crew suggests a correction.
+  const { profile } = useAuth();
+  const editWord = canPublishRecipes(profile) ? "Edit recipe" : "Suggest a correction";
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: scrollMotion() }); }, [msgs, busy]);
 
@@ -70,7 +81,7 @@ export default function AskGT3() {
       const reply = j.ok ? (j.reply || "…")
         : String(j.error ?? "").includes("ANTHROPIC") ? "I'm not switched on yet — an owner needs to add the API key, then I'll be ready."
         : `Sorry — ${j.error ? plainFailure(j.error) : "something went wrong"}.`;
-      setMsgs((m) => [...m, { role: "assistant", content: reply }]);
+      setMsgs((m) => [...m, { role: "assistant", content: reply, recipe: j.ok ? (j.recipe as RecipeHint | undefined) : undefined }]);
     } catch { setMsgs((m) => [...m, { role: "assistant", content: "Couldn't reach me just now — try again in a sec." }]); }
     setBusy(false);
   };
@@ -90,7 +101,17 @@ export default function AskGT3() {
             literal — what someone typed is what they typed, and a message containing "2 * 3"
             should not come back italicised. */}
         {msgs.map((m, i) => m.role === "assistant"
-          ? <Prose key={i} text={m.content} className="oa-msg assistant" />
+          ? <div key={i} className="contents">
+              <Prose text={m.content} className="oa-msg assistant" />
+              {m.recipe && (
+                <div className="oa-recipe" data-testid="ask-recipe">
+                  {m.recipe.key ? <>
+                    <button type="button" className="k-chip" onClick={() => setRecipe({ hint: m.recipe!, start: "read" })}>View recipe</button>
+                    <button type="button" className="k-chip" onClick={() => setRecipe({ hint: m.recipe!, start: "edit" })}>{editWord}</button>
+                  </> : <button type="button" className="k-chip" onClick={() => setRecipe({ hint: m.recipe!, start: "edit" })}>Create recipe draft</button>}
+                </div>
+              )}
+            </div>
           : <div key={i} className={`oa-msg ${m.role}`}>{m.content}</div>)}
         {busy && <div className="oa-msg assistant oa-typing"><span></span><span></span><span></span></div>}
         <div ref={endRef} />
@@ -106,6 +127,7 @@ export default function AskGT3() {
         <input aria-label="Ask GT3" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder="Ask GT3…" enterKeyHint="send" />
         <button type="button" className="btn-pri" onClick={() => send(input)} disabled={busy || !input.trim()}>Ask</button>
       </div>
+      {recipe && <RecipeEditor productKey={recipe.hint.key} productName={recipe.hint.name} start={recipe.start} onClose={() => setRecipe(null)} />}
       {genNotes !== null && (
         <EventGenerator
           initialNotes={genNotes}

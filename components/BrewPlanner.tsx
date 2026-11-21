@@ -33,6 +33,7 @@ import { rovingKeys, rovingTab } from "./roving";
 import { wrote } from "@/lib/wrote";
 import { useMinute } from "@/lib/useMinute";
 import Said from "@/components/Said";
+import DrinkRecipes from "@/components/DrinkRecipes";
 import { plainFailure, failureWords, failureOr } from "@/lib/failureWords";
 
 // BREW — recipes + a back-scheduled batch plan. Pick a recipe, set the batch size in GALLONS (the
@@ -569,6 +570,7 @@ export default function BrewPlanner() {
           </button>
         ))}
       </div>
+      <DrinkRecipes />
       </>
       )}
       </Column>
