@@ -18,6 +18,7 @@
 // the single-object Accept header; and rpc by named arguments, a set or a scalar. Nothing here is a credential: the
 // session is a made-up token for a made-up account in a database that lives in this process.
 import { createServer } from "node:http";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { fullSchema } from "./schema.full.mjs";
 
 const ID = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -240,7 +241,11 @@ function orderSql(s, rel) {
 }
 
 // ── the server ───────────────────────────────────────────────────────────────────────────────────────────────────────
-export async function startFakebase({ port = 54329, before, seed, user } = {}) {
+// serviceKey (0476, opt-in): a made-up key that, sent as the apikey, makes the request the SERVER's own (lib/supabaseAdmin,
+// which bypasses RLS on Supabase) instead of the signed-in account's. Off unless a caller passes one; the console walk
+// doesn't, so its server routes still run with no service key, as before.
+const service = new AsyncLocalStorage();
+export async function startFakebase({ port = 54329, before, seed, user, serviceKey = null } = {}) {
   const db = await fullSchema(before ? { before } : {});
   if (seed) await seed(db);
   const R = await relations(db);
@@ -251,6 +256,7 @@ export async function startFakebase({ port = 54329, before, seed, user } = {}) {
 
   const claims = () => JSON.stringify({ sub: user.id, role: "authenticated", email: user.email, aal: "aal2", amr: [{ method: "totp" }] });
   const asUser = (fn) => db.transaction(async (tx) => {
+    if (service.getStore()) return fn(tx);   // the server's own key: as the database's owner, no row policies
     await tx.query(`select set_config('request.jwt.claim.sub', $1, true), set_config('request.jwt.claim.role', 'authenticated', true), set_config('request.jwt.claims', $2, true), set_config('request.jwt.claim.email', $3, true)`, [user.id, claims(), user.email]);
     await tx.exec(`set local role authenticated`);
     return fn(tx);
@@ -398,6 +404,10 @@ export async function startFakebase({ port = 54329, before, seed, user } = {}) {
     for await (const ch of req) raw += ch;
     let body = null;
     try { body = raw ? JSON.parse(raw) : null; } catch { body = null; }
+    if (serviceKey && headers.apikey === serviceKey) return service.run(true, () => handle(req, res, u, headers, body));
+    return handle(req, res, u, headers, body);
+  });
+  const handle = async (req, res, u, headers, body) => {
     const call = { method: req.method, path: u.pathname, query: u.search, at: Date.now() };
     calls.push(call);
     try {
@@ -444,7 +454,7 @@ export async function startFakebase({ port = 54329, before, seed, user } = {}) {
       failures.push({ method: req.method, path: u.pathname, query: decodeURIComponent(u.search).slice(0, 300), status: err.status, code: err.code, message: String(err.message).slice(0, 300) });
       return send(res, err.status, { code: err.code, message: err.message, details: err.details ?? null, hint: err.hint ?? null });
     }
-  });
+  };
   await new Promise((r) => server.listen(port, "127.0.0.1", r));
   return {
     url: `http://127.0.0.1:${port}`, db, failures, calls,
