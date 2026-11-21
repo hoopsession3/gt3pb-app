@@ -46,7 +46,7 @@
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.4",
     "@supabase/supabase-js": "^2.108.2",
-    "next": "^16.4.2",
+    "next": "^16.4.5",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -64,7 +64,7 @@
     "@types/react-dom": "^19",
     "axe-core": "^4.13.0",
     "eslint": "^9",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "16.4.5",
     "happy-dom": "21.0.4",
     "playwright": "^1.56.0",
     "postcss": "^8.5.18",
