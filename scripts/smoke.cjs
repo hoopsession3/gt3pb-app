@@ -1364,15 +1364,23 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
   const lb = (latte && CB[latte.key]) ?? {};
   // 2026-11-20 (Ryan, from Kayla's corrected card): a single mix (10.5 fl oz) and a large batch (127 fl oz), each labelled
   // with its real yield; the bottle fill ("about 9 fl oz") said apart from the yield; the syrup by its base ratio.
-  ok("cookbook: the Salted Maple Latte's build — single mix 7 / 2 / 3 tbsp (1.5 fl oz) = 10.5 fl oz; large batch 85 / 24 / 18 = 127 fl oz; the fill apart from the yield",
-    /^Single mix — makes 10\.5 fl oz: 7 fl oz DUSK cold brew, 2 fl oz A2 goat milk, 3 tbsp \(1\.5 fl oz\) Salted Maple Syrup\. Large batch — makes 127 fl oz: 85 fl oz DUSK cold brew, 24 fl oz A2 goat milk, 18 fl oz syrup\. Fill: about 9 fl oz per bottle/.test(lb.batch ?? "")
-    && 7 + 2 + 1.5 === 10.5 && 85 + 24 + 18 === 127
-    && (lb.brew ?? []).some((x) => /^Single mix: 7 fl oz DUSK cold brew, 2 fl oz A2 goat milk, 3 tbsp \(1\.5 fl oz\) syrup — 10\.5 fl oz\. Large batch: 85 fl oz, 24 fl oz, 18 fl oz — 127 fl oz\.$/.test(x)), JSON.stringify(lb.batch));
+  // 0476 (2026-11-20, Ryan): the amounts are the source — the batch line, the build step and the fix are written from them
+  // (lib/recipeEdit resolveRecipe), each formula specified on its own: single 7 / 2 / 1.5, large 85 / 24 / 18 fl oz.
+  const RE = require("../.smoke/recipeEdit.js");
+  const rlb = RE.resolveRecipe(lb);
+  const amt = Object.fromEntries((lb.amounts ?? []).map((a) => [a.item, [a.single, a.large, a.unit]]));
+  ok("cookbook: the Salted Maple Latte's formulas — single mix 7 / 2 / 1.5 fl oz = 10.5 fl oz; large batch 85 / 24 / 18 fl oz = 127 fl oz; the fill apart from the yield",
+    JSON.stringify(amt) === JSON.stringify({ "DUSK cold brew": [7, 85, "fl oz"], "A2 goat milk": [2, 24, "fl oz"], "Salted Maple Syrup": [1.5, 18, "fl oz"] })
+    && rlb.batch === "Single mix — makes 10.5 fl oz: 7 fl oz DUSK cold brew, 2 fl oz A2 goat milk, 1.5 fl oz (3 tbsp) Salted Maple Syrup. Large batch — makes 127 fl oz: 85 fl oz DUSK cold brew, 24 fl oz A2 goat milk, 18 fl oz Salted Maple Syrup. Fill: about 9 fl oz per bottle — the yield and the fill are separate; count bottles from the fill. No extra sea salt in the latte."
+    && (rlb.brew ?? []).includes("Single mix: 7 fl oz DUSK cold brew, 2 fl oz A2 goat milk, 1.5 fl oz (3 tbsp) Salted Maple Syrup — makes 10.5 fl oz. Large batch: 85 fl oz DUSK cold brew, 24 fl oz A2 goat milk, 18 fl oz Salted Maple Syrup — makes 127 fl oz.")
+    && !(lb.brew ?? []).some((x) => /\d\s*fl oz DUSK/.test(x)) && !lb.batch,
+    { batch: rlb.batch, brew: rlb.brew });
   ok("cookbook: the Salted Maple Syrup is in it, by the card — 18 fl oz maple and 1¾ tsp sea salt (base ratio 1 tbsp per 32 fl oz), warmed low, stirred to dissolve, watched so it does not bubble over, off the heat when it starts to bubble, cooled and stored in glass",
     (lb.brew ?? []).length >= 8 && /^Syrup: 18 fl oz organic maple syrup and 1¾ tsp sea salt \(a rounded kitchen measure of the base ratio, 1 tbsp sea salt per 32 fl oz organic maple syrup\)\.$/.test(lb.brew[0])
     && lb.brew[1] === "Warm the maple syrup in a pan on low heat." && lb.brew[2] === "Stir in the sea salt until it dissolves."
     && lb.brew[3] === "Watch the pan so it doesn't bubble over." && lb.brew[4] === "Take it off the heat when it starts to bubble."
     && lb.brew[5] === "Let it cool, then store it in glass." && /shake or stir before each use/.test(lb.storage ?? ""));
+  ok("cookbook: the troubleshooting fix names the syrup amounts from the table, not typed again", /1\.5 fl oz \(3 tbsp\) syrup per single mix, 18 fl oz per large batch/.test(rlb.troubleshoot?.[0]?.fix ?? "") && /\{\{single:Salted Maple Syrup\}\}/.test(lb.troubleshoot?.[0]?.fix ?? ""));
   ok("cookbook: the latte adds no salt of its own — all of it is in the syrup (it said \"add … pinch of salt\" and \"add the salt pinch to balance\")",
     !(lb.brew ?? []).some((x) => /pinch of salt/i.test(x)) && (lb.brew ?? []).some((x) => /No extra salt — it's all in the syrup/.test(x))
     && !/salt pinch/.test(JSON.stringify(lb.troubleshoot ?? [])) && !lb.weighs);
@@ -4465,8 +4473,8 @@ ok("no status = not active", PL.planActive({ plan: "pro", billing_status: null, 
     cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length >= 2,
     cookbooks.filter((cb) => /\bweighs:\s*true\b/.test(cb)).length);
   ok("cookbooks: the page shows the band from the FLAG and never from the prose",
-    /\bcb\.weighs\s*&&/.test(read("app/academy/page.tsx"))   // IP0: the panel reads the served cookbook as `cb`
-    && !WEIGH_WORDS.test((read("app/academy/page.tsx").match(/\bcb\.brew\.(?:some|filter|find)\([\s\S]{0,200}/) ?? [""])[0]));
+    /\bcb\.weighs\s*&&/.test(read("components/CookbookPanel.tsx"))   // IP0: the panel reads the served cookbook as `cb` (0476: its own file, loaded with a product)
+    && !WEIGH_WORDS.test((read("components/CookbookPanel.tsx").match(/\bcb\.brew\.(?:some|filter|find)\([\s\S]{0,200}/) ?? [""])[0]));
   ok("measuring: a fluid ounce is a volume and a 10 oz bottle a size — neither calls for the scale band; \"12 oz\" and \"ounces\" of beans still do",
     !WEIGH_WORDS.test('"Into a 10 oz bottle: 6.5 fl oz DUSK cold brew, 2 fl oz goat milk", "8 × 10 oz bottles"')
     && WEIGH_WORDS.test('"12 oz beans"') && WEIGH_WORDS.test('"ounces of beans"') && !WEIGH_WORDS.test('"2 fluid ounces"'));
@@ -16310,3 +16318,46 @@ Promise.all(PENDING).then(() => {
   console.log(`Sample — trailer: ${tS.usedCuft}/${tS.usableCuft} cu ft (${tS.cuftLevel}); vehicle: ${vS.usedCuft}/${vS.usableCuft} cu ft (${vS.cuftLevel})`);
   process.exit(fail ? 1 : 0);
 });
+// ── 0476 · THE RECIPE EDITOR, THE PURE HALF (lib/recipeEdit) ─────────────────────────────────────────────────────────
+{
+  const R = require("../.smoke/recipeEdit.js");
+  const CB = require("../.smoke/academyCookbook.js").COOKBOOK;
+  const sm = CB.salted_maple;
+  const y = R.yields(sm.amounts);
+  ok("recipe: the Salted Maple amounts add up to the card: 10.5 fl oz single mix, 127 fl oz large batch", y.single === 10.5 && y.large === 127, y);
+  ok("recipe: 3 tbsp is 1.5 fl oz — units convert (tbsp ½, tsp ⅙, cup 8)", R.yields([{ item: "a", single: 3, large: 1, unit: "tbsp" }, { item: "b", single: 6, large: 1, unit: "tsp" }, { item: "c", single: 1, large: null, unit: "cup" }]).single === 10.5);
+  ok("recipe: the bottle fill is kept apart from the yield", /9 fl oz/.test(sm.fill) && !/9 fl oz/.test(R.flOz(y.single)));
+  ok("recipe: the single mix and the large batch are separate formulas — the approved 85 fl oz batch raises no scaling warning", R.warnings(sm).length === 0 && sm.amounts[0].large === 85 && R.proportionNotes === undefined, R.warnings(sm));
+  const edited = { ...sm, amounts: sm.amounts.map((a) => (a.item.startsWith("DUSK") ? { ...a, single: 8 } : a)), aliases: ["Nino's"] };
+  const ch = R.changes(sm, edited);
+  ok("recipe: what changed names the amount, the yield it moves, and the alias", ch.some((c) => /Amount · DUSK/.test(c.field) && /^7 /.test(c.before) && /^8 /.test(c.after))
+    && ch.some((c) => c.field === "Yield · single mix" && c.before === "10.5 fl oz" && c.after === "11.5 fl oz") && ch.some((c) => c.field === "Also called"), ch);
+  ok("recipe: a hand-written batch line (no amounts table) whose yield is off is flagged", R.warnings({ batch: "Single mix — makes 10.5 fl oz", amounts: [] }).length === 0
+    && R.warnings({ batch: "makes 12 fl oz", amounts: undefined }).length === 0);
+  // The amounts are the source: edit one and the table, the batch line, the build step and the yield move together.
+  const er = R.resolveRecipe(edited);
+  ok("recipe: an edited amount reaches the batch line and the build step, and the yield with it", /8 fl oz DUSK cold brew/.test(er.batch) && /makes 11\.5 fl oz/.test(er.batch)
+    && er.brew.some((x) => /^Single mix: 8 fl oz DUSK cold brew.*makes 11\.5 fl oz\. Large batch: 85 fl oz DUSK/.test(x)) && !er.brew.some((x) => /\{\{/.test(x)), er.brew);
+  ok("recipe: a step that types a table amount by hand is caught; the syrup's own preparation is not", R.repeatedQuantities({ ...sm, brew: [...sm.brew, "Add 2 fl oz A2 goat milk."] }).length === 1
+    && R.repeatedQuantities(sm).length === 0);
+  ok("recipe: every structured recipe in the cookbook takes its quantities from its amounts (none typed twice)", Object.values(CB).every((b) => R.quantityReport(b).repeated === 0));
+  ok("recipe: an amount names itself in tablespoons only when it is a small half-ounce measure", R.amountText(1.5, "fl oz") === "1.5 fl oz (3 tbsp)" && R.amountText(2, "fl oz") === "2 fl oz" && R.amountText(18, "fl oz") === "18 fl oz");
+  // The answer first, from the table — the published version, or the built-in one (2026-11-21).
+  const ga = R.ingredientAnswer("How much goat milk goes in the Salted Maple Latte?", sm);
+  ok("recipe: an ingredient's amount is answered first, from the table — \"2 fl oz for one mix, or 24 fl oz for the large batch.\"", ga?.lead === "2 fl oz for one mix, or 24 fl oz for the large batch." && ga?.item === "A2 goat milk", ga);
+  ok("recipe: …the syrup, with its spoon measure; a question that isn't one ingredient's amount isn't answered from the table",
+    R.ingredientAnswer("how much salted maple syrup per mix?", sm)?.lead === "1.5 fl oz (3 tbsp) for one mix, or 18 fl oz for the large batch."
+    && R.ingredientAnswer("How do I make a Salted Maple Latte?", sm) === null && R.ingredientAnswer("how much does it cost?", sm) === null);
+  ok("recipe: …and follows an edited table (a test fixture value, never the recipe)", R.ingredientAnswer("how much goat milk?", { ...sm, amounts: sm.amounts.map((a) => (a.item === "A2 goat milk" ? { ...a, single: 2.5 } : a)) })?.lead === "2.5 fl oz for one mix, or 24 fl oz for the large batch.");
+  ok("recipe: the main screens say \"Current recipe\"; version and publication details are the History's", R.CURRENT === "Current recipe");
+  ok("recipe: only an owner or an admin is worded as a publisher", R.canPublishRecipes({ role: "owner" }) && R.canPublishRecipes({ role: "admin" }) && !R.canPublishRecipes({ role: "operator" }) && !R.canPublishRecipes(null));
+  ok("recipe: nothing changed is nothing listed", R.changes(sm, sm).length === 0);
+  ok("recipe: an empty recipe and a bad number are refused", R.problems({}).length === 1 && R.problems({ amounts: [{ item: "x", single: -1, large: null, unit: "fl oz" }] }).length === 1);
+  const book = { salted_maple: { ...sm, aliases: ["Nino's"] }, rise: {} };
+  const names = { salted_maple: "Salted Maple Latte", rise: "Rise" };
+  ok("recipe: a question finds its recipe by name, by alias, possessive or not", R.matchRecipe("how much syrup in the salted maple latte?", book, names) === "salted_maple"
+    && R.matchRecipe("what's in a Nino's", book, names) === "salted_maple" && R.matchRecipe("how do I make a nino", book, names) === "salted_maple" && R.matchRecipe("hello", book, names) === null);
+  ok("recipe: a recipe question with nothing on file still counts as one (Create recipe draft)", R.isRecipeAsk("what's the recipe for pumpkin foam?") && !R.isRecipeAsk("when is the market?"));
+  ok("recipe: the version line says built-in until something is published, then the number, date and publisher", /Built-in/.test(R.sourceLine(undefined))
+    && /^Published v2 · Nov 20, 2026 · by Ryan$/.test(R.sourceLine({ source: "published", id: "x", version: 2, publishedAt: "2026-11-20T18:00:00Z", publishedBy: "Ryan" })));
+}

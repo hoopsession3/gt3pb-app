@@ -484,3 +484,6 @@ html[data-build="app"] :is(.app:has(>.bcast),[data-hold-bcast] .app:has(>.hold-s
 .app:is(.rd-t1,.rd-t2,.rd-t3,.rd-t4,.rd-t5,.rd-t6) :is(.sheet2-ask-card,.cmdk)>*{zoom:var(--rd-z)}
 .app:is(.rd-t1,.rd-t2,.rd-t3,.rd-t4,.rd-t5,.rd-t6) :is(.offline-bar,.bcast>*){zoom:var(--rd-bar-z)}
 .qd-body>*{zoom:var(--rd-root-z,1)}
+
+/* Ask GT3's buttons under a recipe answer (0476). The recipe sheet's own styles load with it: components/RecipeEditor.css. */
+.oa-recipe{display:flex;gap:8px;flex-wrap:wrap;align-self:flex-start;margin:-2px 0 4px}

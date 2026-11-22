@@ -9349,6 +9349,72 @@ export type Database = {
           },
         ]
       }
+      recipe_versions: {
+        Row: {
+          id: string
+          tenant_id: string
+          product_key: string
+          status: string
+          body: Json
+          note: string | null
+          based_on: string | null
+          created_by: string
+          created_at: string
+          submitted_at: string | null
+          decided_by: string | null
+          decided_at: string | null
+          published_at: string | null
+          version_no: number | null
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string
+          product_key: string
+          status?: string
+          body: Json
+          note?: string | null
+          based_on?: string | null
+          created_by?: string
+          created_at?: string
+          submitted_at?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
+          published_at?: string | null
+          version_no?: number | null
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          product_key?: string
+          status?: string
+          body?: Json
+          note?: string | null
+          based_on?: string | null
+          created_by?: string
+          created_at?: string
+          submitted_at?: string | null
+          decided_by?: string | null
+          decided_at?: string | null
+          published_at?: string | null
+          version_no?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_versions_based_on_fkey"
+            columns: ["based_on"]
+            isOneToOne: false
+            referencedRelation: "recipe_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipe_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       referral_events: {
         Row: {
           id: string

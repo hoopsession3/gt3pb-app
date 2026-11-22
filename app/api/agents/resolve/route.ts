@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, tenantFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
-import { academyKnowledge } from "@/lib/operatorKb";
+import { publishedKnowledge } from "@/lib/recipeKnowledge";
 import { claimSafeDeep } from "@/lib/claimGuard";
 import { route } from "@/lib/apiRoute";
 import { errorMessage } from "@/lib/errorMessage";
@@ -58,7 +58,7 @@ async function post(req: Request) {
 Be brief and practical. NEVER invent facts (no nutrition/health claims, no made-up stock). If our data doesn't cover it, say what's still needed. Always answer with propose_completion.
 
 === GT3 KNOWLEDGE ===
-${academyKnowledge()}
+${(await publishedKnowledge(tenant))}
 
 === INVENTORY ON HAND ===
 ${inv || "(none loaded)"}

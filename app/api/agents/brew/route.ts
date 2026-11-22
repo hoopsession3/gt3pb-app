@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { staffFromRequest, tenantFromRequest, userFromRequest } from "@/lib/apiAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { callClaude, anthropicEnabled, MODELS, type ToolDef } from "@/lib/anthropic";
-import { academyKnowledge } from "@/lib/operatorKb";
+import { publishedKnowledge } from "@/lib/recipeKnowledge";
 import { MEASURING_RULES } from "@/lib/agentKnowledge";
 import { SERVE_OZ, OZ_PER_GAL, scaleIngredients } from "@/lib/brewMath";
 import { claimSafeDeep } from "@/lib/claimGuard";
@@ -192,7 +192,7 @@ async function post(req: Request) {
         // surfaces teach a new operator two different procedures. The dual-unit figures and the
         // scale band are rendered around these steps by CookNeedList; the steps must agree.
         MEASURING_RULES + "\n\n=== GT3 SOPs / COOKBOOK ===\n" +
-        academyKnowledge().slice(0, 6000),
+        (await publishedKnowledge(tenant)).slice(0, 6000),
       messages: [{ role: "user", content: `Plan this brew batch.\n\n${JSON.stringify(fmt)}` }],
       tools: [TOOL],
       tool_choice: { type: "tool", name: "brew_plan" },

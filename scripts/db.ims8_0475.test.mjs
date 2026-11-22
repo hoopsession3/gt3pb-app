@@ -74,7 +74,10 @@ ok("the audit's count of callable privileged functions is unchanged by 0475 (the
 // ── the production gate with 0475 applied and 0474 held ───────────────────────────────────────────────────────────
 const files = migrationFiles();
 const seqs = (await ledger(db)).map((v) => Number(v.slice(0, 4)));
-const gateHeld = pendingFrom(files, seqs.length, Math.max(...seqs), [474], seqs);
+// Every migration held on purpose (supabase/held.json) — 0474, and any written since (0476, the recipe editor) — is named,
+// not counted as forgotten. The list is read, not written out here, so a new held migration doesn't fail this gate.
+const HELD = JSON.parse(readFileSync(new URL("../supabase/held.json", import.meta.url), "utf8")).held.map((h) => Number(h.file.slice(0, 4)));
+const gateHeld = pendingFrom(files, seqs.length, Math.max(...seqs), HELD, seqs);
 ok("the production gate, with 0474 held and 0475 applied: clean — the gap below 0475 is the named held migration, not a forgotten one", gateHeld.status === "clean", gateHeld);
 const gateUnheld = pendingFrom(files, seqs.length, Math.max(...seqs), [], seqs);
 ok("…and if 0474 were NOT named held, the gate would refuse (a gap), so holding it is what keeps the gate honest", gateUnheld.status === "gap", gateUnheld.status);
