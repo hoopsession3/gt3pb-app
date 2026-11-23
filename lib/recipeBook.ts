@@ -26,7 +26,7 @@ export async function publishedBook(tenant: string = DEFAULT_TENANT): Promise<Pu
   if (!supabaseAdmin) return { cookbook, sources, publishers, people };
   try {
     const db = supabaseAdmin;
-    // arrives-with: 0476  — until it is applied the select errors and the built-in cookbook stands (rows = [] on error).
+    // 0476 is applied (2026-11-23). If the read errors (a database without it, or a failure), the built-in cookbook stands.
     const { data, error } = await db.from("recipe_versions").select("id, product_key, body, version_no, published_at, decided_by")
       .eq("tenant_id", tenant).eq("status", "published");
     const rows = (error ? [] : (data ?? [])) as unknown as Row[];
@@ -39,7 +39,7 @@ export async function publishedBook(tenant: string = DEFAULT_TENANT): Promise<Pu
       cookbook[r.product_key] = r.body;
       sources[r.product_key] = { source: "published", id: r.id, version: r.version_no, publishedAt: r.published_at, publishedBy: r.decided_by ? names.get(r.decided_by) ?? null : null };
     }
-  } catch { /* the table isn't there yet (0476 held), or the read failed: the built-in cookbook stands */ }
+  } catch { /* the table isn't there (a database without 0476), or the read failed: the built-in cookbook stands */ }
   return { cookbook, sources, publishers, people };
 }
 
