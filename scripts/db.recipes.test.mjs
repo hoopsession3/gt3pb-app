@@ -86,5 +86,12 @@ ok("the guard is a trigger the API can't call (EXECUTE revoked), and pins its se
 ok("…the callable SECURITY DEFINER count is the approved 140", callable.n === 140, callable);
 ok("the policies wrap their helpers (asked once a query)", (await q(`select count(*)::int n from pg_policies where tablename = 'recipe_versions' and (qual ~ '(?<!SELECT )is_staff\\(\\)' or qual ~ '(?<!SELECT )is_admin\\(\\)')`))[0].n === 0);
 
+// 0477: the API role keeps select, insert, update and delete — no TRUNCATE (it skips row-level security), TRIGGER or REFERENCES.
+const priv = async (role, p) => (await q1(`select has_table_privilege($1, 'public.recipe_versions', $2) x`, [role, p])).x;
+ok("0477: signed in, the table can be read and written row by row, never truncated, triggered or referenced",
+  (await priv("authenticated", "SELECT")) && (await priv("authenticated", "INSERT")) && (await priv("authenticated", "UPDATE")) && (await priv("authenticated", "DELETE"))
+  && !(await priv("authenticated", "TRUNCATE")) && !(await priv("authenticated", "TRIGGER")) && !(await priv("authenticated", "REFERENCES")));
+ok("0477: signed out, nothing at all", !(await priv("anon", "SELECT")) && !(await priv("anon", "TRUNCATE")));
+
 console.log(`0476 — RECIPES ARE KEPT IN THE APP (in Postgres): ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
