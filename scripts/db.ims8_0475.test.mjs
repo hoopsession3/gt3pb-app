@@ -72,10 +72,12 @@ ok("…signed out: refused (no grant)", after.signedOut.code === "42501", after.
 ok("the audit's count of callable privileged functions is unchanged by 0475 (the audit still says 140 > 127 in production)", (await definers(db)) === count0473, { before: count0473, after: await definers(db) });
 
 // ── the production gate with 0475 applied and 0474 held ───────────────────────────────────────────────────────────
-const files = migrationFiles();
+// The directory as it stood when this replay's production did (nothing above 0475): a migration written later (0476,
+// 0477 — applied in production since, 2026-11-23) is not part of the state this replay models.
+const files = migrationFiles().filter((m) => m.seq <= 475);
 const seqs = (await ledger(db)).map((v) => Number(v.slice(0, 4)));
-// Every migration held on purpose (supabase/held.json) — 0474, and any written since (0476, the recipe editor) — is named,
-// not counted as forgotten. The list is read, not written out here, so a new held migration doesn't fail this gate.
+// Every migration held on purpose (supabase/held.json) — 0474 — is named, not counted as forgotten. The list is read,
+// not written out here, so a change to the held list is what this gate sees.
 const HELD = JSON.parse(readFileSync(new URL("../supabase/held.json", import.meta.url), "utf8")).held.map((h) => Number(h.file.slice(0, 4)));
 const gateHeld = pendingFrom(files, seqs.length, Math.max(...seqs), HELD, seqs);
 ok("the production gate, with 0474 held and 0475 applied: clean — the gap below 0475 is the named held migration, not a forgotten one", gateHeld.status === "clean", gateHeld);
