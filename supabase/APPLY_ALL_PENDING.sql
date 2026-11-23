@@ -22,7 +22,6 @@
 -- pending-count: 0
 -- ledger-read-from: https://app.gt3pb.com/api/migrations
 -- held: 0474_a_customer_book_is_the_owners_and_a_wrong_link_is_counted.sql — NOT in this file; applied by hand once the condition in its header is met
--- held: 0477_recipe_versions_api_writes_only.sql — NOT in this file; applied by hand once the condition in its header is met
 -- Nothing is pending but the held migration(s) named above, which are applied by hand, each on its own yes.
 -- This file is kept (rather than deleted) so the command that regenerates it stays in one
 -- place and the gate in drift.check.mjs has something to read.
