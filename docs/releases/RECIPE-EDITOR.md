@@ -142,3 +142,25 @@ A smoke check now holds every structured recipe to zero hand-typed repeats.
 
 - **Kayla's path on her phone:** Production → Brew → Drink recipes → Salted Maple Latte → **Edit recipe** → change the
   amount → **Review changes** → **Publish now**. (Or from an Ask GT3 answer: **Edit recipe** → … the same.)
+
+## 2026-11-23 — in production (0476 and 0477 applied and verified)
+
+- **0476 applied** once, 02:44:12 UTC, in a single guarded transaction (pre-checks and the migration, then `COMMIT`).
+  - Post-checks: the ledger reads 476 (0476 once, 0474 absent); RLS is on; 5 policies; 0 rows; the guard is a definer that
+    neither `anon` nor `authenticated` can execute; 140 callable definers; the policies match the migration; the trigger
+    is enabled, before update, for each row.
+  - One finding: `authenticated` also held TRUNCATE, TRIGGER and REFERENCES from the platform's default privileges.
+- **0477 applied** once, 14:00:40 UTC, in a single guarded transaction: pre-checks, the revoke, the ledger row, and
+  post-checks before `COMMIT` (in-editor sha256 `a70fc3ee…5074`, 3,646 bytes; the migration is byte-identical to main at
+  `4a74087`).
+- **0477 post-checks** (read-only, once each):
+
+  | check | result |
+  |---|---|
+  | ledger | high-water 477; 0477 once; 0476 once; 0474 absent |
+  | effective privileges | `authenticated` DELETE, INSERT, SELECT, UPDATE; `anon` none |
+  | policies | all five identical to the 0476 baseline |
+  | guard trigger | `recipe_versions_guard`, enabled (`O`), type 19, not internal |
+
+- **Held list:** 0476 and 0477 come off `supabase/held.json` in this change; 0474 stays held. Nothing is re-applied.
+- **Still to come, each its own approval:** Kayla's publish-and-restore test on the live Salted Maple Latte.

@@ -37,12 +37,12 @@ type Book = { cookbook: Record<string, RecipeBody>; sources: Record<string, Reci
 type View = "read" | "edit" | "review";
 
 const COLS = "id, status, body, note, based_on, created_by, created_at, submitted_at, decided_by, decided_at, published_at, version_no";
-// arrives-with: 0476  — until it is applied every read and write reports notYet(): the sheet says editing turns on with
-// the update and shows the built-in recipe; nothing reads as empty.
+// 0476 is applied in production (2026-11-23). If the table is ever missing (a database restored from before it), every
+// read and write still reports notYet(): the sheet shows the built-in recipe and says editing is off; nothing reads as empty.
 const table = () => supabase!.from("recipe_versions");
 const asJson = (b: RecipeBody) => b as unknown as Json;
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
-/** The table isn't there yet: 0476 is held, so the app reads the built-in cookbook and editing waits for it. */
+/** The table isn't there (a database without 0476): the app reads the built-in cookbook and editing waits for it. */
 const notYet = (e: { code?: string; message?: string } | null) => !!e && (e.code === "42P01" || e.code === "PGRST205" || /recipe_versions/.test(e.message ?? ""));
 
 async function loadBook(): Promise<Book> {

@@ -5,16 +5,6 @@
       "file": "0474_a_customer_book_is_the_owners_and_a_wrong_link_is_counted.sql",
       "until": "the review-branch app (lib/visionRead { live: false }, ShopOrderRecord's owner/admin customer link, customers_total on Goals) is live and checked in production, and supabase/checks/ims8_0474_prepaste.sql says t on every row",
       "since": "2026-11-03"
-    },
-    {
-      "file": "0476_recipes_are_kept_in_the_app.sql",
-      "until": "Ryan approves the in-app recipe editor (its review PR) and the migration with its own approval; the app code that reads it ships first and falls back to the built-in cookbook while it is held",
-      "since": "2026-11-20"
-    },
-    {
-      "file": "0477_recipe_versions_api_writes_only.sql",
-      "until": "Ryan approves revoking TRUNCATE, TRIGGER and REFERENCES on recipe_versions from authenticated, with its own production apply approval",
-      "since": "2026-11-23"
     }
   ]
 }

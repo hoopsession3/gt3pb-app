@@ -2,9 +2,9 @@
   "$snapshot": {
     "pulled_at": "2026-11-03T02:44:27.770Z",
     "project": "hmpxgomiiyjjxxxyzzbg",
-    "source": "sql fallback (pg_class/pg_attribute) — run on the migrations replayed to 0472, and checked equal to production's own answer (every relation's column set, order-free md5 24a09e1d…, 267 relations) on 2026-11-03",
-    "relations": 267,
-    "columns": 3446
+    "source": "sql fallback (pg_class/pg_attribute) — run on the migrations replayed to 0472, and checked equal to production's own answer (every relation's column set, order-free md5 24a09e1d…, 267 relations) on 2026-11-03; recipe_versions added 2026-11-23 the same way (pg_attribute on the migrations replayed to 0477), after 0476/0477 were applied and post-checked in production — not re-checked against production's own column answer",
+    "relations": 268,
+    "columns": 3460
   },
   "academy_acknowledgements": [
     "user_id",
@@ -2322,6 +2322,22 @@
     "confirmed_on",
     "created_at",
     "updated_at"
+  ],
+  "recipe_versions": [
+    "id",
+    "tenant_id",
+    "product_key",
+    "status",
+    "body",
+    "note",
+    "based_on",
+    "created_by",
+    "created_at",
+    "submitted_at",
+    "decided_by",
+    "decided_at",
+    "published_at",
+    "version_no"
   ],
   "referral_events": [
     "id",
