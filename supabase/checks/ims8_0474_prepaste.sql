@@ -22,7 +22,10 @@ select 'course_status is 0473''s or 0475''s (0475 may go first; 0474 never touch
        exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'course_status' and p.prosecdef
                 and md5(btrim(regexp_replace(p.prosrc, '\s+', ' ', 'g'))) in ('0bcb9496067b7d2030049a734f7e0da4', '4556ee02123875c4c30bceaa16b2b4ae'))
 union all
-select 'ledger: 0473 in, 0474 not (0475 may be in)',
+select 'ledger: 0473 in, 0474 not (0475 may be in; above it only the verified 0476 and 0477)',
        exists (select 1 from public.schema_migrations where version like '0473%')
        and not exists (select 1 from public.schema_migrations where version like '0474%')
-       and not exists (select 1 from public.schema_migrations where version >= '0476');
+       -- 2026-11-24: 0476 and 0477 were applied and verified in production on 2026-11-23 (they never touch what 0474
+       -- changes). Exactly those two names are accepted above 0475; any other row from 0476 up is drift → f.
+       and not exists (select 1 from public.schema_migrations where version >= '0476'
+                        and version not in ('0476_recipes_are_kept_in_the_app', '0477_recipe_versions_api_writes_only'));
